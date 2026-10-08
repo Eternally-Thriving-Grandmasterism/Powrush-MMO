@@ -8,6 +8,8 @@
 //! colorblind_wells → LocalColorblindWells (shape tokens beside B2 word captions).
 //! Comfort Graphics L/M/H → LocalMeshLodFeel (MESH-PERSONA-HANDS + PLACE-LOD; one plate).
 //! No Online socket toggle. LAN off (default) opens nothing; loopback is 127.0.0.1 only.
+//! `hud_preset` in the same `powrush_settings.json` seeds [`crate::hud_presets::ActiveHudPreset`]
+//! at boot. Missing, unreadable, or unknown loads classic. HUD-tab rows save that field.
 //! Cite [`docs/MESH_PERSONA_COURT.md`] · [`docs/PLACE_DRESS_SPEC.md`]
 //! · [`docs/ART_BIBLE.md`] · [`docs/ASSET_BUDGET_COURT.md`] @ `5eff19c`.
 //! Contact: info@Rathor.ai
@@ -17,7 +19,9 @@ use bevy::prelude::*;
 
 use shared::local_settings::{GraphicsPreset, LocalSettings, MeshLod};
 
+use crate::hud_presets::{ActiveHudPreset, HudLayoutCommand, HudPresetId};
 use crate::lived_hour_bind::LivedHourBind;
+use crate::title_screen::{HouseLabel, SettingsHudLayoutBtn, SettingsHudResetBtn};
 
 /// Bevy resource — same fields as shared LocalSettings.
 #[derive(Resource, Debug, Clone, PartialEq)]
@@ -223,8 +227,13 @@ impl Plugin for LocalSettingsPlugin {
             .init_resource::<LocalFeedbackFeel>()
             .init_resource::<LocalColorblindWells>()
             .init_resource::<LocalMeshLodFeel>()
+            .add_event::<HudLayoutCommand>()
             .add_systems(Startup, seed_runtime_from_settings)
             .add_systems(Update, (apply_local_settings_runtime, persist_dirty_settings))
+            .add_systems(
+                Update,
+                hud_preset_row_clicks.before(crate::hud_presets::apply_hud_layout_commands),
+            )
             // Harvest producers stay unchanged; disabled accessibility feel removes their
             // requests before Bevy's next input pass can apply them.
             .add_systems(Last, suppress_disabled_rumble);
@@ -240,6 +249,7 @@ fn seed_runtime_from_settings(
     mut colorblind: ResMut<LocalColorblindWells>,
     mut mesh_lod: ResMut<LocalMeshLodFeel>,
     mut bind: ResMut<LivedHourBind>,
+    mut active: ResMut<ActiveHudPreset>,
 ) {
     *look = LocalLookFeel::from_settings(&settings.inner);
     mute.muted = settings.inner.mute;
@@ -250,6 +260,55 @@ fn seed_runtime_from_settings(
     *mesh_lod = LocalMeshLodFeel::from_settings(&settings.inner);
     // Persist default for Hide slabs — H still works in session after this.
     bind.guidance_hidden = settings.inner.hide_slabs;
+    let id = hud_preset_id(&settings.inner);
+    if active.id != Some(id) {
+        active.id = Some(id);
+    }
+}
+
+pub(crate) fn hud_preset_id(settings: &LocalSettings) -> HudPresetId {
+    match settings.hud_preset.as_str() {
+        "minimal" => HudPresetId::Minimal,
+        "management" => HudPresetId::Management,
+        _ => HudPresetId::Classic,
+    }
+}
+
+fn hud_preset_row_clicks(
+    label: Res<HouseLabel>,
+    mut settings: ResMut<LocalSettingsState>,
+    mut commands: EventWriter<HudLayoutCommand>,
+    layout: Query<&Interaction, (Changed<Interaction>, With<SettingsHudLayoutBtn>)>,
+    reset: Query<
+        &Interaction,
+        (
+            Changed<Interaction>,
+            With<SettingsHudResetBtn>,
+            Without<SettingsHudLayoutBtn>,
+        ),
+    >,
+) {
+    if !label.settings_open {
+        return;
+    }
+    let mut changed = false;
+    for interaction in &layout {
+        if *interaction == Interaction::Pressed {
+            settings.inner.cycle_hud_preset();
+            commands.send(HudLayoutCommand::Apply(hud_preset_id(&settings.inner)));
+            changed = true;
+        }
+    }
+    for interaction in &reset {
+        if *interaction == Interaction::Pressed {
+            settings.inner.reset_hud_preset();
+            commands.send(HudLayoutCommand::Reset);
+            changed = true;
+        }
+    }
+    if changed {
+        settings.mark_and_persist();
+    }
 }
 
 fn apply_local_settings_runtime(
@@ -306,6 +365,9 @@ mod tests {
         local_settings_opens_socket, refuse_online_socket_toggle, DEFAULT_LOOK_SENSITIVITY,
         SETTINGS_PATH,
     };
+
+    use crate::hud_presets::{ActiveHudPreset, HudLayoutCommand, HudPresetId};
+    use crate::title_screen::{SettingsHudLayoutBtn, SettingsHudResetBtn};
 
     #[test]
     fn look_feel_respects_invert_and_sensitivity() {
@@ -444,5 +506,237 @@ mod tests {
         }
         assert!(!local_settings_opens_socket(&s));
         assert!(refuse_online_socket_toggle(true));
+    }
+
+    #[derive(Resource, Default)]
+    struct HudCmdTape(Vec<HudLayoutCommand>);
+
+    fn tape_hud_cmds(mut reader: EventReader<HudLayoutCommand>, mut tape: ResMut<HudCmdTape>) {
+        for command in reader.read() {
+            tape.0.push(*command);
+        }
+    }
+
+    fn open_label() -> crate::title_screen::HouseLabel {
+        crate::title_screen::HouseLabel {
+            house: shared::house_name::HouseName::default(),
+            persist_present: false,
+            hour_two_held: false,
+            book_held: false,
+            settings_open: true,
+            draft: String::new(),
+            naming_offered: false,
+            seals_offered: false,
+        }
+    }
+
+    struct ScratchDir(std::path::PathBuf);
+
+    impl ScratchDir {
+        fn new(tag: &str) -> Self {
+            let dir = std::env::temp_dir().join(format!(
+                "powrush-hud-preset-{tag}-{}-{}",
+                std::process::id(),
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_nanos())
+                    .unwrap_or(0)
+            ));
+            std::fs::create_dir_all(&dir).expect("temp user dir");
+            Self(dir)
+        }
+
+        fn path(&self) -> &std::path::Path {
+            &self.0
+        }
+    }
+
+    impl Drop for ScratchDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn with_user_dir<R>(dir: &std::path::Path, body: impl FnOnce() -> R) -> R {
+        let _guard = crate::test_env::lock();
+        let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, dir);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(body));
+        match &prev {
+            Some(value) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value),
+            None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
+        }
+        match result {
+            Ok(value) => value,
+            Err(payload) => std::panic::resume_unwind(payload),
+        }
+    }
+
+    fn settings_file(dir: &std::path::Path) -> std::path::PathBuf {
+        dir.join(shared::user_persist::persist_file_name(SETTINGS_PATH))
+    }
+
+    fn boot_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(crate::lived_hour_bind::LivedHourBind::default())
+            .insert_resource(open_label())
+            .init_resource::<bevy::input::gamepad::Gamepads>()
+            .add_event::<bevy::input::gamepad::GamepadRumbleRequest>()
+            .add_plugins(LocalSettingsPlugin)
+            .add_plugins(crate::hud_presets::HudLayoutPlugin)
+            .init_resource::<HudCmdTape>()
+            .add_systems(PostUpdate, tape_hud_cmds);
+        app
+    }
+
+    fn take_cmds(app: &mut App) -> Vec<HudLayoutCommand> {
+        std::mem::take(&mut app.world_mut().resource_mut::<HudCmdTape>().0)
+    }
+
+    #[test]
+    fn boot_saved_hud_preset_applies_classic_when_missing_unreadable_or_unknown() {
+        let missing = ScratchDir::new("missing");
+        std::fs::write(missing.path().join("powrush_house.json"), "{}").expect("house");
+        with_user_dir(missing.path(), || {
+            let mut app = boot_app();
+            app.update();
+            assert_eq!(
+                app.world().resource::<ActiveHudPreset>().id,
+                Some(HudPresetId::Classic)
+            );
+            assert_eq!(
+                app.world().resource::<LocalSettingsState>().inner.hud_preset,
+                "classic"
+            );
+        });
+
+        let unread = ScratchDir::new("unread");
+        std::fs::write(unread.path().join("powrush_house.json"), "{}").expect("house");
+        std::fs::write(settings_file(unread.path()), "NOT JSON").expect("bad settings");
+        with_user_dir(unread.path(), || {
+            let mut app = boot_app();
+            app.update();
+            assert_eq!(
+                app.world().resource::<ActiveHudPreset>().id,
+                Some(HudPresetId::Classic)
+            );
+        });
+
+        let unknown = ScratchDir::new("unknown");
+        std::fs::write(
+            settings_file(unknown.path()),
+            r#"{"schema":"powrush_settings_v1","look_sensitivity":1.5,"hud_preset":"birds"}"#,
+        )
+        .expect("unknown settings");
+        with_user_dir(unknown.path(), || {
+            let mut app = boot_app();
+            app.update();
+            assert_eq!(
+                app.world().resource::<LocalSettingsState>().inner.hud_preset,
+                "classic"
+            );
+            assert_eq!(
+                app.world().resource::<ActiveHudPreset>().id,
+                Some(HudPresetId::Classic)
+            );
+            assert!(
+                (app.world().resource::<LocalSettingsState>().inner.look_sensitivity - 1.5).abs()
+                    < f32::EPSILON
+            );
+        });
+
+        let saved = ScratchDir::new("saved");
+        std::fs::write(
+            settings_file(saved.path()),
+            r#"{"schema":"powrush_settings_v1","hud_preset":"management"}"#,
+        )
+        .expect("saved settings");
+        with_user_dir(saved.path(), || {
+            let mut app = boot_app();
+            app.update();
+            assert_eq!(
+                app.world().resource::<ActiveHudPreset>().id,
+                Some(HudPresetId::Management)
+            );
+        });
+    }
+
+    #[test]
+    fn hud_tab_rows_send_layout_commands_and_save() {
+        let dir = ScratchDir::new("rows");
+        let raw = LocalSettings::default().to_json().expect("settings json");
+        std::fs::write(settings_file(dir.path()), raw).expect("write settings");
+        with_user_dir(dir.path(), || {
+            let mut app = boot_app();
+            let layout = app
+                .world_mut()
+                .spawn((ButtonBundle::default(), SettingsHudLayoutBtn))
+                .id();
+            let reset = app
+                .world_mut()
+                .spawn((ButtonBundle::default(), SettingsHudResetBtn))
+                .id();
+            app.update();
+            assert!(take_cmds(&mut app).is_empty());
+            assert_eq!(
+                app.world().resource::<ActiveHudPreset>().id,
+                Some(HudPresetId::Classic)
+            );
+
+            let press = |app: &mut App, entity: Entity| {
+                *app.world_mut().get_mut::<Interaction>(entity).unwrap() = Interaction::Pressed;
+                app.update();
+                *app.world_mut().get_mut::<Interaction>(entity).unwrap() = Interaction::None;
+            };
+            press(&mut app, layout);
+            assert_eq!(take_cmds(&mut app), vec![HudLayoutCommand::Apply(HudPresetId::Minimal)]);
+            assert_eq!(
+                app.world().resource::<ActiveHudPreset>().id,
+                Some(HudPresetId::Minimal)
+            );
+            assert_eq!(
+                LocalSettings::load_or_default().hud_preset,
+                "minimal"
+            );
+
+            press(&mut app, layout);
+            assert_eq!(
+                take_cmds(&mut app),
+                vec![HudLayoutCommand::Apply(HudPresetId::Management)]
+            );
+            assert_eq!(
+                app.world().resource::<ActiveHudPreset>().id,
+                Some(HudPresetId::Management)
+            );
+            assert_eq!(
+                LocalSettings::load_or_default().hud_preset,
+                "management"
+            );
+
+            press(&mut app, layout);
+            assert_eq!(take_cmds(&mut app), vec![HudLayoutCommand::Apply(HudPresetId::Classic)]);
+            assert_eq!(
+                LocalSettings::load_or_default().hud_preset,
+                "classic"
+            );
+
+            press(&mut app, layout);
+            assert_eq!(take_cmds(&mut app), vec![HudLayoutCommand::Apply(HudPresetId::Minimal)]);
+            press(&mut app, reset);
+            assert_eq!(take_cmds(&mut app), vec![HudLayoutCommand::Reset]);
+            assert_eq!(
+                app.world().resource::<ActiveHudPreset>().id,
+                Some(HudPresetId::Classic)
+            );
+            assert_eq!(
+                LocalSettings::load_or_default().hud_preset,
+                "classic"
+            );
+            assert_eq!(
+                app.world().resource::<LocalSettingsState>().inner.hud_preset,
+                "classic"
+            );
+        });
     }
 }

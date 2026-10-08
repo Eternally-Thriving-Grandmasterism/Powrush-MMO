@@ -1,7 +1,9 @@
-//! CARD HUD-PRESETS-APPLY-1 — step 3b of the UI layout epic.
-//!
-//! `HudLayoutPlugin` stays dark while [`ActiveHudPreset`] is `None`. No system
-//! writes `Style` or `Visibility` in that state, so the game matches today.
+//! CARD HUD-PRESETS-UI-1 — step 3c of the UI layout epic.
+//! Step 3b ([`HudLayoutPlugin`]) still skips `Style` writes while
+//! [`ActiveHudPreset`] is `None`. Yield memory still drains in that state, so a
+//! hide cannot leave a slab `Hidden` after the id returns to `None`.
+//! Boot copies `hud_preset` from `powrush_settings.json` and applies it.
+//! Missing, unreadable, or unknown loads `classic`.
 //!
 //! Ruled: Q1, Q2, Q3, Q5, Q6, Q7, Q8, Q9, Q11, Q12, Q19, Q20, and Q22.
 //! Open: Q4, Q10, Q13, Q14, Q15, Q16, Q17, Q18, and Q21.
@@ -1383,8 +1385,8 @@ struct PushEdges {
     journey: bool,
 }
 
-/// Dark until a preset is chosen. Registered last so R3 push runs after the
-/// slabs' own Update toggles.
+/// Dark until a preset is chosen. R3 push uses `.after` on the four panel
+/// toggles. Plugin registration order does not set system order.
 pub struct HudLayoutPlugin;
 
 impl Plugin for HudLayoutPlugin {
@@ -1395,7 +1397,15 @@ impl Plugin for HudLayoutPlugin {
             .add_systems(PreUpdate, restore_yielded_visibility)
             .add_systems(
                 Update,
-                (apply_hud_layout_commands, push_shared_panels).chain(),
+                (
+                    apply_hud_layout_commands,
+                    push_shared_panels
+                        .after(crate::coop_voice::handle_voice)
+                        .after(crate::rbe_allocate_choice::toggle_allocate_panel)
+                        .after(crate::human_soft_panels::toggle_soft_panels)
+                        .after(crate::abundance_journey_echo::toggle_echo_panel),
+                )
+                    .chain(),
             )
             .add_systems(
                 PostUpdate,
@@ -1406,7 +1416,7 @@ impl Plugin for HudLayoutPlugin {
     }
 }
 
-fn apply_hud_layout_commands(
+pub(crate) fn apply_hud_layout_commands(
     mut commands: EventReader<HudLayoutCommand>,
     mut active: ResMut<ActiveHudPreset>,
 ) {
@@ -1426,13 +1436,11 @@ fn apply_hud_layout_commands(
 }
 
 fn restore_yielded_visibility(
-    active: Res<ActiveHudPreset>,
     mut memory: ResMut<HudYieldMemory>,
     mut vis: Query<&mut Visibility>,
 ) {
-    if active.id.is_none() {
-        return;
-    }
+    // Drain when the id is `None` too. A hide stores the slab's own
+    // visibility; skipping the drain strands that slab at Hidden.
     let drained: Vec<(Entity, Visibility)> = memory.own.drain().collect();
     for (entity, own) in drained {
         let Ok(mut current) = vis.get_mut(entity) else {
@@ -1709,8 +1717,13 @@ mod tests {
     use bevy::ui::FocusPolicy;
     use shared::house_name::HouseName;
 
+    use crate::abundance_journey_echo::AbundanceJourneyEcho;
+    use crate::coop_voice::VoiceYard;
     use crate::first_session_guidance::FirstSessionGuidance;
-    use crate::hex_travel::PlacesPlate;
+    use crate::hex_travel::{PlacesPlate, PLACES_PLATE_Z};
+    use crate::ui_above_world::{
+        LivedUiPlate, LIVED_UI_Z_LEDGER, LIVED_UI_Z_PAUSE, LIVED_UI_Z_TITLE,
+    };
     use crate::hud_anchor_registry::{
         coded_joiner, r2_yields_to, HudSlab, ACTION_BAR, ALLOCATE_DOCK, CODED_JOINERS, VOICE,
     };
@@ -3021,6 +3034,25 @@ mod tests {
     fn none_preset_writes_no_style_or_visibility() {
         let mut app = layout_app();
         app.insert_resource(LaunchDoor::Title);
+        app.insert_resource(VoiceYard {
+            sash_open: true,
+            ..default()
+        });
+        let mut allocate = RbeAllocateChoice::default();
+        allocate.panel_open = true;
+        allocate.eligible = true;
+        allocate.choices_made = 4;
+        allocate.surplus_signal = 3.5;
+        app.insert_resource(allocate);
+        app.insert_resource(HumanSoftPanels {
+            mercy_open: true,
+            realm_open: true,
+        });
+        let mut journey = AbundanceJourneyEcho::default();
+        journey.panel_open = true;
+        journey.last_choices_seen = 7;
+        journey.dirty = true;
+        app.insert_resource(journey);
         let sentinel = sentinel_style();
         let pulse = app
             .world_mut()
@@ -3065,6 +3097,20 @@ mod tests {
         assert!(!tape.any_style);
         assert!(!tape.any_vis);
         assert!(app.world().resource::<ActiveHudPreset>().id.is_none());
+        let voice = app.world().resource::<VoiceYard>();
+        assert!(voice.sash_open);
+        let allocate = app.world().resource::<RbeAllocateChoice>();
+        assert!(allocate.panel_open);
+        assert!(allocate.eligible);
+        assert_eq!(allocate.choices_made, 4);
+        assert!((allocate.surplus_signal - 3.5).abs() < f32::EPSILON);
+        let soft = app.world().resource::<HumanSoftPanels>();
+        assert!(soft.mercy_open);
+        assert!(soft.realm_open);
+        let journey = app.world().resource::<AbundanceJourneyEcho>();
+        assert!(journey.panel_open);
+        assert_eq!(journey.last_choices_seen, 7);
+        assert!(journey.dirty);
     }
 
     #[derive(Component)]
@@ -3167,205 +3213,186 @@ mod tests {
         }
     }
 
-    fn keep_style(app: &mut App, style: Style) -> (Entity, Style) {
-        let entity = app
+    fn fixed_style_rows(app: &mut App) -> Vec<(Entity, Style)> {
+        let mut query = app
             .world_mut()
-            .spawn(NodeBundle {
-                style: style.clone(),
-                ..default()
-            })
-            .id();
-        (entity, style)
+            .query_filtered::<(Entity, &Style), Without<HudSlab>>();
+        let mut rows: Vec<(Entity, Style)> = query
+            .iter(app.world())
+            .map(|(entity, style)| (entity, style.clone()))
+            .collect();
+        rows.sort_by_key(|(entity, _)| entity.index());
+        rows
+    }
+
+    fn global_z(z: Option<&ZIndex>, want: i32) -> bool {
+        matches!(z, Some(ZIndex::Global(n)) if *n == want)
+    }
+
+    /// Rows 1–7, 11, 20–25, and 33, located on the entities the real spawn
+    /// systems created. The match is a locator, not a copied `Style`.
+    fn assert_real_fixed_rows_spawned(app: &mut App) {
+        let mut query = app.world_mut().query_filtered::<(
+            &Style,
+            Option<&ZIndex>,
+        ), Without<HudSlab>>();
+        let rows: Vec<(Style, Option<ZIndex>)> = query
+            .iter(app.world())
+            .map(|(style, z)| (style.clone(), z.copied()))
+            .collect();
+        let hit = |pred: &dyn Fn(&Style, Option<ZIndex>) -> bool, name: &str| {
+            assert!(
+                rows.iter().any(|(style, z)| pred(style, *z)),
+                "real fixed row missing: {name}"
+            );
+        };
+        hit(
+            &|style, z| {
+                style.width == Val::Percent(100.0)
+                    && style.height == Val::Percent(100.0)
+                    && style.padding == UiRect::all(Val::Px(TITLE_SAFE_INSET))
+                    && global_z(z.as_ref(), LIVED_UI_Z_TITLE)
+            },
+            "title",
+        );
+        hit(
+            &|style, z| {
+                style.top == Val::Px(10.0)
+                    && style.width == Val::Px(520.0)
+                    && style.margin.left == Val::Px(-260.0)
+                    && global_z(z.as_ref(), LIVED_UI_Z_PAUSE + 1)
+            },
+            "comfort banner",
+        );
+        hit(
+            &|style, z| {
+                style.top == Val::Percent(1.0)
+                    && style.width == Val::Px(420.0)
+                    && style.margin.left == Val::Px(-210.0)
+                    && global_z(z.as_ref(), LIVED_UI_Z_PAUSE)
+            },
+            "settings",
+        );
+        hit(
+            &|style, z| {
+                style.width == Val::Percent(100.0)
+                    && style.height == Val::Percent(100.0)
+                    && global_z(z.as_ref(), 140)
+            },
+            "name house",
+        );
+        hit(
+            &|style, z| {
+                style.width == Val::Percent(100.0)
+                    && style.height == Val::Percent(100.0)
+                    && global_z(z.as_ref(), 141)
+            },
+            "house dress",
+        );
+        hit(
+            &|style, z| {
+                style.width == Val::Percent(100.0)
+                    && style.height == Val::Percent(100.0)
+                    && global_z(z.as_ref(), 142)
+            },
+            "persona",
+        );
+        hit(
+            &|style, z| {
+                style.top == Val::Percent(18.0)
+                    && style.width == Val::Px(400.0)
+                    && style.margin.left == Val::Px(-200.0)
+                    && global_z(z.as_ref(), PLACES_PLATE_Z)
+            },
+            "places",
+        );
+        hit(
+            &|style, z| {
+                style.bottom == Val::Px(16.0)
+                    && style.left == Val::Px(16.0)
+                    && style.width == Val::Px(560.0)
+                    && global_z(z.as_ref(), LIVED_UI_Z_LEDGER)
+            },
+            "ledger",
+        );
+        hit(
+            &|style, z| {
+                style.width == Val::Percent(100.0)
+                    && style.height == Val::Percent(100.0)
+                    && style.padding == UiRect::DEFAULT
+                    && global_z(z.as_ref(), LIVED_UI_Z_LEDGER - 1)
+            },
+            "touch overlay",
+        );
+        hit(
+            &|style, _| {
+                style.left == Val::Px(24.0)
+                    && style.bottom == Val::Px(24.0)
+                    && style.width == Val::Px(120.0)
+                    && style.height == Val::Px(120.0)
+            },
+            "touch stick",
+        );
+        hit(
+            &|style, _| {
+                style.right == Val::Px(28.0)
+                    && style.bottom == Val::Px(36.0)
+                    && style.width == Val::Px(TOUCH_HIT_MIN)
+                    && style.height == Val::Px(TOUCH_HIT_MIN)
+            },
+            "touch use",
+        );
+        hit(
+            &|style, _| {
+                style.right == Val::Px(24.0)
+                    && style.top == Val::Px(24.0)
+                    && style.width == Val::Px(TOUCH_HIT_MIN)
+            },
+            "touch pause",
+        );
+        hit(
+            &|style, _| {
+                style.right == Val::Px(24.0)
+                    && style.top == Val::Px(24.0 + TOUCH_HIT_MIN + 8.0)
+                    && style.width == Val::Px(TOUCH_HIT_MIN)
+            },
+            "touch q",
+        );
+        hit(
+            &|style, _| {
+                style.right == Val::Px(24.0)
+                    && style.top == Val::Px(24.0 + 2.0 * (TOUCH_HIT_MIN + 8.0))
+                    && style.width == Val::Px(TOUCH_HIT_MIN)
+            },
+            "touch l",
+        );
+        hit(
+            &|style, z| {
+                style.bottom == Val::Percent(22.0)
+                    && style.left == Val::Px(16.0)
+                    && style.width == Val::Px(300.0)
+                    && global_z(z.as_ref(), LIVED_UI_Z_LEDGER)
+            },
+            "satchel",
+        );
+        let plates = {
+            let mut plates = app.world_mut().query::<&LivedUiPlate>();
+            plates.iter(app.world()).count()
+        };
+        assert!(plates >= 10, "real LivedUiPlate roots, counted {plates}");
     }
 
     #[test]
     fn t7_fixed_rows_keep_coded_style() {
         let mut app = layout_app();
-        let mut fixed = Vec::new();
-        fixed.push(keep_style(
-            &mut app,
-            Style {
-                position_type: PositionType::Absolute,
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(14.0),
-                padding: UiRect::all(Val::Px(TITLE_SAFE_INSET)),
-                ..default()
-            },
+        app.add_plugins((
+            crate::title_screen::TitleScreenPlugin,
+            crate::hex_travel::HexTravelPlugin,
+            crate::ledger_bind::LedgerBindPlugin,
+            crate::touch_controls::TouchControlsPlugin,
+            crate::human_inventory::HumanInventoryPlugin,
         ));
-        fixed.push(keep_style(
-            &mut app,
-            Style {
-                position_type: PositionType::Absolute,
-                top: Val::Px(10.0),
-                left: Val::Percent(50.0),
-                width: Val::Px(520.0),
-                margin: UiRect {
-                    left: Val::Px(-260.0),
-                    ..default()
-                },
-                padding: UiRect::axes(Val::Px(12.0), Val::Px(8.0)),
-                flex_direction: FlexDirection::Row,
-                column_gap: Val::Px(10.0),
-                align_items: AlignItems::Center,
-                justify_content: JustifyContent::SpaceBetween,
-                border: UiRect::all(Val::Px(1.0)),
-                ..default()
-            },
-        ));
-        fixed.push(keep_style(
-            &mut app,
-            Style {
-                position_type: PositionType::Absolute,
-                top: Val::Percent(1.0),
-                left: Val::Percent(50.0),
-                width: Val::Px(420.0),
-                max_height: Val::Percent(98.0),
-                margin: UiRect {
-                    left: Val::Px(-210.0),
-                    ..default()
-                },
-                padding: UiRect::all(Val::Px(10.0)),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(4.0),
-                border: UiRect::all(Val::Px(1.5)),
-                align_items: AlignItems::Center,
-                ..default()
-            },
-        ));
-        for _ in 0..3 {
-            fixed.push(keep_style(
-                &mut app,
-                Style {
-                    position_type: PositionType::Absolute,
-                    width: Val::Percent(100.0),
-                    height: Val::Percent(100.0),
-                    justify_content: JustifyContent::Center,
-                    align_items: AlignItems::Center,
-                    ..default()
-                },
-            ));
-        }
-        fixed.push(keep_style(
-            &mut app,
-            Style {
-                position_type: PositionType::Absolute,
-                top: Val::Percent(18.0),
-                left: Val::Percent(50.0),
-                width: Val::Px(400.0),
-                margin: UiRect {
-                    left: Val::Px(-200.0),
-                    ..default()
-                },
-                padding: UiRect::all(Val::Px(14.0)),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(8.0),
-                border: UiRect::all(Val::Px(1.5)),
-                align_items: AlignItems::Stretch,
-                ..default()
-            },
-        ));
-        fixed.push(keep_style(
-            &mut app,
-            Style {
-                position_type: PositionType::Absolute,
-                bottom: Val::Px(16.0),
-                left: Val::Px(16.0),
-                width: Val::Px(560.0),
-                padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
-                justify_content: JustifyContent::FlexStart,
-                border: UiRect::all(Val::Px(1.0)),
-                ..default()
-            },
-        ));
-        fixed.push(keep_style(
-            &mut app,
-            Style {
-                position_type: PositionType::Absolute,
-                width: Val::Percent(100.0),
-                height: Val::Percent(100.0),
-                ..default()
-            },
-        ));
-        fixed.push(keep_style(
-            &mut app,
-            Style {
-                position_type: PositionType::Absolute,
-                left: Val::Px(24.0),
-                bottom: Val::Px(24.0),
-                width: Val::Px(120.0),
-                height: Val::Px(120.0),
-                border: UiRect::all(Val::Px(2.0)),
-                justify_content: JustifyContent::Center,
-                align_items: AlignItems::Center,
-                ..default()
-            },
-        ));
-        let touch_btn = |inset: UiRect| Style {
-            position_type: PositionType::Absolute,
-            left: inset.left,
-            right: inset.right,
-            top: inset.top,
-            bottom: inset.bottom,
-            width: Val::Px(TOUCH_HIT_MIN),
-            height: Val::Px(TOUCH_HIT_MIN),
-            min_width: Val::Px(TOUCH_HIT_MIN),
-            min_height: Val::Px(TOUCH_HIT_MIN),
-            justify_content: JustifyContent::Center,
-            align_items: AlignItems::Center,
-            border: UiRect::all(Val::Px(1.5)),
-            ..default()
-        };
-        fixed.push(keep_style(
-            &mut app,
-            touch_btn(UiRect {
-                right: Val::Px(28.0),
-                bottom: Val::Px(36.0),
-                ..default()
-            }),
-        ));
-        fixed.push(keep_style(
-            &mut app,
-            touch_btn(UiRect {
-                right: Val::Px(24.0),
-                top: Val::Px(24.0),
-                ..default()
-            }),
-        ));
-        fixed.push(keep_style(
-            &mut app,
-            touch_btn(UiRect {
-                right: Val::Px(24.0),
-                top: Val::Px(24.0 + TOUCH_HIT_MIN + 8.0),
-                ..default()
-            }),
-        ));
-        fixed.push(keep_style(
-            &mut app,
-            touch_btn(UiRect {
-                right: Val::Px(24.0),
-                top: Val::Px(24.0 + 2.0 * (TOUCH_HIT_MIN + 8.0)),
-                ..default()
-            }),
-        ));
-        fixed.push(keep_style(
-            &mut app,
-            Style {
-                position_type: PositionType::Absolute,
-                bottom: Val::Percent(22.0),
-                left: Val::Px(16.0),
-                width: Val::Px(300.0),
-                padding: UiRect::all(Val::Px(14.0)),
-                flex_direction: FlexDirection::Column,
-                row_gap: Val::Px(6.0),
-                border: UiRect::all(Val::Px(1.5)),
-                ..default()
-            },
-        ));
-        assert_eq!(fixed.len(), 15);
+        app.world_mut().run_schedule(Startup);
         let mover = app
             .world_mut()
             .spawn((
@@ -3379,29 +3406,36 @@ mod tests {
                 HudSlab(ID_FACTORY),
             ))
             .id();
-
-        let assert_fixed = |app: &App| {
-            for (entity, style) in &fixed {
-                assert_eq!(app.world().get::<Style>(*entity).expect("fixed").clone(), *style);
+        assert_real_fixed_rows_spawned(&mut app);
+        let fixed = fixed_style_rows(&mut app);
+        assert!(
+            fixed.len() > 15,
+            "real spawn tree, not 15 hand-copied rows ({})",
+            fixed.len()
+        );
+        let assert_fixed = |app: &App, fixed: &[(Entity, Style)]| {
+            for (entity, style) in fixed {
+                assert_eq!(
+                    app.world().get::<Style>(*entity).expect("fixed").clone(),
+                    *style
+                );
             }
         };
-        app.update();
-        assert_fixed(&app);
-        app.world_mut()
-            .send_event(HudLayoutCommand::Apply(HudPresetId::Minimal));
-        app.update();
-        assert_fixed(&app);
+        app.world_mut().run_schedule(PostUpdate);
+        assert_fixed(&app, &fixed);
+        app.world_mut().resource_mut::<ActiveHudPreset>().id = Some(HudPresetId::Minimal);
+        app.world_mut().run_schedule(PostUpdate);
+        assert_fixed(&app, &fixed);
         assert_eq!(
             app.world().get::<Style>(mover).expect("mover").top,
             Val::Px(180.0)
         );
-        app.world_mut()
-            .send_event(HudLayoutCommand::Apply(HudPresetId::Management));
-        app.update();
-        assert_fixed(&app);
-        app.world_mut().send_event(HudLayoutCommand::Reset);
-        app.update();
-        assert_fixed(&app);
+        app.world_mut().resource_mut::<ActiveHudPreset>().id = Some(HudPresetId::Management);
+        app.world_mut().run_schedule(PostUpdate);
+        assert_fixed(&app, &fixed);
+        app.world_mut().resource_mut::<ActiveHudPreset>().id = Some(HudPresetId::Classic);
+        app.world_mut().run_schedule(PostUpdate);
+        assert_fixed(&app, &fixed);
         assert_eq!(
             app.world().get::<Style>(mover).expect("mover").top,
             Val::Px(93.0)
@@ -3513,5 +3547,45 @@ mod tests {
         app.update();
         assert_eq!(vis(&app, slab), Visibility::Visible);
         assert_eq!(vis(&app, plain), Visibility::Visible);
+    }
+
+    #[test]
+    fn none_after_hide_drains_yield_memory() {
+        let mut app = layout_app();
+        let slab = app
+            .world_mut()
+            .spawn((
+                NodeBundle {
+                    visibility: Visibility::Visible,
+                    ..default()
+                },
+                HudSlab(ID_FACTORY),
+            ))
+            .id();
+        app.insert_resource(LaunchDoor::Title);
+        app.world_mut()
+            .send_event(HudLayoutCommand::Apply(HudPresetId::Classic));
+        app.update();
+        assert_eq!(
+            *app.world().get::<Visibility>(slab).expect("vis"),
+            Visibility::Hidden
+        );
+        assert!(
+            !app.world().resource::<HudYieldMemory>().own.is_empty(),
+            "hide stores the slab's own visibility"
+        );
+        app.world_mut().resource_mut::<ActiveHudPreset>().id = None;
+        app.update();
+        assert_eq!(
+            *app.world().get::<Visibility>(slab).expect("vis"),
+            Visibility::Visible
+        );
+        assert!(app.world().resource::<HudYieldMemory>().own.is_empty());
+        assert!(app.world().resource::<ActiveHudPreset>().id.is_none());
+        app.update();
+        assert_eq!(
+            *app.world().get::<Visibility>(slab).expect("vis"),
+            Visibility::Visible
+        );
     }
 }

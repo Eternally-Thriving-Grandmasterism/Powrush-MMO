@@ -164,7 +164,7 @@ fn spawn_soft_panels(mut commands: Commands) {
         });
 }
 
-fn toggle_soft_panels(
+pub(crate) fn toggle_soft_panels(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut panels: ResMut<HumanSoftPanels>,
 ) {
