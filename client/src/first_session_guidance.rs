@@ -113,9 +113,10 @@ use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::LocalSettingsState;
-use crate::first_harvest_epiphany::{world_care_prompt_visible, FirstHarvestEpiphany};
+use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hud_anchor_registry::{
-    r2_yields_to, ACTION_BAR, ID_CARE_PROMPT, ID_CARE_STRIP, ID_GUIDANCE,
+    action_bar_prompts_showing, r2_yields_to, ACTION_BAR, ID_CARE_PROMPT, ID_CARE_STRIP,
+    ID_GUIDANCE,
 };
 use crate::mercy_harvest_nodes::{CareCycleOffer, NearbyMercyNode};
 use crate::title_screen::LaunchDoor;
@@ -913,29 +914,6 @@ fn lived_card_line(guidance: &FirstSessionGuidance, place: Option<&str>) -> Stri
         Some(door) => format!("{spoken}\n{door}"),
         None => spoken,
     }
-}
-
-fn action_bar_prompts_showing(
-    care: Option<&CareCycleOffer>,
-    epi: Option<&FirstHarvestEpiphany>,
-    nearby: Option<&NearbyMercyNode>,
-    guidance: &FirstSessionGuidance,
-    now: f64,
-) -> (bool, bool) {
-    let care_strip = care.is_some_and(|offer| offer.active);
-    let care_prompt = epi
-        .zip(nearby)
-        .is_some_and(|(epi, nearby)| {
-            world_care_prompt_visible(
-                nearby.in_range,
-                nearby.nodes_exist,
-                epi.first_harvest_lived,
-                guidance.dismissed,
-                epi.prompt_visible(now, guidance),
-            )
-        })
-        && !care_strip;
-    (care_strip, care_prompt)
 }
 
 pub(crate) fn update_guidance_visibility(

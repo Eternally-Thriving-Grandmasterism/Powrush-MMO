@@ -9,9 +9,10 @@
 
 use bevy::prelude::*;
 
-use crate::first_harvest_epiphany::{world_care_prompt_visible, FirstHarvestEpiphany};
+use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hud_anchor_registry::{
-    r2_yields_to, ACTION_BAR, ID_CARE_PROMPT, ID_CARE_STRIP, ID_PRACTICE,
+    action_bar_prompts_showing, r2_yields_to, ACTION_BAR, ID_CARE_PROMPT, ID_CARE_STRIP,
+    ID_PRACTICE,
 };
 use crate::mercy_harvest_nodes::{CareCycleOffer, NearbyMercyNode};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
@@ -255,29 +256,6 @@ pub(crate) fn handle_practice_toggle(
             practice.active = !practice.active;
         }
     }
-}
-
-fn action_bar_prompts_showing(
-    care: Option<&CareCycleOffer>,
-    epi: Option<&FirstHarvestEpiphany>,
-    nearby: Option<&NearbyMercyNode>,
-    guidance: &FirstSessionGuidance,
-    now: f64,
-) -> (bool, bool) {
-    let care_strip = care.is_some_and(|offer| offer.active);
-    let care_prompt = epi
-        .zip(nearby)
-        .is_some_and(|(epi, nearby)| {
-            world_care_prompt_visible(
-                nearby.in_range,
-                nearby.nodes_exist,
-                epi.first_harvest_lived,
-                guidance.dismissed,
-                epi.prompt_visible(now, guidance),
-            )
-        })
-        && !care_strip;
-    (care_strip, care_prompt)
 }
 
 pub(crate) fn update_practice_visibility(
