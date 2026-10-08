@@ -19,6 +19,7 @@ All core systems below are derived from the living Ra-Thor monorepo (https://git
 - [Combat and PvP — zones, shields, world PK, guild wars, battlegrounds, consumables](design/COMBAT_AND_PVP.md)
 - [Legacy GDD v1.5–v2.1 reconciliation (keep / modernise / retire)](design/LEGACY_GDD_RECONCILIATION.md)
 - [Faction leaders — one face for each People, and a figurehead for each grand faction](design/FACTION_LEADERS.md)
+- [Server morality — good, evil and double agents, and each server's heaven-to-hell meter](design/SERVER_MORALITY.md)
 
 ## How These Integrate with Current Powrush-MMO
 
