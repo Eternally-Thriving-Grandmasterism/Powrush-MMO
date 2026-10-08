@@ -7,6 +7,10 @@
 
 use bevy::ui::Val;
 
+use crate::first_harvest_epiphany::{world_care_prompt_visible, FirstHarvestEpiphany};
+use crate::first_session_guidance::{FirstSessionGuidance, GuidanceObjective};
+use crate::mercy_harvest_nodes::{CareCycleOffer, NearbyMercyNode};
+
 /// Design §2.1. Edge midpoints use `Centre` on the free axis.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HudCorner {
@@ -200,6 +204,36 @@ impl HudAnchor {
             view_h,
         )
     }
+}
+
+/// ACTION_BAR CareStrip and CarePrompt, as the slabs' visibility systems see them.
+/// CareStrip wins over CarePrompt. Hour 1: while Guidance is active on
+/// MoveAround and no harvest node is in range, CarePrompt is not showing,
+/// so Guidance keeps this anchor. The caller writes `Visibility` only.
+pub(crate) fn action_bar_prompts_showing(
+    care: Option<&CareCycleOffer>,
+    epi: Option<&FirstHarvestEpiphany>,
+    nearby: Option<&NearbyMercyNode>,
+    guidance: &FirstSessionGuidance,
+    now: f64,
+) -> (bool, bool) {
+    let care_strip = care.is_some_and(|offer| offer.active);
+    let move_around_owns = guidance.active
+        && !guidance.dismissed
+        && guidance.objective == GuidanceObjective::MoveAround
+        && !nearby.is_some_and(|node| node.in_range);
+    let care_prompt = !move_around_owns
+        && epi.zip(nearby).is_some_and(|(epi, nearby)| {
+            world_care_prompt_visible(
+                nearby.in_range,
+                nearby.nodes_exist,
+                epi.first_harvest_lived,
+                guidance.dismissed,
+                epi.prompt_visible(now, guidance),
+            )
+        })
+        && !care_strip;
+    (care_strip, care_prompt)
 }
 
 /// R2 (design §2.3). True when `occupant` hides because a higher-priority
@@ -460,7 +494,7 @@ mod tests {
     }
 
     #[test]
-    fn banked_pairs_model_b_overlap_zero_both_sizes() {
+    fn model_b_overlaps_zero_or_accepted_both_sizes() {
         for (view_w, view_h) in [(1024.0, 640.0), (1280.0, 800.0)] {
             let area = |a: &str, b: &str| model_b(a, view_w, view_h).overlap_area(model_b(b, view_w, view_h));
             for (left, right) in [
@@ -485,7 +519,7 @@ mod tests {
             }
         }
 
-        // Six pairs §2.5 adds at 1024x640 Model B. Accepted; step 3 folds them.
+        // Seven pairs at 1024x640 Model B. Accepted; step 3 folds them.
         let added_1024 = [
             (ID_ALLOCATE, "Hybrid", 21840),
             (ID_ALLOCATE, "Pickup", 11628),
@@ -493,6 +527,7 @@ mod tests {
             (ID_ALLOCATE, "Whisper", 5616),
             ("ClimateState", ID_PRACTICE, 2176),
             ("Mercy", ID_VOICE, 6120),
+            (ID_ALLOCATE, "Mercy", 48600),
         ];
         for (left, right, want) in added_1024 {
             assert_eq!(
@@ -509,11 +544,6 @@ mod tests {
         assert_eq!(
             model_b("Places", 1280.0, 800.0).overlap_area(model_b(ID_VOICE, 1280.0, 800.0)),
             2312
-        );
-        // Named under Model A in the banked table. The move does not clear it.
-        assert_eq!(
-            model_b(ID_ALLOCATE, 1024.0, 640.0).overlap_area(model_b("Mercy", 1024.0, 640.0)),
-            48600
         );
     }
 

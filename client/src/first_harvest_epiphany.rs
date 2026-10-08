@@ -21,7 +21,7 @@ use bevy::prelude::*;
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessionGuidance, GuidanceObjective};
-use crate::hud_anchor_registry::ACTION_BAR;
+use crate::hud_anchor_registry::{action_bar_prompts_showing, ACTION_BAR};
 use crate::hex_travel::HexTravelState;
 use crate::human_presence::SoftPresence;
 use shared::hex_travel::PlaceId;
@@ -729,13 +729,13 @@ fn update_world_care_prompt(
     mut text_q: Query<&mut Text, With<WorldCarePromptText>>,
 ) {
     let now = time.elapsed_seconds_f64();
-    let show = world_care_prompt_visible(
-        nearby.in_range,
-        nearby.nodes_exist,
-        state.first_harvest_lived,
-        guidance.dismissed,
-        state.prompt_visible(now, &guidance),
-    ) && !care.is_some_and(|c| c.active);
+    let (_care_strip, show) = action_bar_prompts_showing(
+        care.as_deref(),
+        Some(state.as_ref()),
+        Some(nearby.as_ref()),
+        guidance.as_ref(),
+        now,
+    );
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible
@@ -1241,6 +1241,114 @@ mod tests {
         *q.iter(app.world())
             .next()
             .expect("world-care prompt root")
+    }
+
+    /// CARD HUD-ANCHOR-REGISTRY-1B — on MoveAround, with nodes and none in
+    /// range, Guidance shows and CarePrompt hides so the WASD line is on
+    /// screen. In range, or after MoveAround advances, R2 applies. Exactly
+    /// one of the two is visible. Visibility only.
+    #[test]
+    fn hour1_move_around_guidance_outranks_care_prompt() {
+        use crate::first_session_guidance::{
+            update_guidance_visibility, FirstSessionGuidanceStrip,
+        };
+        use crate::title_screen::LaunchDoor;
+
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<FirstSessionGuidance>()
+            .init_resource::<NearbyMercyNode>()
+            .insert_resource(LaunchDoor::InYard)
+            .add_systems(
+                Update,
+                (update_world_care_prompt, update_guidance_visibility),
+            );
+        app.world_mut()
+            .spawn((WorldCarePromptRoot, Visibility::Hidden));
+        app.world_mut()
+            .spawn((FirstSessionGuidanceStrip, Visibility::Hidden));
+        {
+            let mut nearby = app.world_mut().resource_mut::<NearbyMercyNode>();
+            nearby.nodes_exist = true;
+            nearby.in_range = false;
+        }
+
+        let stamp = hour1_order_stamp(&app);
+        app.update();
+        assert_eq!(
+            guidance_strip_vis(&mut app),
+            Visibility::Visible,
+            "MoveAround with no node in range shows Guidance"
+        );
+        assert_eq!(
+            world_care_prompt_vis(&mut app),
+            Visibility::Hidden,
+            "CarePrompt hides so the WASD line can show"
+        );
+        assert!(
+            exactly_one_action_bar_line(&mut app),
+            "exactly one of Guidance or CarePrompt"
+        );
+        assert_eq!(hour1_order_stamp(&app), stamp);
+
+        app.world_mut().resource_mut::<NearbyMercyNode>().in_range = true;
+        app.update();
+        assert_eq!(
+            world_care_prompt_vis(&mut app),
+            Visibility::Visible,
+            "a node in range returns the CarePrompt under R2"
+        );
+        assert_eq!(guidance_strip_vis(&mut app), Visibility::Hidden);
+        assert!(exactly_one_action_bar_line(&mut app));
+        assert_eq!(
+            app.world().resource::<FirstSessionGuidance>().objective,
+            GuidanceObjective::MoveAround
+        );
+        assert!(!app.world().resource::<FirstHarvestEpiphany>().first_harvest_lived);
+
+        app.world_mut().resource_mut::<NearbyMercyNode>().in_range = false;
+        app.world_mut().resource_mut::<FirstSessionGuidance>().objective =
+            GuidanceObjective::ApproachGlowingNode;
+        let advanced = hour1_order_stamp(&app);
+        app.update();
+        assert_eq!(
+            world_care_prompt_vis(&mut app),
+            Visibility::Visible,
+            "after MoveAround advances, R2 lets the CarePrompt show"
+        );
+        assert_eq!(guidance_strip_vis(&mut app), Visibility::Hidden);
+        assert!(exactly_one_action_bar_line(&mut app));
+        assert_eq!(hour1_order_stamp(&app), advanced);
+    }
+
+    fn hour1_order_stamp(app: &App) -> (GuidanceObjective, bool, bool, f64, bool, f64) {
+        let guidance = app.world().resource::<FirstSessionGuidance>();
+        let epi = app.world().resource::<FirstHarvestEpiphany>();
+        (
+            guidance.objective.clone(),
+            guidance.active,
+            guidance.dismissed,
+            guidance.shown_at_seconds,
+            epi.first_harvest_lived,
+            epi.prompt_until,
+        )
+    }
+
+    fn guidance_strip_vis(app: &mut App) -> Visibility {
+        use crate::first_session_guidance::FirstSessionGuidanceStrip;
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Visibility, With<FirstSessionGuidanceStrip>>();
+        *q.iter(app.world())
+            .next()
+            .expect("guidance strip")
+    }
+
+    fn exactly_one_action_bar_line(app: &mut App) -> bool {
+        let guidance_on = guidance_strip_vis(app) == Visibility::Visible;
+        let prompt_on = world_care_prompt_vis(app) == Visibility::Visible;
+        guidance_on ^ prompt_on
     }
 
     #[test]
