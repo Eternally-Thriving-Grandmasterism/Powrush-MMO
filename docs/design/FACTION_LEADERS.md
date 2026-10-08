@@ -18,7 +18,7 @@ A leader's favour is story and standing. It never adds a stat, a skin, or a paid
 | Quellorian | Solmaris Orynthe (sol-MAR-is) | High Luminar | The Auroral Unification Nexus (TAUN) |
 | Ambrosian | Lyrisse | Voice of the Prism Choir | The Prism Choir, attuned to TAUN when the choir links |
 | Human | Ronan Ashcroft | Warden | Earth's surviving cities |
-| Draek | Drazhen the Unbound | Leader of the Unbound | An Unbound camp on the fractured Earth fringe |
+| Draek | Vrendak the Unbound | Leader of the Unbound | An Unbound camp on the fractured Earth fringe |
 
 Grand factions: the Quellorian / Aetherion Luminari Alliance, figurehead Solmaris Orynthe, co-voice Lyrisse. The Draek Dominion, figurehead the Hivelord, true name unknown ([THE_HIVELORD](../THE_HIVELORD.md) §1).
 
@@ -40,15 +40,15 @@ No canon personal name, in the files read for this card, already led the Cydruid
 
 **Alliance.** Solmaris is the figurehead quests can speak to: a living Quellorian who commands the Auroral Unification Nexus and remembers the lost two-sun homeworld. Lyrisse is the co-voice, the Ambrosian note inside that bond. [AMBROSIAN_ATTUNEMENT_MECHANICS](../AMBROSIAN_ATTUNEMENT_MECHANICS.md) §2 already binds Ambrosian choirs to Quellorian ships and to TAUN. [DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §7 still holds the Ambrosians back from open war until their lattices are threatened (the Ambrosian Awakening). Lyrisse can speak for the Alliance in quests on the offline path. Her people's full entry into the war waits on that trigger. **Online later:** the Awakening as a shared-server branch.
 
-**Dominion.** The figurehead is the Hivelord, on the Brood Spire, Crownstone in the suit ([FACTIONS_OVERVIEW](../FACTIONS_OVERVIEW.md) §3, [THE_HIVELORD](../THE_HIVELORD.md)). Playable Draeks who want a hopeful face look to Drazhen. The Hivelord remains the enemy of that hope.
+**Dominion.** The figurehead is the Hivelord, on the Brood Spire, Crownstone in the suit ([FACTIONS_OVERVIEW](../FACTIONS_OVERVIEW.md) §3, [THE_HIVELORD](../THE_HIVELORD.md)). Playable Draeks who want a hopeful face look to Vrendak. The Hivelord remains the enemy of that hope.
 
 **Humans and Cydruids** are independent Peoples, allied by need. [DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §6 is covert contact and aid, so each People keeps its own seat. Ronan holds Earth's cities. Orin holds the hollows. They share the defense of Earth with the Alliance because the Dominion is the power that would spend both.
 
 Cydruids are quietly ahead of surface humans. Sherif, 2026-10-08: the lead is a head start from careful harvest, in a culture that burrows and thinks in long time. [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 still lets any human reach the Fully cyborg end by Cydruid standing, and the two Peoples can converge. The head start is a matter of time and care. It is not a power scalar, a shop, or a second currency.
 
-**The Unbound** are redeemed Draeks who left the hivemind, with Drazhen as their face. Other Peoples distrust them. They earn a place through Faction Standing & Reputation ([DIPLOMACY_AND_WORLD_SIMULATION](../DIPLOMACY_AND_WORLD_SIMULATION.md) §2.2, [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5). Standing moves by verbs. Nothing on this path is for sale.
+**The Unbound** are redeemed Draeks who left the hivemind, with Vrendak as their face. Other Peoples distrust them. They earn a place through Faction Standing & Reputation ([DIPLOMACY_AND_WORLD_SIMULATION](../DIPLOMACY_AND_WORLD_SIMULATION.md) §2.2, [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5). Standing moves by verbs. Nothing on this path is for sale.
 
-The fled-sect rumor in [DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) (open lore, unconfirmed) stays unconfirmed. Drazhen's camp is the present-day break from the Crownstone. The rumor of an ancient hidden colony stays a separate secret.
+The fled-sect rumor in [DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) (open lore, unconfirmed) stays unconfirmed. Vrendak's camp is the present-day break from the Crownstone. The rumor of an ancient hidden colony stays a separate secret.
 
 ## 4. Orin Hollowell
 
@@ -64,7 +64,7 @@ The fled-sect rumor in [DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND
 
 **Story and quests (offline first).** He is the face of tend-and-measure quests: a vein that can spare a little, a vein that cannot, a frame repair paid in standing. The covert contact with Solmaris can be a codex scene and a solo conversation after the book. Persons do not gate the hour ([NPC_SCHEDULE_SPEC](../NPC_SCHEDULE_SPEC.md)). **Online later:** a shared visit to the stalactite city.
 
-**Relationships.** He trusts Solmaris with the fact of the city, and with little else. He respects Ronan as the human who stayed in a living body and still holds the cities. The hollows do not absorb those cities. He listens to Lyrisse when a choir is in pain, and a Discordant outbreak stays away from the glow-lake. He offers Drazhen work, then standing, in that order. The Hivelord is the will that would turn the hollows into a mine.
+**Relationships.** He trusts Solmaris with the fact of the city, and with little else. He respects Ronan as the human who stayed in a living body and still holds the cities. The hollows do not absorb those cities. He listens to Lyrisse when a choir is in pain, and a Discordant outbreak stays away from the glow-lake. He offers Vrendak work, then standing, in that order. The Hivelord is the will that would turn the hollows into a mine.
 
 **Visual.** A human-proportioned machine frame, Fully cyborg, the person readable in posture. Teal and leaf-metal are trim and fasteners only. Instrument lights stay low, cyan or amber. Soft gold fasteners. ([ART_BIBLE](../ART_BIBLE.md) Cydruid row; [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5.)
 
@@ -104,7 +104,7 @@ The fled-sect rumor in [DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND
 
 **Story and quests (offline first).** She is the voice on the Discordant paths already written: Surgical Purification, Crownstone-mediated redemption, and Ambrosian self-redemption ([DISCORDANT_REDEMPTION_QUESTLINES](../DISCORDANT_REDEMPTION_QUESTLINES.md) §3). Offline, that is a local scene: a cracked choir, her note holding, the player choosing how the healing happens. She can also speak in enslaved-species rites where an Ambrosian presence already matters ([SPECIFIC_REDEMPTION_QUESTS](../SPECIFIC_REDEMPTION_QUESTS.md), [PAIN_TRANSMUTATION_PATHS](../PAIN_TRANSMUTATION_PATHS.md)). No new power. **Online later:** the Ambrosian Awakening, and any scene that needs the whole choir on a shared Nexus.
 
-**Relationships.** She is Solmaris's co-voice. She will tell him when a song is being used as a weapon. She hears Orin's stone rule as a kind of harmony, and she will not order the hollows to sing. She respects Ronan for holding a war with no lattice of his own. She is the first Ambrosian willing to hear Drazhen, because a broken Crownstone link sounds to her like a note returning. She is the exposed point the Hivelord would corrupt first ([PLAYABLE_RACES](../PLAYABLE_RACES.md) §6; [THE_HIVELORD](../THE_HIVELORD.md) §3).
+**Relationships.** She is Solmaris's co-voice. She will tell him when a song is being used as a weapon. She hears Orin's stone rule as a kind of harmony, and she will not order the hollows to sing. She respects Ronan for holding a war with no lattice of his own. She is the first Ambrosian willing to hear Vrendak, because a broken Crownstone link sounds to her like a note returning. She is the exposed point the Hivelord would corrupt first ([PLAYABLE_RACES](../PLAYABLE_RACES.md) §6; [THE_HIVELORD](../THE_HIVELORD.md) §3).
 
 **Visual.** A crystalline-organic human form, partly translucent, internal lattice at full brightness, a flowing energy mantle, prism-cool whites and golds, a soft rainbow only while the choir agrees. ([ART_BIBLE](../ART_BIBLE.md) Ambrosian row; [PLAYABLE_RACES](../PLAYABLE_RACES.md) §6.)
 
@@ -124,27 +124,27 @@ The fled-sect rumor in [DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND
 
 **Story and quests (offline first).** He is the moral compass at Crownstone choices, and at any quest where both cosmic powers want a human answer ([CROWNSTONE_TRILEMMA_PATHS](../CROWNSTONE_TRILEMMA_PATHS.md), [HUMAN_RACE_MECHANICS](../HUMAN_RACE_MECHANICS.md) §2). Offline, he asks what the city will live with. He grants no buff. Humans already carry the strongest narrative reactivity to those choices ([PLAYABLE_RACES](../PLAYABLE_RACES.md) §4). **Online later:** city projects that need many players, and any salvaged comms net ([LEGACY_GDD_RECONCILIATION](LEGACY_GDD_RECONCILIATION.md) marks that net online later).
 
-**Relationships.** He will argue with Solmaris and still stand beside him. He will argue with Orin about the quiet lead in the hollows, and he will send people to earn Cydruid standing by work. He asks Lyrisse to step into the defense of the cities. He will work with Drazhen after the camp has standing, and he says that to Drazhen's face. The Hivelord is the mind that spent his cities.
+**Relationships.** He will argue with Solmaris and still stand beside him. He will argue with Orin about the quiet lead in the hollows, and he will send people to earn Cydruid standing by work. He asks Lyrisse to step into the defense of the cities. He will work with Vrendak after the camp has standing, and he says that to Vrendak's face. The Hivelord is the mind that spent his cities.
 
 **Visual.** Human proportions, warm grey-gold practical plate, scars and field repairs, modular tools. He carries no alignment glow. He is the unpowered compass. ([ART_BIBLE](../ART_BIBLE.md) Human row, warm grey-gold.)
 
 **Lieutenants later.** City Speaker. Island Marshal. Scar Watch. Salvage Clerk.
 
-## 8. Drazhen the Unbound
+## 8. Vrendak the Unbound
 
-**Name and title.** Drazhen the Unbound, leader of the Unbound.
+**Name and title.** Vrendak the Unbound, leader of the Unbound.
 
 **People.** Draek. He is the face playable Draeks look to when they leave the hivemind. The Dominion's figurehead remains the Hivelord.
 
 **Seat.** A camp of the Unbound on the fractured Earth fringe, on ground the cities tolerate and can revoke. The Brood Spire is the Hivelord's throne ([FACTIONS_OVERVIEW](../FACTIONS_OVERVIEW.md) §3). Drenadore, the red tomb-world, is the old home. It does not explode on screen ([DRIVE_LORE_ADAPTATION](../DRIVE_LORE_ADAPTATION.md)). The camp is not a new Place.
 
-**Backstory.** Drazhen is the first Draek to break the Crownstone's hold and remain outside it. [THE_HIVELORD](../THE_HIVELORD.md) §1: the Crownstone carries a Hivelord's will across the Dominion, and the true name of the current Hivelord is unknown. Drazhen does not know that name. He left the chorus with his own voice, and others followed. [PLAYABLE_RACES](../PLAYABLE_RACES.md) §3 already allows a playable Draek a life the hivemind does not script. The hopeful arc is his. Draek origin stays a fall from a peaceful people ([DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §2–§4), so redemption has a past to face. Where a quest needs biomass, the harvest stays clinical ([DRIVE_LORE_ADAPTATION](../DRIVE_LORE_ADAPTATION.md)).
+**Backstory.** Vrendak held the Drainer office, the Draek Dominion's clinical harvest office. He refused to keep doing that work, broke his own Crownstone link, and became the first Draek to remain outside the Crownstone's hold. [THE_HIVELORD](../THE_HIVELORD.md) §1: the Crownstone carries a Hivelord's will across the Dominion, and the true name of the current Hivelord is unknown. Vrendak does not know that name. He left the chorus with his own voice, and others followed. He now seeks another way to save his people. "The Drainer" is both his old office and the insult other Peoples still use for him. [PLAYABLE_RACES](../PLAYABLE_RACES.md) §3 already allows a playable Draek a life the hivemind does not script. The hopeful arc is his. Draek origin stays a fall from a peaceful people ([DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §2–§4), so redemption has a past to face, and his own past is the harvest. Where a quest needs biomass, the harvest stays clinical ([DRIVE_LORE_ADAPTATION](../DRIVE_LORE_ADAPTATION.md)).
 
-**Personality and voice.** Spare, marked by the chorus he used to speak inside, stubborn about the next right repair. [PLAYABLE_RACES](../PLAYABLE_RACES.md) §3 and [VOICE_ACTING_DIRECTION](../VOICE_ACTING_DIRECTION.md) §2 describe Dominion Draeks as a layered, guttural, dissonant chorus. Drazhen's tell is the missing layers: one voice, still a little wet and metallic at the edges, able to hesitate. When he is afraid, he goes quiet. Hope sounds like a plan for the day.
+**Personality and voice.** Spare, marked by the chorus he used to speak inside, stubborn about the next right repair. [PLAYABLE_RACES](../PLAYABLE_RACES.md) §3 and [VOICE_ACTING_DIRECTION](../VOICE_ACTING_DIRECTION.md) §2 describe Dominion Draeks as a layered, guttural, dissonant chorus. Vrendak's tell is the missing layers: one voice, still a little wet and metallic at the edges, able to hesitate. When he is afraid, he goes quiet. Hope sounds like a plan for the day.
 
 **Story and quests (offline first).** Solo quests of proof: a clinical rescue, a tend that restores someone the Dominion spent, a scene where he refuses a Crownstone echo. Trust is Faction Standing ([DIPLOMACY_AND_WORLD_SIMULATION](../DIPLOMACY_AND_WORLD_SIMULATION.md) §2.2). The species rites in [SPECIFIC_REDEMPTION_QUESTS](../SPECIFIC_REDEMPTION_QUESTS.md) can use him as a Draek witness who wants the captive freed. He does not replace those rites. **Online later:** camp reputation other players can see. The Dominion invitation in [COMBAT_AND_PVP](COMBAT_AND_PVP.md) §8 is the Hivelord's door, and it stays online later.
 
-**Relationships.** The Hivelord is the enemy. Drazhen will not sit that throne and will not wear a Crownstone. Solmaris argues for him and cannot order Alliance crews to trust him. Lyrisse will hear him. Ronan withholds the cities until standing is real. Orin gives him stone-rule work where an old Dominion habit would over-take. Elyndor's mercy lines, already written, are a public blessing Drazhen has not been given.
+**Relationships.** The Hivelord is the enemy. Vrendak will not sit that throne and will not wear a Crownstone. Solmaris argues for him and cannot order Alliance crews to trust him. Lyrisse will hear him. Ronan withholds the cities until standing is real. Orin gives him stone-rule work where an old Dominion habit would over-take. Elyndor's mercy lines, already written, are a public blessing Vrendak has not been given.
 
 **Visual.** Tall, imposing, biomechanical chitin, humanoid. The brow socket is dark, where a Crownstone link used to sit. Dry red and bronze, matte black plate, stolen gold circuitry gone dull. ([ART_BIBLE](../ART_BIBLE.md) Draek row; [PLAYABLE_RACES](../PLAYABLE_RACES.md) §3.)
 
@@ -152,19 +152,20 @@ The fled-sect rumor in [DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND
 
 ## 9. The Hivelord
 
-Kept as written in [THE_HIVELORD](../THE_HIVELORD.md). Supreme leader of the Draek Dominion. True name unknown. Seat: the Brood Spire, in the suit, Crownstone at the helmet. Voice: deep, layered, slow, several voices out of step ([VOICE_ACTING_DIRECTION](../VOICE_ACTING_DIRECTION.md) §3). This file adds no new line of dialogue and no personal name. He is the grand-faction figurehead on the Dominion side. Drazhen is the People's hopeful face. They are enemies.
+Kept as written in [THE_HIVELORD](../THE_HIVELORD.md). Supreme leader of the Draek Dominion. True name unknown. Seat: the Brood Spire, in the suit, Crownstone at the helmet. Voice: deep, layered, slow, several voices out of step ([VOICE_ACTING_DIRECTION](../VOICE_ACTING_DIRECTION.md) §3). This file adds no new line of dialogue and no personal name. He is the grand-faction figurehead on the Dominion side. Vrendak is the People's hopeful face. They are enemies.
 
 Dominion officer titles are not listed here. Naming them would invent people [THE_HIVELORD](../THE_HIVELORD.md) left unnamed.
 
 ## 10. Name check
 
-Sherif set these spellings on 2026-10-08. At 1:40 AM ET on 2026-10-08 Sherif renamed the Quellorian leader to Solmaris (first row below). Every other spelling is unchanged since the collision check.
+Sherif set these spellings on 2026-10-08. At 1:40 AM ET on 2026-10-08 Sherif renamed the Quellorian leader to Solmaris (first row below). At 2:18 AM ET on 2026-10-08 Sherif renamed the Unbound leader to Vrendak (second row below). Every other spelling is unchanged since the collision check.
 
 - **Solmaris Orynthe.** Sherif renamed the Quellorian leader on 2026-10-08 and dropped Caelix, because it sounds the same as Caelyx, a chemotherapy drug (pegylated liposomal doxorubicin, sold by Baxter) and a registered trademark ([CIPO 0841672](https://ised-isde.canada.ca/cipo/trademark-search/841672)). A web check on 2026-10-08 found no game, novel or show character and no drug named Solmaris. Solmaris is a genus of small jellyfish (Haeckel, 1879; [Wikipedia: Solmaris](https://en.wikipedia.org/wiki/Solmaris)). One pending US trademark, SOLMARIS (serial 99729592, filed 2026-03-27), covers clothing only (Class 025), not games or software. The other hits were small non-game companies and fan-made name lists. CIPO was not searched for Solmaris. Watch-outs: Solmaris can be misread as Solaris, Lem's novel, and Orynth is a city in a popular novel series; this is a person, with a final e. The name reads as Latin *sol* + *maris*, "sun of the sea." In this repo, Kaelith Starweaver remains a different Quellorian.
+- **Vrendak the Unbound** (VREN-dak). Sherif renamed the Unbound leader on 2026-10-08 at 2:18 AM ET, relayed by Lead Mate. Lead Mate's conflict check ([cloud agent bc-735e93e6](https://cursor.com/agents/bc-735e93e6-77d9-5cca-9931-b3d59477bd08)) found no clash with a character, a brand, a drug, or a famous person. Its only hit was a generic fantasy name list. That check was a general web search. No trademark registry or other registry was searched for Vrendak. Drenado was rejected as too close to Drenadore and Drenadon. "The Drainer" is his former office, not a second name.
 - **Lyrisse.** The title "Voice of the Prism Choir" is not a published character. Lyris is a different spelling, on a known game companion.
 - **Ronan Ashcroft.** The full name is not a published lead. Ronan alone is used by a famous comics character with a different name and a different office. This Warden has no powers.
 - **Orin Hollowell.** Sherif locked this name. A famous game villain shares the given name only: different surname, a human in a cyborg frame, keeper of a harvest rule.
-- **Drazhen the Unbound.** Sherif locked this name. A famous tabletop duelist uses a nearby spelling and a different office.
+- **Drazhen.** Retired on 2026-10-08 and replaced by Vrendak (second row).
 
 Player-made names and chatbot personas were ignored. The in-repo officers in §2 were kept under their existing spellings.
 
