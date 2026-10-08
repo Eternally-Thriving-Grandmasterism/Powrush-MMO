@@ -5,8 +5,9 @@
 //! Boot copies `hud_preset` from `powrush_settings.json` and applies it.
 //! Missing, unreadable, or unknown loads `classic`.
 //!
-//! Ruled: Q1, Q2, Q3, Q5, Q6, Q7, Q8, Q9, Q11, Q12, Q19, Q20, and Q22.
-//! Open: Q4, Q10, Q13, Q14, Q15, Q16, Q17, Q18, and Q21.
+//! Ruled: Q1, Q2, Q3, Q5, Q6, Q7, Q8, Q9, Q11, Q12, Q16, Q19, Q20, and Q22.
+//! Q16: the saved layout is `data/powrush_hud_layout.json` (step 4a, data only).
+//! Open: Q4, Q10, Q13, Q14, Q15, Q17, Q18, and Q21.
 //!
 //! Q1 Reset restores classic. Q2 push is accepted in a shared panel slot.
 //! Q3 cover is accepted, and a toast may expire while it is hidden.
@@ -38,6 +39,8 @@ use crate::hud_anchor_registry::{
     ID_PICKUP, ID_PLACE_NAME, ID_PRACTICE, ID_PULSE, ID_REALM, ID_REDEMPTION, ID_SOVEREIGN,
     ID_SPILL, ID_THRIVING, ID_VOICE, ID_WATCH, ID_WELCOME, ID_WELL, ID_WHISPER,
 };
+use crate::hud_anchor_registry::{clamp_hud_width, HUD_REGISTRY_REV};
+use shared::hud_layout::{HudLayoutAnchor, HudLayoutCorner};
 use crate::human_soft_panels::HumanSoftPanels;
 use crate::rbe_allocate_choice::RbeAllocateChoice;
 use crate::title_screen::{HouseLabel, LaunchDoor, PersonaCreatorState};
@@ -182,6 +185,7 @@ const fn anchor(fields: AnchorFields) -> HudAnchor {
         class: fields.class,
         occupants: fields.occupants,
         share: fields.share,
+        hidden: false,
     }
 }
 
@@ -204,14 +208,15 @@ impl HudPresetId {
 }
 
 /// One preset: a list of anchors. [`HudLayoutPlugin`] applies it while that id is active.
+/// The lifetime lets a pure override check borrow a local anchor list.
 #[derive(Clone, Copy, Debug)]
-pub struct HudPreset {
+pub struct HudPreset<'a> {
     pub id: HudPresetId,
     pub name: &'static str,
-    pub anchors: &'static [HudAnchor],
+    pub anchors: &'a [HudAnchor],
 }
 
-impl HudPreset {
+impl HudPreset<'_> {
     pub fn anchor(&self, id: &str) -> &HudAnchor {
         self.anchors
             .iter()
@@ -413,7 +418,7 @@ const CLASSIC_ANCHORS: [HudAnchor; 13] = [
     }),
 ];
 
-pub const CLASSIC: HudPreset = HudPreset {
+pub const CLASSIC: HudPreset<'static> = HudPreset {
     id: HudPresetId::Classic,
     name: "classic",
     anchors: &CLASSIC_ANCHORS,
@@ -514,7 +519,7 @@ const MINIMAL_ANCHORS: [HudAnchor; 5] = [
     }),
 ];
 
-pub const MINIMAL: HudPreset = HudPreset {
+pub const MINIMAL: HudPreset<'static> = HudPreset {
     id: HudPresetId::Minimal,
     name: "minimal",
     anchors: &MINIMAL_ANCHORS,
@@ -665,15 +670,15 @@ const MANAGEMENT_ANCHORS: [HudAnchor; 10] = [
     }),
 ];
 
-pub const MANAGEMENT: HudPreset = HudPreset {
+pub const MANAGEMENT: HudPreset<'static> = HudPreset {
     id: HudPresetId::Management,
     name: "management",
     anchors: &MANAGEMENT_ANCHORS,
 };
 
-pub const PRESETS: &[HudPreset] = &[CLASSIC, MINIMAL, MANAGEMENT];
+pub const PRESETS: &[HudPreset<'static>] = &[CLASSIC, MINIMAL, MANAGEMENT];
 
-pub fn preset(id: HudPresetId) -> &'static HudPreset {
+pub fn preset(id: HudPresetId) -> &'static HudPreset<'static> {
     match id {
         HudPresetId::Classic => &CLASSIC,
         HudPresetId::Minimal => &MINIMAL,
@@ -682,7 +687,7 @@ pub fn preset(id: HudPresetId) -> &'static HudPreset {
 }
 
 /// Q1. The preset Reset restores.
-pub fn reset_preset() -> &'static HudPreset {
+pub fn reset_preset() -> &'static HudPreset<'static> {
     preset(RESET_PRESET)
 }
 
@@ -1105,7 +1110,7 @@ struct CensusNode {
 /// Exclusions, in order: R1, then same anchor (R2 / R3), then R4 cover.
 /// Modal plates are counted only in [`HudOverlapCensus::hud_vs_modal_r5`].
 pub fn overlap_census(
-    preset: &HudPreset,
+    preset: &HudPreset<'_>,
     view_w: f32,
     view_h: f32,
     model: HudHeightModel,
@@ -1196,7 +1201,7 @@ fn classify(left: &CensusNode, right: &CensusNode) -> HudOverlapKind {
 /// Kind of one HUD-slab pair inside a preset. `None` when the rectangles do
 /// not overlap. Both ids must be occupants of `preset`.
 pub fn slab_overlap(
-    preset: &HudPreset,
+    preset: &HudPreset<'_>,
     left_id: &str,
     right_id: &str,
     view_w: f32,
@@ -1233,7 +1238,7 @@ pub fn slab_overlap(
     })
 }
 
-fn find_occupant<'a>(preset: &'a HudPreset, id: &str) -> (&'a HudAnchor, &'a HudOccupant) {
+fn find_occupant<'a>(preset: &'a HudPreset<'_>, id: &str) -> (&'a HudAnchor, &'a HudOccupant) {
     for anchor in preset.anchors {
         if let Some(occupant) = anchor.occupants.iter().find(|occupant| occupant.id == id) {
             return (anchor, occupant);
@@ -1249,6 +1254,286 @@ pub fn rect_inside_margin(rect: HudRect, view_w: f32, view_h: f32) -> bool {
         && rect.y0 >= EDGE_MARGIN_PX
         && rect.x1 <= right_limit
         && rect.y1 <= bottom_limit
+}
+
+/// Result of [`apply_overrides`]. F5 returns [`HudOverrideApply::Refused`]
+/// with nothing written. F4 returns [`HudOverrideApply::StaleRev`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum HudOverrideApply {
+    Applied(Vec<HudAnchor>),
+    /// F4. `registry_rev` is not [`HUD_REGISTRY_REV`]. Every override is dropped.
+    StaleRev,
+    /// F5. Unknown id, non-finite number, width outside §6.2, `hidden` on a
+    /// class 1–3 anchor, or a duplicate id. No partial apply.
+    Refused,
+}
+
+/// What to keep after apply plus the §6.4 save check. F6 is [`HudLayoutChoice::Fallback`].
+#[derive(Clone, Debug, PartialEq)]
+pub enum HudLayoutChoice {
+    Applied(Vec<HudAnchor>),
+    Fallback(HudPresetId),
+}
+
+/// §5 / §6.3. Apply every override, or none. A stale [`HUD_REGISTRY_REV`] drops
+/// every override (F4). Unknown ids, non-finite numbers, widths outside the
+/// §6.2 clamp at this window and at both proof sizes, and `hidden` on class
+/// 1–3 anchors are F5.
+pub fn apply_overrides(
+    base: &HudPreset<'_>,
+    registry_rev: u32,
+    overrides: &[HudLayoutAnchor],
+    view_w: f32,
+    view_h: f32,
+) -> HudOverrideApply {
+    if registry_rev != HUD_REGISTRY_REV {
+        return HudOverrideApply::StaleRev;
+    }
+    if overrides.is_empty() {
+        return HudOverrideApply::Applied(base.anchors.iter().copied().collect());
+    }
+    if !view_w.is_finite() || !view_h.is_finite() {
+        return HudOverrideApply::Refused;
+    }
+    let mut anchors: Vec<HudAnchor> = base.anchors.iter().copied().collect();
+    let mut seen = Vec::with_capacity(overrides.len());
+    let mut pending = Vec::with_capacity(overrides.len());
+    for over in overrides {
+        if !over.x.is_finite() || !over.y.is_finite() || !over.width.is_finite() {
+            return HudOverrideApply::Refused;
+        }
+        let Some(index) = anchors.iter().position(|anchor| anchor.id == over.id) else {
+            return HudOverrideApply::Refused;
+        };
+        if seen.contains(&index) {
+            return HudOverrideApply::Refused;
+        }
+        seen.push(index);
+        let anchor = &anchors[index];
+        if over.hidden && anchor_blocks_hide(anchor) {
+            return HudOverrideApply::Refused;
+        }
+        if width_outside_clamp(over.width, anchor.width, view_w) {
+            return HudOverrideApply::Refused;
+        }
+        pending.push((index, over));
+    }
+    for (index, over) in pending {
+        let anchor = &mut anchors[index];
+        anchor.corner = layout_corner(over.corner);
+        anchor.offset = HudOffset {
+            x: over.x,
+            y: over.y,
+        };
+        anchor.width = over.width;
+        anchor.hidden = over.hidden;
+    }
+    HudOverrideApply::Applied(anchors)
+}
+
+/// §4.2 / §6.4. S1–S6 at `view_w` × `view_h` and at both proof windows.
+pub fn hud_save_allowed(layout: &HudPreset<'_>, view_w: f32, view_h: f32) -> bool {
+    let views = [(view_w, view_h), PROOF_VIEWS[0], PROOF_VIEWS[1]];
+    views.iter().all(|(w, h)| save_allowed_at(layout, *w, *h))
+}
+
+/// Apply overrides, then F6: a failed save check falls back to `base`, or to
+/// classic when `base` itself fails S1–S6.
+pub fn resolve_hud_layout(
+    base: &HudPreset<'_>,
+    registry_rev: u32,
+    overrides: &[HudLayoutAnchor],
+    view_w: f32,
+    view_h: f32,
+) -> HudLayoutChoice {
+    match apply_overrides(base, registry_rev, overrides, view_w, view_h) {
+        HudOverrideApply::Applied(anchors) => {
+            let layout = HudPreset {
+                id: base.id,
+                name: base.name,
+                anchors: &anchors,
+            };
+            if hud_save_allowed(&layout, view_w, view_h) {
+                HudLayoutChoice::Applied(anchors)
+            } else {
+                fallback_base(base, view_w, view_h)
+            }
+        }
+        HudOverrideApply::StaleRev | HudOverrideApply::Refused => {
+            fallback_base(base, view_w, view_h)
+        }
+    }
+}
+
+fn fallback_base(base: &HudPreset<'_>, view_w: f32, view_h: f32) -> HudLayoutChoice {
+    if hud_save_allowed(base, view_w, view_h) {
+        HudLayoutChoice::Fallback(base.id)
+    } else {
+        HudLayoutChoice::Fallback(RESET_PRESET)
+    }
+}
+
+fn anchor_blocks_hide(anchor: &HudAnchor) -> bool {
+    anchor.class <= CLASS_TUTOR
+        || anchor
+            .occupants
+            .iter()
+            .any(|occupant| occupant.class <= CLASS_TUTOR)
+}
+
+fn width_outside_clamp(width: f32, coded: f32, view_w: f32) -> bool {
+    let views = [view_w, PROOF_VIEWS[0].0, PROOF_VIEWS[1].0];
+    views
+        .iter()
+        .any(|view| clamp_hud_width(width, coded, *view) != width)
+}
+
+fn layout_corner(corner: HudLayoutCorner) -> HudCorner {
+    match corner {
+        HudLayoutCorner::TopLeft => HudCorner::TopLeft,
+        HudLayoutCorner::TopCentre => HudCorner::TopCentre,
+        HudLayoutCorner::TopRight => HudCorner::TopRight,
+        HudLayoutCorner::BottomLeft => HudCorner::BottomLeft,
+        HudLayoutCorner::BottomCentre => HudCorner::BottomCentre,
+        HudLayoutCorner::BottomRight => HudCorner::BottomRight,
+    }
+}
+
+fn save_allowed_at(layout: &HudPreset<'_>, view_w: f32, view_h: f32) -> bool {
+    s1_each_slab_once(layout)
+        && s2_inside_margin(layout, view_w, view_h)
+        && s3_coded_fit(layout)
+        && s4_s5_no_visible_together(layout, view_w, view_h)
+        && s6_class_limits(layout, view_w, view_h)
+}
+
+fn s1_each_slab_once(layout: &HudPreset<'_>) -> bool {
+    let mut seen = Vec::new();
+    for anchor in layout.anchors {
+        for occupant in anchor.occupants {
+            if seen.contains(&occupant.id) {
+                return false;
+            }
+            let Some(metrics) = SLAB_METRICS
+                .iter()
+                .find(|metrics| metrics.id == occupant.id)
+            else {
+                return false;
+            };
+            if matches!(metrics.row, 14 | 15 | 45 | 46) {
+                return false;
+            }
+            seen.push(occupant.id);
+        }
+    }
+    seen.len() == SLAB_METRICS.len()
+        && SLAB_METRICS
+            .iter()
+            .all(|metrics| seen.contains(&metrics.id))
+}
+
+fn s2_inside_margin(layout: &HudPreset<'_>, view_w: f32, view_h: f32) -> bool {
+    layout
+        .anchors
+        .iter()
+        .all(|anchor| rect_inside_margin(anchor_rect(anchor, view_w, view_h), view_w, view_h))
+}
+
+fn s3_coded_fit(layout: &HudPreset<'_>) -> bool {
+    layout.anchors.iter().all(|anchor| {
+        anchor.occupants.iter().all(|occupant| {
+            let metrics = slab_metrics(occupant.id);
+            metrics.width <= anchor.width && metrics.height_b <= anchor.height_budget
+        })
+    })
+}
+
+fn s4_s5_no_visible_together(layout: &HudPreset<'_>, view_w: f32, view_h: f32) -> bool {
+    // A hidden anchor is not showing (§6.3), so its occupants are not a visible pair.
+    let mut shown: Vec<HudAnchor> = layout.anchors.iter().copied().collect();
+    for anchor in &mut shown {
+        if anchor.hidden {
+            anchor.occupants = &[];
+        }
+    }
+    let shown_layout = HudPreset {
+        id: layout.id,
+        name: layout.name,
+        anchors: &shown,
+    };
+    let no_visible = [HudHeightModel::A, HudHeightModel::B]
+        .into_iter()
+        .all(|model| {
+            overlap_census(&shown_layout, view_w, view_h, model)
+                .visible_together
+                .is_empty()
+        });
+    no_visible && s5_anchors_clear_fixed(layout, view_w, view_h)
+}
+
+/// S5. The anchor's budget rect misses every fixed rect. R1's fixed pairs are
+/// fixed-to-fixed (touch stick / ledger, touch stick / satchel), not HUD anchors.
+fn s5_anchors_clear_fixed(layout: &HudPreset<'_>, view_w: f32, view_h: f32) -> bool {
+    layout.anchors.iter().all(|anchor| {
+        let budget = anchor_rect(anchor, view_w, view_h);
+        HudFixedId::ALL.iter().all(|fixed| {
+            [HudHeightModel::A, HudHeightModel::B]
+                .into_iter()
+                .all(|model| budget.overlap_area(fixed_rect(*fixed, model, view_w, view_h)) == 0)
+        })
+    })
+}
+
+fn s6_class_limits(layout: &HudPreset<'_>, view_w: f32, view_h: f32) -> bool {
+    for anchor in layout.anchors {
+        if anchor.hidden && anchor_blocks_hide(anchor) {
+            return false;
+        }
+        if anchor.share == HudShare::Push {
+            if anchor.class != CLASS_PANEL
+                || anchor
+                    .occupants
+                    .iter()
+                    .any(|occupant| occupant.class != CLASS_PANEL)
+            {
+                return false;
+            }
+        } else {
+            let class1 = anchor
+                .occupants
+                .iter()
+                .filter(|occupant| occupant.class == CLASS_PANEL)
+                .count();
+            if class1 > 1 {
+                return false;
+            }
+        }
+    }
+    let guarded: Vec<&str> = layout
+        .anchors
+        .iter()
+        .filter(|anchor| anchor.class <= CLASS_TUTOR)
+        .flat_map(|anchor| anchor.occupants.iter())
+        .filter(|occupant| occupant.class <= CLASS_TUTOR)
+        .map(|occupant| occupant.id)
+        .collect();
+    for left_index in 0..guarded.len() {
+        for right_index in (left_index + 1)..guarded.len() {
+            let left_id = guarded[left_index];
+            let right_id = guarded[right_index];
+            let (left_anchor, _) = find_occupant(layout, left_id);
+            let (right_anchor, _) = find_occupant(layout, right_id);
+            if left_anchor.id == right_anchor.id {
+                continue;
+            }
+            for model in [HudHeightModel::A, HudHeightModel::B] {
+                if slab_overlap(layout, left_id, right_id, view_w, view_h, model).is_some() {
+                    return false;
+                }
+            }
+        }
+    }
+    true
 }
 
 /// The six `Style` fields design §6.5 allows the registry to write.
@@ -1339,7 +1624,7 @@ fn write_edges(style: &mut Mut<'_, Style>, edges: PresetEdges) {
     }
 }
 
-fn slab_on<'a>(preset: &'a HudPreset, id: &str) -> Option<(&'a HudAnchor, &'a HudOccupant)> {
+fn slab_on<'a>(preset: &'a HudPreset<'_>, id: &str) -> Option<(&'a HudAnchor, &'a HudOccupant)> {
     for anchor in preset.anchors {
         if let Some(occupant) = anchor.occupants.iter().find(|occupant| occupant.id == id) {
             return Some((anchor, occupant));
@@ -1956,7 +2241,7 @@ mod tests {
         }
     }
 
-    fn assert_s2_s3_s5(preset: &HudPreset, view_w: f32, view_h: f32) {
+    fn assert_s2_s3_s5(preset: &HudPreset<'_>, view_w: f32, view_h: f32) {
         for anchor in preset.anchors {
             let budget = anchor_rect(anchor, view_w, view_h);
             assert!(
@@ -2008,7 +2293,7 @@ mod tests {
         }
     }
 
-    fn assert_model_a_inside_model_b(preset: &HudPreset, view_w: f32, view_h: f32) {
+    fn assert_model_a_inside_model_b(preset: &HudPreset<'_>, view_w: f32, view_h: f32) {
         for anchor in preset.anchors {
             for occupant in anchor.occupants {
                 let model_a = occupant_rect(anchor, occupant, HudHeightModel::A, view_w, view_h);
@@ -2027,7 +2312,7 @@ mod tests {
         }
     }
 
-    fn assert_anchor_gap_or_cover(preset: &HudPreset, view_w: f32, view_h: f32) {
+    fn assert_anchor_gap_or_cover(preset: &HudPreset<'_>, view_w: f32, view_h: f32) {
         let anchors = preset.anchors;
         for left_index in 0..anchors.len() {
             for right_index in (left_index + 1)..anchors.len() {
@@ -2505,7 +2790,7 @@ mod tests {
 
     #[test]
     fn model_b_slab_rects_match_design_3_2_to_3_4() {
-        let cases: &[(&HudPreset, &[(&str, HudRect, HudRect)])] = &[
+        let cases: &[(&HudPreset<'static>, &[(&str, HudRect, HudRect)])] = &[
             (
                 &CLASSIC,
                 &[
@@ -3586,6 +3871,243 @@ mod tests {
         assert_eq!(
             *app.world().get::<Visibility>(slab).expect("vis"),
             Visibility::Visible
+        );
+    }
+
+    fn over(
+        id: &str,
+        corner: HudLayoutCorner,
+        x: f32,
+        y: f32,
+        width: f32,
+        hidden: bool,
+    ) -> HudLayoutAnchor {
+        HudLayoutAnchor {
+            id: id.to_string(),
+            corner,
+            x,
+            y,
+            width,
+            hidden,
+        }
+    }
+
+    #[test]
+    fn zero_overrides_apply_exactly_the_preset() {
+        for layout in PRESETS {
+            let applied = apply_overrides(layout, HUD_REGISTRY_REV, &[], 1024.0, 640.0);
+            match applied {
+                HudOverrideApply::Applied(anchors) => assert_eq!(anchors, layout.anchors),
+                other => panic!("{} zero overrides became {other:?}", layout.name),
+            }
+            assert!(hud_save_allowed(layout, 1024.0, 640.0), "{}", layout.name);
+        }
+    }
+
+    #[test]
+    fn hidden_refused_on_class_1_2_and_3_anchors() {
+        let class1 = over(
+            "VOICE",
+            HudLayoutCorner::BottomRight,
+            16.0,
+            221.0,
+            560.0,
+            true,
+        );
+        let class2 = over(
+            "ACTION_BAR",
+            HudLayoutCorner::BottomRight,
+            16.0,
+            144.0,
+            640.0,
+            true,
+        );
+        assert!(matches!(
+            apply_overrides(&CLASSIC, HUD_REGISTRY_REV, &[class1], 1024.0, 640.0),
+            HudOverrideApply::Refused
+        ));
+        assert!(matches!(
+            apply_overrides(&CLASSIC, HUD_REGISTRY_REV, &[class2], 1280.0, 800.0),
+            HudOverrideApply::Refused
+        ));
+
+        const TUTOR_ONLY: [HudOccupant; 1] = [occ(ID_GUIDANCE, 1)];
+        let tutor_anchors = [anchor(AnchorFields {
+            id: "TUTOR",
+            corner: HudCorner::TopLeft,
+            x: 16.0,
+            y: 16.0,
+            width: 520.0,
+            height_budget: 69.0,
+            class: CLASS_TUTOR,
+            occupants: &TUTOR_ONLY,
+            share: HudShare::Solo,
+        })];
+        let tutor = HudPreset {
+            id: HudPresetId::Classic,
+            name: "classic",
+            anchors: &tutor_anchors,
+        };
+        let class3 = over("TUTOR", HudLayoutCorner::TopLeft, 16.0, 16.0, 520.0, true);
+        assert!(matches!(
+            apply_overrides(&tutor, HUD_REGISTRY_REV, &[class3], 1024.0, 640.0),
+            HudOverrideApply::Refused
+        ));
+
+        let class4 = over(
+            "TOP_TOAST",
+            HudLayoutCorner::TopCentre,
+            0.0,
+            16.0,
+            620.0,
+            true,
+        );
+        match apply_overrides(&CLASSIC, HUD_REGISTRY_REV, &[class4], 1024.0, 640.0) {
+            HudOverrideApply::Applied(anchors) => {
+                let toast = anchors
+                    .iter()
+                    .find(|anchor| anchor.id == "TOP_TOAST")
+                    .unwrap();
+                assert!(toast.hidden);
+                assert!(!anchors
+                    .iter()
+                    .any(|anchor| anchor.id != "TOP_TOAST" && anchor.hidden));
+            }
+            other => panic!("class 4 hide should apply, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn apply_overrides_refuses_f5_without_a_partial_apply() {
+        let bad_width = over(
+            "PLACE_NAME",
+            HudLayoutCorner::TopRight,
+            76.0,
+            93.0,
+            279.0,
+            false,
+        );
+        let too_wide = over(
+            "PLACE_NAME",
+            HudLayoutCorner::TopRight,
+            76.0,
+            93.0,
+            641.0,
+            false,
+        );
+        let unknown = over(
+            "NO_SUCH",
+            HudLayoutCorner::TopLeft,
+            16.0,
+            16.0,
+            280.0,
+            false,
+        );
+        let non_finite = over(
+            "PLACE_NAME",
+            HudLayoutCorner::TopRight,
+            f32::NAN,
+            93.0,
+            280.0,
+            false,
+        );
+        for (view_w, view_h) in PROOF_VIEWS {
+            assert!(matches!(
+                apply_overrides(
+                    &CLASSIC,
+                    HUD_REGISTRY_REV,
+                    &[bad_width.clone()],
+                    view_w,
+                    view_h
+                ),
+                HudOverrideApply::Refused
+            ));
+            assert!(matches!(
+                apply_overrides(
+                    &CLASSIC,
+                    HUD_REGISTRY_REV,
+                    &[too_wide.clone()],
+                    view_w,
+                    view_h
+                ),
+                HudOverrideApply::Refused
+            ));
+        }
+        let legal = over(
+            "TOP_TOAST",
+            HudLayoutCorner::TopCentre,
+            0.0,
+            16.0,
+            620.0,
+            true,
+        );
+        assert!(matches!(
+            apply_overrides(
+                &CLASSIC,
+                HUD_REGISTRY_REV,
+                &[legal.clone(), unknown],
+                1024.0,
+                640.0
+            ),
+            HudOverrideApply::Refused
+        ));
+        assert!(matches!(
+            apply_overrides(&CLASSIC, HUD_REGISTRY_REV, &[non_finite], 1024.0, 640.0),
+            HudOverrideApply::Refused
+        ));
+        assert!(matches!(
+            apply_overrides(&CLASSIC, HUD_REGISTRY_REV + 1, &[legal], 1024.0, 640.0),
+            HudOverrideApply::StaleRev
+        ));
+    }
+
+    #[test]
+    fn overlap_override_blocks_save_and_falls_back_to_base() {
+        for (view_w, view_h) in PROOF_VIEWS {
+            assert!(hud_save_allowed(&MINIMAL, view_w, view_h));
+            let moved = over(
+                "CORNER",
+                HudLayoutCorner::TopRight,
+                16.0,
+                180.0,
+                340.0,
+                false,
+            );
+            let HudOverrideApply::Applied(anchors) =
+                apply_overrides(&MINIMAL, HUD_REGISTRY_REV, &[moved.clone()], view_w, view_h)
+            else {
+                panic!("overlap case must be a legal override");
+            };
+            let layout = HudPreset {
+                id: MINIMAL.id,
+                name: MINIMAL.name,
+                anchors: &anchors,
+            };
+            let census = overlap_census(&layout, view_w, view_h, HudHeightModel::B);
+            assert!(
+                census.visible_together.iter().any(|pair| {
+                    (pair.left == ID_WATCH || pair.right == ID_WATCH)
+                        && (pair.left == ID_FACTORY || pair.right == ID_FACTORY)
+                }),
+                "CORNER over EDGE_STATUS at {view_w}x{view_h}: {:?}",
+                census.visible_together
+            );
+            assert!(!hud_save_allowed(&layout, view_w, view_h));
+            assert_eq!(
+                resolve_hud_layout(&MINIMAL, HUD_REGISTRY_REV, &[moved], view_w, view_h),
+                HudLayoutChoice::Fallback(HudPresetId::Minimal)
+            );
+        }
+
+        let broken = HudPreset {
+            id: HudPresetId::Minimal,
+            name: "minimal",
+            anchors: &[],
+        };
+        assert_eq!(
+            resolve_hud_layout(&broken, HUD_REGISTRY_REV, &[], 1024.0, 640.0),
+            HudLayoutChoice::Fallback(HudPresetId::Classic),
+            "F6 uses classic when base itself fails"
         );
     }
 }

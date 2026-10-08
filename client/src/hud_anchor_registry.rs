@@ -86,6 +86,8 @@ pub struct HudAnchor {
     pub class: u8,
     pub occupants: &'static [HudOccupant],
     pub share: HudShare,
+    /// §6.3. Class 4 and 5 may be hidden. Class 1–3 stay visible.
+    pub hidden: bool,
 }
 
 pub const ID_CARE_STRIP: &str = "CareStrip";
@@ -153,6 +155,7 @@ pub const ACTION_BAR: HudAnchor = HudAnchor {
     class: 2,
     occupants: &ACTION_BAR_OCCUPANTS,
     share: HudShare::Yield,
+    hidden: false,
 };
 
 /// Design §2.5. Bottom 221, right 16. Voice.
@@ -166,6 +169,7 @@ pub const VOICE: HudAnchor = HudAnchor {
     class: 1,
     occupants: &VOICE_OCCUPANTS,
     share: HudShare::Solo,
+    hidden: false,
 };
 
 /// Design §2.5. Bottom 281, right 16. Allocate. Not the classic `WINDOW` slot.
@@ -179,9 +183,20 @@ pub const ALLOCATE_DOCK: HudAnchor = HudAnchor {
     class: 1,
     occupants: &ALLOCATE_DOCK_OCCUPANTS,
     share: HudShare::Solo,
+    hidden: false,
 };
 
 pub const ANCHORS: &[HudAnchor] = &[ACTION_BAR, VOICE, ALLOCATE_DOCK];
+
+/// Bumped when slab ids, classes, or preset tables change. Step 4a is rev 1.
+pub const HUD_REGISTRY_REV: u32 = 1;
+
+/// §6.2 / Q20. Snap onto this screen margin when an edge is within it.
+const SNAP_MARGIN_PX: i32 = 16;
+/// §6.2 / Q20. Snap onto another anchor's facing edge plus this gap.
+const SNAP_GAP_PX: i32 = 8;
+/// §6.2. Both screen margins, subtracted from the window width.
+const WIDTH_WINDOW_INSET_PX: f32 = 32.0;
 
 pub const ID_FACTORY: &str = "Factory";
 pub const ID_SPILL: &str = "Spill";
@@ -819,6 +834,150 @@ pub fn slab_rect(place: SlabPlace, width: f32, height: f32, view_w: f32, view_h:
     }
 }
 
+/// Corner and offsets after §6.2 re-picks the screen third.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct HudCornerPick {
+    pub corner: HudCorner,
+    pub offset: HudOffset,
+}
+
+/// §6.2. Translate `rect` onto the 16 px screen margin when an edge is within
+/// 16 px of that screen edge. Otherwise translate it onto a neighbour's facing
+/// edge plus the 8 px gap when that edge is within 8 px. Width and height stay.
+pub fn snap_hud_rect(rect: HudRect, view_w: f32, view_h: f32, neighbours: &[HudRect]) -> HudRect {
+    let view_w_px = view_w.round() as i32;
+    let view_h_px = view_h.round() as i32;
+    let width = rect.x1 - rect.x0;
+    let height = rect.y1 - rect.y0;
+    let mut x = snap_to_screen_margin(rect.x0, width, view_w_px);
+    let mut y = snap_to_screen_margin(rect.y0, height, view_h_px);
+    if !near_screen_edge(rect.x0, width, view_w_px) {
+        x = snap_to_neighbour_gap(
+            x,
+            width,
+            neighbours.iter().map(|other| (other.x0, other.x1)),
+        );
+    }
+    if !near_screen_edge(rect.y0, height, view_h_px) {
+        y = snap_to_neighbour_gap(
+            y,
+            height,
+            neighbours.iter().map(|other| (other.y0, other.y1)),
+        );
+    }
+    HudRect {
+        x0: x,
+        y0: y,
+        x1: x + width,
+        y1: y + height,
+    }
+}
+
+/// §6.2. Width stays between the anchor's coded width and `min(640, window − 32)`.
+pub fn clamp_hud_width(width: f32, coded_width: f32, view_w: f32) -> f32 {
+    if !width.is_finite() || !coded_width.is_finite() || !view_w.is_finite() {
+        return coded_width;
+    }
+    let max = (view_w - WIDTH_WINDOW_INSET_PX).min(shared::hud_layout::HUD_LAYOUT_WIDTH_MAX);
+    if max < coded_width {
+        return coded_width;
+    }
+    width.clamp(coded_width, max)
+}
+
+/// §6.2. The horizontal screen third of the anchor's centre picks left, centre,
+/// or right. The vertical half picks top or bottom. Offsets are re-measured
+/// from those edges. A centred corner leaves `offset.x` unused (`0`).
+pub fn repick_hud_corner(rect: HudRect, view_w: f32, view_h: f32) -> HudCornerPick {
+    let centre_x = (rect.x0 + rect.x1) as f32 * 0.5;
+    let centre_y = (rect.y0 + rect.y1) as f32 * 0.5;
+    let column = if centre_x < view_w / 3.0 {
+        0
+    } else if centre_x < view_w * 2.0 / 3.0 {
+        1
+    } else {
+        2
+    };
+    let top = centre_y < view_h * 0.5;
+    let corner = match (top, column) {
+        (true, 0) => HudCorner::TopLeft,
+        (true, 1) => HudCorner::TopCentre,
+        (true, _) => HudCorner::TopRight,
+        (false, 0) => HudCorner::BottomLeft,
+        (false, 1) => HudCorner::BottomCentre,
+        (false, _) => HudCorner::BottomRight,
+    };
+    let offset = match corner {
+        HudCorner::TopLeft => HudOffset {
+            x: rect.x0 as f32,
+            y: rect.y0 as f32,
+        },
+        HudCorner::TopCentre => HudOffset {
+            x: 0.0,
+            y: rect.y0 as f32,
+        },
+        HudCorner::TopRight => HudOffset {
+            x: view_w - rect.x1 as f32,
+            y: rect.y0 as f32,
+        },
+        HudCorner::BottomLeft => HudOffset {
+            x: rect.x0 as f32,
+            y: view_h - rect.y1 as f32,
+        },
+        HudCorner::BottomCentre => HudOffset {
+            x: 0.0,
+            y: view_h - rect.y1 as f32,
+        },
+        HudCorner::BottomRight => HudOffset {
+            x: view_w - rect.x1 as f32,
+            y: view_h - rect.y1 as f32,
+        },
+    };
+    HudCornerPick { corner, offset }
+}
+
+fn near_screen_edge(start: i32, span: i32, view: i32) -> bool {
+    let end = start + span;
+    start.abs() <= SNAP_MARGIN_PX || (view - end).abs() <= SNAP_MARGIN_PX
+}
+
+fn snap_to_screen_margin(start: i32, span: i32, view: i32) -> i32 {
+    let end = start + span;
+    let to_start = start.abs();
+    let to_end = (view - end).abs();
+    let start_near = to_start <= SNAP_MARGIN_PX;
+    let end_near = to_end <= SNAP_MARGIN_PX;
+    match (start_near, end_near) {
+        (true, false) => SNAP_MARGIN_PX,
+        (false, true) => view - SNAP_MARGIN_PX - span,
+        (true, true) if to_start <= to_end => SNAP_MARGIN_PX,
+        (true, true) => view - SNAP_MARGIN_PX - span,
+        (false, false) => start,
+    }
+}
+
+fn snap_to_neighbour_gap(start: i32, span: i32, edges: impl Iterator<Item = (i32, i32)>) -> i32 {
+    let end = start + span;
+    let mut best: Option<(i32, i32)> = None;
+    for (other_start, other_end) in edges {
+        let candidates = [
+            ((start - other_end).abs(), other_end + SNAP_GAP_PX),
+            ((end - other_start).abs(), other_start - SNAP_GAP_PX - span),
+        ];
+        for (distance, new_start) in candidates {
+            if distance > SNAP_GAP_PX {
+                continue;
+            }
+            let shift = (new_start - start).abs();
+            match best {
+                Some((best_shift, _)) if best_shift <= shift => {}
+                _ => best = Some((shift, new_start)),
+            }
+        }
+    }
+    best.map(|(_, new_start)| new_start).unwrap_or(start)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1405,5 +1564,186 @@ mod tests {
             .iter(app.world())
             .next()
             .expect("strip")
+    }
+
+    #[test]
+    fn snap_to_sixteen_px_margin_on_all_four_screen_edges() {
+        assert_eq!(HUD_REGISTRY_REV, 1);
+        for (view_w, view_h) in [(1024.0_f32, 640.0_f32), (1280.0, 800.0)] {
+            let view_w_px = view_w.round() as i32;
+            let view_h_px = view_h.round() as i32;
+
+            let left = snap_hud_rect(
+                HudRect {
+                    x0: 4,
+                    y0: 200,
+                    x1: 204,
+                    y1: 260,
+                },
+                view_w,
+                view_h,
+                &[],
+            );
+            assert_eq!(left.x0, SNAP_MARGIN_PX, "left edge at {view_w}x{view_h}");
+            assert_eq!(left.x1 - left.x0, 200);
+            assert_eq!(left.y0, 200);
+
+            let right = snap_hud_rect(
+                HudRect {
+                    x0: view_w_px - 204,
+                    y0: 200,
+                    x1: view_w_px - 4,
+                    y1: 260,
+                },
+                view_w,
+                view_h,
+                &[],
+            );
+            assert_eq!(right.x1, view_w_px - SNAP_MARGIN_PX, "right edge");
+            assert_eq!(right.x1 - right.x0, 200);
+
+            let top = snap_hud_rect(
+                HudRect {
+                    x0: 200,
+                    y0: 3,
+                    x1: 400,
+                    y1: 63,
+                },
+                view_w,
+                view_h,
+                &[],
+            );
+            assert_eq!(top.y0, SNAP_MARGIN_PX, "top edge");
+            assert_eq!(top.x0, 200);
+
+            let bottom = snap_hud_rect(
+                HudRect {
+                    x0: 200,
+                    y0: view_h_px - 63,
+                    x1: 400,
+                    y1: view_h_px - 3,
+                },
+                view_w,
+                view_h,
+                &[],
+            );
+            assert_eq!(bottom.y1, view_h_px - SNAP_MARGIN_PX, "bottom edge");
+            assert_eq!(bottom.x0, 200);
+        }
+    }
+
+    #[test]
+    fn snap_to_neighbour_anchor_edge_plus_gap() {
+        let neighbour = HudRect {
+            x0: 400,
+            y0: 120,
+            x1: 600,
+            y1: 180,
+        };
+        let beside = snap_hud_rect(
+            HudRect {
+                x0: 604,
+                y0: 120,
+                x1: 804,
+                y1: 180,
+            },
+            1024.0,
+            640.0,
+            &[neighbour],
+        );
+        assert_eq!(beside.x0, neighbour.x1 + SNAP_GAP_PX);
+        assert_eq!(beside.x1 - beside.x0, 200);
+        assert_eq!(beside.y0, 120);
+
+        let before = snap_hud_rect(
+            HudRect {
+                x0: 180,
+                y0: 120,
+                x1: 396,
+                y1: 180,
+            },
+            1024.0,
+            640.0,
+            &[neighbour],
+        );
+        assert_eq!(before.x1, neighbour.x0 - SNAP_GAP_PX);
+        assert_eq!(before.x1 - before.x0, 216);
+    }
+
+    #[test]
+    fn clamp_width_both_ends_at_1024x640_and_1280x800() {
+        for (view_w, _view_h) in [(1024.0_f32, 640.0_f32), (1280.0, 800.0)] {
+            assert_eq!(
+                clamp_hud_width(10.0, 520.0, view_w),
+                520.0,
+                "min at {view_w}"
+            );
+            assert_eq!(
+                clamp_hud_width(900.0, 520.0, view_w),
+                640.0,
+                "max at {view_w}"
+            );
+            assert_eq!(
+                clamp_hud_width(580.0, 520.0, view_w),
+                580.0,
+                "inside at {view_w}"
+            );
+            assert_eq!(clamp_hud_width(100.0, 640.0, view_w), 640.0);
+            assert_eq!(clamp_hud_width(900.0, 280.0, view_w), 640.0);
+            assert_eq!(clamp_hud_width(280.0, 280.0, view_w), 280.0);
+        }
+    }
+
+    #[test]
+    fn repick_corner_for_each_screen_third() {
+        for (view_w, view_h) in [(1024.0_f32, 640.0_f32), (1280.0, 800.0)] {
+            let spots = [
+                (view_w / 6.0, view_h / 4.0, HudCorner::TopLeft),
+                (view_w / 2.0, view_h / 4.0, HudCorner::TopCentre),
+                (view_w * 5.0 / 6.0, view_h / 4.0, HudCorner::TopRight),
+                (view_w / 6.0, view_h * 3.0 / 4.0, HudCorner::BottomLeft),
+                (view_w / 2.0, view_h * 3.0 / 4.0, HudCorner::BottomCentre),
+                (
+                    view_w * 5.0 / 6.0,
+                    view_h * 3.0 / 4.0,
+                    HudCorner::BottomRight,
+                ),
+            ];
+            for (spot_x, spot_y, expect) in spots {
+                let centre_x = spot_x.round() as i32;
+                let centre_y = spot_y.round() as i32;
+                let rect = HudRect {
+                    x0: centre_x - 20,
+                    y0: centre_y - 10,
+                    x1: centre_x + 20,
+                    y1: centre_y + 10,
+                };
+                let pick = repick_hud_corner(rect, view_w, view_h);
+                assert_eq!(
+                    pick.corner, expect,
+                    "{view_w}x{view_h} centre {centre_x},{centre_y}"
+                );
+                let expect_x = match expect {
+                    HudCorner::TopLeft | HudCorner::BottomLeft => rect.x0 as f32,
+                    HudCorner::TopRight | HudCorner::BottomRight => view_w - rect.x1 as f32,
+                    HudCorner::TopCentre | HudCorner::BottomCentre => 0.0,
+                };
+                let expect_y = match expect {
+                    HudCorner::TopLeft | HudCorner::TopCentre | HudCorner::TopRight => {
+                        rect.y0 as f32
+                    }
+                    HudCorner::BottomLeft | HudCorner::BottomCentre | HudCorner::BottomRight => {
+                        view_h - rect.y1 as f32
+                    }
+                };
+                assert_eq!(
+                    pick.offset,
+                    HudOffset {
+                        x: expect_x,
+                        y: expect_y
+                    }
+                );
+            }
+        }
     }
 }
