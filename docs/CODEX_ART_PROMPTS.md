@@ -54,3 +54,14 @@ No text.
 ## Refuse
 
 Same teal cave for every people. Crystal starfish as the Quellorian ship. Tree-body Orin. Reptile Vrendak. Market in the Sanctuary yard. Online chrome. Lettering.
+
+## Reject log, Drive folder 1T4Gpg1anyid9-mh88p2xX-ZNZbEGuFLm
+
+Twelve plates, six prompts, each painted twice. Pairs still drifted. Do not ship them.
+
+- The cavern pair is an organic temple. The prompt asked for human cyborg scaffolds. "One with their machines" was read as vines on a shrine. Say "machined metal, no plants on the frame."
+- The orbit pair is a lava world and a purple crystal starfish. Human cities are missing. The mothership must be a pale-gold radial hull. Violet only in the seams.
+- The lineup puts a cape on Orin and makes Solmaris and Lyrisse the same crystal person. Ronan's grey-gold plate is the only human read. Vrendak is closer, and still shares the fantasy lineup light.
+- The emblem sheet drew letters. Image tools invent labels. Say "blank metal, no characters, no runes that look like writing."
+
+Every prompt repeats this lock: machined or worn material, one accent, no shared teal cave, no letters.
