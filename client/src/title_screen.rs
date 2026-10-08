@@ -1278,13 +1278,13 @@ impl Plugin for TitleScreenPlugin {
                     refresh_pause_cue,
                     pause_plate_clicks,
                     refresh_local_settings_labels,
-                    refresh_hud_layout_label,
                     refresh_controls_settings_labels,
                     refresh_lethal_sign_label,
                     local_settings_clicks,
                     lethal_sign_settings_clicks,
                 ),
             )
+            .add_systems(Update, refresh_hud_layout_label)
             // Same-frame as Places row Pressed: hide Comfort before soft-GPU composites.
             .add_systems(
                 Update,

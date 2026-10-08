@@ -361,7 +361,6 @@ fn suppress_disabled_rumble(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use bevy::prelude::*;
     use shared::local_settings::{
         local_settings_opens_socket, refuse_online_socket_toggle, DEFAULT_LOOK_SENSITIVITY,
         SETTINGS_PATH,
