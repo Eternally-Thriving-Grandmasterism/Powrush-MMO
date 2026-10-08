@@ -1,26 +1,44 @@
-//! CARD HUD-PRESETS-1 — step 3a of the UI layout epic.
+//! CARD HUD-PRESETS-APPLY-1 — step 3b of the UI layout epic.
 //!
-//! Three preset tables from design §3.2–§3.4, plus the R3, R4, and R5
-//! predicates. Pure data. No plugin, no system, and no resource reads a
-//! preset, so nothing on screen moves. Q10 (renders) and Q16 (where a layout
-//! is saved) are later cards.
+//! `HudLayoutPlugin` stays dark while [`ActiveHudPreset`] is `None`. No system
+//! writes `Style` or `Visibility` in that state, so the game matches today.
 //!
-//! Reset restores `classic` (Q1). Push is accepted in a shared panel slot
-//! (Q2). Cover is accepted, and a toast may expire while it is hidden (Q3).
-//! Modal yield is accepted (Q5). Place-name stays a showing candidate (Q11).
-//! Climate state stays independent of every other slab (Q12). Rank stays
-//! fixed (Q19). The gap is 8 px, the margin is 16 px, the touch clears are
-//! `right 76` and `right 80`, and the column under the touch buttons starts
-//! at y 180 (Q20). Ledger, satchel, touch, and the modal plates stay on their
-//! coded anchors (Q6, Q7, Q22).
+//! Ruled: Q1, Q2, Q3, Q5, Q6, Q7, Q8, Q9, Q11, Q12, Q19, Q20, and Q22.
+//! Open: Q4, Q10, Q13, Q14, Q15, Q16, Q17, Q18, and Q21.
+//!
+//! Q1 Reset restores classic. Q2 push is accepted in a shared panel slot.
+//! Q3 cover is accepted, and a toast may expire while it is hidden.
+//! Q5 modal yield is accepted. Q6 the ledger band stays coded and does not yield.
+//! Q7 Comfort stays a modal-band plate and is not an R5 trigger.
+//! Q8 parked rows 14 and 15 keep spawning, with no anchor, and are not hidden.
+//! Q9 rows 16 and 17 (Redemption, Hybrid) are in the preset tables.
+//! Q11 place-name stays a showing candidate.
+//! Q12 climate state stays independent of every other slab.
+//! Q19 rank stays fixed and does not pick an R3 winner.
+//! Q20 the gap is 8 px, the margin is 16 px, the touch clears are `right 76`
+//! and `right 80`, and the column under the touch buttons starts at y 180.
+//! Q22 ledger, satchel, and touch stay coded.
 
+use std::collections::{HashMap, HashSet};
+
+use bevy::prelude::*;
+use bevy::render::view::VisibilitySystems;
+use bevy::ui::UiSystem;
+use bevy::window::PrimaryWindow;
+
+use crate::abundance_journey_echo::AbundanceJourneyEcho;
+use crate::coop_voice::VoiceYard;
+use crate::hex_travel::PlacesPlate;
 use crate::hud_anchor_registry::{
-    slab_rect, HudAnchor, HudCorner, HudOccupant, HudOffset, HudRect, HudShare, HudZBand,
+    slab_rect, r2_yields_to, HudAnchor, HudCorner, HudOccupant, HudOffset, HudRect, HudShare, HudSlab, HudZBand,
     SlabPlace, ID_ALLOCATE, ID_CARE_PROMPT, ID_CARE_STRIP, ID_CLIMATE_STATE, ID_COMPASS,
     ID_EMBASSY, ID_FAB, ID_FACTORY, ID_GUIDANCE, ID_HYBRID, ID_JOURNEY, ID_MERCY, ID_PEER,
     ID_PICKUP, ID_PLACE_NAME, ID_PRACTICE, ID_PULSE, ID_REALM, ID_REDEMPTION, ID_SOVEREIGN,
     ID_SPILL, ID_THRIVING, ID_VOICE, ID_WATCH, ID_WELCOME, ID_WELL, ID_WHISPER,
 };
+use crate::human_soft_panels::HumanSoftPanels;
+use crate::rbe_allocate_choice::RbeAllocateChoice;
+use crate::title_screen::{HouseLabel, LaunchDoor, PersonaCreatorState};
 
 /// Q20. Edge margin, in window px.
 pub const EDGE_MARGIN_PX: i32 = 16;
@@ -183,7 +201,7 @@ impl HudPresetId {
     }
 }
 
-/// One preset: a list of anchors. Applying it is a later card.
+/// One preset: a list of anchors. [`HudLayoutPlugin`] applies it while that id is active.
 #[derive(Clone, Copy, Debug)]
 pub struct HudPreset {
     pub id: HudPresetId,
@@ -666,7 +684,7 @@ pub fn reset_preset() -> &'static HudPreset {
     preset(RESET_PRESET)
 }
 
-pub fn slab_metrics(id: &str) -> &HudSlabMetrics {
+pub fn slab_metrics(id: &str) -> &'static HudSlabMetrics {
     SLAB_METRICS
         .iter()
         .find(|metrics| metrics.id == id)
@@ -985,12 +1003,13 @@ fn pair_is(left: &str, right: &str, a: &str, b: &str) -> bool {
     (left == a && right == b) || (left == b && right == a)
 }
 
-/// R3 (design §2.3, Q2). Class-1 panels never yield. Opening `opened` closes
-/// every other class-1 occupant of this anchor. Rank does not pick the winner
-/// (Q19 keeps rank for yield). Classes 2, 3, 4, and 5 never push. This does
-/// not write a panel's close flag.
+/// R3 (design §2.3, Q2). Class-1 panels on a [`HudShare::Push`] anchor never
+/// yield. Opening `opened` closes every other class-1 occupant of this anchor.
+/// Returns false unless the anchor's share is `Push`. Rank does not pick the
+/// winner (Q19). Panics if `opened` or `panel` is not an occupant
+/// ([`HudAnchor::occupant`]). This does not write a panel's close flag.
 pub fn r3_pushes_closed(anchor: &HudAnchor, opened: &str, panel: &str) -> bool {
-    if opened == panel {
+    if anchor.share != HudShare::Push || opened == panel {
         return false;
     }
     let opener = anchor.occupant(opened);
@@ -1015,19 +1034,29 @@ pub fn r4_covers(
         && panel_rect.overlap_area(other_rect) > 0
 }
 
-/// R5 (design §2.3, Q5). The HUD band yields while one of [`HudModal`] is open.
+/// Which R5 modals are open. Empty does not yield. Comfort is not a flag (Q7).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct HudModalsOpen {
+    pub pause: bool,
+    pub places: bool,
+    pub title: bool,
+    pub name_house: bool,
+    pub house_dress: bool,
+    pub persona: bool,
+}
+
+/// R5 (design §2.3, Q5). The HUD band yields while one of these modals is open.
 /// The ledger band and the touch band do not yield (Q6, Q22).
-pub fn r5_band_yields(modal: HudModal, band: HudBand) -> bool {
-    let yields_hud = matches!(
-        modal,
-        HudModal::Pause
-            | HudModal::Places
-            | HudModal::Title
-            | HudModal::NameHouse
-            | HudModal::HouseDress
-            | HudModal::Persona
-    );
-    yields_hud && band == HudBand::Hud
+pub fn r5_band_yields(open: HudModalsOpen, band: HudBand) -> bool {
+    if band != HudBand::Hud {
+        return false;
+    }
+    open.pause
+        || open.places
+        || open.title
+        || open.name_house
+        || open.house_dress
+        || open.persona
 }
 
 /// How an overlapping pair is excluded. `VisibleTogether` is the §3.5 zero.
@@ -1220,15 +1249,535 @@ pub fn rect_inside_margin(rect: HudRect, view_w: f32, view_h: f32) -> bool {
         && rect.y1 <= bottom_limit
 }
 
+/// The six `Style` fields design §6.5 allows the registry to write.
+struct PresetEdges {
+    top: Val,
+    bottom: Val,
+    left: Val,
+    right: Val,
+    margin_left: Val,
+    width: Val,
+}
+
+fn preset_edges(corner: HudCorner, offset: HudOffset, width: f32) -> PresetEdges {
+    let auto = Val::Auto;
+    let width_val = Val::Px(width);
+    match corner {
+        HudCorner::TopLeft => PresetEdges {
+            top: Val::Px(offset.y),
+            bottom: auto,
+            left: Val::Px(offset.x),
+            right: auto,
+            margin_left: auto,
+            width: width_val,
+        },
+        HudCorner::TopCentre => PresetEdges {
+            top: Val::Px(offset.y),
+            bottom: auto,
+            left: Val::Percent(50.0),
+            right: auto,
+            margin_left: Val::Px(-width / 2.0),
+            width: width_val,
+        },
+        HudCorner::TopRight => PresetEdges {
+            top: Val::Px(offset.y),
+            bottom: auto,
+            left: auto,
+            right: Val::Px(offset.x),
+            margin_left: auto,
+            width: width_val,
+        },
+        HudCorner::BottomLeft => PresetEdges {
+            top: auto,
+            bottom: Val::Px(offset.y),
+            left: Val::Px(offset.x),
+            right: auto,
+            margin_left: auto,
+            width: width_val,
+        },
+        HudCorner::BottomCentre => PresetEdges {
+            top: auto,
+            bottom: Val::Px(offset.y),
+            left: Val::Percent(50.0),
+            right: auto,
+            margin_left: Val::Px(-width / 2.0),
+            width: width_val,
+        },
+        HudCorner::BottomRight => PresetEdges {
+            top: auto,
+            bottom: Val::Px(offset.y),
+            left: auto,
+            right: Val::Px(offset.x),
+            margin_left: auto,
+            width: width_val,
+        },
+    }
+}
+
+/// Writes the six fields only when the value differs. Callers pass `Mut` so a
+/// read does not mark `Style` changed.
+fn write_edges(style: &mut Mut<'_, Style>, edges: PresetEdges) {
+    if style.top != edges.top {
+        style.top = edges.top;
+    }
+    if style.bottom != edges.bottom {
+        style.bottom = edges.bottom;
+    }
+    if style.left != edges.left {
+        style.left = edges.left;
+    }
+    if style.right != edges.right {
+        style.right = edges.right;
+    }
+    if style.margin.left != edges.margin_left {
+        style.margin.left = edges.margin_left;
+    }
+    if style.width != edges.width {
+        style.width = edges.width;
+    }
+}
+
+fn slab_on<'a>(preset: &'a HudPreset, id: &str) -> Option<(&'a HudAnchor, &'a HudOccupant)> {
+    for anchor in preset.anchors {
+        if let Some(occupant) = anchor.occupants.iter().find(|occupant| occupant.id == id) {
+            return Some((anchor, occupant));
+        }
+    }
+    None
+}
+
+/// Chosen preset. `None` is the dark default: layout systems return before
+/// any `Style` or `Visibility` write.
+#[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct ActiveHudPreset {
+    pub id: Option<HudPresetId>,
+}
+
+impl Default for ActiveHudPreset {
+    fn default() -> Self {
+        Self { id: None }
+    }
+}
+
+/// Sets [`ActiveHudPreset`]. Reset always targets [`RESET_PRESET`].
+/// There is no command that returns the preset to `None`.
+#[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HudLayoutCommand {
+    Reset,
+    Apply(HudPresetId),
+}
+
+/// Own `Visibility` captured when a yield, cover, or modal hid the slab.
+#[derive(Resource, Default)]
+struct HudYieldMemory {
+    own: HashMap<Entity, Visibility>,
+}
+
+/// Previous-frame open flags for R3. Not a panel flag.
+#[derive(Clone, Copy, Default)]
+struct PushEdges {
+    voice: bool,
+    allocate: bool,
+    mercy: bool,
+    realm: bool,
+    journey: bool,
+}
+
+/// Dark until a preset is chosen. Registered last so R3 push runs after the
+/// slabs' own Update toggles.
+pub struct HudLayoutPlugin;
+
+impl Plugin for HudLayoutPlugin {
+    fn build(&self, app: &mut App) {
+        app.init_resource::<ActiveHudPreset>()
+            .init_resource::<HudYieldMemory>()
+            .add_event::<HudLayoutCommand>()
+            .add_systems(PreUpdate, restore_yielded_visibility)
+            .add_systems(
+                Update,
+                (apply_hud_layout_commands, push_shared_panels).chain(),
+            )
+            .add_systems(
+                PostUpdate,
+                apply_active_preset
+                    .before(UiSystem::Layout)
+                    .before(VisibilitySystems::VisibilityPropagate),
+            );
+    }
+}
+
+fn apply_hud_layout_commands(
+    mut commands: EventReader<HudLayoutCommand>,
+    mut active: ResMut<ActiveHudPreset>,
+) {
+    let mut chosen = None;
+    for command in commands.read() {
+        chosen = Some(match *command {
+            HudLayoutCommand::Reset => RESET_PRESET,
+            HudLayoutCommand::Apply(id) => id,
+        });
+    }
+    let Some(id) = chosen else {
+        return;
+    };
+    if active.id != Some(id) {
+        active.id = Some(id);
+    }
+}
+
+fn restore_yielded_visibility(
+    active: Res<ActiveHudPreset>,
+    mut memory: ResMut<HudYieldMemory>,
+    mut vis: Query<&mut Visibility>,
+) {
+    if active.id.is_none() {
+        return;
+    }
+    let drained: Vec<(Entity, Visibility)> = memory.own.drain().collect();
+    for (entity, own) in drained {
+        let Ok(mut current) = vis.get_mut(entity) else {
+            continue;
+        };
+        if *current != own {
+            *current = own;
+        }
+    }
+}
+
+fn push_shared_panels(
+    active: Res<ActiveHudPreset>,
+    mut edges: Local<PushEdges>,
+    mut voice: Option<ResMut<VoiceYard>>,
+    mut allocate: Option<ResMut<RbeAllocateChoice>>,
+    mut soft: Option<ResMut<HumanSoftPanels>>,
+    mut journey: Option<ResMut<AbundanceJourneyEcho>>,
+) {
+    if active.id.is_none() {
+        *edges = PushEdges::default();
+        return;
+    }
+    let layout = preset(active.id.expect("preset id"));
+    let voice_open = voice.as_ref().is_some_and(|yard| yard.sash_open);
+    let allocate_open = allocate.as_ref().is_some_and(|choice| choice.panel_open);
+    let mercy_open = soft.as_ref().is_some_and(|panels| panels.mercy_open);
+    let realm_open = soft.as_ref().is_some_and(|panels| panels.realm_open);
+    let journey_open = journey.as_ref().is_some_and(|echo| echo.panel_open);
+
+    struct Slot {
+        id: &'static str,
+        rank: u8,
+        anchor_id: &'static str,
+        open: bool,
+        rose: bool,
+    }
+    let mut slots = Vec::new();
+    for anchor in layout.anchors {
+        if anchor.share != HudShare::Push {
+            continue;
+        }
+        for occupant in anchor.occupants {
+            let (open, was_open) = match occupant.id {
+                ID_VOICE => (voice_open, edges.voice),
+                ID_ALLOCATE => (allocate_open, edges.allocate),
+                ID_MERCY => (mercy_open, edges.mercy),
+                ID_REALM => (realm_open, edges.realm),
+                ID_JOURNEY => (journey_open, edges.journey),
+                _ => continue,
+            };
+            slots.push(Slot {
+                id: occupant.id,
+                rank: occupant.rank,
+                anchor_id: anchor.id,
+                open,
+                rose: open && !was_open,
+            });
+        }
+    }
+
+    let risers: Vec<&Slot> = slots.iter().filter(|slot| slot.rose).collect();
+    let winner = if risers.len() == 1 {
+        Some(risers[0].id)
+    } else if risers.len() > 1 {
+        risers.iter().min_by_key(|slot| slot.rank).map(|slot| slot.id)
+    } else {
+        let open: Vec<&Slot> = slots.iter().filter(|slot| slot.open).collect();
+        if open.len() > 1 {
+            open.iter().min_by_key(|slot| slot.rank).map(|slot| slot.id)
+        } else {
+            None
+        }
+    };
+
+    if let Some(winner_id) = winner {
+        let winner_anchor = slots
+            .iter()
+            .find(|slot| slot.id == winner_id)
+            .map(|slot| slot.anchor_id)
+            .expect("r3 winner");
+        let anchor = layout.anchor(winner_anchor);
+        let mut close_voice = false;
+        let mut close_allocate = false;
+        let mut close_mercy = false;
+        let mut close_realm = false;
+        let mut close_journey = false;
+        for slot in &slots {
+            if slot.anchor_id != winner_anchor || !slot.open {
+                continue;
+            }
+            if r3_pushes_closed(anchor, winner_id, slot.id) {
+                match slot.id {
+                    ID_VOICE => close_voice = true,
+                    ID_ALLOCATE => close_allocate = true,
+                    ID_MERCY => close_mercy = true,
+                    ID_REALM => close_realm = true,
+                    ID_JOURNEY => close_journey = true,
+                    _ => {}
+                }
+            }
+        }
+        if close_voice && voice.as_ref().is_some_and(|yard| yard.sash_open) {
+            if let Some(yard) = voice.as_mut() {
+                yard.sash_open = false;
+            }
+        }
+        if close_allocate && allocate.as_ref().is_some_and(|choice| choice.panel_open) {
+            if let Some(choice) = allocate.as_mut() {
+                choice.panel_open = false;
+            }
+        }
+        if close_mercy && soft.as_ref().is_some_and(|panels| panels.mercy_open) {
+            if let Some(panels) = soft.as_mut() {
+                panels.mercy_open = false;
+            }
+        }
+        if close_realm && soft.as_ref().is_some_and(|panels| panels.realm_open) {
+            if let Some(panels) = soft.as_mut() {
+                panels.realm_open = false;
+            }
+        }
+        if close_journey && journey.as_ref().is_some_and(|echo| echo.panel_open) {
+            if let Some(echo) = journey.as_mut() {
+                echo.panel_open = false;
+            }
+        }
+    }
+
+    edges.voice = voice.as_ref().is_some_and(|yard| yard.sash_open);
+    edges.allocate = allocate.as_ref().is_some_and(|choice| choice.panel_open);
+    edges.mercy = soft.as_ref().is_some_and(|panels| panels.mercy_open);
+    edges.realm = soft.as_ref().is_some_and(|panels| panels.realm_open);
+    edges.journey = journey.as_ref().is_some_and(|echo| echo.panel_open);
+}
+
+struct LiveSlab {
+    entity: Entity,
+    id: &'static str,
+    anchor_id: &'static str,
+    class: u8,
+    wants: bool,
+    rect: Option<HudRect>,
+}
+
+fn apply_active_preset(
+    active: Res<ActiveHudPreset>,
+    mut memory: ResMut<HudYieldMemory>,
+    mut styles: Query<(&HudSlab, &mut Style)>,
+    mut vis_q: Query<(Entity, &HudSlab, &mut Visibility)>,
+    windows: Query<&Window, With<PrimaryWindow>>,
+    door: Option<Res<LaunchDoor>>,
+    places: Option<Res<PlacesPlate>>,
+    house: Option<Res<HouseLabel>>,
+    persona: Option<Res<PersonaCreatorState>>,
+) {
+    let Some(id) = active.id else {
+        return;
+    };
+    let layout = preset(id);
+    let view = windows
+        .iter()
+        .next()
+        .map(|window| (window.width(), window.height()));
+    let door = door.as_deref().copied();
+    let modals = HudModalsOpen {
+        pause: house.as_ref().is_some_and(|label| label.settings_open),
+        places: places.as_ref().is_some_and(|plate| plate.open),
+        title: door == Some(LaunchDoor::Title),
+        name_house: door == Some(LaunchDoor::NameHouse),
+        house_dress: door == Some(LaunchDoor::HouseDress),
+        persona: persona.as_ref().is_some_and(|state| state.open),
+    };
+    let yield_hud = r5_band_yields(modals, HudBand::Hud);
+
+    for (slab, mut style) in &mut styles {
+        if let Some((anchor, occupant)) = slab_on(layout, slab.0) {
+            write_edges(
+                &mut style,
+                preset_edges(anchor.corner, anchor.offset, occupant.width),
+            );
+        }
+    }
+
+    let mut live = Vec::new();
+    for (entity, slab, vis) in vis_q.iter() {
+        let wants = *vis == Visibility::Visible;
+        if let Some((anchor, occupant)) = slab_on(layout, slab.0) {
+            let rect = view.map(|(view_w, view_h)| {
+                occupant_rect(anchor, occupant, HudHeightModel::B, view_w, view_h)
+            });
+            live.push(LiveSlab {
+                entity,
+                id: slab.0,
+                anchor_id: anchor.id,
+                class: occupant.class,
+                wants,
+                rect,
+            });
+        } else {
+            live.push(LiveSlab {
+                entity,
+                id: slab.0,
+                anchor_id: "",
+                class: 0,
+                wants,
+                rect: None,
+            });
+        }
+    }
+
+    let mut hide = HashSet::new();
+    if yield_hud {
+        for item in &live {
+            hide.insert(item.entity);
+        }
+    } else {
+        for anchor in layout.anchors {
+            if anchor.share != HudShare::Yield {
+                continue;
+            }
+            let showing: Vec<(&str, bool)> = anchor
+                .occupants
+                .iter()
+                .map(|occupant| {
+                    let on = live.iter().any(|item| {
+                        item.id == occupant.id && item.anchor_id == anchor.id && item.wants
+                    });
+                    (occupant.id, on)
+                })
+                .collect();
+            for item in &live {
+                if item.anchor_id == anchor.id && r2_yields_to(anchor, item.id, &showing) {
+                    hide.insert(item.entity);
+                }
+            }
+        }
+        if view.is_some() {
+            for item in &live {
+                let Some(item_rect) = item.rect else {
+                    continue;
+                };
+                let covered = live.iter().any(|panel| {
+                    let Some(panel_rect) = panel.rect else {
+                        return false;
+                    };
+                    panel.wants
+                        && panel.anchor_id != item.anchor_id
+                        && r4_covers(true, panel.class, panel_rect, item.class, item_rect)
+                });
+                if covered {
+                    hide.insert(item.entity);
+                }
+            }
+        }
+    }
+
+    memory.own.clear();
+    for (entity, _slab, mut vis) in &mut vis_q {
+        if !hide.contains(&entity) {
+            continue;
+        }
+        let own = *vis;
+        memory.own.insert(entity, own);
+        if own != Visibility::Hidden {
+            *vis = Visibility::Hidden;
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use bevy::ui::FocusPolicy;
+    use shared::house_name::HouseName;
+
+    use crate::first_session_guidance::FirstSessionGuidance;
+    use crate::hex_travel::PlacesPlate;
     use crate::hud_anchor_registry::{
-        coded_joiner, r2_yields_to, ACTION_BAR, ALLOCATE_DOCK, CODED_JOINERS, VOICE,
+        coded_joiner, r2_yields_to, HudSlab, ACTION_BAR, ALLOCATE_DOCK, CODED_JOINERS, VOICE,
     };
+    use crate::human_soft_panels::HumanSoftPanels;
+    use crate::rbe_allocate_choice::RbeAllocateChoice;
+    use crate::title_screen::{HouseLabel, LaunchDoor, PersonaCreatorState, TITLE_SAFE_INSET};
+    use crate::touch_controls::TOUCH_HIT_MIN;
 
     fn rect(x0: i32, y0: i32, x1: i32, y1: i32) -> HudRect {
         HudRect { x0, y0, x1, y1 }
+    }
+
+    const YIELD_TWO_PANELS: [HudOccupant; 2] = [occ(ID_ALLOCATE, 1), occ(ID_MERCY, 2)];
+
+    fn yield_anchor_two_class1() -> HudAnchor {
+        anchor(AnchorFields {
+            id: "YIELD_TWO",
+            corner: HudCorner::TopRight,
+            x: 16.0,
+            y: 16.0,
+            width: 520.0,
+            height_budget: 320.0,
+            class: CLASS_PANEL,
+            occupants: &YIELD_TWO_PANELS,
+            share: HudShare::Yield,
+        })
+    }
+
+    /// Pinned kinds for the seven accepted pairs. `None` is area 0.
+    /// Cover becoming `None` fails this helper's caller on its own.
+    fn seven_pair_kind(
+        preset: HudPresetId,
+        view_w: f32,
+        left: &str,
+        right: &str,
+    ) -> Option<HudOverlapKind> {
+        let same = |a: &str, b: &str| (left == a && right == b) || (left == b && right == a);
+        let wide = view_w < 1100.0;
+        match preset {
+            HudPresetId::Classic => {
+                if same(ID_ALLOCATE, ID_PICKUP) || same(ID_ALLOCATE, ID_WHISPER) {
+                    Some(HudOverlapKind::Cover)
+                } else if same(ID_ALLOCATE, ID_MERCY) {
+                    Some(HudOverlapKind::SameAnchor)
+                } else {
+                    None
+                }
+            }
+            HudPresetId::Minimal => {
+                if same(ID_ALLOCATE, ID_PICKUP) || same(ID_ALLOCATE, ID_WHISPER) {
+                    Some(HudOverlapKind::Cover)
+                } else if same(ID_MERCY, ID_VOICE) || same(ID_ALLOCATE, ID_MERCY) {
+                    Some(HudOverlapKind::SameAnchor)
+                } else {
+                    None
+                }
+            }
+            HudPresetId::Management => {
+                if wide && (same(ID_ALLOCATE, ID_HYBRID) || same(ID_ALLOCATE, ID_REDEMPTION)) {
+                    Some(HudOverlapKind::Cover)
+                } else if same(ID_MERCY, ID_VOICE) || same(ID_ALLOCATE, ID_MERCY) {
+                    Some(HudOverlapKind::SameAnchor)
+                } else {
+                    None
+                }
+            }
+        }
     }
 
     #[test]
@@ -1521,17 +2070,16 @@ mod tests {
             for (view_w, view_h) in PROOF_VIEWS {
                 for model in [HudHeightModel::A, HudHeightModel::B] {
                     for (left, right) in seven {
-                        match slab_overlap(preset, left, right, view_w, view_h, model) {
-                            None => {}
-                            Some(pair) => assert_ne!(
-                                pair.kind,
-                                HudOverlapKind::VisibleTogether,
-                                "{} {left} × {right} at {view_w}x{view_h} {model:?} area {} rects {:?} {:?}",
-                                preset.name,
-                                pair.area,
-                                pair.left_rect,
-                                pair.right_rect
-                            ),
+                        let got = slab_overlap(preset, left, right, view_w, view_h, model)
+                            .map(|pair| pair.kind);
+                        let expect = seven_pair_kind(preset.id, view_w, left, right);
+                        assert_eq!(
+                            got, expect,
+                            "{} {left} × {right} at {view_w}x{view_h} {model:?}",
+                            preset.name
+                        );
+                        if let Some(kind) = got {
+                            assert_ne!(kind, HudOverlapKind::VisibleTogether);
                         }
                     }
                 }
@@ -1566,14 +2114,16 @@ mod tests {
                         anchor.id
                     );
                 } else {
+                    let class1 = anchor
+                        .occupants
+                        .iter()
+                        .filter(|occupant| occupant.class == CLASS_PANEL)
+                        .count();
                     assert!(
-                        anchor
-                            .occupants
-                            .iter()
-                            .any(|occupant| occupant.class != CLASS_PANEL)
-                            || anchor.occupants.len() == 1,
-                        "{} pushes without HudShare::Push",
-                        anchor.id
+                        class1 <= 1,
+                        "{} share {:?} holds {class1} class-1 panels",
+                        anchor.id,
+                        anchor.share
                     );
                 }
                 for (index, occupant) in anchor.occupants.iter().enumerate() {
@@ -1650,6 +2200,15 @@ mod tests {
 
         let voice = CLASSIC.anchor("VOICE");
         assert!(!r3_pushes_closed(voice, ID_VOICE, ID_VOICE));
+
+        let yield_two = yield_anchor_two_class1();
+        assert_eq!(yield_two.share, HudShare::Yield);
+        assert!(yield_two.occupants.len() > 1);
+        assert!(yield_two
+            .occupants
+            .iter()
+            .all(|occupant| occupant.class == CLASS_PANEL));
+        assert!(!r3_pushes_closed(&yield_two, ID_ALLOCATE, ID_MERCY));
     }
 
     #[test]
@@ -1688,10 +2247,70 @@ mod tests {
 
     #[test]
     fn r5_modal_yields_the_hud_band_only() {
-        for modal in HudModal::ALL {
-            assert!(r5_band_yields(modal, HudBand::Hud), "{modal:?}");
-            assert!(!r5_band_yields(modal, HudBand::Ledger), "{modal:?}");
-            assert!(!r5_band_yields(modal, HudBand::Touch), "{modal:?}");
+        let none = HudModalsOpen {
+            pause: false,
+            places: false,
+            title: false,
+            name_house: false,
+            house_dress: false,
+            persona: false,
+        };
+        assert!(!r5_band_yields(none, HudBand::Hud));
+        assert!(!r5_band_yields(none, HudBand::Ledger));
+        assert!(!r5_band_yields(none, HudBand::Touch));
+
+        let pause = HudModalsOpen {
+            pause: true,
+            places: false,
+            title: false,
+            name_house: false,
+            house_dress: false,
+            persona: false,
+        };
+        let places = HudModalsOpen {
+            pause: false,
+            places: true,
+            title: false,
+            name_house: false,
+            house_dress: false,
+            persona: false,
+        };
+        let title = HudModalsOpen {
+            pause: false,
+            places: false,
+            title: true,
+            name_house: false,
+            house_dress: false,
+            persona: false,
+        };
+        let name_house = HudModalsOpen {
+            pause: false,
+            places: false,
+            title: false,
+            name_house: true,
+            house_dress: false,
+            persona: false,
+        };
+        let house_dress = HudModalsOpen {
+            pause: false,
+            places: false,
+            title: false,
+            name_house: false,
+            house_dress: true,
+            persona: false,
+        };
+        let persona = HudModalsOpen {
+            pause: false,
+            places: false,
+            title: false,
+            name_house: false,
+            house_dress: false,
+            persona: true,
+        };
+        for open in [pause, places, title, name_house, house_dress, persona] {
+            assert!(r5_band_yields(open, HudBand::Hud), "{open:?}");
+            assert!(!r5_band_yields(open, HudBand::Ledger), "{open:?}");
+            assert!(!r5_band_yields(open, HudBand::Touch), "{open:?}");
         }
     }
 
@@ -2189,5 +2808,710 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[derive(Resource, Default)]
+    struct StyleChangeTape {
+        any_style: bool,
+        any_vis: bool,
+    }
+
+    fn tape_style_and_vis(
+        styles: Query<Ref<Style>, With<HudSlab>>,
+        vis: Query<Ref<Visibility>, With<HudSlab>>,
+        mut tape: ResMut<StyleChangeTape>,
+    ) {
+        tape.any_style = styles.iter().any(|style| style.is_changed());
+        tape.any_vis = vis.iter().any(|visibility| visibility.is_changed());
+    }
+
+    fn layout_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(HudLayoutPlugin)
+            .init_resource::<StyleChangeTape>()
+            .add_systems(Last, tape_style_and_vis);
+        app
+    }
+
+    fn sentinel_style() -> Style {
+        Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(1.0),
+            bottom: Val::Px(2.0),
+            left: Val::Px(3.0),
+            right: Val::Px(4.0),
+            width: Val::Px(5.0),
+            margin: UiRect {
+                left: Val::Px(6.0),
+                right: Val::Px(7.0),
+                top: Val::Px(8.0),
+                bottom: Val::Px(9.0),
+            },
+            padding: UiRect::all(Val::Px(11.0)),
+            border: UiRect::all(Val::Px(12.0)),
+            ..default()
+        }
+    }
+
+    /// Hand literals for classic. Not `preset_edges`.
+    fn classic_six(id: &str) -> (Val, Val, Val, Val, Val, Val) {
+        let auto = Val::Auto;
+        let top_left = |y, x, w| (Val::Px(y), auto, Val::Px(x), auto, auto, Val::Px(w));
+        let top_right = |y, x, w| (Val::Px(y), auto, auto, Val::Px(x), auto, Val::Px(w));
+        let bottom_right = |y, x, w| (auto, Val::Px(y), auto, Val::Px(x), auto, Val::Px(w));
+        let centre = |w: f32| {
+            (
+                Val::Px(16.0),
+                auto,
+                Val::Percent(50.0),
+                auto,
+                Val::Px(-w / 2.0),
+                Val::Px(w),
+            )
+        };
+        match id {
+            ID_FACTORY | ID_SPILL | ID_FAB => top_left(93.0, 16.0, 520.0),
+            ID_CLIMATE_STATE | ID_WELL => top_left(153.0, 16.0, 420.0),
+            ID_EMBASSY => top_right(180.0, 16.0, 420.0),
+            ID_REDEMPTION => top_right(240.0, 16.0, 420.0),
+            ID_HYBRID => top_right(300.0, 16.0, 420.0),
+            ID_COMPASS => top_right(360.0, 16.0, 420.0),
+            ID_VOICE => bottom_right(221.0, 16.0, 560.0),
+            ID_GUIDANCE => bottom_right(144.0, 16.0, 520.0),
+            ID_CARE_PROMPT => bottom_right(144.0, 16.0, 460.0),
+            ID_CARE_STRIP => bottom_right(144.0, 16.0, 560.0),
+            ID_PRACTICE => bottom_right(144.0, 16.0, 640.0),
+            ID_PULSE => centre(560.0),
+            ID_WELCOME => centre(380.0),
+            ID_PICKUP => centre(360.0),
+            ID_SOVEREIGN => centre(520.0),
+            ID_THRIVING => centre(620.0),
+            ID_WHISPER => centre(420.0),
+            ID_ALLOCATE => top_right(16.0, 76.0, 520.0),
+            ID_MERCY => top_right(16.0, 76.0, 360.0),
+            ID_JOURNEY => top_right(16.0, 76.0, 360.0),
+            ID_REALM => top_right(16.0, 76.0, 300.0),
+            ID_WATCH => bottom_right(76.0, 80.0, 340.0),
+            ID_PEER => bottom_right(16.0, 80.0, 280.0),
+            ID_PLACE_NAME => top_right(93.0, 76.0, 280.0),
+            _ => panic!("no classic edges for {id}"),
+        }
+    }
+
+    fn house_label(settings_open: bool) -> HouseLabel {
+        HouseLabel {
+            house: HouseName::default(),
+            persist_present: false,
+            hour_two_held: false,
+            book_held: false,
+            settings_open,
+            draft: String::new(),
+            naming_offered: false,
+            seals_offered: false,
+        }
+    }
+
+    #[test]
+    fn t4_reset_restores_classic_and_second_reset_is_quiet() {
+        let mut app = layout_app();
+        let child_style = Style {
+            width: Val::Px(4.0),
+            height: Val::Px(5.0),
+            ..default()
+        };
+        let mut roots = Vec::new();
+        for metrics in SLAB_METRICS {
+            let root = app
+                .world_mut()
+                .spawn((
+                    NodeBundle {
+                        style: sentinel_style(),
+                        z_index: ZIndex::Global(77),
+                        focus_policy: FocusPolicy::Pass,
+                        visibility: Visibility::Visible,
+                        ..default()
+                    },
+                    HudSlab(metrics.id),
+                ))
+                .id();
+            let child = app
+                .world_mut()
+                .spawn((
+                    TextBundle {
+                        style: child_style.clone(),
+                        text: Text::from_section(
+                            "slab",
+                            TextStyle {
+                                font_size: 9.0,
+                                ..default()
+                            },
+                        ),
+                        ..default()
+                    },
+                ))
+                .id();
+            app.world_mut().entity_mut(root).add_child(child);
+            roots.push((metrics.id, root, child));
+        }
+        app.update();
+        app.world_mut()
+            .send_event(HudLayoutCommand::Apply(HudPresetId::Minimal));
+        app.update();
+        {
+            let factory = roots
+                .iter()
+                .find(|(id, _, _)| *id == ID_FACTORY)
+                .expect("factory")
+                .1;
+            let style = app.world().get::<Style>(factory).expect("factory style");
+            assert_eq!(style.top, Val::Px(180.0));
+            assert_eq!(style.right, Val::Px(16.0));
+            assert_eq!(style.left, Val::Auto);
+            assert_eq!(style.bottom, Val::Auto);
+            assert_eq!(style.margin.left, Val::Auto);
+            assert_eq!(style.width, Val::Px(520.0));
+            assert_ne!(style.top, Val::Px(93.0));
+        }
+        app.world_mut().send_event(HudLayoutCommand::Reset);
+        app.update();
+        for (id, root, child) in &roots {
+            let style = app.world().get::<Style>(*root).expect(id);
+            let (top, bottom, left, right, margin_left, width) = classic_six(id);
+            assert_eq!(style.top, top, "{id} top");
+            assert_eq!(style.bottom, bottom, "{id} bottom");
+            assert_eq!(style.left, left, "{id} left");
+            assert_eq!(style.right, right, "{id} right");
+            assert_eq!(style.margin.left, margin_left, "{id} margin.left");
+            assert_eq!(style.width, width, "{id} width");
+            assert_eq!(style.margin.right, Val::Px(7.0), "{id}");
+            assert_eq!(style.margin.top, Val::Px(8.0), "{id}");
+            assert_eq!(style.margin.bottom, Val::Px(9.0), "{id}");
+            assert_eq!(style.padding, UiRect::all(Val::Px(11.0)), "{id}");
+            assert_eq!(style.border, UiRect::all(Val::Px(12.0)), "{id}");
+            assert_eq!(style.position_type, PositionType::Absolute, "{id}");
+            assert_eq!(
+                *app.world().get::<ZIndex>(*root).expect(id),
+                ZIndex::Global(77)
+            );
+            assert_eq!(
+                *app.world().get::<FocusPolicy>(*root).expect(id),
+                FocusPolicy::Pass
+            );
+            let child_now = app.world().get::<Style>(*child).expect("child");
+            assert_eq!(child_now.width, Val::Px(4.0));
+            assert_eq!(child_now.height, Val::Px(5.0));
+        }
+        let before: Vec<Style> = roots
+            .iter()
+            .map(|(_, root, _)| app.world().get::<Style>(*root).expect("style").clone())
+            .collect();
+        app.world_mut().send_event(HudLayoutCommand::Reset);
+        app.update();
+        for ((_, root, _), previous) in roots.iter().zip(before) {
+            assert_eq!(
+                app.world().get::<Style>(*root).expect("style").clone(),
+                previous
+            );
+        }
+        assert!(!app.world().resource::<StyleChangeTape>().any_style);
+    }
+
+    #[test]
+    fn none_preset_writes_no_style_or_visibility() {
+        let mut app = layout_app();
+        app.insert_resource(LaunchDoor::Title);
+        let sentinel = sentinel_style();
+        let pulse = app
+            .world_mut()
+            .spawn((
+                NodeBundle {
+                    style: sentinel.clone(),
+                    visibility: Visibility::Visible,
+                    ..default()
+                },
+                HudSlab(ID_PULSE),
+            ))
+            .id();
+        let welcome = app
+            .world_mut()
+            .spawn((
+                NodeBundle {
+                    style: sentinel.clone(),
+                    visibility: Visibility::Visible,
+                    ..default()
+                },
+                HudSlab(ID_WELCOME),
+            ))
+            .id();
+        let plain = app
+            .world_mut()
+            .spawn(NodeBundle {
+                style: sentinel.clone(),
+                visibility: Visibility::Visible,
+                ..default()
+            })
+            .id();
+        app.update();
+        app.update();
+        for entity in [pulse, welcome, plain] {
+            assert_eq!(app.world().get::<Style>(entity).expect("style").clone(), sentinel);
+            assert_eq!(
+                *app.world().get::<Visibility>(entity).expect("vis"),
+                Visibility::Visible
+            );
+        }
+        let tape = app.world().resource::<StyleChangeTape>();
+        assert!(!tape.any_style);
+        assert!(!tape.any_vis);
+        assert!(app.world().resource::<ActiveHudPreset>().id.is_none());
+    }
+
+    #[derive(Component)]
+    struct OwnStamp(u32);
+
+    fn force_visible(app: &mut App, by_id: &std::collections::HashMap<&str, (Entity, u32)>) {
+        for (entity, _) in by_id.values() {
+            *app.world_mut().get_mut::<Visibility>(*entity).expect("vis") = Visibility::Visible;
+        }
+    }
+
+    fn assert_vis(
+        app: &App,
+        by_id: &std::collections::HashMap<&str, (Entity, u32)>,
+        id: &str,
+        want: Visibility,
+        anchor: &str,
+    ) {
+        let entity = by_id[id].0;
+        assert_eq!(
+            *app.world().get::<Visibility>(entity).expect(id),
+            want,
+            "{anchor} {id}"
+        );
+    }
+
+    fn assert_stamps(app: &App, by_id: &std::collections::HashMap<&str, (Entity, u32)>) {
+        for (entity, stamp) in by_id.values() {
+            assert_eq!(app.world().get::<OwnStamp>(*entity).expect("stamp").0, *stamp);
+        }
+    }
+
+    fn assert_panel_state(app: &App) {
+        let guidance = app.world().resource::<FirstSessionGuidance>();
+        assert!(guidance.active);
+        assert!(!guidance.dismissed);
+        assert_eq!(guidance.shown_at_seconds, 12.5);
+        let allocate = app.world().resource::<RbeAllocateChoice>();
+        assert!(allocate.panel_open);
+        assert_eq!(allocate.choices_made, 4);
+    }
+
+    #[test]
+    fn t6_shared_yield_shows_only_the_top_occupant() {
+        let mut app = layout_app();
+        let mut guidance = FirstSessionGuidance::default();
+        guidance.shown_at_seconds = 12.5;
+        app.insert_resource(guidance);
+        let mut allocate = RbeAllocateChoice::default();
+        allocate.panel_open = true;
+        allocate.choices_made = 4;
+        app.insert_resource(allocate);
+
+        let mut by_id = std::collections::HashMap::new();
+        for (index, metrics) in SLAB_METRICS.iter().enumerate() {
+            let entity = app
+                .world_mut()
+                .spawn((
+                    NodeBundle {
+                        style: sentinel_style(),
+                        visibility: Visibility::Visible,
+                        ..default()
+                    },
+                    HudSlab(metrics.id),
+                    OwnStamp(index as u32),
+                ))
+                .id();
+            by_id.insert(metrics.id, (entity, index as u32));
+        }
+
+        for layout in PRESETS {
+            app.world_mut()
+                .send_event(HudLayoutCommand::Apply(layout.id));
+            for anchor in layout.anchors {
+                if anchor.share != HudShare::Yield || anchor.occupants.len() < 2 {
+                    continue;
+                }
+                force_visible(&mut app, &by_id);
+                app.update();
+                let mut ranked = anchor.occupants.to_vec();
+                ranked.sort_by_key(|occupant| (occupant.class, occupant.rank));
+                assert_vis(&app, &by_id, ranked[0].id, Visibility::Visible, anchor.id);
+                for occupant in ranked.iter().skip(1) {
+                    assert_vis(&app, &by_id, occupant.id, Visibility::Hidden, anchor.id);
+                }
+                assert_stamps(&app, &by_id);
+                assert_panel_state(&app);
+
+                let winner = by_id[ranked[0].id].0;
+                *app.world_mut().get_mut::<Visibility>(winner).expect("winner") = Visibility::Hidden;
+                app.update();
+                assert_vis(&app, &by_id, ranked[0].id, Visibility::Hidden, anchor.id);
+                assert_vis(&app, &by_id, ranked[1].id, Visibility::Visible, anchor.id);
+                for occupant in ranked.iter().skip(2) {
+                    assert_vis(&app, &by_id, occupant.id, Visibility::Hidden, anchor.id);
+                }
+                assert_stamps(&app, &by_id);
+                assert_panel_state(&app);
+            }
+        }
+    }
+
+    fn keep_style(app: &mut App, style: Style) -> (Entity, Style) {
+        let entity = app
+            .world_mut()
+            .spawn(NodeBundle {
+                style: style.clone(),
+                ..default()
+            })
+            .id();
+        (entity, style)
+    }
+
+    #[test]
+    fn t7_fixed_rows_keep_coded_style() {
+        let mut app = layout_app();
+        let mut fixed = Vec::new();
+        fixed.push(keep_style(
+            &mut app,
+            Style {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(14.0),
+                padding: UiRect::all(Val::Px(TITLE_SAFE_INSET)),
+                ..default()
+            },
+        ));
+        fixed.push(keep_style(
+            &mut app,
+            Style {
+                position_type: PositionType::Absolute,
+                top: Val::Px(10.0),
+                left: Val::Percent(50.0),
+                width: Val::Px(520.0),
+                margin: UiRect {
+                    left: Val::Px(-260.0),
+                    ..default()
+                },
+                padding: UiRect::axes(Val::Px(12.0), Val::Px(8.0)),
+                flex_direction: FlexDirection::Row,
+                column_gap: Val::Px(10.0),
+                align_items: AlignItems::Center,
+                justify_content: JustifyContent::SpaceBetween,
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+        ));
+        fixed.push(keep_style(
+            &mut app,
+            Style {
+                position_type: PositionType::Absolute,
+                top: Val::Percent(1.0),
+                left: Val::Percent(50.0),
+                width: Val::Px(420.0),
+                max_height: Val::Percent(98.0),
+                margin: UiRect {
+                    left: Val::Px(-210.0),
+                    ..default()
+                },
+                padding: UiRect::all(Val::Px(10.0)),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(4.0),
+                border: UiRect::all(Val::Px(1.5)),
+                align_items: AlignItems::Center,
+                ..default()
+            },
+        ));
+        for _ in 0..3 {
+            fixed.push(keep_style(
+                &mut app,
+                Style {
+                    position_type: PositionType::Absolute,
+                    width: Val::Percent(100.0),
+                    height: Val::Percent(100.0),
+                    justify_content: JustifyContent::Center,
+                    align_items: AlignItems::Center,
+                    ..default()
+                },
+            ));
+        }
+        fixed.push(keep_style(
+            &mut app,
+            Style {
+                position_type: PositionType::Absolute,
+                top: Val::Percent(18.0),
+                left: Val::Percent(50.0),
+                width: Val::Px(400.0),
+                margin: UiRect {
+                    left: Val::Px(-200.0),
+                    ..default()
+                },
+                padding: UiRect::all(Val::Px(14.0)),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(8.0),
+                border: UiRect::all(Val::Px(1.5)),
+                align_items: AlignItems::Stretch,
+                ..default()
+            },
+        ));
+        fixed.push(keep_style(
+            &mut app,
+            Style {
+                position_type: PositionType::Absolute,
+                bottom: Val::Px(16.0),
+                left: Val::Px(16.0),
+                width: Val::Px(560.0),
+                padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
+                justify_content: JustifyContent::FlexStart,
+                border: UiRect::all(Val::Px(1.0)),
+                ..default()
+            },
+        ));
+        fixed.push(keep_style(
+            &mut app,
+            Style {
+                position_type: PositionType::Absolute,
+                width: Val::Percent(100.0),
+                height: Val::Percent(100.0),
+                ..default()
+            },
+        ));
+        fixed.push(keep_style(
+            &mut app,
+            Style {
+                position_type: PositionType::Absolute,
+                left: Val::Px(24.0),
+                bottom: Val::Px(24.0),
+                width: Val::Px(120.0),
+                height: Val::Px(120.0),
+                border: UiRect::all(Val::Px(2.0)),
+                justify_content: JustifyContent::Center,
+                align_items: AlignItems::Center,
+                ..default()
+            },
+        ));
+        let touch_btn = |inset: UiRect| Style {
+            position_type: PositionType::Absolute,
+            left: inset.left,
+            right: inset.right,
+            top: inset.top,
+            bottom: inset.bottom,
+            width: Val::Px(TOUCH_HIT_MIN),
+            height: Val::Px(TOUCH_HIT_MIN),
+            min_width: Val::Px(TOUCH_HIT_MIN),
+            min_height: Val::Px(TOUCH_HIT_MIN),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            border: UiRect::all(Val::Px(1.5)),
+            ..default()
+        };
+        fixed.push(keep_style(
+            &mut app,
+            touch_btn(UiRect {
+                right: Val::Px(28.0),
+                bottom: Val::Px(36.0),
+                ..default()
+            }),
+        ));
+        fixed.push(keep_style(
+            &mut app,
+            touch_btn(UiRect {
+                right: Val::Px(24.0),
+                top: Val::Px(24.0),
+                ..default()
+            }),
+        ));
+        fixed.push(keep_style(
+            &mut app,
+            touch_btn(UiRect {
+                right: Val::Px(24.0),
+                top: Val::Px(24.0 + TOUCH_HIT_MIN + 8.0),
+                ..default()
+            }),
+        ));
+        fixed.push(keep_style(
+            &mut app,
+            touch_btn(UiRect {
+                right: Val::Px(24.0),
+                top: Val::Px(24.0 + 2.0 * (TOUCH_HIT_MIN + 8.0)),
+                ..default()
+            }),
+        ));
+        fixed.push(keep_style(
+            &mut app,
+            Style {
+                position_type: PositionType::Absolute,
+                bottom: Val::Percent(22.0),
+                left: Val::Px(16.0),
+                width: Val::Px(300.0),
+                padding: UiRect::all(Val::Px(14.0)),
+                flex_direction: FlexDirection::Column,
+                row_gap: Val::Px(6.0),
+                border: UiRect::all(Val::Px(1.5)),
+                ..default()
+            },
+        ));
+        assert_eq!(fixed.len(), 15);
+        let mover = app
+            .world_mut()
+            .spawn((
+                NodeBundle {
+                    style: Style {
+                        top: Val::Px(1.0),
+                        ..default()
+                    },
+                    ..default()
+                },
+                HudSlab(ID_FACTORY),
+            ))
+            .id();
+
+        let assert_fixed = |app: &App| {
+            for (entity, style) in &fixed {
+                assert_eq!(app.world().get::<Style>(*entity).expect("fixed").clone(), *style);
+            }
+        };
+        app.update();
+        assert_fixed(&app);
+        app.world_mut()
+            .send_event(HudLayoutCommand::Apply(HudPresetId::Minimal));
+        app.update();
+        assert_fixed(&app);
+        assert_eq!(
+            app.world().get::<Style>(mover).expect("mover").top,
+            Val::Px(180.0)
+        );
+        app.world_mut()
+            .send_event(HudLayoutCommand::Apply(HudPresetId::Management));
+        app.update();
+        assert_fixed(&app);
+        app.world_mut().send_event(HudLayoutCommand::Reset);
+        app.update();
+        assert_fixed(&app);
+        assert_eq!(
+            app.world().get::<Style>(mover).expect("mover").top,
+            Val::Px(93.0)
+        );
+        assert_eq!(
+            app.world().get::<Style>(mover).expect("mover").left,
+            Val::Px(16.0)
+        );
+    }
+
+    #[test]
+    fn r3_allocate_rise_closes_mercy_through_its_flag() {
+        let mut app = layout_app();
+        app.insert_resource(HumanSoftPanels {
+            mercy_open: true,
+            realm_open: false,
+        });
+        let mut allocate = RbeAllocateChoice::default();
+        allocate.choices_made = 2;
+        app.insert_resource(allocate);
+        app.world_mut()
+            .send_event(HudLayoutCommand::Apply(HudPresetId::Classic));
+        app.update();
+        assert!(app.world().resource::<HumanSoftPanels>().mercy_open);
+        assert!(!app.world().resource::<HumanSoftPanels>().realm_open);
+        assert!(!app.world().resource::<RbeAllocateChoice>().panel_open);
+        app.world_mut()
+            .resource_mut::<RbeAllocateChoice>()
+            .panel_open = true;
+        app.update();
+        assert!(!app.world().resource::<HumanSoftPanels>().mercy_open);
+        assert!(!app.world().resource::<HumanSoftPanels>().realm_open);
+        let allocate = app.world().resource::<RbeAllocateChoice>();
+        assert!(allocate.panel_open);
+        assert_eq!(allocate.choices_made, 2);
+    }
+
+    #[test]
+    fn r5_modals_hide_hud_slabs_and_restore_own_visibility() {
+        let mut app = layout_app();
+        let slab = app
+            .world_mut()
+            .spawn((
+                NodeBundle {
+                    visibility: Visibility::Visible,
+                    ..default()
+                },
+                HudSlab(ID_FACTORY),
+            ))
+            .id();
+        let plain = app
+            .world_mut()
+            .spawn(NodeBundle {
+                visibility: Visibility::Visible,
+                ..default()
+            })
+            .id();
+        let vis = |app: &App, entity: Entity| *app.world().get::<Visibility>(entity).expect("vis");
+        app.world_mut()
+            .send_event(HudLayoutCommand::Apply(HudPresetId::Classic));
+        app.update();
+        assert_eq!(vis(&app, slab), Visibility::Visible);
+        assert_eq!(vis(&app, plain), Visibility::Visible);
+
+        app.insert_resource(LaunchDoor::InYard);
+        app.update();
+        assert_eq!(vis(&app, slab), Visibility::Visible);
+
+        *app.world_mut().resource_mut::<LaunchDoor>() = LaunchDoor::Title;
+        app.update();
+        assert_eq!(vis(&app, slab), Visibility::Hidden);
+        assert_eq!(vis(&app, plain), Visibility::Visible);
+
+        *app.world_mut().resource_mut::<LaunchDoor>() = LaunchDoor::NameHouse;
+        app.update();
+        assert_eq!(vis(&app, slab), Visibility::Hidden);
+
+        *app.world_mut().resource_mut::<LaunchDoor>() = LaunchDoor::HouseDress;
+        app.update();
+        assert_eq!(vis(&app, slab), Visibility::Hidden);
+
+        *app.world_mut().resource_mut::<LaunchDoor>() = LaunchDoor::InYard;
+        app.update();
+        assert_eq!(vis(&app, slab), Visibility::Visible);
+        assert_eq!(vis(&app, plain), Visibility::Visible);
+
+        let mut places = PlacesPlate::default();
+        places.open = true;
+        app.insert_resource(places);
+        app.update();
+        assert_eq!(vis(&app, slab), Visibility::Hidden);
+        app.world_mut().resource_mut::<PlacesPlate>().open = false;
+        app.update();
+        assert_eq!(vis(&app, slab), Visibility::Visible);
+
+        app.insert_resource(house_label(true));
+        app.update();
+        assert_eq!(vis(&app, slab), Visibility::Hidden);
+        app.world_mut().resource_mut::<HouseLabel>().settings_open = false;
+        app.update();
+        assert_eq!(vis(&app, slab), Visibility::Visible);
+
+        let mut persona = PersonaCreatorState::default();
+        persona.open = true;
+        app.insert_resource(persona);
+        app.update();
+        assert_eq!(vis(&app, slab), Visibility::Hidden);
+        app.world_mut().resource_mut::<PersonaCreatorState>().open = false;
+        app.update();
+        assert_eq!(vis(&app, slab), Visibility::Visible);
+        assert_eq!(vis(&app, plain), Visibility::Visible);
     }
 }

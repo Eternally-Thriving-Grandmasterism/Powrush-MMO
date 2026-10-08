@@ -124,7 +124,7 @@ use shared::local_settings::{GraphicsPreset, WeatherFidelity};
 use shared::hex_travel::PlaceId;
 
 use crate::hour_sacred::PeopleLanding;
-use crate::hud_anchor_registry::PLACE_NAME;
+use crate::hud_anchor_registry::{HudSlab, PLACE_NAME};
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::local_settings::{LocalMeshLodFeel, LocalSettingsState};
 use crate::mercy_harvest_nodes::MercyHarvestNode;
@@ -1158,6 +1158,7 @@ fn spawn_climate_chip(mut commands: Commands) {
                 ..default()
             },
             ClimateNameRoot,
+            HudSlab(PLACE_NAME.id),
         ))
         .with_children(|p| {
             p.spawn((

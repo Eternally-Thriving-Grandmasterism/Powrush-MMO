@@ -8,9 +8,15 @@
 //! Vals. Each centred joiner keeps its own `margin_left`. No plugin: slabs
 //! read the anchors when they spawn, and the R2 yield runs inside the slabs'
 //! own visibility systems. Preset tables and the R3, R4, and R5 predicates live
-//! in `hud_presets` and are not applied here.
+//! in `hud_presets`. `HudLayoutPlugin` applies them only while a preset is active.
 
+use bevy::prelude::Component;
 use bevy::ui::{UiRect, Val};
+
+/// Marker on a HUD slab root. The string is the slab id (`Factory`, `Voice`).
+/// The marker does not write `Style` or `Visibility`.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+pub struct HudSlab(pub &'static str);
 
 use crate::first_harvest_epiphany::{world_care_prompt_visible, FirstHarvestEpiphany};
 use crate::first_session_guidance::{FirstSessionGuidance, GuidanceObjective};
@@ -41,7 +47,11 @@ pub enum HudZBand {
     Hud,
 }
 
-/// Design §2.1 share. This card uses `Solo` and `Yield`. `Push` is step 3.
+/// Design §2.1 share.
+/// `Solo` is one occupant.
+/// `CodeExclusive` is R1: the code already keeps the pair apart.
+/// `Yield` is R2: a lower occupant hides while a higher one shows.
+/// `Push` is R3: opening one class-1 panel closes the others through their own flags.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HudShare {
     Solo,
@@ -667,19 +677,23 @@ impl HudAnchor {
 /// ACTION_BAR CareStrip and CarePrompt, as the slabs' visibility systems see them.
 /// CareStrip wins over CarePrompt. Hour 1: while Guidance is active on
 /// MoveAround and no harvest node is in range, CarePrompt is not showing,
-/// so Guidance keeps this anchor. The caller writes `Visibility` only.
+/// so Guidance keeps this anchor. `guidance_hidden` is the lived-hour bind:
+/// the player chose to hide the slabs, so MoveAround does not keep the bar.
+/// The caller writes `Visibility` only.
 pub(crate) fn action_bar_prompts_showing(
     care: Option<&CareCycleOffer>,
     epi: Option<&FirstHarvestEpiphany>,
     nearby: Option<&NearbyMercyNode>,
     guidance: &FirstSessionGuidance,
     now: f64,
+    guidance_hidden: bool,
 ) -> (bool, bool) {
     let care_strip = care.is_some_and(|offer| offer.active);
     let move_around_owns = guidance.active
         && !guidance.dismissed
         && guidance.objective == GuidanceObjective::MoveAround
-        && !nearby.is_some_and(|node| node.in_range);
+        && !nearby.is_some_and(|node| node.in_range)
+        && !guidance_hidden;
     let care_prompt = !move_around_owns
         && epi.zip(nearby).is_some_and(|(epi, nearby)| {
             world_care_prompt_visible(
@@ -813,7 +827,7 @@ mod tests {
     use crate::first_harvest_epiphany::FirstHarvestEpiphany;
     use crate::first_session_guidance::{
         handle_guidance_dismiss_input, update_guidance_visibility, FirstSessionGuidance,
-        FirstSessionGuidanceStrip,
+        FirstSessionGuidanceStrip, GuidanceObjective,
     };
     use crate::living_practice_loop::{
         handle_practice_toggle, update_practice_visibility, LivingPracticeLoop, LivingPracticeStrip,
@@ -1351,6 +1365,38 @@ mod tests {
             practice.celebrate_until,
             practice.mercy_harvests_on_surface,
         )
+    }
+
+    #[test]
+    fn move_around_yields_the_care_prompt_only_when_guidance_is_hidden() {
+        let guidance = FirstSessionGuidance::default();
+        assert!(guidance.active);
+        assert!(!guidance.dismissed);
+        assert_eq!(guidance.objective, GuidanceObjective::MoveAround);
+        let epi = FirstHarvestEpiphany::default();
+        assert!(!epi.first_harvest_lived);
+        assert_eq!(epi.prompt_until, 9999.0);
+        let mut nearby = NearbyMercyNode::default();
+        nearby.nodes_exist = true;
+        nearby.in_range = false;
+        let (_strip, prompt) = action_bar_prompts_showing(
+            None,
+            Some(&epi),
+            Some(&nearby),
+            &guidance,
+            0.0,
+            false,
+        );
+        assert!(!prompt);
+        let (_strip, prompt) = action_bar_prompts_showing(
+            None,
+            Some(&epi),
+            Some(&nearby),
+            &guidance,
+            0.0,
+            true,
+        );
+        assert!(prompt);
     }
 
     fn strip_vis<T: Component>(app: &mut App) -> Visibility {

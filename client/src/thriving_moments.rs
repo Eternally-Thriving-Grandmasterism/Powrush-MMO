@@ -9,7 +9,7 @@
  */
 
 use bevy::prelude::*;
-use crate::hud_anchor_registry::THRIVING;
+use crate::hud_anchor_registry::{HudSlab, THRIVING};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -166,6 +166,7 @@ fn spawn_toast(mut commands: Commands) {
                 ..default()
             },
             ThrivingToastRoot,
+            HudSlab(THRIVING.id),
         ))
         .with_children(|p| {
             p.spawn((

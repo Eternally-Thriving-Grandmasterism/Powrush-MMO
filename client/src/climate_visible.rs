@@ -44,7 +44,7 @@ use shared::climate_node::{ClimateNode, NodeState};
 use shared::heartwood_wards::WARDS_NOTICE;
 
 use crate::climate_script::TeachingClaim;
-use crate::hud_anchor_registry::CLIMATE_STATE;
+use crate::hud_anchor_registry::{HudSlab, CLIMATE_STATE};
 use crate::skirmish_well::{tick_well_glow_breath, well_glow_pulse};
 use crate::first_session_guidance::{
     first_minutes_people_want_line, first_minutes_people_want_line_for_place, want_for_place,
@@ -304,6 +304,7 @@ fn spawn_climate_state_slab(mut commands: Commands) {
                 ..default()
             },
             ClimateStateRoot,
+            HudSlab(CLIMATE_STATE.id),
         ))
         .with_children(|p| {
             p.spawn((

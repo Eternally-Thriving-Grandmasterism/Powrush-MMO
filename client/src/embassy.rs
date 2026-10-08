@@ -14,7 +14,7 @@ use shared::embassy::Embassy;
 use shared::hour_two::HourTwoPack;
 
 use crate::coop_voice::VoiceYard;
-use crate::hud_anchor_registry::EMBASSY;
+use crate::hud_anchor_registry::{HudSlab, EMBASSY};
 use crate::fabricator::FabricatorYard;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hour_sacred::{read_hour_two_json, HourSacred};
@@ -79,6 +79,7 @@ fn spawn_embassy_slab(mut commands: Commands) {
                 ..default()
             },
             EmbassySlabRoot,
+            HudSlab(EMBASSY.id),
         ))
         .with_children(|p| {
             p.spawn((

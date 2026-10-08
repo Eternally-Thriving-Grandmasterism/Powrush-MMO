@@ -17,7 +17,7 @@ use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 
-use crate::hud_anchor_registry::JOURNEY;
+use crate::hud_anchor_registry::{HudSlab, JOURNEY};
 use crate::living_practice_loop::LivingPracticeLoop;
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::rbe_allocate_choice::{AllocatePath, RbeAllocateChoice};
@@ -236,6 +236,7 @@ fn spawn_echo_panel(mut commands: Commands) {
                 ..default()
             },
             JourneyEchoRoot,
+            HudSlab(JOURNEY.id),
         ))
         .with_children(|p| {
             p.spawn(TextBundle::from_section(

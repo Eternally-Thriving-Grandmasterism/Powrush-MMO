@@ -18,7 +18,7 @@ use shared::space_law::{HexFlag, SpaceSession};
 use shared::vertical_factory::VerticalFactory;
 
 use crate::hour_sacred::{read_hour_two_json, HourSacred};
-use crate::hud_anchor_registry::FACTORY;
+use crate::hud_anchor_registry::{HudSlab, FACTORY};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::soft_play_bindings;
@@ -91,6 +91,7 @@ fn spawn_factory_slab(mut commands: Commands) {
                 ..default()
             },
             FactorySlabRoot,
+            HudSlab(FACTORY.id),
         ))
         .with_children(|p| {
             p.spawn((

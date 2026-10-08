@@ -41,7 +41,7 @@ use crate::lived_hour_bind::LivedHourBind;
 use crate::lived_sim_bridge::{sync_lived_hour_use, LivedSimBridge};
 use crate::rbe_allocate_choice::{allocate_owns_digit2, RbeAllocateChoice};
 use crate::living_ecology::BiomeFeel;
-use crate::hud_anchor_registry::ACTION_BAR;
+use crate::hud_anchor_registry::{HudSlab, ACTION_BAR, ID_CARE_STRIP};
 use crate::living_practice_loop::SoftPlayerRealm;
 
 pub const HARVEST_REACH: f32 = 2.85;
@@ -282,10 +282,10 @@ pub fn sting_path_for_realm(realm: Option<u8>) -> &'static str {
 }
 
 #[derive(Component)]
-struct CareCycleStrip;
+pub(crate) struct CareCycleStrip;
 
 #[derive(Component)]
-struct CareCycleStripText;
+pub(crate) struct CareCycleStripText;
 
 pub struct MercyHarvestNodesPlugin;
 
@@ -404,6 +404,7 @@ fn spawn_care_cycle_strip(mut commands: Commands) {
                 ..default()
             },
             CareCycleStrip,
+            HudSlab(ID_CARE_STRIP),
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -642,7 +643,7 @@ fn handle_care_cycle_input(
     }
 }
 
-fn update_care_cycle_strip(
+pub(crate) fn update_care_cycle_strip(
     offer: Res<CareCycleOffer>,
     epiphany: Option<Res<FirstHarvestEpiphany>>,
     mut strips: Query<&mut Visibility, With<CareCycleStrip>>,

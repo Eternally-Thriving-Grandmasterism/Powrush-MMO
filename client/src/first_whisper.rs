@@ -11,7 +11,7 @@
 use bevy::prelude::*;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
-use crate::hud_anchor_registry::WHISPER;
+use crate::hud_anchor_registry::{HudSlab, WHISPER};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::hex_travel::HexTravelState;
 use crate::local_session_persist::LocalSessionPersist;
@@ -70,6 +70,7 @@ fn spawn_whisper(mut commands: Commands) {
                 ..default()
             },
             WhisperRoot,
+            HudSlab(WHISPER.id),
         ))
         .with_children(|p| {
             p.spawn((
