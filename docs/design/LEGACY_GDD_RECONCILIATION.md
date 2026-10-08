@@ -67,8 +67,8 @@ The retired spelling in the first row is the only place this file uses it. Every
 
 Rulings applied:
 
-- Current repo canon wins every conflict. §6 names each one.
-- Strong lore hooks stay where they fit: low gravity and big jumps; the four old peoples and their homes mapped onto five Peoples and four Places (the upside-down stalactite city included); Draek and Alliance allegiance, with redemption open; benevolent and evil aliens; server timelines, time-travel resets, a war effort that opens servers, and per-server stories. Those server ideas are online-only and later.
+- Current repo canon wins every conflict in §6, except the Cydruid home. Sherif's ruling of 2026-10-08, 12:34 AM ET, is the canon for that city. The older Place pages are flagged in §5 and are not rewritten here.
+- Strong lore hooks stay where they fit: low gravity and big jumps; the four old peoples map onto five Peoples. The upside-down stalactite city is the Cydruid home in Earth's hollows, not scenery for Sanctuary, Heartwood, Threshold, or Depths. Draek and Alliance allegiance stay, with redemption open. Benevolent and evil aliens stay. Server timelines, time-travel resets, a war effort that opens servers, and per-server stories stay. Those server ideas are online-only and later.
 - Pay-to-win and real-world-risk rows retire. That includes buying righteousness, buying NPC shops with real money, real-company shops and items, per-server crypto or player earnings, and paid server transfers that carry power. Real-money unbinding, random-skin subscriptions and battle gambling retire with them.
 - Revenue follows no pay-to-win. Sherif's companies use Stripe and PayPal. Stripe is unused on itch.io; itch.io runs its own checkout. This file sets no price, SKU, storefront or tax treatment. Revenue never sells power. Revenue never sells looks (no transmog, no skins).
 - Gear customisation is physical on that one item: paint, grips and wraps, engraving, a faction or House tabard, metal finish ([FACTION_HERALDRY](../FACTION_HERALDRY.md)). Cosmetic-skin ideas are flagged on M2, M4, J3, E9 and S2, with the physical alternative in the row.
@@ -106,7 +106,7 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 | P7 | Vigilantes and paid bounty hunters police criminals | MODERNISE (Online · grey) | Bounties defer. → COMBAT_AND_PVP.md | [COMBAT_AND_PVP.md](COMBAT_AND_PVP.md) |
 | P8 | Benevolent aliens offer aid to the Earthlings | KEEP | Those aliens are the Quellorian Alliance. | [FACTIONS_OVERVIEW](../FACTIONS_OVERVIEW.md) |
 | P9 | Phones return after players salvage low-frequency radio | MODERNISE (Online · grey) | A salvaged comms net is a guild infrastructure project. v2.1's player-work version wins over v1.5. | [LAYERED](../LAYERED_GAMES_AND_SERVER.md) §3b |
-| P10 | A rejoin canyon reveals an advanced hollow-Earth society | KEEP | Cydruids rise from the cracked heart. | [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) |
+| P10 | A rejoin canyon reveals an advanced hollow-Earth society | KEEP | The reveal stands. Their home is the hollows city (§5), not Depths dress. | [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) |
 | P11 | Diplomacy or pillage, while holding off the invasion | KEEP | That split is the economy spectrum's success and failure paths. | [LAYERED](../LAYERED_GAMES_AND_SERVER.md) §4.2–§4.3 |
 | P12 | At level 1 a future person is sent back; mission still open | MODERNISE (Online · grey) | "From the future" can colour server timelines. It is never a Title wall. Heritage comes after House. | [GDD_ADAPTATION](../GDD_ADAPTATION.md), [LAYERED](../LAYERED_GAMES_AND_SERVER.md) §7.6 |
 
@@ -125,15 +125,15 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 |---|---|---|---|---|
 | R1 | Hollow-Earth cyborgs whose "sorcery" is nanotech | KEEP | A Cydruid is a human in a cyborg frame. The age number is conflict 18. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
 | R2 | Xenki, eldest clairvoyant, foresaw the splitting of Earth | KEEP | Open-lore candidate for a named Cydruid elder. Steward call. Not hardened here. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
-| R3 | They share technology; extraction triggers natural disasters | KEEP | Cydruids share tech. Draek extraction stresses the land. | [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §6 |
+| R3 | They share technology; extraction triggers natural disasters | KEEP | Cydruids share tech and harvest with care (Sherif 2026-10-08). Draek extraction stresses the land. | [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §6 |
 | R4 | Hooded robes; more machine parts as levels rise | KEEP | More machine is the Body range. The hood is dress. Level tiers are not the ladder. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
 | R5 | A black-market shop sells upgradeable body parts | MODERNISE | Upgrades come from Cydruid standing. "No shop and no second currency." | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
-| R6 | A power source that requires giving up body parts | MODERNISE | The hook becomes a chosen point on the Body range, not a forced sacrifice. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
-| R7 | Upside-down stalactite city, with a dangerous spiral below | MODERNISE | The city stays as dress. Drive lore already sends the rise to Depths; a Heartwood underside is the other shelf. Steward picks. Not a fifth Place. | [PLACES_BIBLE](../PLACES_BIBLE.md), [PLACE_DRESS_SPEC](../PLACE_DRESS_SPEC.md), [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) |
-| R8 | A glowing healing lake and bobbing stepping-stones | KEEP | Water is a bath. The pond drop already teaches that. | [ART_BIBLE](../ART_BIBLE.md), [PLACES_BIBLE](../PLACES_BIBLE.md) |
+| R6 | A power source that requires giving up body parts | MODERNISE | The hook becomes a chosen point on the Body range, not a forced sacrifice. Sherif's "chose to become cyborgs" matches that. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
+| R7 | Upside-down stalactite city, with a dangerous spiral below | KEEP | Sherif 2026-10-08: this is the Cydruid home in the hollows, not dress on the four Places. No shop and no second currency. The Place clash is flagged in §5. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
+| R8 | A glowing healing lake and bobbing stepping-stones | KEEP | The glow-lake stays with that Cydruid home. The Heartwood pond bath is a separate lived teach. | [ART_BIBLE](../ART_BIBLE.md), [PLACES_BIBLE](../PLACES_BIBLE.md) |
 | R9 | Dark minimal shop dress, holograms, neon glass | MODERNISE | That dress moves to a fabricator or bench. There is no shop. | [FACTION_HERALDRY](../FACTION_HERALDRY.md), [PLACES_BIBLE](../PLACES_BIBLE.md) |
 | R10 | PvP hideout where rares cost the gang leader's credit | MODERNISE | Quest-credit black market is Market HOLD. Criminals in the abandoned stone can stay as flavour. The PvP zone defers. → COMBAT_AND_PVP.md | [OFFLINE_SKU](../OFFLINE_SKU.md), [COMBAT_AND_PVP.md](COMBAT_AND_PVP.md) |
-| R11 | Low zone raw-to-tech; high zone is a glow-worm sanctuary | KEEP | Dress references for Depths and Heartwood. | [PLACE_DRESS_SPEC](../PLACE_DRESS_SPEC.md), [ART_BIBLE](../ART_BIBLE.md) |
+| R11 | Low zone raw-to-tech; high zone is a glow-worm sanctuary | KEEP | Those looks belong to the Cydruid hollows home (§5), not as Depths or Heartwood dress. | [ART_BIBLE](../ART_BIBLE.md) |
 | R12 | Humans look like people now: determined, and they persist | KEEP | Humans stay the adaptable middle People. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §4 |
 | R13 | False-flag massacres, then footage of strange lizard creatures | MODERNISE | The false-flag war stands. Draeks read as biomechanical chitin, not lizard footage. | [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md), [PLAYABLE_RACES](../PLAYABLE_RACES.md) §3 |
 | R14 | Utilitarian, honest, inquisitive, strong, intelligent | KEEP | Honest and inquisitive fits the Quellorians. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §2 |
@@ -306,6 +306,27 @@ The *Galactic Reckoning* script is source material for future trailers and cutsc
 
 HANDS stills stay free of eat-flesh, teleport-beam shots and a mothership bay ([IMAGINE_TRAILER_PACK](../IMAGINE_TRAILER_PACK.md), [ART_BIBLE](../ART_BIBLE.md) C-12).
 
+### Cydruid home (Sherif, 2026-10-08, 12:34 AM ET)
+
+This ruling overrides the earlier row that parked the upside-down stalactite city as dress on Heartwood or Depths.
+
+The city is the home of the Cydruids. They live deep underground in the hollows of the Earth. They quietly advance beyond all humans by harvesting resources thoughtfully and carefully. They are an endlessly burrowing culture of humans and robots that eventually merged into one: druids who chose to become cyborgs, the Cydruids.
+
+Still held, and not reopened: no Cydruid shop, and no second currency ([PLAYABLE_RACES](../PLAYABLE_RACES.md) §5). Frame upgrades come through standing, along the Body range.
+
+Checked against Cydruid canon already on main. Fits:
+
+- A Cydruid is a human housed in a cyborg frame, nature as practice, not a treant ([PLAYABLE_RACES](../PLAYABLE_RACES.md) §5, steward C0 and the 2026-10-02 Body range). "Chose to become cyborgs" matches a chosen point on that range, including Fully cyborg.
+- Hidden Cydruids already "quietly advance their technology in Earth's hollows" ([DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md)). This ruling confirms the hollows life and the careful harvest.
+- Thoughtful harvest matches tend and mercy. It is not Draek extraction.
+
+Clashes, flagged here and not edited in those files:
+
+- [PLAYABLE_RACES](../PLAYABLE_RACES.md) §1.1 (2026-09-19) lands the Cydruid door in Heartwood and says four Places only, no fifth Place. [PLACE_DRESS_SPEC](../PLACE_DRESS_SPEC.md) says the same four. This ruling says the city is not scenery for Sanctuary, Heartwood, Threshold, or Depths. This file does not add a Place, a door, or a mesh.
+- [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) sends the rise to Depths dress. Depths remains the Draek door in [PLAYABLE_RACES](../PLAYABLE_RACES.md) §1.1. The burrow city is not that landing. The hollows sentence in Drive lore is still marked LORE-ORIGINS, unconfirmed (2026-10-02). This ruling confirms it. That file is unchanged.
+- "Humans and robots that eventually merged" is taken with Sherif's own gloss: druids who chose cyborg frames, one People. A separate robot People would be a sixth People and is not taken.
+- "Beyond all humans" is a head start from careful harvest. It does not close the human path: humans can still earn the Fully cyborg end by Cydruid standing, and the two Peoples can converge ([PLAYABLE_RACES](../PLAYABLE_RACES.md) §4–§5). It is not a power scalar, a shop, or a second currency.
+
 ### SL — *Powrush Story* outline
 
 | ID | Old idea | Verdict | One-line reason | Canon home |
@@ -318,7 +339,7 @@ HANDS stills stay free of eat-flesh, teleport-beam shots and a mothership bay ([
 | SL6 | Mind control of named great powers starts a war of missiles and nukes | MODERNISE | Crownstone mind control stands. Named real states leave game content. The nuke beat is conflict 1. | [FACTIONS_OVERVIEW](../FACTIONS_OVERVIEW.md), [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) |
 | SL7 | Magma islands, debris, a moon scrape, chunks spinning off | KEEP | Fracture spectacle stays. New land can be frontier hex flavour. | [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md), [ART_BIBLE](../ART_BIBLE.md) |
 | SL8 | Weaker gravity, so people jump higher and further | KEEP | Same hook as P3. | [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) |
-| SL9 | Cydruids rise from the hollows after more than five thousand years | MODERNISE | The emergence stands. "Five thousand years" clashes with v2.1's "hundreds of years". The repo fixes no number. Steward call. | [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) |
+| SL9 | Cydruids rise from the hollows after more than five thousand years | MODERNISE | The hollows home is Sherif 2026-10-08 (§5). The year count is still unset. Steward call on the number only. | [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) |
 | SL10 | Wrist light is weapon and gathering tool; no biological body, fuel not food | MODERNISE | Wrist light as weapon and gathering tool fits the trailer. "No biological body" is only the Fully cyborg end of the Body range. | [IMAGINE_TRAILER_PACK](../IMAGINE_TRAILER_PACK.md), [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
 | SL11 | A scout relay calls help only after nuclear-scale destruction, and spots the mothership late | MODERNISE | Quellorians already monitored and made covert contact. The relay is the shift to open aid. The trigger is fracture weapons. | [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §6 |
 | SL12 | The Quellorian mothership arrives by wormhole and deploys aid | KEEP | TAUN arrives through a wormhole. | [FACTIONS_OVERVIEW](../FACTIONS_OVERVIEW.md) |
@@ -346,7 +367,7 @@ HANDS stills stay free of eat-flesh, teleport-beam shots and a mothership bay ([
 
 ## 6. Conflicts with current canon
 
-Canon wins each row.
+Canon wins each row. Row 6 is Sherif's 2026-10-08 ruling. The older four-Places pages stay as written and are flagged in §5.
 
 | # | Old claim | Current canon | Winner |
 |---|---|---|---|
@@ -355,7 +376,7 @@ Canon wins each row.
 | 3 | One-way Draek allegiance with no exit (J3) | Allegiance can change, at a cost. Redemption stays open | [LAYERED](../LAYERED_GAMES_AND_SERVER.md) §3d, [REDEMPTION_MECHANICS_PER_SPECIES](../REDEMPTION_MECHANICS_PER_SPECIES.md) |
 | 4 | "The Council" as the righteous faction (J4) | Council means governance tiers. The faction is the Quellorian / Aetherion Luminari Alliance | [COUNCIL_SYSTEM](../COUNCIL_SYSTEM.md), [FACTIONS_OVERVIEW](../FACTIONS_OVERVIEW.md) |
 | 5 | A black-market body-part shop (R5) | Cydruid upgrades come through standing. "No shop and no second currency." | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
-| 6 | A Druid capital the size of a new region (R7) | Four Places only: Sanctuary, Heartwood, Threshold, Depths. Market is not a Place | [PLACES_BIBLE](../PLACES_BIBLE.md), [PLAYABLE_RACES](../PLAYABLE_RACES.md) §1.1 |
+| 6 | A Druid capital the size of a new region (R7), earlier read here as dress on Heartwood or Depths | Written Place law still says four Places, Cydruid door to Heartwood, rise as Depths dress | Sherif 2026-10-08: the stalactite city is the Cydruid home, not scenery for those four Places. Those docs are flagged in §5 and not edited |
 | 7 | Draeks as lizards or scaled reptiles with tails (R13, GRv, and the public site) | Draeks are tall biomechanical humanoids with chitin. Vesh'kar are a different enslaved people and are the reptile minions | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §3 and §7 |
 | 8 | Allies buff and bulky; enemies tall and skinny; high-gravity bulk (D3, R17) | Quellorians are tall, slender and graceful. Draeks are tall, imposing and biomechanical | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §2–§3 |
 | 9 | Draeks were deceptive warmongers by nature (SL2) | They were a peaceful matriarchal people who fell | [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §2–§4 |
@@ -378,6 +399,7 @@ Not edited in this PR:
 - [GDD_ADAPTATION](../GDD_ADAPTATION.md) still says "Post-book skins" on the cosmetics transform row. [FACTION_HERALDRY](../FACTION_HERALDRY.md) is the later law: physical finishes, no transmog, no cosmetic shop.
 - [PLAYABLE_RACES](../PLAYABLE_RACES.md) §2–§3 still speaks of unity bonuses, converting the defeated, and "massive power", beside the no-power-scalar law in [GDD_IMMERSION](../GDD_IMMERSION_REVISION.md) §4.
 - The same file's §5 says a starting Cydruid picks one free cyborg upgrade at character creation. §1.1 of that file puts People after House, with no Title race lobby.
+- The same §1.1 lands Cydruids in Heartwood and forbids a fifth Place. [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) still sends their rise to Depths dress. Sherif 2026-10-08 names the stalactite city as the Cydruid home instead (§5). Those files were not edited.
 
 ## 7. Retired, and why
 
@@ -437,7 +459,7 @@ Ranked by fit, then by lower effort.
 | 2 | Fracture aftermath as dress: magma-born islands, a scarred moon, debris as frontier hex flavour | High | Low | [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md), [ART_BIBLE](../ART_BIBLE.md) | Offline now |
 | 3 | Negotiate-first beat (shields up, open a channel) for a trailer and a diplomacy moment | High | Low | [IMAGINE_TRAILER_PACK](../IMAGINE_TRAILER_PACK.md), [QUELLORIAN_KEY_FIGURES](../QUELLORIAN_KEY_FIGURES.md) | Offline now |
 | 4 | Crafted-item names plus a visible merged part (a hilt on a bow), physical, no stats | High | Medium | [FACTION_HERALDRY](../FACTION_HERALDRY.md), [MERCY_TEMPER](../MERCY_TEMPER_PROGRESSION.md) | Offline now |
-| 5 | Upside-down stalactite city and the healing glow-lake as dress on an existing Place | High | Medium-high | [PLACES_BIBLE](../PLACES_BIBLE.md), [PLACE_DRESS_SPEC](../PLACE_DRESS_SPEC.md) | Steward lore call |
+| 5 | Upside-down stalactite city as the Cydruid home in the hollows, with the glow-lake; not dress on the four Places. No shop, no second currency. Place-count clash flagged in §5 | High | Medium-high | This file §5, [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 | Offline now |
 | 6 | Draek and Alliance allegiance as faction standing, redemption open | High | High | [LAYERED](../LAYERED_GAMES_AND_SERVER.md) §3d, [COMBAT_AND_PVP.md](COMBAT_AND_PVP.md) | Online · grey |
 | 7 | Timeline-reset servers, a work-only war effort, divergent stories, histories never merge | High | Very high | [LAYERED](../LAYERED_GAMES_AND_SERVER.md) §7.6 | Online · grey |
 | 8 | Quellorian origin, open lore: lost two-sun home, Ambrosians gave a new one, Crystal Choir bond | Medium-high | Low | [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §7, [QUELLORIAN_KEY_FIGURES](../QUELLORIAN_KEY_FIGURES.md) | Steward lore call |
