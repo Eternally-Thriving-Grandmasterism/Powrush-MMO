@@ -597,22 +597,29 @@ struct PauseTitleBtn;
 #[derive(Component)]
 struct PauseQuitBtn;
 
-/// Esc pause plate tabs — Comfort (default) · Controls · Guide.
+/// Esc pause plate tabs — Comfort (default) · Controls · HUD · Guide.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum PauseTab {
     #[default]
     Comfort,
     Controls,
+    Hud,
     Guide,
 }
 
 impl PauseTab {
-    const ALL: [PauseTab; 3] = [PauseTab::Comfort, PauseTab::Controls, PauseTab::Guide];
+    const ALL: [PauseTab; 4] = [
+        PauseTab::Comfort,
+        PauseTab::Controls,
+        PauseTab::Hud,
+        PauseTab::Guide,
+    ];
 
     const fn label(self) -> &'static str {
         match self {
             Self::Comfort => "Comfort",
             Self::Controls => "Controls",
+            Self::Hud => "HUD",
             Self::Guide => "Guide",
         }
     }
@@ -655,6 +662,13 @@ struct SettingsGraphicsLabel;
 struct SettingsGroveBtn;
 #[derive(Component)]
 struct SettingsGroveLabel;
+/// HUD tab — cycles the saved layout preset. Not a hotkey.
+#[derive(Component)]
+pub(crate) struct SettingsHudLayoutBtn;
+#[derive(Component)]
+pub(crate) struct SettingsHudResetBtn;
+#[derive(Component)]
+struct SettingsHudLayoutLabel;
 #[derive(Component)]
 struct SettingsReducedMotionBtn;
 #[derive(Component)]
@@ -1264,6 +1278,7 @@ impl Plugin for TitleScreenPlugin {
                     refresh_pause_cue,
                     pause_plate_clicks,
                     refresh_local_settings_labels,
+                    refresh_hud_layout_label,
                     refresh_controls_settings_labels,
                     refresh_lethal_sign_label,
                     local_settings_clicks,
@@ -1771,6 +1786,20 @@ fn spawn_settings_stub(mut commands: Commands) {
                     SettingsPeaceResetBtn,
                     SettingsPeaceResetBtn,
                 );
+            });
+            // HUD tab — layout preset and Reset UI. No hotkey. Plate style stays.
+            p.spawn((
+                settings_tab_panel_bundle(false),
+                PauseTabPanel(PauseTab::Hud),
+            ))
+            .with_children(|hud| {
+                spawn_settings_row(
+                    hud,
+                    "HUD layout · Classic",
+                    SettingsHudLayoutBtn,
+                    SettingsHudLayoutLabel,
+                );
+                spawn_settings_row(hud, "Reset UI", SettingsHudResetBtn, SettingsHudResetBtn);
             });
             // Guide tab — one peak-memory sentence, wrapped in this plate.
             p.spawn((
@@ -2781,14 +2810,16 @@ fn pause_tab_keys(
     if next {
         *tab = match *tab {
             PauseTab::Comfort => PauseTab::Controls,
-            PauseTab::Controls => PauseTab::Guide,
+            PauseTab::Controls => PauseTab::Hud,
+            PauseTab::Hud => PauseTab::Guide,
             PauseTab::Guide => PauseTab::Comfort,
         };
     } else if prev {
         *tab = match *tab {
             PauseTab::Comfort => PauseTab::Guide,
             PauseTab::Controls => PauseTab::Comfort,
-            PauseTab::Guide => PauseTab::Controls,
+            PauseTab::Hud => PauseTab::Controls,
+            PauseTab::Guide => PauseTab::Hud,
         };
     }
 }
@@ -2823,6 +2854,22 @@ fn sync_pause_tabs(
         } else {
             TITLE_BORDER_MUTED.into()
         };
+    }
+}
+
+fn refresh_hud_layout_label(
+    label: Res<HouseLabel>,
+    settings: Res<LocalSettingsState>,
+    mut texts: Query<&mut Text, With<SettingsHudLayoutLabel>>,
+) {
+    if !label.settings_open {
+        return;
+    }
+    let face = format!("HUD layout · {}", settings.inner.hud_preset_face());
+    let font = (15.0 * settings.inner.text_scale).clamp(11.0, 22.0);
+    for mut text in &mut texts {
+        set_btn_section_text(&mut text, &face);
+        set_btn_section_font(&mut text, font);
     }
 }
 
@@ -5884,8 +5931,18 @@ mod tests {
         assert_eq!(PauseTab::default(), PauseTab::Comfort);
         assert_eq!(PauseTab::Comfort.label(), "Comfort");
         assert_eq!(PauseTab::Controls.label(), "Controls");
+        assert_eq!(PauseTab::Hud.label(), "HUD");
         assert_eq!(PauseTab::Guide.label(), "Guide");
-        assert_eq!(PauseTab::ALL.len(), 3);
+        assert_eq!(PauseTab::ALL.len(), 4);
+        assert_eq!(
+            PauseTab::ALL,
+            [
+                PauseTab::Comfort,
+                PauseTab::Controls,
+                PauseTab::Hud,
+                PauseTab::Guide
+            ]
+        );
     }
 
     #[test]
@@ -5916,14 +5973,22 @@ mod tests {
         assert!(!lower.contains("f-row"));
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
-        assert_eq!(PauseTab::ALL.len(), 3, "Comfort · Controls · Guide preserved");
+        assert_eq!(
+            PauseTab::ALL.len(),
+            4,
+            "Comfort · Controls · HUD · Guide"
+        );
     }
 
     #[test]
     fn pause_plate_spawns_places_door_before_online() {
         // Places door is on the tabbed pause plate (not a floating chip).
         assert_eq!(PLACES_ROW, "Places");
-        assert_eq!(PauseTab::ALL.len(), 3, "Comfort · Controls · Guide preserved");
+        assert_eq!(
+            PauseTab::ALL.len(),
+            4,
+            "Comfort · Controls · HUD · Guide"
+        );
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
     }
 

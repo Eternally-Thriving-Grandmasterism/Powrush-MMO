@@ -393,7 +393,7 @@ fn soft_surplus_from_rbe_feedback(
     }
 }
 
-fn toggle_allocate_panel(
+pub(crate) fn toggle_allocate_panel(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut allocate: ResMut<RbeAllocateChoice>,
 ) {

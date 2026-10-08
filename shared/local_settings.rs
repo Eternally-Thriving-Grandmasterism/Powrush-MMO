@@ -4,7 +4,7 @@
 //! (or `POWRUSH_USER_DIR`). Cwd `data/powrush_settings.json` is adopt-only.
 //! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove ·
 //! Graphics preset · Mesh LOD · Weather fidelity (EARTH-CLIMATE) · Comfort graphics banner · Reduced motion · Rumble ·
-//! Colorblind wells · LAN · Controls (I0).
+//! Colorblind wells · LAN · Controls (I0) · HUD layout preset (`hud_preset`).
 //! Defaults = Peace hour / Peace desktop (sticks auto-off for mouse Title).
 //! Mute on pause plate = same MasterMute flag.
 //! Online stays grey — no settings toggle binds a socket / POWRUSH_NET=on.
@@ -12,7 +12,7 @@
 //! Loopback may use the existing F8 127.0.0.1 door only — never 0.0.0.0, never Title Online.
 //! Contact: info@Rathor.ai
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 
 pub const SETTINGS_PATH: &str = "data/powrush_settings.json";
 pub const SETTINGS_SCHEMA: &str = "powrush_settings_v1";
@@ -407,6 +407,10 @@ pub struct LocalSettings {
     /// I0 soft Use cue when in range. Default true.
     #[serde(default = "default_true")]
     pub show_use_prompt: bool,
+    /// Q16. One field in this file: "classic" | "minimal" | "management".
+    /// Missing, unparsable, or unknown → classic. Not a second layout file.
+    #[serde(default = "default_hud_preset", deserialize_with = "deserialize_hud_preset")]
+    pub hud_preset: String,
 }
 
 fn default_look() -> f32 {
@@ -502,6 +506,33 @@ fn default_sprint_mode() -> String {
     "key".into()
 }
 
+fn default_hud_preset() -> String {
+    "classic".into()
+}
+
+/// "classic" | "minimal" | "management". Anything else, including a blank, is classic.
+pub fn canonical_hud_preset(raw: &str) -> String {
+    match raw.trim().to_ascii_lowercase().as_str() {
+        "minimal" => "minimal".into(),
+        "management" => "management".into(),
+        _ => "classic".into(),
+    }
+}
+
+/// A non-string or otherwise unparsable `hud_preset` value becomes classic.
+/// The rest of the settings document still loads.
+fn deserialize_hud_preset<'de, D>(deserializer: D) -> Result<String, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let value = serde_json::Value::deserialize(deserializer)?;
+    let raw = match value {
+        serde_json::Value::String(text) => text,
+        _ => String::new(),
+    };
+    Ok(canonical_hud_preset(&raw))
+}
+
 impl Default for LocalSettings {
     fn default() -> Self {
         Self {
@@ -535,6 +566,7 @@ impl Default for LocalSettings {
             nintendo_face: default_nintendo_face(),
             sprint_mode: default_sprint_mode(),
             show_use_prompt: true,
+            hud_preset: default_hud_preset(),
         }
     }
 }
@@ -588,6 +620,7 @@ impl LocalSettings {
         self.normalize_colorblind_wells();
         self.normalize_lan();
         self.normalize_controls();
+        self.normalize_hud_preset();
     }
 
 
@@ -654,6 +687,35 @@ impl LocalSettings {
     /// Dismiss + persist flag so the banner does not spam.
     pub fn dismiss_comfort_graphics_banner(&mut self) {
         self.comfort_graphics_banner_dismissed = true;
+    }
+
+    /// Clamp `hud_preset` to classic | minimal | management. Unknown → classic.
+    pub fn normalize_hud_preset(&mut self) {
+        self.hud_preset = canonical_hud_preset(&self.hud_preset);
+    }
+
+    /// Settings row face. Unknown already reads as Classic.
+    pub fn hud_preset_face(&self) -> &'static str {
+        match self.hud_preset.as_str() {
+            "minimal" => "Minimal",
+            "management" => "Management",
+            _ => "Classic",
+        }
+    }
+
+    /// Classic → Minimal → Management → Classic.
+    pub fn cycle_hud_preset(&mut self) {
+        self.normalize_hud_preset();
+        self.hud_preset = match self.hud_preset.as_str() {
+            "classic" => "minimal".into(),
+            "minimal" => "management".into(),
+            _ => "classic".into(),
+        };
+    }
+
+    /// Reset UI saves classic.
+    pub fn reset_hud_preset(&mut self) {
+        self.hud_preset = default_hud_preset();
     }
 
     /// Clamp grove to "off" | "light". Missing/unknown → off.
@@ -1033,6 +1095,8 @@ mod tests {
         assert_eq!(s.nintendo_face, "auto");
         assert_eq!(s.sprint_mode, "key");
         assert!(s.show_use_prompt);
+        assert_eq!(s.hud_preset, "classic");
+        assert_eq!(s.hud_preset_face(), "Classic");
         assert!(!s.resolve_on_screen_sticks(false));
         assert!(s.resolve_on_screen_sticks(true));
         assert!((s.master_gain() - 1.0).abs() < f32::EPSILON);
@@ -1067,6 +1131,7 @@ mod tests {
         s.nintendo_face = "auto".into();
         s.sprint_mode = "stick".into();
         s.show_use_prompt = false;
+        s.hud_preset = "minimal".into();
         let raw = s.to_json().unwrap();
         assert!(raw.contains("powrush_settings_v1"));
         assert!(raw.contains("look_sensitivity"));
@@ -1082,6 +1147,7 @@ mod tests {
         assert!(raw.contains("\"lan\"") && raw.contains("loopback"));
         assert!(raw.contains("on_screen_sticks"));
         assert!(raw.contains("sprint_mode") && raw.contains("stick"));
+        assert!(raw.contains("\"hud_preset\": \"minimal\""));
         let back = LocalSettings::from_json(&raw).unwrap();
         assert_eq!(back, s);
         assert!(back.grove_is_light());
@@ -1629,6 +1695,68 @@ mod tests {
         let legacy_back = LocalSettings::from_json(legacy).unwrap();
         assert!(!legacy_back.comfort_graphics_banner_dismissed);
         assert!(legacy_back.should_show_comfort_graphics_banner());
+    }
+
+    /// T5. Missing, unparsable, and unknown `hud_preset` each load classic.
+    #[test]
+    fn hud_preset_missing_unparsable_and_unknown_load_classic() {
+        let missing = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.5,"mute":false,"invert_y":false,"hide_slabs":false}"#;
+        let missing = LocalSettings::from_json(missing).unwrap();
+        assert_eq!(missing.hud_preset, "classic");
+        assert!((missing.look_sensitivity - 1.5).abs() < f32::EPSILON);
+
+        for raw in [
+            r#"{"schema":"powrush_settings_v1","look_sensitivity":1.25,"hud_preset":12}"#,
+            r#"{"schema":"powrush_settings_v1","look_sensitivity":1.25,"hud_preset":true}"#,
+            r#"{"schema":"powrush_settings_v1","look_sensitivity":1.25,"hud_preset":{"id":"minimal"}}"#,
+            r#"{"schema":"powrush_settings_v1","look_sensitivity":1.25,"hud_preset":null}"#,
+        ] {
+            let loaded = LocalSettings::from_json(raw).unwrap();
+            assert_eq!(loaded.hud_preset, "classic", "{raw}");
+            assert!((loaded.look_sensitivity - 1.25).abs() < f32::EPSILON, "{raw}");
+        }
+
+        let unknown = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.5,"hud_preset":"birds"}"#;
+        let unknown = LocalSettings::from_json(unknown).unwrap();
+        assert_eq!(unknown.hud_preset, "classic");
+        assert!((unknown.look_sensitivity - 1.5).abs() < f32::EPSILON);
+
+        let blank = LocalSettings::from_json(
+            r#"{"schema":"powrush_settings_v1","hud_preset":"  "}"#,
+        )
+        .unwrap();
+        assert_eq!(blank.hud_preset, "classic");
+
+        // Unreadable document: `load_or_default` uses this fallback.
+        let unreadable = LocalSettings::from_json("{{{").unwrap_or_default();
+        assert_eq!(unreadable.hud_preset, "classic");
+
+        let mut cycle = LocalSettings::default();
+        assert_eq!(cycle.hud_preset_face(), "Classic");
+        cycle.cycle_hud_preset();
+        assert_eq!(cycle.hud_preset, "minimal");
+        assert_eq!(cycle.hud_preset_face(), "Minimal");
+        cycle.cycle_hud_preset();
+        assert_eq!(cycle.hud_preset, "management");
+        assert_eq!(cycle.hud_preset_face(), "Management");
+        cycle.cycle_hud_preset();
+        assert_eq!(cycle.hud_preset, "classic");
+        cycle.hud_preset = "NOPE".into();
+        cycle.cycle_hud_preset();
+        assert_eq!(cycle.hud_preset, "minimal");
+        cycle.reset_hud_preset();
+        assert_eq!(cycle.hud_preset, "classic");
+
+        let named = LocalSettings::from_json(
+            r#"{"schema":"powrush_settings_v1","hud_preset":"Management"}"#,
+        )
+        .unwrap();
+        assert_eq!(named.hud_preset, "management");
+        let minimal = LocalSettings::from_json(
+            r#"{"schema":"powrush_settings_v1","hud_preset":"minimal"}"#,
+        )
+        .unwrap();
+        assert_eq!(minimal.hud_preset, "minimal");
     }
 
 }

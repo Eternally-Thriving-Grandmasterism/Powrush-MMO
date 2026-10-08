@@ -84,7 +84,7 @@ fn mark_beacon_voice(
         && yard.voice.open_card().is_some();
 }
 
-fn handle_voice(
+pub(crate) fn handle_voice(
     keyboard: Res<ButtonInput<KeyCode>>,
     hour: Res<HourSacred>,
     mut yard: ResMut<VoiceYard>,

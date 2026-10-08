@@ -304,7 +304,7 @@ fn absorb_practice_and_allocate(
     }
 }
 
-fn toggle_echo_panel(
+pub(crate) fn toggle_echo_panel(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut echo: ResMut<AbundanceJourneyEcho>,
 ) {
