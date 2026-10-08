@@ -59,6 +59,20 @@ Steward 2026-10-02 (LORE-ORIGINS, unconfirmed).
 1. Possible origin (unconfirmed): the Draeks may once have been human, or close to it, and remade themselves through genetics rather than machines. That remaking may have had severe consequences: the females dying and cloning becoming their sole way of survival. This sits beside the matriarchal canon in section 2 as an open option and does not replace it.
 2. The fled sect (deep secret, unconfirmed): rumor of a small ancient sect that fled before the catastrophe in section 3 and founded a hidden colony, with organic females who could one day help the species recover. Section 3 stays canon (all known females died); this is an unconfirmed rumor and a deep easter egg. Reaching the colony needs an Ambrosian alliance, because of distance and permissions across the galaxies of Powrush. Section 7: the Ambrosians stand off until triggered; this alliance is a possible trigger hook.
 
+#### Fled-sect clues (unconfirmed)
+
+Sherif 2026-10-08 via Lead Mate (unconfirmed). Section 3 canon stands (all known females died), and item 2 stays a rumor. These clues only hint that some Draek females may have survived alongside males long ago. No report or intel settles it. Each clue can be read as evidence or as hope, forgery, or misreading. Public site copy stays silent on this rumor.
+
+- **The lullaby fragment.** A few bars of an old hive lullaby turn up in salvaged pre-fall memory-song. The phrasing is matriarchal, and the recording may be younger than the catastrophe. It could be a living voice, an old memory replayed, or a copy someone wished were new.
+- **The garbled intercept.** A Dominion relay once logged a short burst of pre-fall Draek speech in a voice register the Dominion does not field. The Dominion filed it as noise and purged the relay. Quellorian analysts disagree on whether it was a real voice, an echo from an older archive, or a Dominion lure.
+- **The anomalous record.** One old Dominion archive ledger carries a sealed count that does not match the clone rolls. The column has no label. It may record the missing, a clerk's error, or a forgery left to test loyalty.
+- **The empty cradle.** In the ruins of a pre-fall hive, one ship cradle looks cleared in good order, not in panic. Someone may have left early, or someone may have stripped it later.
+- **The camp song.** Unbound veterans hum an old song whose last verse says "the ones who went ahead will keep the hearth." No one agrees who "the ones who went ahead" were. Some say it is only a verse for the dead.
+
+**Vrendak and his veterans.** Vrendak the Unbound (VREN-dak), the former Drainer who broke his Crownstone link, does not claim any of these clues are true. Some nights in the camp he sits with his serious military veterans, Draeks who served the Dominion as long as he did, and they brood. They do not plan around the rumor. They daydream: no one holding the Drainer office again, no Draek ever having to do this again, and a world that could become something other than the Hivelord's war. Then the watch changes, and the talk goes back to the next repair.
+
+Proposed hooks only. Nothing is built. Online stays grey.
+
 No eating on screen; harvest stays clinical (DRIVE_LORE_ADAPTATION L11).
 
 ---
