@@ -21,6 +21,7 @@ use shared::hour_two::HourTwoPack;
 use shared::space_law::HexFlag;
 
 use crate::hex_travel::HexTravelState;
+use crate::hud_anchor_registry::FAB;
 use crate::hour_sacred::{read_hour_two_json, HourSacred};
 use crate::human_presence::SoftPresence;
 use crate::lived_hour_bind::LivedHourBind;
@@ -73,10 +74,10 @@ fn spawn_fab_slab(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Px(88.0),
-                    left: Val::Percent(50.0),
+                    top: FAB.top(),
+                    left: FAB.left(),
                     width: Val::Px(520.0),
-                    margin: UiRect::left(Val::Px(-260.0)),
+                    margin: FAB.margin(),
                     padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                     justify_content: JustifyContent::Center,
                     border: UiRect::all(Val::Px(1.0)),
@@ -310,6 +311,35 @@ fn update_fab_slab(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — Fab position is the registry, Style is the coded literal.
+    #[test]
+    fn fab_style_byte_identical_to_coded_place() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_fab_slab);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Style, With<FabSlabRoot>>();
+        let style = q.single(app.world()).clone();
+        let coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(88.0),
+            left: Val::Percent(50.0),
+            width: Val::Px(520.0),
+            margin: UiRect::left(Val::Px(-260.0)),
+            padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
+            justify_content: JustifyContent::Center,
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(style, coded);
+        assert_eq!(style.top, FAB.top());
+        assert_eq!(style.left, FAB.left());
+        assert_eq!(style.margin, FAB.margin());
+        assert_eq!(style.width, Val::Px(FAB.width));
+    }
 
     /// CARD VP-SLABS-REGAL-1 — the fabricator slab rests on the title palette: opaque
     /// TITLE_PLATE_BG plate, TITLE_BORDER rim at alpha 1, TITLE_TEXT_PRIMARY text.

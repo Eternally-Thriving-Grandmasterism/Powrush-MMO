@@ -11,6 +11,7 @@
 use bevy::prelude::*;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+use crate::hud_anchor_registry::WHISPER;
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::hex_travel::HexTravelState;
 use crate::local_session_persist::LocalSessionPersist;
@@ -54,10 +55,10 @@ fn spawn_whisper(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Percent(28.0),
-                    left: Val::Percent(50.0),
+                    top: WHISPER.top(),
+                    left: WHISPER.left(),
                     width: Val::Px(420.0),
-                    margin: UiRect::left(Val::Px(-210.0)),
+                    margin: WHISPER.margin(),
                     padding: UiRect::axes(Val::Px(18.0), Val::Px(12.0)),
                     justify_content: JustifyContent::Center,
                     border: UiRect::all(Val::Px(1.0)),
@@ -131,6 +132,35 @@ fn update_whisper(
 mod tests {
     use super::*;
     use shared::hex_travel::PlaceId;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — Whisper position is the registry, Style is the coded literal.
+    #[test]
+    fn whisper_style_byte_identical_to_coded_place() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_whisper);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Style, With<WhisperRoot>>();
+        let style = q.single(app.world()).clone();
+        let coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Percent(28.0),
+            left: Val::Percent(50.0),
+            width: Val::Px(420.0),
+            margin: UiRect::left(Val::Px(-210.0)),
+            padding: UiRect::axes(Val::Px(18.0), Val::Px(12.0)),
+            justify_content: JustifyContent::Center,
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(style, coded);
+        assert_eq!(style.top, WHISPER.top());
+        assert_eq!(style.left, WHISPER.left());
+        assert_eq!(style.margin, WHISPER.margin());
+        assert_eq!(style.width, Val::Px(WHISPER.width));
+    }
 
     /// CARD FLESH-WHISPER-PLACE — Place prefixes the sentence; no travel keeps LINE.
     #[test]

@@ -18,6 +18,7 @@ use shared::space_law::{HexFlag, SpaceSession};
 use shared::vertical_factory::VerticalFactory;
 
 use crate::hour_sacred::{read_hour_two_json, HourSacred};
+use crate::hud_anchor_registry::FACTORY;
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::soft_play_bindings;
@@ -75,10 +76,10 @@ fn spawn_factory_slab(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Px(16.0),
-                    left: Val::Percent(50.0),
+                    top: FACTORY.top(),
+                    left: FACTORY.left(),
                     width: Val::Px(520.0),
-                    margin: UiRect::left(Val::Px(-260.0)),
+                    margin: FACTORY.margin(),
                     padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                     justify_content: JustifyContent::Center,
                     border: UiRect::all(Val::Px(1.0)),
@@ -224,6 +225,35 @@ fn update_factory_slab(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — Factory position is the registry, Style is the coded literal.
+    #[test]
+    fn factory_style_byte_identical_to_coded_place() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_factory_slab);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Style, With<FactorySlabRoot>>();
+        let style = q.single(app.world()).clone();
+        let coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(16.0),
+            left: Val::Percent(50.0),
+            width: Val::Px(520.0),
+            margin: UiRect::left(Val::Px(-260.0)),
+            padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
+            justify_content: JustifyContent::Center,
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(style, coded);
+        assert_eq!(style.top, FACTORY.top());
+        assert_eq!(style.left, FACTORY.left());
+        assert_eq!(style.margin, FACTORY.margin());
+        assert_eq!(style.width, Val::Px(FACTORY.width));
+    }
 
     #[test]
     fn peace_does_not_found() {

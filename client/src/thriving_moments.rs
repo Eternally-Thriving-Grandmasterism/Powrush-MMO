@@ -9,6 +9,7 @@
  */
 
 use bevy::prelude::*;
+use crate::hud_anchor_registry::THRIVING;
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -149,10 +150,10 @@ fn spawn_toast(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Px(48.0),
-                    left: Val::Percent(50.0),
+                    top: THRIVING.top(),
+                    left: THRIVING.left(),
                     width: Val::Px(620.0),
-                    margin: UiRect::left(Val::Px(-310.0)),
+                    margin: THRIVING.margin(),
                     padding: UiRect::axes(Val::Px(16.0), Val::Px(10.0)),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
@@ -225,6 +226,36 @@ pub fn fire_thriving(moments: &mut ThrivingMoments, kind: ThrivingKind, now: f64
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — Thriving position is the registry, Style is the coded literal.
+    #[test]
+    fn thriving_style_byte_identical_to_coded_place() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_toast);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Style, With<ThrivingToastRoot>>();
+        let style = q.single(app.world()).clone();
+        let coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(48.0),
+            left: Val::Percent(50.0),
+            width: Val::Px(620.0),
+            margin: UiRect::left(Val::Px(-310.0)),
+            padding: UiRect::axes(Val::Px(16.0), Val::Px(10.0)),
+            justify_content: JustifyContent::Center,
+            align_items: AlignItems::Center,
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(style, coded);
+        assert_eq!(style.top, THRIVING.top());
+        assert_eq!(style.left, THRIVING.left());
+        assert_eq!(style.margin, THRIVING.margin());
+        assert_eq!(style.width, Val::Px(THRIVING.width));
+    }
 
     /// CARD VP-SLABS-REGAL-2 — the thriving moments toast rests on the title palette: opaque
     /// TITLE_PLATE_BG plate, TITLE_BORDER rim at alpha 1, TITLE_TEXT_PRIMARY text.

@@ -44,6 +44,7 @@ use shared::climate_node::{ClimateNode, NodeState};
 use shared::heartwood_wards::WARDS_NOTICE;
 
 use crate::climate_script::TeachingClaim;
+use crate::hud_anchor_registry::CLIMATE_STATE;
 use crate::skirmish_well::{tick_well_glow_breath, well_glow_pulse};
 use crate::first_session_guidance::{
     first_minutes_people_want_line, first_minutes_people_want_line_for_place, want_for_place,
@@ -289,8 +290,8 @@ fn spawn_climate_state_slab(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    bottom: Val::Px(176.0),
-                    left: Val::Px(16.0),
+                    bottom: CLIMATE_STATE.bottom(),
+                    left: CLIMATE_STATE.left(),
                     width: Val::Px(420.0),
                     padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                     justify_content: JustifyContent::FlexStart,
@@ -673,6 +674,34 @@ mod tests {
     use super::*;
     use shared::climate_node::LivedHour;
     use shared::threshold_shelf::THRESHOLD_PEACE_VERBS;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — ClimateState position is the registry, Style is the coded literal.
+    #[test]
+    fn climate_state_style_byte_identical_to_coded_place() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_climate_state_slab);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Style, With<ClimateStateRoot>>();
+        let style = q.single(app.world()).clone();
+        let coded = Style {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(176.0),
+            left: Val::Px(16.0),
+            width: Val::Px(420.0),
+            padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
+            justify_content: JustifyContent::FlexStart,
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(style, coded);
+        assert_eq!(style.bottom, CLIMATE_STATE.bottom());
+        assert_eq!(style.left, CLIMATE_STATE.left());
+        assert_eq!(style.margin, UiRect::default());
+        assert_eq!(style.width, Val::Px(CLIMATE_STATE.width));
+    }
 
     const ALL_PLACES: [PlaceId; 3] = [PlaceId::Sanctuary, PlaceId::Heartwood, PlaceId::Depths];
     const ALL_MOODS: [NodeState; 5] = [

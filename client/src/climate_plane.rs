@@ -124,6 +124,7 @@ use shared::local_settings::{GraphicsPreset, WeatherFidelity};
 use shared::hex_travel::PlaceId;
 
 use crate::hour_sacred::PeopleLanding;
+use crate::hud_anchor_registry::PLACE_NAME;
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::local_settings::{LocalMeshLodFeel, LocalSettingsState};
 use crate::mercy_harvest_nodes::MercyHarvestNode;
@@ -1143,10 +1144,10 @@ fn spawn_climate_chip(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Px(18.0),
-                    left: Val::Percent(50.0),
+                    top: PLACE_NAME.top(),
+                    left: PLACE_NAME.left(),
                     width: Val::Px(280.0),
-                    margin: UiRect::left(Val::Px(-140.0)),
+                    margin: PLACE_NAME.margin(),
                     padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
                     justify_content: JustifyContent::Center,
                     border: UiRect::all(Val::Px(1.0)),
@@ -1650,6 +1651,35 @@ fn is_teal_peace(c: Color) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — PlaceName position is the registry, Style is the coded literal.
+    #[test]
+    fn place_name_style_byte_identical_to_coded_place() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_climate_chip);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Style, With<ClimateNameRoot>>();
+        let style = q.single(app.world()).clone();
+        let coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(18.0),
+            left: Val::Percent(50.0),
+            width: Val::Px(280.0),
+            margin: UiRect::left(Val::Px(-140.0)),
+            padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
+            justify_content: JustifyContent::Center,
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(style, coded);
+        assert_eq!(style.top, PLACE_NAME.top());
+        assert_eq!(style.left, PLACE_NAME.left());
+        assert_eq!(style.margin, PLACE_NAME.margin());
+        assert_eq!(style.width, Val::Px(PLACE_NAME.width));
+    }
 
     /// CARD VP-HUD-TOP-1 — the Sanctuary Prime place chip rests on the title palette: opaque
     /// plate, gold rim at alpha 1, cream text (no blue-grey / dim chrome).

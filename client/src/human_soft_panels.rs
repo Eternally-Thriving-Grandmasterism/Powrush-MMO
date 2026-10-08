@@ -9,6 +9,7 @@
 use bevy::prelude::*;
 
 use crate::abundance_journey_echo::AbundanceJourneyEcho;
+use crate::hud_anchor_registry::{MERCY, REALM};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::hex_travel::HexTravelState;
 use crate::living_practice_loop::SoftPlayerRealm;
@@ -61,8 +62,8 @@ fn spawn_soft_panels(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Percent(10.0),
-                    right: Val::Percent(2.0),
+                    top: MERCY.top(),
+                    right: MERCY.right(),
                     width: Val::Px(360.0),
                     max_height: Val::Px(320.0),
                     padding: UiRect::all(Val::Px(14.0)),
@@ -114,8 +115,8 @@ fn spawn_soft_panels(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Percent(18.0),
-                    left: Val::Percent(2.0),
+                    top: REALM.top(),
+                    left: REALM.left(),
                     width: Val::Px(300.0),
                     padding: UiRect::all(Val::Px(14.0)),
                     flex_direction: FlexDirection::Column,
@@ -287,6 +288,59 @@ fn update_soft_bodies(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — Mercy and Realm positions are the registry. Styles stay coded.
+    #[test]
+    fn mercy_and_realm_styles_byte_identical_to_coded_places() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_soft_panels);
+        app.update();
+
+        let mut mercy_q = app
+            .world_mut()
+            .query_filtered::<&Style, With<MercySoftRoot>>();
+        let mercy = mercy_q.single(app.world()).clone();
+        let mercy_coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Percent(10.0),
+            right: Val::Percent(2.0),
+            width: Val::Px(360.0),
+            max_height: Val::Px(320.0),
+            padding: UiRect::all(Val::Px(14.0)),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(6.0),
+            border: UiRect::all(Val::Px(1.5)),
+            overflow: Overflow::clip_y(),
+            ..default()
+        };
+        assert_eq!(mercy, mercy_coded);
+        assert_eq!(mercy.top, MERCY.top());
+        assert_eq!(mercy.right, MERCY.right());
+        assert_eq!(mercy.margin, UiRect::default());
+        assert_eq!(mercy.width, Val::Px(MERCY.width));
+
+        let mut realm_q = app
+            .world_mut()
+            .query_filtered::<&Style, With<RealmSoftRoot>>();
+        let realm = realm_q.single(app.world()).clone();
+        let realm_coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Percent(18.0),
+            left: Val::Percent(2.0),
+            width: Val::Px(300.0),
+            padding: UiRect::all(Val::Px(14.0)),
+            flex_direction: FlexDirection::Column,
+            row_gap: Val::Px(6.0),
+            border: UiRect::all(Val::Px(1.5)),
+            ..default()
+        };
+        assert_eq!(realm, realm_coded);
+        assert_eq!(realm.top, REALM.top());
+        assert_eq!(realm.left, REALM.left());
+        assert_eq!(realm.margin, UiRect::default());
+        assert_eq!(realm.width, Val::Px(REALM.width));
+    }
 
     /// CARD FLESH-SOFT-PANEL — Place prefixes the realm head; no place keeps the line.
     #[test]

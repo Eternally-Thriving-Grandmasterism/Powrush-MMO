@@ -18,6 +18,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
+use crate::hud_anchor_registry::PEER;
 use crate::rbe_allocate_choice::RbeAllocateChoice;
 use crate::soft_play_bindings;
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
@@ -91,8 +92,8 @@ fn spawn_peer_presence_chip(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    bottom: Val::Px(16.0),
-                    right: Val::Px(16.0),
+                    bottom: PEER.bottom(),
+                    right: PEER.right(),
                     width: Val::Px(280.0),
                     padding: UiRect::all(Val::Px(10.0)),
                     border: UiRect::all(Val::Px(1.0)),
@@ -253,6 +254,33 @@ fn update_peer_presence_chip(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — Peer position is the registry, Style is the coded literal.
+    #[test]
+    fn peer_style_byte_identical_to_coded_place() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_peer_presence_chip);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Style, With<PeerPresenceRoot>>();
+        let style = q.single(app.world()).clone();
+        let coded = Style {
+            position_type: PositionType::Absolute,
+            bottom: Val::Px(16.0),
+            right: Val::Px(16.0),
+            width: Val::Px(280.0),
+            padding: UiRect::all(Val::Px(10.0)),
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(style, coded);
+        assert_eq!(style.bottom, PEER.bottom());
+        assert_eq!(style.right, PEER.right());
+        assert_eq!(style.margin, UiRect::default());
+        assert_eq!(style.width, Val::Px(PEER.width));
+    }
 
     /// CARD VP-HUD-TOP-1 — the peer-presence chip rests on the title palette: opaque
     /// plate, gold rim at alpha 1, cream text (no blue-grey / dim chrome).
