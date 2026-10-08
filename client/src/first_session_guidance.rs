@@ -113,7 +113,11 @@ use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::LocalSettingsState;
-use crate::mercy_harvest_nodes::NearbyMercyNode;
+use crate::first_harvest_epiphany::{world_care_prompt_visible, FirstHarvestEpiphany};
+use crate::hud_anchor_registry::{
+    r2_yields_to, ACTION_BAR, ID_CARE_PROMPT, ID_CARE_STRIP, ID_GUIDANCE,
+};
+use crate::mercy_harvest_nodes::{CareCycleOffer, NearbyMercyNode};
 use crate::title_screen::LaunchDoor;
 use shared::ledger_bind::ContractState;
 use shared::persona::{house_dress_token, is_peace_default_dress, HOUSE_PEOPLE_TINT};
@@ -790,10 +794,9 @@ fn spawn_guidance_strip(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    bottom: Val::Px(72.0),
-                    left: Val::Percent(50.0),
+                    bottom: ACTION_BAR.bottom(),
+                    right: ACTION_BAR.right(),
                     width: Val::Px(520.0),
-                    margin: UiRect::left(Val::Px(-260.0)),
                     padding: UiRect::axes(Val::Px(18.0), Val::Px(12.0)),
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
@@ -912,15 +915,54 @@ fn lived_card_line(guidance: &FirstSessionGuidance, place: Option<&str>) -> Stri
     }
 }
 
-fn update_guidance_visibility(
+fn action_bar_prompts_showing(
+    care: Option<&CareCycleOffer>,
+    epi: Option<&FirstHarvestEpiphany>,
+    nearby: Option<&NearbyMercyNode>,
+    guidance: &FirstSessionGuidance,
+    now: f64,
+) -> (bool, bool) {
+    let care_strip = care.is_some_and(|offer| offer.active);
+    let care_prompt = epi
+        .zip(nearby)
+        .is_some_and(|(epi, nearby)| {
+            world_care_prompt_visible(
+                nearby.in_range,
+                nearby.nodes_exist,
+                epi.first_harvest_lived,
+                guidance.dismissed,
+                epi.prompt_visible(now, guidance),
+            )
+        })
+        && !care_strip;
+    (care_strip, care_prompt)
+}
+
+pub(crate) fn update_guidance_visibility(
     guidance: Res<FirstSessionGuidance>,
     bind: Option<Res<LivedHourBind>>,
     door: Res<LaunchDoor>,
+    care: Option<Res<CareCycleOffer>>,
+    epi: Option<Res<FirstHarvestEpiphany>>,
+    nearby: Option<Res<NearbyMercyNode>>,
+    time: Res<Time>,
     mut query: Query<&mut Visibility, With<FirstSessionGuidanceStrip>>,
 ) {
     let hidden_by_bind = bind.map(|b| b.guidance_hidden).unwrap_or(false);
     let in_yard = *door == LaunchDoor::InYard;
-    let show = in_yard && guidance.active && !guidance.dismissed && !hidden_by_bind;
+    let (care_strip, care_prompt) = action_bar_prompts_showing(
+        care.as_deref(),
+        epi.as_deref(),
+        nearby.as_deref(),
+        &guidance,
+        time.elapsed_seconds_f64(),
+    );
+    let show = in_yard && guidance.active && !guidance.dismissed && !hidden_by_bind
+        && !r2_yields_to(
+            &ACTION_BAR,
+            ID_GUIDANCE,
+            &[(ID_CARE_STRIP, care_strip), (ID_CARE_PROMPT, care_prompt)],
+        );
     for mut vis in &mut query {
         *vis = if show {
             Visibility::Visible
@@ -977,7 +1019,7 @@ fn update_guidance_text(
     }
 }
 
-fn handle_guidance_dismiss_input(
+pub(crate) fn handle_guidance_dismiss_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut guidance: ResMut<FirstSessionGuidance>,
     bind: Option<ResMut<LivedHourBind>>,
@@ -2949,5 +2991,33 @@ mod tests {
         app.update();
         app.update();
         assert_eq!(fill_alpha(&mut app), 1.0, "updated fill alpha");
+    }
+
+    /// CARD HUD-ANCHOR-REGISTRY-1 — Guidance sits on ACTION_BAR. Width, padding,
+    /// border and type stay the coded card.
+    #[test]
+    fn guidance_strip_lands_on_action_bar() {
+        use crate::hud_anchor_registry::{ACTION_BAR, ID_GUIDANCE};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_guidance_strip);
+        app.update();
+        let mut query = app
+            .world_mut()
+            .query_filtered::<&Style, With<FirstSessionGuidanceStrip>>();
+        let style = query.single(app.world()).clone();
+        assert_eq!(style.position_type, PositionType::Absolute);
+        assert_eq!(style.bottom, ACTION_BAR.bottom());
+        assert_eq!(style.right, ACTION_BAR.right());
+        assert_eq!(style.left, Val::Auto);
+        assert_eq!(style.width, Val::Px(ACTION_BAR.occupant(ID_GUIDANCE).width));
+        assert_eq!(style.margin, UiRect::default());
+        assert_eq!(style.padding, UiRect::axes(Val::Px(18.0), Val::Px(12.0)));
+        assert_eq!(style.border, UiRect::all(Val::Px(2.0)));
+        let mut text = app
+            .world_mut()
+            .query_filtered::<&Text, With<FirstSessionGuidanceText>>();
+        assert_eq!(text.single(app.world()).sections[0].style.font_size, 17.0);
     }
 }

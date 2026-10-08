@@ -8,6 +8,7 @@ use bevy::prelude::*;
 use shared::coop_voice::CoopVoice;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+use crate::hud_anchor_registry::VOICE;
 use crate::hour_sacred::HourSacred;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
@@ -42,10 +43,9 @@ fn spawn_voice_slab(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    bottom: Val::Px(144.0),
-                    left: Val::Percent(50.0),
+                    bottom: VOICE.bottom(),
+                    right: VOICE.right(),
                     width: Val::Px(560.0),
-                    margin: UiRect::left(Val::Px(-280.0)),
                     padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                     justify_content: JustifyContent::Center,
                     border: UiRect::all(Val::Px(1.0)),
@@ -192,8 +192,13 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<&Style, With<VoiceSlabRoot>>();
-        let bottom = q.single(app.world()).bottom;
-        assert_eq!(bottom, Val::Px(144.0));
+        let style = q.single(app.world());
+        let bottom = style.bottom;
+        assert_eq!(bottom, crate::hud_anchor_registry::VOICE.bottom());
+        assert_eq!(style.right, crate::hud_anchor_registry::VOICE.right());
+        assert_eq!(style.left, Val::Auto);
+        assert_eq!(style.width, Val::Px(560.0));
+        assert_eq!(style.margin, UiRect::default());
         let Val::Px(px) = bottom else {
             panic!("voice slab bottom is not Val::Px");
         };
