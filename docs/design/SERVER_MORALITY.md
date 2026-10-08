@@ -283,7 +283,7 @@ Offline there is no list and no choice of server. If a later card shows the loca
 
 ## 6. Redemption
 
-The model redemption arc is the Unbound's turn from Drainer to freed.
+The model redemption arc is the turn of Vrendak the Unbound from Drainer to freed. Sherif set the name on 2026-10-08 at 2:18 AM ET. The rest of this file says "the Unbound".
 
 - **The fall.** The Draeks were a peaceful, cooperative people who chose survival at any cost, then theft, then domination ([DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §1, §2, §4, §5). Under the Crownstone, they drain other Peoples. That fall is why redemption has a past to face ([FACTION_LEADERS](FACTION_LEADERS.md) §8).
 - **The turn.** The Unbound is the first Draek to break the Crownstone's hold and stay outside it, and others followed ([FACTION_LEADERS](FACTION_LEADERS.md) §3, §8). No one bought that freedom. It was walked.
@@ -310,6 +310,7 @@ These files were not edited.
 3. [FACTION_LEADERS](FACTION_LEADERS.md) §11 clash 10 asks how Unbound standing sits beside the two §8 doors. This file does not answer it and adds no third door. Double agents ride on the existing two.
 4. [DIPLOMACY_AND_WORLD_SIMULATION](../DIPLOMACY_AND_WORLD_SIMULATION.md) §2.2 marks Draek standing as an inverted scale. The meter is not a faction scale. A server can be heaven while the Dominion is strong on it.
 5. [LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §8 P2 plans per-zone snapshots for crash recovery: last snapshot plus a replay of the log tail. Neither P2 nor its snapshots are built. The time leap in §3.4.1 needs some world snapshots kept for longer, as proposed server state that is not built and is online later, and it restores only the world-state fields on its restore list. A later card should say how long-kept snapshots sit beside the recovery ones. This file does not change P2.
+6. [FACTION_LEADERS](FACTION_LEADERS.md) §1, §8, and §10 still carry an older personal name for the Unbound on this base. A separate PR renames it to Vrendak the Unbound. This file cites FACTION_LEADERS for the arc only and does not repeat the older name.
 
 ---
 
