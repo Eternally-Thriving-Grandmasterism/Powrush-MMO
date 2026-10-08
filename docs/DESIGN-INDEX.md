@@ -16,6 +16,7 @@ All core systems below are derived from the living Ra-Thor monorepo (https://git
 - [Air Foundation Integration & Real-World Impact Model](AIR-FOUNDATION-INTEGRATION.md)
 - [Ambrosian Ascension — The Mercy Ascent (Unlocked Ascended Race Design)](AMBROSIAN_ASCENSION_MERCY_ASCENT.md)
 - [The Mercy Ascent UI Spec + Leptos Component](THE_MERCY_ASCENT_UI_SPEC.md)
+- [Combat and PvP — zones, shields, world PK, guild wars, battlegrounds, consumables](design/COMBAT_AND_PVP.md)
 
 ## How These Integrate with Current Powrush-MMO
 
