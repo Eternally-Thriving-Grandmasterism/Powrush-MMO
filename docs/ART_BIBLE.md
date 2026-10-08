@@ -5,7 +5,7 @@ No certification / AGSi warranty / legal-product claims.
 **Law:** Glow is the Use target. Fog is weather. The week is the bill. Art that hides the bill is vetoed.
 See also: PHYSICS_GRAPHICS_CANON.md, AUDIO_DIRECTION.md, IMAGINE_TRAILER_PACK.md, DRIVE_LORE_ADAPTATION.md.
 
-Site paintings: [`CODEX_ART_PROMPTS.md`](CODEX_ART_PROMPTS.md). CODEX only. A teal cave reused for every people is a defect.
+Site paintings: [`CODEX_ART_PROMPTS.md`](CODEX_ART_PROMPTS.md). CODEX only. A teal cave reused for every people is a defect. CODEX look source only: Drive folder `1Bqt2osAm1-6bXEB4U_RNo5Qd_4q58liv` ("Corrected Powrush Art") — painterly-photoreal, ivory, champagne gold, lavender, violet, warm lamps, expressive faces when people are the subject. Content still comes only from this file and [`CODEX_ART_PROMPTS.md`](CODEX_ART_PROMPTS.md). HANDS stays the gritty low-poly lane and is not the site-painting look.
 Rejected plates are not refs. Drive folder `1T4Gpg1anyid9-mh88p2xX-ZNZbEGuFLm` is a discard. Cite [`CODEX_ART_PROMPTS.md`](CODEX_ART_PROMPTS.md).
 
 ## Two lanes
@@ -38,7 +38,7 @@ No Title race select. Visual only:
 | Practice | Accent | Place rhyme |
 |---|---|---|
 | Human | warm grey-gold | Sanctuary |
-| Draek | dry red / bronze | later shard / Threshold |
+| Draek | obsidian swept-back spiked crest · hard overlapping plates, slight draconic edge · amethyst eyes · violet light in the plate seams (hard plated chitin, never scaly skin, never a lizard snout, not a reptile) | later shard / Threshold |
 | Cydruid | teal / leaf-metal **trim / metal accents** (not bark-skin) | Depths |
 | Quellorian | iridescent violet / pink · pale gold | Heartwood / Wards; pale-gold structure rhymes with steward Codex stills |
 | Ambrosian | prism cool | mythic / portal ring |
@@ -53,7 +53,7 @@ References only—no binary asset enters this repository. Sources remain the ste
 
 | Imagine ID | Steward still | Thin rhyme carried forward |
 |---|---|---|
-| `C-12` | *Then, they find Earth.* — mothership over Earth | Dark hull makes iridescent violet / pink + pale-gold light feel rare; no bay, no playable-space claim. |
+| `C-12` | *Then, they find Earth.* — mothership over Earth | Compact pale-gold disc, violet light only in the seams; no bay, no playable-space claim. |
 | `C-13` | Quellorian council around a galaxy hologram | Radial counsel, pale-gold structure, violet / pink bodies; practice remains dress, not command class. |
 | `C-14` | Quellorian couple on a terrace | Cloth-light and person-scale tenderness; no loadout silhouette. |
 | `C-15` | Bridge overlooking Earth / nebula | Pale-gold frame around cosmic violet; bridge is Codex architecture, not Title Online chrome. |
