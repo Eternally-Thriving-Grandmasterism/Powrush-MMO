@@ -5,6 +5,9 @@ No certification / AGSi warranty / legal-product claims.
 **Law:** Glow is the Use target. Fog is weather. The week is the bill. Art that hides the bill is vetoed.
 See also: PHYSICS_GRAPHICS_CANON.md, AUDIO_DIRECTION.md, IMAGINE_TRAILER_PACK.md, DRIVE_LORE_ADAPTATION.md.
 
+Site paintings: [`CODEX_ART_PROMPTS.md`](CODEX_ART_PROMPTS.md). CODEX only. A teal cave reused for every people is a defect.
+Rejected plates are not refs. Drive folder `1T4Gpg1anyid9-mh88p2xX-ZNZbEGuFLm` is a discard. Cite [`CODEX_ART_PROMPTS.md`](CODEX_ART_PROMPTS.md).
+
 ## Two lanes
 
 | Lane | Job | Prefix |
