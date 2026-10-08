@@ -9,7 +9,7 @@
 use bevy::prelude::*;
 
 use crate::abundance_journey_echo::AbundanceJourneyEcho;
-use crate::hud_anchor_registry::{MERCY, REALM};
+use crate::hud_anchor_registry::{HudSlab, MERCY, REALM};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::hex_travel::HexTravelState;
 use crate::living_practice_loop::SoftPlayerRealm;
@@ -79,6 +79,7 @@ fn spawn_soft_panels(mut commands: Commands) {
                 ..default()
             },
             MercySoftRoot,
+            HudSlab(MERCY.id),
         ))
         .with_children(|p| {
             p.spawn(TextBundle::from_section(
@@ -130,6 +131,7 @@ fn spawn_soft_panels(mut commands: Commands) {
                 ..default()
             },
             RealmSoftRoot,
+            HudSlab(REALM.id),
         ))
         .with_children(|p| {
             p.spawn(TextBundle::from_section(

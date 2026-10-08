@@ -15,7 +15,7 @@ use shared::skirmish_well::{SkirmishWell, WellHold, CONTEST_REACH, WELL_ANCHORS}
 use bevy::input::gamepad::{GamepadRumbleRequest, Gamepads};
 
 use crate::coop_voice::VoiceYard;
-use crate::hud_anchor_registry::WELL;
+use crate::hud_anchor_registry::{HudSlab, WELL};
 use crate::harvest_feel::{rumble_harvest, SoftRbePool};
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::human_presence::SoftPresence;
@@ -121,6 +121,7 @@ fn spawn_well_slab(mut commands: Commands) {
                 ..default()
             },
             WellSlabRoot,
+            HudSlab(WELL.id),
         ))
         .with_children(|p| {
             p.spawn((

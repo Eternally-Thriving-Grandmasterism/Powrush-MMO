@@ -203,6 +203,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(player_lineage::PlayerLineagePlugin);
         app.add_plugins(lived_sim_bridge::LivedSimBridgePlugin);
         app.add_plugins(local_sovereign_session::LocalSovereignSessionPlugin);
+        app.add_plugins(hud_presets::HudLayoutPlugin);
     }
 }
 

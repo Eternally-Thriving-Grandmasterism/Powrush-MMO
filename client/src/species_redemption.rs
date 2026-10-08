@@ -12,7 +12,7 @@ use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::crownstone::CrownstoneYard;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hour_sacred::HourSacred;
-use crate::hud_anchor_registry::REDEMPTION;
+use crate::hud_anchor_registry::{HudSlab, REDEMPTION};
 use crate::ledger_bind::LedgerYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
@@ -58,6 +58,7 @@ fn spawn_redemption_slab(mut commands: Commands) {
                 ..default()
             },
             RedemptionSlabRoot,
+            HudSlab(REDEMPTION.id),
         ))
         .with_children(|p| {
             p.spawn((

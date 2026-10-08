@@ -10,7 +10,7 @@ use shared::hybrid_matrix::HybridMatrix;
 use crate::coop_voice::VoiceYard;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hour_sacred::HourSacred;
-use crate::hud_anchor_registry::HYBRID;
+use crate::hud_anchor_registry::{HudSlab, HYBRID};
 use crate::ledger_bind::LedgerYard;
 use crate::soft_play_bindings;
 use crate::species_redemption::RedemptionYard;
@@ -58,6 +58,7 @@ fn spawn_hybrid_slab(mut commands: Commands) {
                 ..default()
             },
             HybridSlabRoot,
+            HudSlab(HYBRID.id),
         ))
         .with_children(|p| {
             p.spawn((

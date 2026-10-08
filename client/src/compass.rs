@@ -7,7 +7,7 @@ use bevy::prelude::*;
 use shared::compass;
 
 use crate::hex_travel::HexTravelState;
-use crate::hud_anchor_registry::COMPASS;
+use crate::hud_anchor_registry::{HudSlab, COMPASS};
 use crate::hour_sacred::HourSacred;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
@@ -53,6 +53,7 @@ fn spawn_compass_slab(mut commands: Commands) {
                 ..default()
             },
             CompassSlabRoot,
+            HudSlab(COMPASS.id),
         ))
         .with_children(|p| {
             p.spawn((

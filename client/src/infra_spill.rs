@@ -16,7 +16,7 @@ use shared::hour_two::HourTwoPack;
 use shared::infra_spill::InfraWitness;
 
 use crate::hour_sacred::{read_hour_two_json, HourSacred};
-use crate::hud_anchor_registry::SPILL;
+use crate::hud_anchor_registry::{HudSlab, SPILL};
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
@@ -82,6 +82,7 @@ fn spawn_spill_slab(mut commands: Commands) {
                 ..default()
             },
             SpillSlabRoot,
+            HudSlab(SPILL.id),
         ))
         .with_children(|p| {
             p.spawn((

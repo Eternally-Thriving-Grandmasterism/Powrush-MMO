@@ -21,7 +21,10 @@ use bevy::prelude::*;
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::first_session_guidance::{credit_epiphany, credit_harvest, FirstSessionGuidance, GuidanceObjective};
-use crate::hud_anchor_registry::{action_bar_prompts_showing, ACTION_BAR, PULSE, WELCOME};
+use crate::hud_anchor_registry::{
+    action_bar_prompts_showing, HudSlab, ACTION_BAR, ID_CARE_PROMPT, PULSE, WELCOME,
+};
+use crate::lived_hour_bind::LivedHourBind;
 use crate::hex_travel::HexTravelState;
 use crate::human_presence::SoftPresence;
 use shared::hex_travel::PlaceId;
@@ -292,7 +295,8 @@ impl Plugin for FirstHarvestEpiphanyPlugin {
                     mark_peace_visitor,
                     maybe_welcome_back,
                     mark_epiphany_place,
-                    handle_interact_harvest,
+                    handle_interact_harvest
+                        .after(crate::first_session_guidance::track_simple_progress_signals),
                     update_world_care_prompt,
                     update_harvest_pulse,
                     update_welcome_back,
@@ -322,6 +326,7 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                 ..default()
             },
             WorldCarePromptRoot,
+            HudSlab(ID_CARE_PROMPT),
         ))
         .with_children(|p| {
             p.spawn((
@@ -358,6 +363,7 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                 ..default()
             },
             HarvestPulseRoot,
+            HudSlab(PULSE.id),
         ))
         .with_children(|p| {
             p.spawn((
@@ -391,6 +397,7 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                 ..default()
             },
             WelcomeBackRoot,
+            HudSlab(WELCOME.id),
             LivedUiPlate,
         ))
         .with_children(|p| {
@@ -719,22 +726,25 @@ fn resolve_tend(
     true
 }
 
-fn update_world_care_prompt(
+pub(crate) fn update_world_care_prompt(
     state: Res<FirstHarvestEpiphany>,
     guidance: Res<FirstSessionGuidance>,
     nearby: Res<NearbyMercyNode>,
     time: Res<Time>,
     care: Option<Res<CareCycleOffer>>,
+    bind: Option<Res<LivedHourBind>>,
     mut root: Query<&mut Visibility, With<WorldCarePromptRoot>>,
     mut text_q: Query<&mut Text, With<WorldCarePromptText>>,
 ) {
     let now = time.elapsed_seconds_f64();
+    let guidance_hidden = bind.as_ref().is_some_and(|bind| bind.guidance_hidden);
     let (_care_strip, show) = action_bar_prompts_showing(
         care.as_deref(),
         Some(state.as_ref()),
         Some(nearby.as_ref()),
         guidance.as_ref(),
         now,
+        guidance_hidden,
     );
     for mut vis in &mut root {
         *vis = if show {

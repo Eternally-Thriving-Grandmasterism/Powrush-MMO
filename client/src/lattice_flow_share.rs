@@ -18,7 +18,7 @@ use std::fs;
 use std::path::PathBuf;
 
 use crate::abundance_journey_echo::{AbundanceJourneyEcho, JourneyKind};
-use crate::hud_anchor_registry::PEER;
+use crate::hud_anchor_registry::{HudSlab, PEER};
 use crate::rbe_allocate_choice::RbeAllocateChoice;
 use crate::soft_play_bindings;
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
@@ -105,6 +105,7 @@ fn spawn_peer_presence_chip(mut commands: Commands) {
                 ..default()
             },
             PeerPresenceRoot,
+            HudSlab(PEER.id),
         ))
         .with_children(|p| {
             p.spawn((

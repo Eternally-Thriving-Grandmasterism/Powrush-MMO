@@ -11,9 +11,10 @@ use bevy::prelude::*;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hud_anchor_registry::{
-    action_bar_prompts_showing, r2_yields_to, ACTION_BAR, ID_CARE_PROMPT, ID_CARE_STRIP,
+    action_bar_prompts_showing, r2_yields_to, HudSlab, ACTION_BAR, ID_CARE_PROMPT, ID_CARE_STRIP,
     ID_PRACTICE,
 };
+use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::{CareCycleOffer, NearbyMercyNode};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::first_session_guidance::{FirstSessionGuidance, GuidanceObjective};
@@ -190,7 +191,9 @@ impl Plugin for LivingPracticeLoopPlugin {
                 (
                     handoff_from_first_session,
                     handle_practice_toggle,
-                    update_practice_visibility,
+                    update_practice_visibility
+                        .after(crate::first_harvest_epiphany::update_world_care_prompt)
+                        .after(crate::mercy_harvest_nodes::update_care_cycle_strip),
                     update_practice_text,
                     soft_interact_harvest_credit,
                     bridge_rbe_feedback_to_practice,
@@ -220,6 +223,7 @@ fn spawn_practice_strip(mut commands: Commands) {
                 ..default()
             },
             LivingPracticeStrip,
+            HudSlab(ID_PRACTICE),
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -264,16 +268,19 @@ pub(crate) fn update_practice_visibility(
     care: Option<Res<CareCycleOffer>>,
     epi: Option<Res<FirstHarvestEpiphany>>,
     nearby: Option<Res<NearbyMercyNode>>,
+    bind: Option<Res<LivedHourBind>>,
     time: Res<Time>,
     mut query: Query<&mut Visibility, With<LivingPracticeStrip>>,
 ) {
     let guidance_showing = guidance.active && !guidance.dismissed;
+    let guidance_hidden = bind.as_ref().is_some_and(|bind| bind.guidance_hidden);
     let (care_strip, care_prompt) = action_bar_prompts_showing(
         care.as_deref(),
         epi.as_deref(),
         nearby.as_deref(),
         &guidance,
         time.elapsed_seconds_f64(),
+        guidance_hidden,
     );
     let show = practice.active && !practice.dismissed && !guidance_showing
         && !r2_yields_to(

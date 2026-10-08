@@ -28,7 +28,7 @@ use shared::climate_node::AllocKind;
 use shared::hex_travel::PlaceId;
 
 use crate::first_session_guidance::{credit_share, FirstSessionGuidance};
-use crate::hud_anchor_registry::ALLOCATE_DOCK;
+use crate::hud_anchor_registry::{HudSlab, ALLOCATE_DOCK, ID_ALLOCATE};
 use crate::title_screen::{TITLE_BORDER, TITLE_BTN_BG, TITLE_BTN_FG, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::harvest_feel::rumble_mercy_harvest;
 use crate::lived_hour_bind::LivedHourBind;
@@ -240,6 +240,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
                 ..default()
             },
             AllocatePanelRoot,
+            HudSlab(ID_ALLOCATE),
         ))
         .with_children(|p| {
             p.spawn((

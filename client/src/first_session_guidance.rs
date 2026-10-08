@@ -115,7 +115,7 @@ use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::LocalSettingsState;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hud_anchor_registry::{
-    action_bar_prompts_showing, r2_yields_to, ACTION_BAR, ID_CARE_PROMPT, ID_CARE_STRIP,
+    action_bar_prompts_showing, r2_yields_to, HudSlab, ACTION_BAR, ID_CARE_PROMPT, ID_CARE_STRIP,
     ID_GUIDANCE,
 };
 use crate::mercy_harvest_nodes::{CareCycleOffer, NearbyMercyNode};
@@ -781,7 +781,9 @@ impl Plugin for FirstSessionGuidancePlugin {
                 (
                     handle_guidance_dismiss_input,
                     track_simple_progress_signals,
-                    update_guidance_visibility,
+                    update_guidance_visibility
+                        .after(crate::first_harvest_epiphany::update_world_care_prompt)
+                        .after(crate::mercy_harvest_nodes::update_care_cycle_strip),
                     update_guidance_text,
                 )
                     .chain(),
@@ -810,6 +812,7 @@ fn spawn_guidance_strip(mut commands: Commands) {
                 ..default()
             },
             FirstSessionGuidanceStrip,
+            HudSlab(ID_GUIDANCE),
         ))
         .with_children(|parent| {
             parent.spawn((
@@ -934,6 +937,7 @@ pub(crate) fn update_guidance_visibility(
         nearby.as_deref(),
         &guidance,
         time.elapsed_seconds_f64(),
+        hidden_by_bind,
     );
     let show = in_yard && guidance.active && !guidance.dismissed && !hidden_by_bind
         && !r2_yields_to(
@@ -1010,7 +1014,7 @@ pub(crate) fn handle_guidance_dismiss_input(
     }
 }
 
-fn track_simple_progress_signals(
+pub(crate) fn track_simple_progress_signals(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut guidance: ResMut<FirstSessionGuidance>,
     time: Res<Time>,

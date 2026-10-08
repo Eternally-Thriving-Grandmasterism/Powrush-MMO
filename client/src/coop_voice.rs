@@ -8,7 +8,7 @@ use bevy::prelude::*;
 use shared::coop_voice::CoopVoice;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
-use crate::hud_anchor_registry::VOICE;
+use crate::hud_anchor_registry::{HudSlab, ID_VOICE, VOICE};
 use crate::hour_sacred::HourSacred;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
@@ -57,6 +57,7 @@ fn spawn_voice_slab(mut commands: Commands) {
                 ..default()
             },
             VoiceSlabRoot,
+            HudSlab(ID_VOICE),
         ))
         .with_children(|p| {
             p.spawn((
@@ -182,7 +183,7 @@ mod tests {
     }
 
     /// CARD VOICE-ABOVE-LEDGER-1 — voice slab bottom clears the ledger
-    /// (ledger bottom 16 + Model B height 119 = 135, plus a 9 px gap).
+    /// (ledger bottom 16 + Model B height 119 = 135, plus an 86 px gap).
     #[test]
     fn voice_above_ledger1_slab_bottom_clears_ledger() {
         let mut app = App::new();

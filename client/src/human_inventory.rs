@@ -14,7 +14,7 @@ use shared::pause_ledger_face::face_from;
 use shared::temper::{lumen_slots, TemperedItem, ToolTier, WardKind};
 
 use crate::companion_bond::CompanionBond;
-use crate::hud_anchor_registry::{PICKUP, WATCH};
+use crate::hud_anchor_registry::{HudSlab, PICKUP, WATCH};
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::harvest_feel::SoftRbePool;
 use crate::hex_travel::HexTravelState;
@@ -132,6 +132,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                 ..default()
             },
             WatchStripRoot,
+            HudSlab(WATCH.id),
         ))
         .with_children(|p| {
             p.spawn((
@@ -229,6 +230,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                 ..default()
             },
             PickupFlashRoot,
+            HudSlab(PICKUP.id),
         ))
         .with_children(|p| {
             p.spawn((
@@ -568,6 +570,7 @@ mod tests {
             ..default()
         };
         assert_eq!(watch, watch_coded);
+        assert_eq!(watch.margin, UiRect::default());
         assert_eq!(watch.bottom, WATCH.bottom());
         assert_eq!(watch.left, WATCH.left());
         assert_eq!(watch.width, Val::Px(WATCH.width));

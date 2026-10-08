@@ -18,7 +18,7 @@
 use bevy::prelude::*;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
-use crate::hud_anchor_registry::SOVEREIGN;
+use crate::hud_anchor_registry::{HudSlab, SOVEREIGN};
 use crate::first_session_guidance::FirstSessionGuidance;
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
@@ -96,6 +96,7 @@ fn spawn_banner(
                 ..default()
             },
             SovereignBannerRoot,
+            HudSlab(SOVEREIGN.id),
         ))
         .with_children(|p| {
             p.spawn((

@@ -21,7 +21,7 @@ use shared::hour_two::HourTwoPack;
 use shared::space_law::HexFlag;
 
 use crate::hex_travel::HexTravelState;
-use crate::hud_anchor_registry::FAB;
+use crate::hud_anchor_registry::{HudSlab, FAB};
 use crate::hour_sacred::{read_hour_two_json, HourSacred};
 use crate::human_presence::SoftPresence;
 use crate::lived_hour_bind::LivedHourBind;
@@ -89,6 +89,7 @@ fn spawn_fab_slab(mut commands: Commands) {
                 ..default()
             },
             FabSlabRoot,
+            HudSlab(FAB.id),
         ))
         .with_children(|p| {
             p.spawn((
