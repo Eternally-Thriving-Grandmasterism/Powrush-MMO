@@ -11,6 +11,7 @@ pub mod hour_sacred;
 pub mod hour_two_resume;
 pub mod ui_above_world;
 pub mod hud_anchor_registry;
+pub mod hud_presets;
 pub mod title_screen;
 pub mod hex_travel;
 pub mod depths_landing;
