@@ -65,3 +65,7 @@ Twelve plates, six prompts, each painted twice. Pairs still drifted. Do not ship
 - The emblem sheet drew letters. Image tools invent labels. Say "blank metal, no characters, no runes that look like writing."
 
 Every prompt repeats this lock: machined or worn material, one accent, no shared teal cave, no letters.
+
+## Worker law
+
+A rejected plate is not a reference. Do not derive a new prompt from the Drive folder `1T4Gpg1anyid9-mh88p2xX-ZNZbEGuFLm`. Derive from this file and from `ART_BIBLE.md`. Generate one plate, look at it, then the next. A pair from the same prompt is not a check. If the plate is a teal cave, a crystal starfish, a tree-body, a reptile, or a sheet with letters, discard it. Do not upload the discard to the site.
