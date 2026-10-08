@@ -124,7 +124,7 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 | ID | Old idea | Verdict | One-line reason | Canon home |
 |---|---|---|---|---|
 | R1 | Hollow-Earth cyborgs whose "sorcery" is nanotech | KEEP | A Cydruid is a human in a cyborg frame. The age number is conflict 18. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
-| R2 | Xenki, eldest clairvoyant, foresaw the splitting of Earth | KEEP | Open-lore candidate for a named Cydruid elder. Steward call. Not hardened here. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
+| R2 | Xenki, eldest clairvoyant, foresaw the splitting of Earth | RETIRE | Not canon (Sherif, 2026-10-08). Xenki is not a named Cydruid elder. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
 | R3 | They share technology; extraction triggers natural disasters | KEEP | Cydruids share tech and harvest with care (Sherif 2026-10-08). Draek extraction stresses the land. | [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §6 |
 | R4 | Hooded robes; more machine parts as levels rise | KEEP | More machine is the Body range. The hood is dress. Level tiers are not the ladder. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
 | R5 | A black-market shop sells upgradeable body parts | MODERNISE | Upgrades come from Cydruid standing. "No shop and no second currency." | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
@@ -137,7 +137,7 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 | R12 | Humans look like people now: determined, and they persist | KEEP | Humans stay the adaptable middle People. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §4 |
 | R13 | False-flag massacres, then footage of strange lizard creatures | MODERNISE | The false-flag war stands. Draeks read as biomechanical chitin, not lizard footage. | [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md), [PLAYABLE_RACES](../PLAYABLE_RACES.md) §3 |
 | R14 | Utilitarian, honest, inquisitive, strong, intelligent | KEEP | Honest and inquisitive fits the Quellorians. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §2 |
-| R15 | A two-sun homeworld, lost after they harnessed light | MODERNISE | Light-as-energy fits. The lost homeworld is a steward lore call. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §2, [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §7 |
+| R15 | A two-sun homeworld, lost after they harnessed light | KEEP | Light-as-energy fits. The lost two-sun homeworld is canon (Sherif, 2026-10-08). | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §2, [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §7 |
 | R16 | Another alien people gave them a poorer new home | MODERNISE | Open-lore candidate: the Ambrosians gave that home. | [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §7 |
 | R17 | High-gravity bulk and strength; tools that serve many jobs | MODERNISE | Quellorians are tall, slender and graceful. The multi-purpose craft aesthetic stays. | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §2 |
 | R18 | A two-tier caste of fertile people and the "unsexed" | RETIRE | The caste adds nothing canon needs, and it crowds the Draek female-loss story. A steward could reopen it. | [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §3 |
@@ -462,8 +462,8 @@ Ranked by fit, then by lower effort.
 | 5 | Upside-down stalactite city as the Cydruid home in the hollows, with the glow-lake; not dress on the four Places. No shop, no second currency. Place-count clash flagged in §5 | High | Medium-high | This file §5, [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 | Offline now |
 | 6 | Draek and Alliance allegiance as faction standing, redemption open | High | High | [LAYERED](../LAYERED_GAMES_AND_SERVER.md) §3d, [COMBAT_AND_PVP.md](COMBAT_AND_PVP.md) | Online · grey |
 | 7 | Timeline-reset servers, a work-only war effort, divergent stories, histories never merge | High | Very high | [LAYERED](../LAYERED_GAMES_AND_SERVER.md) §7.6 | Online · grey |
-| 8 | Quellorian origin, open lore: lost two-sun home, Ambrosians gave a new one, Crystal Choir bond | Medium-high | Low | [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §7, [QUELLORIAN_KEY_FIGURES](../QUELLORIAN_KEY_FIGURES.md) | Steward lore call |
-| 9 | Xenki, clairvoyant Cydruid elder, as a named figure | Medium | Low | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 | Steward lore call |
+| 8 | Quellorian origin: the lost two-sun home is canon (Sherif, 2026-10-08), Ambrosians gave a new one, Crystal Choir bond | Medium-high | Low | [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §7, [QUELLORIAN_KEY_FIGURES](../QUELLORIAN_KEY_FIGURES.md) | Canon (Sherif, 2026-10-08) |
+| 9 | Xenki, clairvoyant Cydruid elder, as a named figure | Medium | Low | [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 | Not canon (Sherif, 2026-10-08) |
 | 10 | Salvager gathering, and ammo as a repairable kit | Medium | Medium | [LAYERED](../LAYERED_GAMES_AND_SERVER.md) §3a, [FACTION_HERALDRY](../FACTION_HERALDRY.md) | Offline now |
 | 11 | Player-salvaged comms net as a guild infrastructure project | Medium | High | [LAYERED](../LAYERED_GAMES_AND_SERVER.md) §3b | Online · grey |
 | 12 | Cross-server champions with titles and history lines, no power | Medium | High | [LAYERED](../LAYERED_GAMES_AND_SERVER.md) §7.6 | Online · grey |
