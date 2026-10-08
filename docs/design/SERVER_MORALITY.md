@@ -16,6 +16,8 @@ Every struct, field and system in this file is **proposed, not built**. This fil
 >
 > — Sherif, 2026-10-08 2:14 AM ET, relayed by Lead Mate
 
+Sherif added a second direction at 2:18 AM ET the same day, also relayed by Lead Mate, for the ways out of hell. It is quoted where it is ruled on, in §3.4.1.
+
 A quote is a direction. This file is the councils' proposal. The details Sherif leaves to the councils are the named blanks in §9. This file fills none of them.
 
 ---
@@ -144,14 +146,99 @@ A hell server can be recovered. There is no floor it cannot climb from.
 - **Redeem.** Players leaving the criminal path through the exit quest ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §8) spend 28 real days on restore-and-help verbs. That work lifts the server too.
 - **Show the climb.** A rising trend is visible on the server list (§5), so players who want to help heal a server can find it.
 
-There is no admin wash, no paid reset, and no server wipe as the remedy. Whether the climb out runs slower than the slide in is an open number (§9).
+There is no admin wash, no paid reset, and no server wipe as the remedy. Whether the climb out runs slower than the slide in is an open number (§9). The one large lever beyond everyday tending is the server-wide war effort and time leap in §3.4.1. The whole server earns it, and it rewinds the world only.
+
+### 3.4.1 The server-wide war effort and the time leap (proposed, not built, online later)
+
+> "The recovery of a server from hellish situations should take a server wide effort by players like the AQ40 war effort of World of Warcraft. Perhaps by storing up a massive amount of donated electricity, they can then trigger a time leap back in time to a point in the server before everyone got ruined?"
+>
+> — Sherif, 2026-10-08 2:18 AM ET, relayed by Lead Mate
+
+Everything in this subsection is **proposed, not built**, and **online later**. Online is grey ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §2). It is HOLD until "online yes" and until Core names PATHS. Offline there is no server-wide effort and no time leap.
+
+Technique borrowed: World of Warcraft's AQ40 war effort, a server-wide collection drive with visible progress for each faction that opens one great event. Only the technique is borrowed. No names, art, text, or UI come with it ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §1 pillar 4).
+
+The time leap is a world rewind. It has nothing to do with network prediction and reconciliation ([ARCHITECTURE_LAYERS_AND_DATAFLOW](../ARCHITECTURE_LAYERS_AND_DATAFLOW.md) L35). This file never calls it by that layer's term.
+
+#### Electricity (new proposed resource)
+
+Electricity is a **new proposed resource**. Nothing in the repo uses it as a game resource yet. It is written as plain "electricity". It has no coined currency name and no item name.
+
+- It is gathered or crafted in play, through the logistics layer that already makes power cells ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3b, §6.6; [COMBAT_AND_PVP](COMBAT_AND_PVP.md) §5.3). Which chains produce it, and at what rate, is left to the councils (§9).
+- It is a resource, not a currency. It posts on the one ledger like any other stock ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3e, §8 P3). The server mints none. No shop sells it.
+- Electricity is never for sale and no purchase of any kind produces it. The refuse table says so in its own row (§8).
+
+#### The war effort
+
+- **One shared electricity reserve per server.** It is written in lowercase and is not the ledger's Reserve unit. The reserve is deposit-only. No one can withdraw from it.
+- **Every faction donates.** That means the Luminari Alliance, the Draek Dominion, and unaligned Houses ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3d). A donation counts toward the donor's faction. Each faction carries a quota, so no single faction can finish the effort alone. Quota shares, and whether a stalled faction's gap can be covered by others after a wait, are open numbers (§9). A faction with no active members on the server has no quota.
+- **Tiers.** The reserve fills in tiers. A filled tier locks, and nothing can drain it afterward (see sabotage below).
+- **Visible progress.** Progress for each faction and each tier shows on the server ledger face beside the indicators already proposed there ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §4.4), and on the server list (§5). Both are online later. Progress shows faction totals only and never names a donor (§4).
+- **When it opens.** The effort opens only while the meter sits in the hell band. The edge of that band is an open number (`leap_trigger_band`, §9). If the server tends its way out before the reserve fills, the effort closes. The stored electricity then leaks away at an open rate, so a reserve cannot be banked during good times as insurance.
+
+#### The trigger
+
+When every tier is full and every faction quota is met, the trigger opens. It is a server ballot on the existing vote engine ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §7.5), with its own quorum. A notice period follows, so everyone can see the countdown before the leap. The quorum and notice period are open numbers (§9).
+
+#### The time leap rewinds the world, not the players
+
+The leap restores world state from a kept world snapshot taken before the ruin. Per-zone snapshots are already planned ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §8 P2). Keeping some of them longer for the leap is proposed here. The leap uses the newest kept snapshot taken while the meter sat outside the hell band, and no older than `snapshot_max_age` (§9). If no snapshot qualifies, the leap cannot fire, and the server climbs out by tending.
+
+**Restore list (world state only).** These return to their snapshot condition.
+
+| Restored | What that means |
+|---|---|
+| Zone ruin | Hex and node health: Stressed nodes return to their snapshot state |
+| Zone corruption | Corruption levels on hexes, and the starvation zones they create ([DIPLOMACY_AND_WORLD_SIMULATION](../DIPLOMACY_AND_WORLD_SIMULATION.md) §4) |
+| Economy collapse | The world conditions behind it: regeneration rates, reliability and reliability ceilings of world infrastructure ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §4.5), and wildlife populations per hex ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3f) |
+| Structures | Structures that fell to ruin since the snapshot stand again in their snapshot condition. A ruin whose salvage was taken stays a ruin, ready to Mend, so the leap never duplicates goods |
+| The meter | `server_morality` returns to the snapshot's reading. That is a world reading, not heaven by default |
+| World dress | The look of the world follows the restored band (§3.3) |
+
+**Keep list (personal progress, never rewound).**
+
+| Kept | What that means |
+|---|---|
+| Levels | Proficiency, and the yard ladder: Temper, Lumen, Ward ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §1, §3) |
+| Gear | Everything equipped |
+| Skills | Crafting quality gates and practised verbs ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §15) |
+| Earned items | Satchel, store, and depot stock; cosmetics, titles, and heraldry; salvage already taken |
+| Memories | Quest progress, codex and lore discoveries, and the player's own record of the fall |
+| Personal record | Infamy, righteousness, open and covert allegiance, and standing ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §7–§8; [DIPLOMACY_AND_WORLD_SIMULATION](../DIPLOMACY_AND_WORLD_SIMULATION.md) §2.2) |
+| The ledger | Every balance and every past entry. Ledger entries are never rewound |
+| The record | The server history gets a line for the ruin and a line for the leap, with no names ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §7.6). The event log keeps every act for review ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §8 P2) |
+
+Nothing on the restore list is personal progress. The leap never deletes anything. Something built after the snapshot stays as it is. The leap leaves Crownstone state, `total_harmony`, and `total_corruption` alone (§3.1), and it does not touch the weekly guild war ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §10).
+
+#### Sabotage of the effort
+
+Free will reaches the reserve too. Double agents and open saboteurs can try to drain or delay it.
+
+- **Drain paths.** Attacking a donation point or conduit, only where the server's `world_harm_mode` allows harm to infrastructure ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3g). Skimming electricity a player was trusted to haul.
+- **Delay paths.** Stalling a faction's quota, and voting against the trigger.
+- **Exposure.** Every drain act leaves a trace in the event log, and the exposure rules in §2.2 apply. A drain act carries its own exposure chance, which is an open number (§9). Cover gives no immunity. A drain act also counts as sabotage on the meter (§3.2) and carries the §3g consequences.
+
+Protections, so that one griefer cannot wipe the reserve:
+
+- The reserve is deposit-only. Nothing withdraws from it.
+- A filled tier locks. A drain can only touch the unfilled top tier.
+- Drain is capped per player per day and in total per day. Both caps are open numbers (§9).
+- A drained donation point becomes a ruin, not a deletion, and can be mended ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3g).
+- Review can return electricity drained by an exploit to the reserve ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3g, §8 P2).
+
+#### Rare and costly
+
+- **It cannot fire from a healthy state.** The effort opens only in the hell band.
+- **Long cooldown.** After a leap, `leap_cooldown` must pass before another effort can open (§9).
+- **The reserve resets.** A leap spends the whole reserve, which returns to empty. Donated electricity is spent and is not refunded.
+- **Heaven still needs upkeep.** The leap returns the world to a snapshot. It does not lock heaven in. Entropy resumes the next day (§3.5).
 
 ### 3.5 How heaven decays
 
 A heaven server can be ruined.
 
 - **Entropy never stops.** Nodes tire and reliability decays every week ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §4.5). A server that stops tending drifts toward hell with no villain needed. The week was the bill.
-- **Sabotage and grief still land.** Free will includes ruining things. The bounds are the existing ones: damage caps per target per day, escalating consequences for repeat attacks, ruins not deletion, review and rollback ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3g).
+- **Sabotage and grief still land.** Free will includes ruining things. The bounds are the existing ones: damage caps per target per day, escalating consequences for repeat attacks, ruins not deletion, and review that can undo an exploit ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3g).
 - **Concentration.** A heaven server where one alliance quietly hoards the corridors drifts down through the collective-play indicators ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §4.2: hoard and cartel).
 
 Heaven has no lock. It is held by upkeep or it is lost.
@@ -168,7 +255,7 @@ These hold at every reading of the meter and on every path in §2.
 
 - **Shields hold.** The Newcomer Aegis and faction Sanctuary Domes still block all damage between players ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §5.1, §5.2). Homestead cores and the Depths landing stay Peace ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §4). A hell server does not thin a dome, shorten the Aegis, or raise dome upkeep until it fails. Holiday ceasefires still stand player damage down ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §4).
 - **PvE is flat.** Nothing here changes monster, wildlife, droid, alien, or boss damage. That damage lands everywhere, under every shield, at every reading, as [COMBAT_AND_PVP](COMBAT_AND_PVP.md) §5.2 already says. Enemy toughness belongs to the Place ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §3).
-- **Nothing is for sale.** No purchase moves the meter, washes it, hides an allegiance, buys exposure protection, or buys a way around any rule here. Cosmetics never change stats ([FACTION_HERALDRY](../FACTION_HERALDRY.md)). See the refuse table (§8).
+- **Nothing is for sale.** No purchase moves the meter, washes it, hides an allegiance, buys exposure protection, fills the electricity reserve, or buys a way around any rule here. Electricity is earned in play only (§3.4.1). Cosmetics never change stats ([FACTION_HERALDRY](../FACTION_HERALDRY.md)). See the refuse table (§8).
 - **Grief does not travel.** A player's contribution to one server's meter stays on that server. There is no cross-server hunt list, no carried grudge target, and no meter debt that follows a character. Server histories never merge ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §7.6). Infamy, righteousness, and allegiance still carry on a server move exactly as [COMBAT_AND_PVP](COMBAT_AND_PVP.md) §8 writes. That is the player's own record, not griefing.
 - **Grief does not leave the game.** No meter reading, exposure, or covert record is ever tied to a real identity, posted outside the game, or used for anything outside the game.
 - **No player is named or ranked.** The meter is an aggregate. It never names, lists, or ranks individual players publicly. There is no "top tender" board and no "worst griefer" board. The event log keeps acts for review, as it already does ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §8 P2), and review is not public.
@@ -184,7 +271,8 @@ Players see a server's state before they choose it, so they can pick a wholesome
 |---|---|---|
 | **Server list** | The band, the trend (rising, steady, falling), and the server's `world_harm_mode` ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3g). No player names | **Online later.** Online is grey ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §2) |
 | **Server ledger face** | The band and trend beside the indicators already proposed there ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §4.4) | **Online later** |
-| **Server history** | A line when the band changes, with the date and no names ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §7.6) | **Online later** |
+| **Server history** | A line when the band changes, with the date and no names ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §7.6). A line for each time leap | **Online later** |
+| **War-effort progress** | While an effort is open: progress for each faction and each tier, the trigger countdown, and the cooldown after a leap (§3.4.1). Faction totals only, no donor names | **Online later** |
 | **The world itself** | The dress in §3.3. A player reads the server by walking it | Proposed, not built |
 
 Offline there is no list and no choice of server. If a later card shows the local reading, Core names the surface. This file adds none.
@@ -205,7 +293,7 @@ The same shape holds at every scale in this file.
 |---|---|---|---|
 | **A People** | The Draek fall | The Unbound breaks the Crownstone's hold | Standing earned by verbs |
 | **A player** | Infamy, the Dominion, or a burned double agent | Decline, lapse, unmask, or start the exit quest ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §8) | Restore-and-help verbs under the existing redemption framework ([REDEMPTION_MECHANICS_PER_SPECIES](../REDEMPTION_MECHANICS_PER_SPECIES.md); [DISCORDANT_REDEMPTION_QUESTLINES](../DISCORDANT_REDEMPTION_QUESTLINES.md); [SPECIFIC_REDEMPTION_QUESTS](../SPECIFIC_REDEMPTION_QUESTS.md)) |
-| **A server** | Entropy, grief, and sabotage toward hell | Players start tending together | The meter climbs (§3.4) |
+| **A server** | Entropy, grief, and sabotage toward hell | Players start tending together, or every faction joins the war effort | The meter climbs (§3.4), or the world leaps back while every player keeps what they earned (§3.4.1) |
 
 No scale has a skip. No scale has a permanent brand ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §18 retires the criminal faction as a door that can never open again, and the redemption exit replaces it).
 
@@ -219,6 +307,7 @@ These files were not edited.
 2. [COMBAT_AND_PVP](COMBAT_AND_PVP.md) §8 carries infamy, righteousness, and allegiance on a server move. §4 here keeps that and refuses only that grief, meter state, and grudges travel. A covert allegiance carries the same way, still hidden.
 3. [FACTION_LEADERS](FACTION_LEADERS.md) §11 clash 10 asks how Unbound standing sits beside the two §8 doors. This file does not answer it and adds no third door. Double agents ride on the existing two.
 4. [DIPLOMACY_AND_WORLD_SIMULATION](../DIPLOMACY_AND_WORLD_SIMULATION.md) §2.2 marks Draek standing as an inverted scale. The meter is not a faction scale. A server can be heaven while the Dominion is strong on it.
+5. [LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §8 P2 plans per-zone snapshots for crash recovery: last snapshot plus a replay of the log tail. The time leap in §3.4.1 needs some world snapshots kept for longer, and it restores only the world-state fields on its restore list. A later card should say how long-kept snapshots sit beside the recovery ones. This file does not change P2.
 
 ---
 
@@ -229,8 +318,18 @@ These files were not edited.
 | A heaven realm or hell realm as a second map, shard, or instance | [RITE_DOS_BANK](../RITE_DOS_BANK.md) L15. The world you build is the world you enter |
 | Real-money purchase that moves the meter, washes a server, or skips the climb out of hell | Pay-to-win. Recovery is walked |
 | Real-money purchase that hides an allegiance or protects against exposure | Pay-to-win. Cover is risk, not a product |
-| A pay-to-win recovery kit, server reset, or paid admin wash | Pay-to-win, and nothing is wiped ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §4.2) |
+| A pay-to-win recovery kit, a paid server reset, or a paid admin wash | Pay-to-win, and nothing is wiped ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §4.2) |
 | Any real-money effect at all from the meter or from a player path | Nothing here is for sale |
+| Electricity bought with real money, sold in any shop, or minted by the server | Pay-to-win. Electricity is gathered or crafted in play and is never for sale (§3.4.1) |
+| A time leap that rewinds personal progress: levels, gear, skills, earned items, memories, or the personal record | The leap rewinds the world, not the players (§3.4.1 keep list) |
+| A time leap that rewinds the ledger, the server history, or the event log | The record is never rewound (§3.4.1) |
+| A time leap that deletes anything built after the snapshot, or restores a salvaged ruin and duplicates goods | Nothing is deleted. Nothing is duplicated |
+| A time leap triggered from a healthy server | The effort opens only in the hell band |
+| A withdrawable electricity reserve, or one a single griefer can empty | Deposit-only, locked tiers, drain caps (§3.4.1) |
+| A war effort one faction can finish alone | Every faction carries a quota. It is a server-wide effort |
+| A reserve that carries over after a leap, or is banked in good times as insurance | The reserve resets after a use and leaks while no effort is open. Heaven needs upkeep |
+| A coined currency name or item name for electricity, or electricity as a second currency | Plain "electricity", a resource on the one ledger ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3e) |
+| Calling the time leap by the network-prediction term | That term belongs to prediction and reconciliation ([ARCHITECTURE_LAYERS_AND_DATAFLOW](../ARCHITECTURE_LAYERS_AND_DATAFLOW.md) L35) |
 | A new name colour, glyph, or nameplate tell for allegiance | The sentry mark comes from infamy alone ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §7.3) |
 | Showing a hidden allegiance on a name, even after exposure | A name carries the mark and the house glyph only |
 | A third lore-faction invitation for double agents | Two doors only ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §8; [FACTION_LEADERS](FACTION_LEADERS.md) §11 clash 10) |
@@ -279,17 +378,33 @@ Every value is a named blank for the councils. None is set here.
 | `exposure_standing_loss` | Standing lost with the betrayed side on exposure | Blank (councils) |
 | `covert_reoffer_wait` | How long before a burned agent can be offered covert work again | Blank (councils) |
 | `list_refresh` | How often the server list refreshes a server's reading | Blank (councils) |
+| `reserve_size` | Total electricity the shared reserve must hold before the trigger opens | Blank (councils) |
+| `reserve_tier_count` | How many tiers the reserve fills in | Blank (councils) |
+| `faction_quota` | Each faction's share of the reserve | Blank (councils) |
+| `quota_cover_wait` | Whether, and after how long, other factions may cover a stalled faction's gap | Blank (councils) |
+| `electricity_sources` | Which play chains gather or craft electricity, and at what rate | Blank (councils) |
+| `leap_trigger_band` | The band edge below which the war effort opens | Blank (councils) |
+| `leap_ballot_quorum` | Quorum for the trigger ballot | Blank (councils) |
+| `leap_notice` | The countdown between a passed ballot and the leap | Blank (councils) |
+| `leap_cooldown` | How long after a leap before another effort can open | Blank (councils) |
+| `snapshot_max_age` | The oldest kept world snapshot a leap may restore | Blank (councils) |
+| `snapshot_keep_cadence` | How often a world snapshot is kept for leap use | Blank (councils) |
+| `reserve_leak_rate` | How fast stored electricity leaks while no effort is open | Blank (councils) |
+| `drain_cap_per_player` | Most electricity one player can drain per day | Blank (councils) |
+| `drain_cap_per_day` | Most electricity all drains together can take per day | Blank (councils) |
+| `drain_exposure_chance` | Chance of exposure per drain act | Blank (councils) |
 
 ---
 
 ## 10. Cite
 
-- [COMBAT_AND_PVP](COMBAT_AND_PVP.md): §1, §2, §3, §4, §5.1, §5.2, §6, §7.1, §7.2, §7.3 (L214), §8, §16, §18
+- [COMBAT_AND_PVP](COMBAT_AND_PVP.md): §1 (pillar 4), §2, §3, §4, §5.1, §5.2, §5.3, §6, §7.1, §7.2, §7.3 (L214), §8, §10, §15, §16, §18
 - [DIPLOMACY_AND_WORLD_SIMULATION](../DIPLOMACY_AND_WORLD_SIMULATION.md): §2.1, §2.2, §3, §4, §5
 - [RITE_DOS_BANK](../RITE_DOS_BANK.md): L15 (Reel 1), Reel 2, DOS catalogue 3
 - [FACTION_LEADERS](FACTION_LEADERS.md): §3, §8, §11 clash 10
 - [DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md): §1, §2, §4, §5, §9, §10
-- [LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md): §3d, §3e, §3g, §4.2, §4.3, §4.4, §4.5, §7.5, §7.6, §8 P2
+- [LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md): §3b, §3d, §3e, §3f, §3g, §4.2, §4.3, §4.4, §4.5, §6.6, §7.5, §7.6, §8 P2, §8 P3
+- [ARCHITECTURE_LAYERS_AND_DATAFLOW](../ARCHITECTURE_LAYERS_AND_DATAFLOW.md): L35
 - [design/UI_LAYOUT_SYSTEM](UI_LAYOUT_SYSTEM.md): §1.6
 - [FACTION_HERALDRY](../FACTION_HERALDRY.md)
 - [ONLINE_LADDER](../ONLINE_LADDER.md)
