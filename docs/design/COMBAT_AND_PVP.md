@@ -54,9 +54,9 @@ Person-scale combat is this file. `docs/DOGFIGHT_MECHANICS.md`, `docs/BOARDING_M
 | Term | Meaning |
 |---|---|
 | **Proficiency** | A bracket key. It rises from practised verbs. It is not XP, not a damage bonus, and not a Place gate. The world does not scale to it. |
-| **Newcomer Aegis** | The personal bubble that blocks player damage for a newcomer outside a dome. It is not the item Ward, and it is not a Heartwood Ward. |
+| **Newcomer Aegis** | The personal bubble that blocks all damage between players for a newcomer outside a dome. PvE damage always goes through. It is not the item Ward, and it is not a Heartwood Ward. |
 | **Heartwood Wards** | Well · Grove · Ember seal posts (`docs/PLACES_BIBLE.md`). Dress and tend. They are not shields. |
-| **Faction Sanctuary Dome** | A permanent faction energy dome over a starter area. No player damage inside. |
+| **Faction Sanctuary Dome** | A permanent faction energy dome over a starter area. No damage between players inside. PvE damage always goes through. |
 | **Canopy** | A crafted, temporary shield generator. Pocket, Squad, or Hold. |
 | **Surge** | The boost meter. Drinks and stims fill it. It drains and pays gradual regen and speed. |
 | **Infamy** | The criminality axis. Sentries record it. It decays. |
@@ -80,7 +80,7 @@ Places already on disk (`docs/PLACES_BIBLE.md`, `docs/PLAYABLE_RACES.md`): Sanct
 |---|---|---|---|---|---|
 | **Sanctuary dome** | Sanctuary Prime and the starter yards under a faction dome | Impossible | Toggle unavailable. Peace holds | None. The dome is already up | No player death |
 | **Homestead core** | Hearth, bench, store, and an 8 m work radius | Impossible | Peace inside the radius | None needed | No player death |
-| **Newcomer Aegis** | Contested wilds and the lawless deep, while the Aegis holds | Incoming player damage blocked | May stay Passive in the wilds. The deep still forces Apprehend or Hostile for outgoing damage | Canopies, if the canopy rules allow | No player death from players |
+| **Newcomer Aegis** | Contested wilds and the lawless deep, while the Aegis holds | Incoming damage from players blocked. PvE damage always goes through | May stay Passive in the wilds. The deep still forces Apprehend or Hostile for outgoing damage | Canopies, if the canopy rules allow | No player death from players |
 | **Contested wilds** | Heartwood Teeth past the dome, Threshold, frontier hexes outside cores | World PK rules | Toggle matters. Default Passive | Canopies outside combat and outside 40 m of an objective | §9 |
 | **War instance** | Scheduled Holdfast map | War rules, lethal because you entered | World toggle ignored | Canopies refused | Muster Vault if nobody revives you |
 | **Battleground** | Banner Run, Node Claim, Convoy, Lane Trial | Match rules | World toggle ignored | Canopies refused | Match respawn. Own gear untouched |
@@ -99,7 +99,7 @@ Holiday ceasefires (`docs/LAYERED_GAMES_AND_SERVER.md` §7.4) and the Day of the
 
 ### 5.1 Faction Sanctuary Domes
 
-A dome is faction infrastructure, maintained by upkeep the way a depot is. Inside it, player damage does not land, including friendly fire, duel damage, and skillshots. Wildlife in the yard flees. It does not fight.
+A dome is faction infrastructure, maintained by upkeep the way a depot is. Inside it, damage between players does not land, including friendly fire, duel damage, and skillshots. PvE damage always goes through. Wildlife in the yard flees. It does not fight.
 
 Guards at the edge are sentry posts, online only. They are not scheduled NPC persons and they do not break the Peace hour (`docs/NPC_SCHEDULE_SPEC.md`). They refuse Marked and Outlaw entry. They do not chase past 20 m into the wilds.
 
@@ -122,6 +122,8 @@ The Aegis also holds in the lawless deep until one of those endings. The gate co
 
 The Aegis cannot be refreshed, bought, or reapplied.
 
+PvE combat (wildlife, hostile droids, aliens, raid and quest bosses) is never blocked by any shield.
+
 ### 5.3 Canopies (temporary shields)
 
 Crafted generators, harvested power cells, a visible footprint everyone can see. Sizes:
@@ -142,7 +144,7 @@ Rules:
 - No canopy within 40 m of a contested objective: Charter Pole, war statue, battleground node, banner, convoy, Lane Trial beacon, or Relay.
 - The footprint is a banded ring on the ground plus a soft dome. Pattern first, colour second.
 - Enemies siege it. Sapper shots hurt it. When integrity hits 0, the dome drops and the generator becomes a ruin with 50% of its cell cost as salvage (`docs/LAYERED_GAMES_AND_SERVER.md` §3g ruins, not deletion).
-- A living canopy blocks player damage and hostile PvE across its skin. Siege shots damage the generator. People inside stay safe until integrity hits 0. They may Tend, craft, and revive.
+- A living canopy blocks all damage between players across its skin. PvE damage always goes through. Siege shots damage the generator. People inside stay safe until integrity hits 0. They may Tend, craft, and revive.
 - Uses: a safe rest, a crafting stop, a regroup, a raid camp before a boss. A canopy is not a capturable objective and scores nothing.
 
 Offline, Pocket and Squad canopies are PvE camp tools once that card exists. Hold waits until group play exists. They never appear in the Hour 1 yard.
@@ -222,7 +224,7 @@ Sustained extremes invite a player into a lore faction. The invitation is an off
 | Infamy at Outlaw (300) held 14 real days | Criminal | **Draek Dominion** | **The Brood Spire** | Dominion missions, a Dominion channel, faction gear that is paint and a title (`docs/FACTION_HERALDRY.md`). No stat bonus |
 | Righteousness at 200, held 14 real days with no Clear kill in that window | Righteous | **Quellorian / Aetherion Luminari Alliance** | **The Auroral Unification Nexus** | Alliance missions of the same shape. Paint and a title. No stat bonus |
 
-Names follow `docs/FACTIONS_OVERVIEW.md`. The old GDD's "Draexx" is the Draek Dominion. The old GDD's "The Council" is this Alliance. `docs/COUNCIL_SYSTEM.md` Councils are Local → Regional → Global governance. They are not a faction, and this file does not call the righteous path a council.
+Names follow `docs/FACTIONS_OVERVIEW.md`. The old GDD's "The Council" is this Alliance. `docs/COUNCIL_SYSTEM.md` Councils are Local → Regional → Global governance. They are not a faction, and this file does not call the righteous path a council.
 
 Joining is a long commitment. It is not permanent. The 14-day hold resets if the qualifying number drops under its line. The Alliance hold also resets on a Clear kill.
 
