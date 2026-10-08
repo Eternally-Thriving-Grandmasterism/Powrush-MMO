@@ -1,15 +1,22 @@
 //! CARD HUD-EDIT-DATA-1 — step 4a of the UI layout epic.
 //!
-//! Q16: the saved HUD layout is its own file, [`HUD_LAYOUT_PATH`], through
-//! [`crate::user_persist::read_named`] and [`crate::user_persist::write_named`].
-//! `powrush_settings.json` keeps only `hud_preset`.
+//! Q16: the saved HUD layout is its own file, [`HUD_LAYOUT_PATH`], in the
+//! user dir that [`crate::user_persist::persist_path`] resolves. Load and save
+//! take that path, so tests pass a temp dir and never set the user-dir env var.
+//! The read and write keep the user_persist last-good rule: a live file that
+//! is not JSON falls back to a `.bak` that is, and a save copies a good live
+//! file to `.bak`, writes `.tmp`, then renames. `powrush_settings.json` keeps
+//! only `hud_preset`.
 //!
 //! Design §5. A failure never edits the file. [`load_hud_layout`] only reads.
 //! Nothing outside this module's tests calls load or save. Step 4b wires edit mode.
 
+use std::fs;
+use std::path::{Path, PathBuf};
+
 use serde::{Deserialize, Serialize};
 
-use crate::user_persist::{read_named, write_named};
+use crate::user_persist::persist_path;
 
 /// Cwd-relative name. [`crate::user_persist::persist_file_name`] stores the file
 /// as `powrush_hud_layout.json` in the resolved user dir.
@@ -74,7 +81,7 @@ impl HudLayoutFile {
 pub enum HudLayoutLoad {
     /// Parsed. The client still applies F4–F6 before anything is shown.
     Loaded(HudLayoutFile),
-    /// F1. Missing or unreadable (`read_named` failed, including non-JSON).
+    /// F1. Missing or unreadable (no live file or `.bak` that parses as JSON).
     Missing,
     /// F2. JSON that is not this save shape.
     Parse,
@@ -89,17 +96,31 @@ pub enum HudLayoutLoad {
     Refused { base: Option<String> },
 }
 
-/// Read [`HUD_LAYOUT_PATH`] and classify F1–F5. Does not write.
+/// Where the save lives: [`HUD_LAYOUT_PATH`] resolved by [`persist_path`].
+pub fn hud_layout_file_path() -> PathBuf {
+    persist_path(HUD_LAYOUT_PATH)
+}
+
+/// Read the save at [`hud_layout_file_path`] and classify F1–F5. Does not write.
+pub fn load_hud_layout(current_rev: u32, known_anchor_ids: &[&str]) -> HudLayoutLoad {
+    load_hud_layout_at(&hud_layout_file_path(), current_rev, known_anchor_ids)
+}
+
+/// Read the save at `path` and classify F1–F5. Does not write.
 ///
 /// `current_rev` is the client's `HUD_REGISTRY_REV`. `known_anchor_ids` are
 /// the anchor ids of `base` (step 4b passes the registry). This function does
 /// not know coded widths; a width above [`HUD_LAYOUT_WIDTH_MAX`], below or
 /// equal to zero, or non-finite is F5. The client refuses a width below the
 /// anchor's coded width.
-pub fn load_hud_layout(current_rev: u32, known_anchor_ids: &[&str]) -> HudLayoutLoad {
-    let raw = match read_named(HUD_LAYOUT_PATH) {
-        Ok(raw) => raw,
-        Err(_) => return HudLayoutLoad::Missing,
+pub fn load_hud_layout_at(
+    path: &Path,
+    current_rev: u32,
+    known_anchor_ids: &[&str],
+) -> HudLayoutLoad {
+    let raw = match read_json_or_bak(path) {
+        Some(raw) => raw,
+        None => return HudLayoutLoad::Missing,
     };
     classify_hud_layout(&raw, current_rev, known_anchor_ids)
 }
@@ -145,13 +166,45 @@ pub fn classify_hud_layout_file(
     HudLayoutLoad::Loaded(file)
 }
 
-/// Write `file` through [`write_named`]. Tests call this. Step 4b will call it
-/// from Save. Load does not.
+/// Write `file` to [`hud_layout_file_path`]. Step 4b will call this from
+/// Save. Load does not.
 pub fn save_hud_layout(file: &HudLayoutFile) -> std::io::Result<()> {
+    save_hud_layout_to(&hud_layout_file_path(), file)
+}
+
+/// Write `file` to `path` with the last-good rule. Tests call this.
+pub fn save_hud_layout_to(path: &Path, file: &HudLayoutFile) -> std::io::Result<()> {
     let json = file
         .to_json()
         .map_err(|err| std::io::Error::new(std::io::ErrorKind::InvalidData, err))?;
-    write_named(HUD_LAYOUT_PATH, json)
+    if let Some(parent) = path.parent() {
+        if !parent.as_os_str().is_empty() {
+            fs::create_dir_all(parent)?;
+        }
+    }
+    if read_json(path).is_some() {
+        fs::copy(path, sibling(path, ".bak"))?;
+    }
+    let tmp = sibling(path, ".tmp");
+    fs::write(&tmp, json)?;
+    fs::rename(&tmp, path)
+}
+
+fn sibling(path: &Path, suffix: &str) -> PathBuf {
+    let mut name = path.as_os_str().to_owned();
+    name.push(suffix);
+    PathBuf::from(name)
+}
+
+fn read_json(path: &Path) -> Option<String> {
+    let raw = fs::read_to_string(path).ok()?;
+    serde_json::from_str::<serde_json::Value>(&raw)
+        .is_ok()
+        .then_some(raw)
+}
+
+fn read_json_or_bak(path: &Path) -> Option<String> {
+    read_json(path).or_else(|| read_json(&sibling(path, ".bak")))
 }
 
 fn known_preset(base: &str) -> bool {
@@ -181,12 +234,6 @@ fn anchors_refused(anchors: &[HudLayoutAnchor], known_anchor_ids: &[&str]) -> bo
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::user_persist::USER_DIR_OVERRIDE_ENV;
-    use std::fs;
-    use std::path::{Path, PathBuf};
-    use std::sync::Mutex;
-
-    static ENV_LOCK: Mutex<()> = Mutex::new(());
 
     fn scratch(tag: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(format!(
@@ -200,24 +247,7 @@ mod tests {
         ));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).expect("scratch");
-        // A live powrush_* file so an empty dir does not adopt cwd `data/`.
-        fs::write(dir.join("powrush_seal.json"), b"{}\n").unwrap();
         dir
-    }
-
-    fn with_user_dir<R>(dir: &Path, body: impl FnOnce() -> R + std::panic::UnwindSafe) -> R {
-        let _guard = ENV_LOCK.lock().unwrap_or_else(|poison| poison.into_inner());
-        let prev = std::env::var(USER_DIR_OVERRIDE_ENV).ok();
-        std::env::set_var(USER_DIR_OVERRIDE_ENV, dir);
-        let result = std::panic::catch_unwind(body);
-        match prev {
-            Some(value) => std::env::set_var(USER_DIR_OVERRIDE_ENV, value),
-            None => std::env::remove_var(USER_DIR_OVERRIDE_ENV),
-        }
-        match result {
-            Ok(value) => value,
-            Err(payload) => std::panic::resume_unwind(payload),
-        }
     }
 
     fn layout_path(dir: &Path) -> PathBuf {
@@ -243,22 +273,28 @@ mod tests {
     #[test]
     fn load_f1_missing_or_unreadable_writes_nothing() {
         let missing_dir = scratch("f1-missing");
-        with_user_dir(&missing_dir, || {
+        {
             let path = layout_path(&missing_dir);
             assert!(!path.exists());
-            assert_eq!(load_hud_layout(1, &["PLACE_NAME"]), HudLayoutLoad::Missing);
+            assert_eq!(
+                load_hud_layout_at(&path, 1, &["PLACE_NAME"]),
+                HudLayoutLoad::Missing
+            );
             assert!(!path.exists(), "F1 must not create the save");
-        });
+        }
 
         let bad_dir = scratch("f1-unreadable");
         let path = layout_path(&bad_dir);
         let raw = "not-json";
         fs::write(&path, raw).unwrap();
-        with_user_dir(&bad_dir, || {
-            assert_eq!(load_hud_layout(1, &["PLACE_NAME"]), HudLayoutLoad::Missing);
+        {
+            assert_eq!(
+                load_hud_layout_at(&path, 1, &["PLACE_NAME"]),
+                HudLayoutLoad::Missing
+            );
             assert_eq!(fs::read_to_string(&path).unwrap(), raw);
             assert!(!bad_dir.join("powrush_hud_layout.json.bak").exists());
-        });
+        }
         let _ = fs::remove_dir_all(&missing_dir);
         let _ = fs::remove_dir_all(&bad_dir);
     }
@@ -269,10 +305,13 @@ mod tests {
         let path = layout_path(&dir);
         let raw = r#"{"schema":"powrush_hud_layout_v1","registry_rev":1,"base":"classic","anchors":[{"id":"VOICE","corner":"top-center"}]}"#;
         fs::write(&path, raw).unwrap();
-        with_user_dir(&dir, || {
-            assert_eq!(load_hud_layout(1, &["VOICE"]), HudLayoutLoad::Parse);
+        {
+            assert_eq!(
+                load_hud_layout_at(&path, 1, &["VOICE"]),
+                HudLayoutLoad::Parse
+            );
             assert_eq!(fs::read_to_string(&path).unwrap(), raw);
-        });
+        }
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -283,11 +322,11 @@ mod tests {
         let raw =
             r#"{"schema":"powrush_hud_layout_v2","registry_rev":1,"base":"classic","anchors":[]}"#;
         fs::write(&path, raw).unwrap();
-        with_user_dir(&dir, || {
-            assert_eq!(load_hud_layout(1, &[]), HudLayoutLoad::Schema);
+        {
+            assert_eq!(load_hud_layout_at(&path, 1, &[]), HudLayoutLoad::Schema);
             assert_eq!(fs::read_to_string(&path).unwrap(), raw);
             assert!(!dir.join("powrush_hud_layout.json.bak").exists());
-        });
+        }
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -297,15 +336,15 @@ mod tests {
         let path = layout_path(&dir);
         let raw = r#"{"schema":"powrush_hud_layout_v1","registry_rev":99,"base":"minimal","anchors":[{"id":"NOPE","corner":"top-left","x":1,"y":1,"width":900,"hidden":true}]}"#;
         fs::write(&path, raw).unwrap();
-        with_user_dir(&dir, || {
+        {
             assert_eq!(
-                load_hud_layout(1, &["CORNER"]),
+                load_hud_layout_at(&path, 1, &["CORNER"]),
                 HudLayoutLoad::Stale {
                     base: "minimal".into(),
                 }
             );
             assert_eq!(fs::read_to_string(&path).unwrap(), raw);
-        });
+        }
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -313,12 +352,12 @@ mod tests {
     fn load_f5_refuses_unknown_base_id_width_and_non_finite() {
         let known = ["PLACE_NAME", "VOICE"];
         let dir = scratch("f5");
-        with_user_dir(&dir, || {
+        {
             let path = layout_path(&dir);
             let unknown_base = r#"{"schema":"powrush_hud_layout_v1","registry_rev":1,"base":"compact","anchors":[]}"#;
             fs::write(&path, unknown_base).unwrap();
             assert_eq!(
-                load_hud_layout(1, &known),
+                load_hud_layout_at(&path, 1, &known),
                 HudLayoutLoad::Refused { base: None }
             );
             assert_eq!(fs::read_to_string(&path).unwrap(), unknown_base);
@@ -326,7 +365,7 @@ mod tests {
             let unknown_id = r#"{"schema":"powrush_hud_layout_v1","registry_rev":1,"base":"classic","anchors":[{"id":"NOPE","corner":"top-left","x":16,"y":16,"width":280,"hidden":false}]}"#;
             fs::write(&path, unknown_id).unwrap();
             assert_eq!(
-                load_hud_layout(1, &known),
+                load_hud_layout_at(&path, 1, &known),
                 HudLayoutLoad::Refused {
                     base: Some("classic".into()),
                 }
@@ -336,7 +375,7 @@ mod tests {
             let wide = r#"{"schema":"powrush_hud_layout_v1","registry_rev":1,"base":"classic","anchors":[{"id":"VOICE","corner":"bottom-right","x":16,"y":221,"width":641,"hidden":false}]}"#;
             fs::write(&path, wide).unwrap();
             assert_eq!(
-                load_hud_layout(1, &known),
+                load_hud_layout_at(&path, 1, &known),
                 HudLayoutLoad::Refused {
                     base: Some("classic".into()),
                 }
@@ -345,12 +384,12 @@ mod tests {
             let zero = r#"{"schema":"powrush_hud_layout_v1","registry_rev":1,"base":"classic","anchors":[{"id":"VOICE","corner":"bottom-right","x":16,"y":221,"width":0,"hidden":false}]}"#;
             fs::write(&path, zero).unwrap();
             assert_eq!(
-                load_hud_layout(1, &known),
+                load_hud_layout_at(&path, 1, &known),
                 HudLayoutLoad::Refused {
                     base: Some("classic".into()),
                 }
             );
-        });
+        }
 
         let mut non_finite = sample();
         non_finite.anchors[0].x = f32::NAN;
@@ -385,16 +424,38 @@ mod tests {
         assert_eq!(back, file);
 
         let dir = scratch("round-trip");
-        with_user_dir(&dir, || {
-            save_hud_layout(&file).unwrap();
+        {
             let path = layout_path(&dir);
+            save_hud_layout_to(&path, &file).unwrap();
             let before = fs::read(&path).unwrap();
             assert_eq!(
-                load_hud_layout(1, &["PLACE_NAME"]),
+                load_hud_layout_at(&path, 1, &["PLACE_NAME"]),
                 HudLayoutLoad::Loaded(file.clone())
             );
             assert_eq!(fs::read(&path).unwrap(), before, "load must not rewrite");
-        });
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn save_keeps_last_good_bak_and_load_falls_back() {
+        let dir = scratch("last-good");
+        let path = layout_path(&dir);
+        let first = sample();
+        save_hud_layout_to(&path, &first).unwrap();
+        let bak = dir.join("powrush_hud_layout.json.bak");
+        assert!(!bak.exists());
+        let mut second = sample();
+        second.base = "minimal".into();
+        save_hud_layout_to(&path, &second).unwrap();
+        assert_eq!(fs::read_to_string(&bak).unwrap(), first.to_json().unwrap());
+        assert!(!dir.join("powrush_hud_layout.json.tmp").exists());
+        fs::write(&path, "not-json").unwrap();
+        assert_eq!(
+            load_hud_layout_at(&path, 1, &["PLACE_NAME"]),
+            HudLayoutLoad::Loaded(first)
+        );
+        assert_eq!(fs::read_to_string(&path).unwrap(), "not-json");
         let _ = fs::remove_dir_all(&dir);
     }
 }
