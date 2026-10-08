@@ -7,7 +7,8 @@
 //! joiner's coded position into [`HudCodedPlace`]. Spawn sites read those
 //! Vals. Each centred joiner keeps its own `margin_left`. No plugin: slabs
 //! read the anchors when they spawn, and the R2 yield runs inside the slabs'
-//! own visibility systems. Presets, push, cover, and edit mode stay later cards.
+//! own visibility systems. Preset tables and the R3, R4, and R5 predicates live
+//! in `hud_presets` and are not applied here.
 
 use bevy::ui::{UiRect, Val};
 
@@ -200,7 +201,9 @@ pub const ID_PLACE_NAME: &str = "PlaceName";
 #[derive(Clone, Copy, Debug)]
 pub struct HudCodedPlace {
     pub id: &'static str,
+    /// Map section 2 row. Rows 16 and 17 are position-only joiners.
     pub row: u8,
+    /// Design §2.3 class. Class 1 is the highest priority.
     pub class: u8,
     pub width: f32,
     /// Model B height from design §2.3. Not written onto `Style`.
@@ -212,7 +215,8 @@ pub struct HudCodedPlace {
     pub margin_left: Option<f32>,
 }
 
-const fn coded(
+/// Named fields for [`coded`].
+struct CodedFields {
     id: &'static str,
     row: u8,
     class: u8,
@@ -223,294 +227,296 @@ const fn coded(
     bottom: Val,
     left: Val,
     margin_left: Option<f32>,
-) -> HudCodedPlace {
+}
+
+const fn coded(fields: CodedFields) -> HudCodedPlace {
     HudCodedPlace {
-        id,
-        row,
-        class,
-        width,
-        height_b,
-        top,
-        right,
-        bottom,
-        left,
-        margin_left,
+        id: fields.id,
+        row: fields.row,
+        class: fields.class,
+        width: fields.width,
+        height_b: fields.height_b,
+        top: fields.top,
+        right: fields.right,
+        bottom: fields.bottom,
+        left: fields.left,
+        margin_left: fields.margin_left,
     }
 }
 
 /// Row 8. Top 16, centred, margin −260, width 520.
-pub const FACTORY: HudCodedPlace = coded(
-    ID_FACTORY,
-    8,
-    5,
-    520.0,
-    52.0,
-    Val::Px(16.0),
-    Val::Auto,
-    Val::Auto,
-    Val::Percent(50.0),
-    Some(-260.0),
-);
+pub const FACTORY: HudCodedPlace = coded(CodedFields {
+    id: ID_FACTORY,
+    row: 8,
+    class: 5,
+    width: 520.0,
+    height_b: 52.0,
+    top: Val::Px(16.0),
+    right: Val::Auto,
+    bottom: Val::Auto,
+    left: Val::Percent(50.0),
+    margin_left: Some(-260.0),
+});
 /// Row 10. Top 52, left 16, width 520.
-pub const SPILL: HudCodedPlace = coded(
-    ID_SPILL,
-    10,
-    5,
-    520.0,
-    52.0,
-    Val::Px(52.0),
-    Val::Auto,
-    Val::Auto,
-    Val::Px(16.0),
-    None,
-);
+pub const SPILL: HudCodedPlace = coded(CodedFields {
+    id: ID_SPILL,
+    row: 10,
+    class: 5,
+    width: 520.0,
+    height_b: 52.0,
+    top: Val::Px(52.0),
+    right: Val::Auto,
+    bottom: Val::Auto,
+    left: Val::Px(16.0),
+    margin_left: None,
+});
 /// Row 12. Top 88, centred, margin −260, width 520.
-pub const FAB: HudCodedPlace = coded(
-    ID_FAB,
-    12,
-    5,
-    520.0,
-    52.0,
-    Val::Px(88.0),
-    Val::Auto,
-    Val::Auto,
-    Val::Percent(50.0),
-    Some(-260.0),
-);
+pub const FAB: HudCodedPlace = coded(CodedFields {
+    id: ID_FAB,
+    row: 12,
+    class: 5,
+    width: 520.0,
+    height_b: 52.0,
+    top: Val::Px(88.0),
+    right: Val::Auto,
+    bottom: Val::Auto,
+    left: Val::Percent(50.0),
+    margin_left: Some(-260.0),
+});
 /// Row 13. Top 124, right 16, width 420.
-pub const EMBASSY: HudCodedPlace = coded(
-    ID_EMBASSY,
-    13,
-    5,
-    420.0,
-    52.0,
-    Val::Px(124.0),
-    Val::Px(16.0),
-    Val::Auto,
-    Val::Auto,
-    None,
-);
+pub const EMBASSY: HudCodedPlace = coded(CodedFields {
+    id: ID_EMBASSY,
+    row: 13,
+    class: 5,
+    width: 420.0,
+    height_b: 52.0,
+    top: Val::Px(124.0),
+    right: Val::Px(16.0),
+    bottom: Val::Auto,
+    left: Val::Auto,
+    margin_left: None,
+});
 /// Row 16. Top 204, right 16. Position only. Width stays the coded literal at the spawn.
-pub const REDEMPTION: HudCodedPlace = coded(
-    ID_REDEMPTION,
-    16,
-    5,
-    420.0,
-    52.0,
-    Val::Px(204.0),
-    Val::Px(16.0),
-    Val::Auto,
-    Val::Auto,
-    None,
-);
+pub const REDEMPTION: HudCodedPlace = coded(CodedFields {
+    id: ID_REDEMPTION,
+    row: 16,
+    class: 5,
+    width: 420.0,
+    height_b: 52.0,
+    top: Val::Px(204.0),
+    right: Val::Px(16.0),
+    bottom: Val::Auto,
+    left: Val::Auto,
+    margin_left: None,
+});
 /// Row 17. Top 244, right 16. Position only. Width stays the coded literal at the spawn.
-pub const HYBRID: HudCodedPlace = coded(
-    ID_HYBRID,
-    17,
-    5,
-    420.0,
-    52.0,
-    Val::Px(244.0),
-    Val::Px(16.0),
-    Val::Auto,
-    Val::Auto,
-    None,
-);
+pub const HYBRID: HudCodedPlace = coded(CodedFields {
+    id: ID_HYBRID,
+    row: 17,
+    class: 5,
+    width: 420.0,
+    height_b: 52.0,
+    top: Val::Px(244.0),
+    right: Val::Px(16.0),
+    bottom: Val::Auto,
+    left: Val::Auto,
+    margin_left: None,
+});
 /// Row 18. Bottom 92, right 16, width 420.
-pub const COMPASS: HudCodedPlace = coded(
-    ID_COMPASS,
-    18,
-    5,
-    420.0,
-    52.0,
-    Val::Auto,
-    Val::Px(16.0),
-    Val::Px(92.0),
-    Val::Auto,
-    None,
-);
+pub const COMPASS: HudCodedPlace = coded(CodedFields {
+    id: ID_COMPASS,
+    row: 18,
+    class: 5,
+    width: 420.0,
+    height_b: 52.0,
+    top: Val::Auto,
+    right: Val::Px(16.0),
+    bottom: Val::Px(92.0),
+    left: Val::Auto,
+    margin_left: None,
+});
 /// Row 19. Bottom 132, left 16, width 420.
-pub const WELL: HudCodedPlace = coded(
-    ID_WELL,
-    19,
-    5,
-    420.0,
-    52.0,
-    Val::Auto,
-    Val::Auto,
-    Val::Px(132.0),
-    Val::Px(16.0),
-    None,
-);
+pub const WELL: HudCodedPlace = coded(CodedFields {
+    id: ID_WELL,
+    row: 19,
+    class: 5,
+    width: 420.0,
+    height_b: 52.0,
+    top: Val::Auto,
+    right: Val::Auto,
+    bottom: Val::Px(132.0),
+    left: Val::Px(16.0),
+    margin_left: None,
+});
 /// Row 28. Top 118, centred, margin −280, width 560.
-pub const PULSE: HudCodedPlace = coded(
-    ID_PULSE,
-    28,
-    4,
-    560.0,
-    60.8,
-    Val::Px(118.0),
-    Val::Auto,
-    Val::Auto,
-    Val::Percent(50.0),
-    Some(-280.0),
-);
+pub const PULSE: HudCodedPlace = coded(CodedFields {
+    id: ID_PULSE,
+    row: 28,
+    class: 4,
+    width: 560.0,
+    height_b: 60.8,
+    top: Val::Px(118.0),
+    right: Val::Auto,
+    bottom: Val::Auto,
+    left: Val::Percent(50.0),
+    margin_left: Some(-280.0),
+});
 /// Row 29. Top 16, left 16, width 380.
-pub const WELCOME: HudCodedPlace = coded(
-    ID_WELCOME,
-    29,
-    4,
-    380.0,
-    58.4,
-    Val::Px(16.0),
-    Val::Auto,
-    Val::Auto,
-    Val::Px(16.0),
-    None,
-);
+pub const WELCOME: HudCodedPlace = coded(CodedFields {
+    id: ID_WELCOME,
+    row: 29,
+    class: 4,
+    width: 380.0,
+    height_b: 58.4,
+    top: Val::Px(16.0),
+    right: Val::Auto,
+    bottom: Val::Auto,
+    left: Val::Px(16.0),
+    margin_left: None,
+});
 /// Row 31. Bottom 176, left 16, width 420.
-pub const CLIMATE_STATE: HudCodedPlace = coded(
-    ID_CLIMATE_STATE,
-    31,
-    5,
-    420.0,
-    52.0,
-    Val::Auto,
-    Val::Auto,
-    Val::Px(176.0),
-    Val::Px(16.0),
-    None,
-);
+pub const CLIMATE_STATE: HudCodedPlace = coded(CodedFields {
+    id: ID_CLIMATE_STATE,
+    row: 31,
+    class: 5,
+    width: 420.0,
+    height_b: 52.0,
+    top: Val::Auto,
+    right: Val::Auto,
+    bottom: Val::Px(176.0),
+    left: Val::Px(16.0),
+    margin_left: None,
+});
 /// Row 32. Bottom 16, left 16, width 340. Satchel (row 33) stays coded.
-pub const WATCH: HudCodedPlace = coded(
-    ID_WATCH,
-    32,
-    5,
-    340.0,
-    53.2,
-    Val::Auto,
-    Val::Auto,
-    Val::Px(16.0),
-    Val::Px(16.0),
-    None,
-);
+pub const WATCH: HudCodedPlace = coded(CodedFields {
+    id: ID_WATCH,
+    row: 32,
+    class: 5,
+    width: 340.0,
+    height_b: 53.2,
+    top: Val::Auto,
+    right: Val::Auto,
+    bottom: Val::Px(16.0),
+    left: Val::Px(16.0),
+    margin_left: None,
+});
 /// Row 34. Top 38%, centred, margin −180, width 360.
-pub const PICKUP: HudCodedPlace = coded(
-    ID_PICKUP,
-    34,
-    4,
-    360.0,
-    56.4,
-    Val::Percent(38.0),
-    Val::Auto,
-    Val::Auto,
-    Val::Percent(50.0),
-    Some(-180.0),
-);
+pub const PICKUP: HudCodedPlace = coded(CodedFields {
+    id: ID_PICKUP,
+    row: 34,
+    class: 4,
+    width: 360.0,
+    height_b: 56.4,
+    top: Val::Percent(38.0),
+    right: Val::Auto,
+    bottom: Val::Auto,
+    left: Val::Percent(50.0),
+    margin_left: Some(-180.0),
+});
 /// Row 35. Top 52, centred, margin −260, width 520.
-pub const SOVEREIGN: HudCodedPlace = coded(
-    ID_SOVEREIGN,
-    35,
-    4,
-    520.0,
-    56.0,
-    Val::Px(52.0),
-    Val::Auto,
-    Val::Auto,
-    Val::Percent(50.0),
-    Some(-260.0),
-);
+pub const SOVEREIGN: HudCodedPlace = coded(CodedFields {
+    id: ID_SOVEREIGN,
+    row: 35,
+    class: 4,
+    width: 520.0,
+    height_b: 56.0,
+    top: Val::Px(52.0),
+    right: Val::Auto,
+    bottom: Val::Auto,
+    left: Val::Percent(50.0),
+    margin_left: Some(-260.0),
+});
 /// Row 38. Top 48, centred, margin −310, width 620.
-pub const THRIVING: HudCodedPlace = coded(
-    ID_THRIVING,
-    38,
-    4,
-    620.0,
-    58.0,
-    Val::Px(48.0),
-    Val::Auto,
-    Val::Auto,
-    Val::Percent(50.0),
-    Some(-310.0),
-);
+pub const THRIVING: HudCodedPlace = coded(CodedFields {
+    id: ID_THRIVING,
+    row: 38,
+    class: 4,
+    width: 620.0,
+    height_b: 58.0,
+    top: Val::Px(48.0),
+    right: Val::Auto,
+    bottom: Val::Auto,
+    left: Val::Percent(50.0),
+    margin_left: Some(-310.0),
+});
 /// Row 39. Top 10%, right 2%, width 360.
-pub const MERCY: HudCodedPlace = coded(
-    ID_MERCY,
-    39,
-    1,
-    360.0,
-    320.0,
-    Val::Percent(10.0),
-    Val::Percent(2.0),
-    Val::Auto,
-    Val::Auto,
-    None,
-);
+pub const MERCY: HudCodedPlace = coded(CodedFields {
+    id: ID_MERCY,
+    row: 39,
+    class: 1,
+    width: 360.0,
+    height_b: 320.0,
+    top: Val::Percent(10.0),
+    right: Val::Percent(2.0),
+    bottom: Val::Auto,
+    left: Val::Auto,
+    margin_left: None,
+});
 /// Row 40. Top 18%, left 2%, width 300.
-pub const REALM: HudCodedPlace = coded(
-    ID_REALM,
-    40,
-    1,
-    300.0,
-    170.0,
-    Val::Percent(18.0),
-    Val::Auto,
-    Val::Auto,
-    Val::Percent(2.0),
-    None,
-);
+pub const REALM: HudCodedPlace = coded(CodedFields {
+    id: ID_REALM,
+    row: 40,
+    class: 1,
+    width: 300.0,
+    height_b: 170.0,
+    top: Val::Percent(18.0),
+    right: Val::Auto,
+    bottom: Val::Auto,
+    left: Val::Percent(2.0),
+    margin_left: None,
+});
 /// Row 41. Top 28%, centred, margin −210, width 420.
-pub const WHISPER: HudCodedPlace = coded(
-    ID_WHISPER,
-    41,
-    4,
-    420.0,
-    69.0,
-    Val::Percent(28.0),
-    Val::Auto,
-    Val::Auto,
-    Val::Percent(50.0),
-    Some(-210.0),
-);
+pub const WHISPER: HudCodedPlace = coded(CodedFields {
+    id: ID_WHISPER,
+    row: 41,
+    class: 4,
+    width: 420.0,
+    height_b: 69.0,
+    top: Val::Percent(28.0),
+    right: Val::Auto,
+    bottom: Val::Auto,
+    left: Val::Percent(50.0),
+    margin_left: Some(-210.0),
+});
 /// Row 42. Top 12%, left 2%, width 360.
-pub const JOURNEY: HudCodedPlace = coded(
-    ID_JOURNEY,
-    42,
-    1,
-    360.0,
-    280.0,
-    Val::Percent(12.0),
-    Val::Auto,
-    Val::Auto,
-    Val::Percent(2.0),
-    None,
-);
+pub const JOURNEY: HudCodedPlace = coded(CodedFields {
+    id: ID_JOURNEY,
+    row: 42,
+    class: 1,
+    width: 360.0,
+    height_b: 280.0,
+    top: Val::Percent(12.0),
+    right: Val::Auto,
+    bottom: Val::Auto,
+    left: Val::Percent(2.0),
+    margin_left: None,
+});
 /// Row 43. Bottom 16, right 16, width 280.
-pub const PEER: HudCodedPlace = coded(
-    ID_PEER,
-    43,
-    5,
-    280.0,
-    52.0,
-    Val::Auto,
-    Val::Px(16.0),
-    Val::Px(16.0),
-    Val::Auto,
-    None,
-);
+pub const PEER: HudCodedPlace = coded(CodedFields {
+    id: ID_PEER,
+    row: 43,
+    class: 5,
+    width: 280.0,
+    height_b: 52.0,
+    top: Val::Auto,
+    right: Val::Px(16.0),
+    bottom: Val::Px(16.0),
+    left: Val::Auto,
+    margin_left: None,
+});
 /// Row 44. Top 18, centred, margin −140, width 280.
-pub const PLACE_NAME: HudCodedPlace = coded(
-    ID_PLACE_NAME,
-    44,
-    5,
-    280.0,
-    31.0,
-    Val::Px(18.0),
-    Val::Auto,
-    Val::Auto,
-    Val::Percent(50.0),
-    Some(-140.0),
-);
+pub const PLACE_NAME: HudCodedPlace = coded(CodedFields {
+    id: ID_PLACE_NAME,
+    row: 44,
+    class: 5,
+    width: 280.0,
+    height_b: 31.0,
+    top: Val::Px(18.0),
+    right: Val::Auto,
+    bottom: Val::Auto,
+    left: Val::Percent(50.0),
+    margin_left: Some(-140.0),
+});
 
 /// The 21 coded joiners. Rows 16 and 17 are position only. Satchel is not here.
 pub const CODED_JOINERS: &[HudCodedPlace] = &[
@@ -555,6 +561,8 @@ impl HudCodedPlace {
     }
 
     /// This slab's own coded centring margin (`UiRect::left`).
+    ///
+    /// Panics when the slab is not centred (`margin_left` is `None`).
     pub fn margin(self) -> UiRect {
         let px = self
             .margin_left
@@ -611,7 +619,7 @@ impl HudCodedPlace {
     }
 }
 
-pub fn coded_joiner(id: &str) -> &HudCodedPlace {
+pub fn coded_joiner(id: &str) -> &'static HudCodedPlace {
     CODED_JOINERS
         .iter()
         .find(|place| place.id == id)
@@ -1157,8 +1165,9 @@ mod tests {
         let mut margins = Vec::new();
         for (id, want) in coded {
             let place = coded_joiner(id);
-            assert!(
-                place.margin_left == Some(want),
+            assert_eq!(
+                place.margin_left,
+                Some(want),
                 "{id} stores its own margin {want}"
             );
             assert_eq!(place.margin(), UiRect::left(Val::Px(want)), "{id}");
@@ -1207,42 +1216,42 @@ mod tests {
         );
 
         let literals = [
-            (ID_FACTORY, Val::Px(16.0), Val::Auto, Val::Auto, Val::Percent(50.0), 520.0, 5),
-            (ID_SPILL, Val::Px(52.0), Val::Auto, Val::Auto, Val::Px(16.0), 520.0, 5),
-            (ID_FAB, Val::Px(88.0), Val::Auto, Val::Auto, Val::Percent(50.0), 520.0, 5),
-            (ID_EMBASSY, Val::Px(124.0), Val::Px(16.0), Val::Auto, Val::Auto, 420.0, 5),
-            (ID_REDEMPTION, Val::Px(204.0), Val::Px(16.0), Val::Auto, Val::Auto, 420.0, 5),
-            (ID_HYBRID, Val::Px(244.0), Val::Px(16.0), Val::Auto, Val::Auto, 420.0, 5),
-            (ID_COMPASS, Val::Auto, Val::Px(16.0), Val::Px(92.0), Val::Auto, 420.0, 5),
-            (ID_WELL, Val::Auto, Val::Auto, Val::Px(132.0), Val::Px(16.0), 420.0, 5),
-            (ID_PULSE, Val::Px(118.0), Val::Auto, Val::Auto, Val::Percent(50.0), 560.0, 4),
-            (ID_WELCOME, Val::Px(16.0), Val::Auto, Val::Auto, Val::Px(16.0), 380.0, 4),
-            (ID_CLIMATE_STATE, Val::Auto, Val::Auto, Val::Px(176.0), Val::Px(16.0), 420.0, 5),
-            (ID_WATCH, Val::Auto, Val::Auto, Val::Px(16.0), Val::Px(16.0), 340.0, 5),
-            (ID_PICKUP, Val::Percent(38.0), Val::Auto, Val::Auto, Val::Percent(50.0), 360.0, 4),
-            (ID_SOVEREIGN, Val::Px(52.0), Val::Auto, Val::Auto, Val::Percent(50.0), 520.0, 4),
-            (ID_THRIVING, Val::Px(48.0), Val::Auto, Val::Auto, Val::Percent(50.0), 620.0, 4),
-            (ID_MERCY, Val::Percent(10.0), Val::Percent(2.0), Val::Auto, Val::Auto, 360.0, 1),
-            (ID_REALM, Val::Percent(18.0), Val::Auto, Val::Auto, Val::Percent(2.0), 300.0, 1),
-            (ID_WHISPER, Val::Percent(28.0), Val::Auto, Val::Auto, Val::Percent(50.0), 420.0, 4),
-            (ID_JOURNEY, Val::Percent(12.0), Val::Auto, Val::Auto, Val::Percent(2.0), 360.0, 1),
-            (ID_PEER, Val::Auto, Val::Px(16.0), Val::Px(16.0), Val::Auto, 280.0, 5),
-            (ID_PLACE_NAME, Val::Px(18.0), Val::Auto, Val::Auto, Val::Percent(50.0), 280.0, 5),
+            (ID_FACTORY, Val::Px(16.0), Val::Auto, Val::Auto, Val::Percent(50.0), 520.0, 5, 52.0),
+            (ID_SPILL, Val::Px(52.0), Val::Auto, Val::Auto, Val::Px(16.0), 520.0, 5, 52.0),
+            (ID_FAB, Val::Px(88.0), Val::Auto, Val::Auto, Val::Percent(50.0), 520.0, 5, 52.0),
+            (ID_EMBASSY, Val::Px(124.0), Val::Px(16.0), Val::Auto, Val::Auto, 420.0, 5, 52.0),
+            (ID_REDEMPTION, Val::Px(204.0), Val::Px(16.0), Val::Auto, Val::Auto, 420.0, 5, 52.0),
+            (ID_HYBRID, Val::Px(244.0), Val::Px(16.0), Val::Auto, Val::Auto, 420.0, 5, 52.0),
+            (ID_COMPASS, Val::Auto, Val::Px(16.0), Val::Px(92.0), Val::Auto, 420.0, 5, 52.0),
+            (ID_WELL, Val::Auto, Val::Auto, Val::Px(132.0), Val::Px(16.0), 420.0, 5, 52.0),
+            (ID_PULSE, Val::Px(118.0), Val::Auto, Val::Auto, Val::Percent(50.0), 560.0, 4, 60.8),
+            (ID_WELCOME, Val::Px(16.0), Val::Auto, Val::Auto, Val::Px(16.0), 380.0, 4, 58.4),
+            (ID_CLIMATE_STATE, Val::Auto, Val::Auto, Val::Px(176.0), Val::Px(16.0), 420.0, 5, 52.0),
+            (ID_WATCH, Val::Auto, Val::Auto, Val::Px(16.0), Val::Px(16.0), 340.0, 5, 53.2),
+            (ID_PICKUP, Val::Percent(38.0), Val::Auto, Val::Auto, Val::Percent(50.0), 360.0, 4, 56.4),
+            (ID_SOVEREIGN, Val::Px(52.0), Val::Auto, Val::Auto, Val::Percent(50.0), 520.0, 4, 56.0),
+            (ID_THRIVING, Val::Px(48.0), Val::Auto, Val::Auto, Val::Percent(50.0), 620.0, 4, 58.0),
+            (ID_MERCY, Val::Percent(10.0), Val::Percent(2.0), Val::Auto, Val::Auto, 360.0, 1, 320.0),
+            (ID_REALM, Val::Percent(18.0), Val::Auto, Val::Auto, Val::Percent(2.0), 300.0, 1, 170.0),
+            (ID_WHISPER, Val::Percent(28.0), Val::Auto, Val::Auto, Val::Percent(50.0), 420.0, 4, 69.0),
+            (ID_JOURNEY, Val::Percent(12.0), Val::Auto, Val::Auto, Val::Percent(2.0), 360.0, 1, 280.0),
+            (ID_PEER, Val::Auto, Val::Px(16.0), Val::Px(16.0), Val::Auto, 280.0, 5, 52.0),
+            (ID_PLACE_NAME, Val::Px(18.0), Val::Auto, Val::Auto, Val::Percent(50.0), 280.0, 5, 31.0),
         ];
         assert_eq!(literals.len(), 21);
         for id in [ID_REDEMPTION, ID_HYBRID] {
             let place = coded_joiner(id);
-            assert!(place.margin_left.is_none(), "{id} is not centred");
-            assert_eq!(place.margin_left, None);
+            assert_eq!(place.margin_left, None, "{id} is not centred");
         }
-        for (id, top, right, bottom, left, width, class) in literals {
+        for (id, top, right, bottom, left, width, class, height_b) in literals {
             let place = coded_joiner(id);
             assert_eq!(place.top(), top, "{id} top");
             assert_eq!(place.right(), right, "{id} right");
             assert_eq!(place.bottom(), bottom, "{id} bottom");
             assert_eq!(place.left(), left, "{id} left");
             assert_eq!(place.width, width, "{id} width");
-            assert_eq!(place.class, u8::try_from(class).unwrap(), "{id} class");
+            assert_eq!(place.class, class, "{id} class");
+            assert_eq!(place.height_b, height_b, "{id} height_b");
         }
     }
 
@@ -1286,13 +1295,7 @@ mod tests {
                 view_w,
                 view_h,
             ),
-            "Compass" => slab_rect(
-                SlabPlace::BottomRight { bottom: 92.0, right: 16.0 },
-                420.0,
-                52.0,
-                view_w,
-                view_h,
-            ),
+            "Compass" => COMPASS.rect(view_w, view_h),
             "Hybrid" => HYBRID.rect(view_w, view_h),
             "Redemption" => REDEMPTION.rect(view_w, view_h),
             "Pickup" => PICKUP.rect(view_w, view_h),
