@@ -63,7 +63,7 @@ The retired spelling in the first row is the only place this file uses it. Every
 - **MODERNISE** — keep the intent, reshape it to canon.
 - **RETIRE** — drop it. The reason says why.
 - **(Online · grey)** — designed now, built only after Sherif says "online yes".
-- **→ COMBAT_AND_PVP.md** — combat detail lives in that file (same folder). It is not in the tree yet. No open PR. It lands in its own PR. This file adds no combat design.
+- **→ COMBAT_AND_PVP.md** — combat detail lives in that file (same folder). It merged in #685 (`1316ddad`). This file adds no combat design.
 
 Rulings applied:
 
@@ -445,7 +445,7 @@ V6 is not in this list. v2.0 dropped the infinite bank, and the kept form is the
 
 ## 9. Combat pointer
 
-These old sections defer to [COMBAT_AND_PVP.md](COMBAT_AND_PVP.md) (lands in its own PR; none open): righteousness and criminality (J1, J2, J6, G8, R23), bounties (P7, C4), skill-shots (K1), tournaments (K2), guild wars (K3, K4), duels (K5, K6), teleport control (L1), class kits (T2, T3, T6), weight and dodge (T8), armour slots (T9), and durability in a fight (E4). Verdicts above are what canon already implies. This file does not design the fights.
+These old sections defer to [COMBAT_AND_PVP.md](COMBAT_AND_PVP.md) (merged in #685): righteousness and criminality (J1, J2, J6, G8, R23), bounties (P7, C4), skill-shots (K1), tournaments (K2), guild wars (K3, K4), duels (K5, K6), teleport control (L1), class kits (T2, T3, T6), weight and dodge (T8), armour slots (T9), and durability in a fight (E4). Verdicts above are what canon already implies. This file does not design the fights.
 
 ## 10. Revive next
 
@@ -480,4 +480,4 @@ Hour and net: [GDD_IMMERSION_REVISION](../GDD_IMMERSION_REVISION.md), [PRE_RELEA
 
 Gear: [FACTION_HERALDRY](../FACTION_HERALDRY.md), [MERCY_TEMPER_PROGRESSION](../MERCY_TEMPER_PROGRESSION.md), [MESH_QUALITY_BUDGET](../MESH_QUALITY_BUDGET.md), [PERSON_READ_SPEC](../PERSON_READ_SPEC.md), [AMBROSIAN_ASCENSION_MERCY_ASCENT](../AMBROSIAN_ASCENSION_MERCY_ASCENT.md).
 
-Combat, when that PR lands: [COMBAT_AND_PVP.md](COMBAT_AND_PVP.md).
+Combat, merged in #685: [COMBAT_AND_PVP.md](COMBAT_AND_PVP.md).
