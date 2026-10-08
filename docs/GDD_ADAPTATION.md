@@ -36,7 +36,7 @@ Five practices only (not Hour-1 classes): Human · Quellorian · Draek · Cydrui
 | Heritage / ancestry unlock tree | **Heritage after House only** (never before Play / first E) |
 | Druid grove kit | Cydruid grove / Offer (Sylvaris) — mythic read-first, not DPS |
 | Quelorian choir / heal | Quellorian resonance flavor; well restore already teaches it |
-| Draexx consume / empire | Draek consumption standing + Great Betrayal lore — not Peace PK |
+| Draek consume / empire | Draek consumption standing + Great Betrayal lore — not Peace PK |
 | XP / levels from content | Standing + week score; **no XP-from-kills** |
 | Iso / tactical overlay | Soft guidance card + **H** hide — no iso combat HUD |
 | Ship / alien cosmetics | Post-book skins + Heartwood / Spires / Depths — not Sanctuary spawn |
