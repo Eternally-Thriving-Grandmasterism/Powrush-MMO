@@ -134,7 +134,7 @@ The rules stay the same at every reading. What changes is how generous the world
 | **Visuals** | Tended yards, clear wells, light, kept banners | The world as dressed today | Haze and ash, Stressed wells, ruins left standing. A Stressed well stays a well ([RITE_DOS_BANK](../RITE_DOS_BANK.md) Reel 2). Dress changes, geometry does not. Reduced-motion play gets the same dress without moving effects |
 | **Events** | Redemption Wave chain reactions ([DIPLOMACY_AND_WORLD_SIMULATION](../DIPLOMACY_AND_WORLD_SIMULATION.md) §5) and abundance nodes find more footing | As scheduled | Scarcity in the starvation zones. The Mirror Reckoning echo in [DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §9 is cited here only, with damage unchanged (§7) |
 
-The meter never touches ledger balances. It never deletes an item, never fines a player, and never wipes anything ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3g, §4.2: nothing is wiped).
+The meter never touches ledger balances. It never deletes an item, never fines a player, and never wipes player progress ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3g, §4.2). The only thing that ever restores earlier world state is the time leap in §3.4.1. It restores world state only, keeps all personal progress, and is never paid for.
 
 ### 3.4 The ways out of hell
 
@@ -146,7 +146,9 @@ A hell server can be recovered. There is no floor it cannot climb from.
 - **Redeem.** Players leaving the criminal path through the exit quest ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §8) spend 28 real days on restore-and-help verbs. That work lifts the server too.
 - **Show the climb.** A rising trend is visible on the server list (§5), so players who want to help heal a server can find it.
 
-There is no admin wash, no paid reset, and no server wipe as the remedy. Whether the climb out runs slower than the slide in is an open number (§9). The one large lever beyond everyday tending is the server-wide war effort and time leap in §3.4.1. The whole server earns it, and it rewinds the world only.
+There is no admin wash and no paid reset. A wipe of player progress is never the remedy. Whether the climb out runs slower than the slide in is an open number (§9).
+
+The one large lever beyond everyday tending is the **server-wide war effort**, which funds an **electricity-powered time leap** (§3.4.1). The whole server earns it in play. It restores world state only (the restore list), keeps all personal progress (the keep list), and is never paid for.
 
 ### 3.4.1 The server-wide war effort and the time leap (proposed, not built, online later)
 
@@ -283,17 +285,17 @@ Offline there is no list and no choice of server. If a later card shows the loca
 
 ## 6. Redemption
 
-The model redemption arc is the turn of Vrendak the Unbound from Drainer to freed. Sherif set the name on 2026-10-08 at 2:18 AM ET. The rest of this file says "the Unbound".
+The model redemption arc is the turn of Vrendak the Unbound from Drainer to freed. Sherif set the name on 2026-10-08 at 2:18 AM ET. Outside this section, the file says "the Unbound".
 
 - **The fall.** The Draeks were a peaceful, cooperative people who chose survival at any cost, then theft, then domination ([DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §1, §2, §4, §5). Under the Crownstone, they drain other Peoples. That fall is why redemption has a past to face ([FACTION_LEADERS](FACTION_LEADERS.md) §8).
-- **The turn.** The Unbound is the first Draek to break the Crownstone's hold and stay outside it, and others followed ([FACTION_LEADERS](FACTION_LEADERS.md) §3, §8). No one bought that freedom. It was walked.
+- **The turn.** Vrendak the Unbound was a Drainer. He held the Draek Dominion's clinical harvest office. He refused it, broke his Crownstone link, and now seeks another way to save his people (Sherif, 2026-10-08, via Core). Others followed. Their place among the Peoples is the arc in [FACTION_LEADERS](FACTION_LEADERS.md) §3 and §8. No one bought that freedom. It was walked.
 - **The proof.** Other Peoples distrust the Unbound and those who followed. They earn a place through Faction Standing & Reputation, by verbs, with nothing for sale ([FACTION_LEADERS](FACTION_LEADERS.md) §3; [DIPLOMACY_AND_WORLD_SIMULATION](../DIPLOMACY_AND_WORLD_SIMULATION.md) §2.2). The cities withhold until standing is real ([FACTION_LEADERS](FACTION_LEADERS.md) §8).
 
 The same shape holds at every scale in this file.
 
 | Scale | Fall | Turn | Proof |
 |---|---|---|---|
-| **A People** | The Draek fall | The Unbound breaks the Crownstone's hold | Standing earned by verbs |
+| **A People** | The Draek fall, and the clinical harvest office that drains other Peoples | Vrendak the Unbound refuses that office and breaks his Crownstone link | Standing earned by verbs, seeking another way to save his people |
 | **A player** | Infamy, the Dominion, or a burned double agent | Decline, lapse, unmask, or start the exit quest ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §8) | Restore-and-help verbs under the existing redemption framework ([REDEMPTION_MECHANICS_PER_SPECIES](../REDEMPTION_MECHANICS_PER_SPECIES.md); [DISCORDANT_REDEMPTION_QUESTLINES](../DISCORDANT_REDEMPTION_QUESTLINES.md); [SPECIFIC_REDEMPTION_QUESTS](../SPECIFIC_REDEMPTION_QUESTS.md)) |
 | **A server** | Entropy, grief, and sabotage toward hell | Players start tending together, or every faction joins the war effort | The meter climbs (§3.4), or the world leaps back while every player keeps what they earned (§3.4.1) |
 
@@ -310,7 +312,7 @@ These files were not edited.
 3. [FACTION_LEADERS](FACTION_LEADERS.md) §11 clash 10 asks how Unbound standing sits beside the two §8 doors. This file does not answer it and adds no third door. Double agents ride on the existing two.
 4. [DIPLOMACY_AND_WORLD_SIMULATION](../DIPLOMACY_AND_WORLD_SIMULATION.md) §2.2 marks Draek standing as an inverted scale. The meter is not a faction scale. A server can be heaven while the Dominion is strong on it.
 5. [LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §8 P2 plans per-zone snapshots for crash recovery: last snapshot plus a replay of the log tail. Neither P2 nor its snapshots are built. The time leap in §3.4.1 needs some world snapshots kept for longer, as proposed server state that is not built and is online later, and it restores only the world-state fields on its restore list. A later card should say how long-kept snapshots sit beside the recovery ones. This file does not change P2.
-6. [FACTION_LEADERS](FACTION_LEADERS.md) §1, §8, and §10 still carry an older personal name for the Unbound on this base. A separate PR renames it to Vrendak the Unbound. This file cites FACTION_LEADERS for the arc only and does not repeat the older name.
+6. [FACTION_LEADERS](FACTION_LEADERS.md) §1, §8, and §10 still carry an older personal name for the Unbound on this base. A separate PR renames it to Vrendak the Unbound. §8 there also tells an older backstory that starts with the Crownstone's hold. This file follows the former-Drainer story in §6: he held the clinical harvest office, refused it, and broke his Crownstone link. This file cites FACTION_LEADERS for the arc only and does not repeat the older name.
 
 ---
 
@@ -321,7 +323,7 @@ These files were not edited.
 | A heaven realm or hell realm as a second map, shard, or instance | [RITE_DOS_BANK](../RITE_DOS_BANK.md) L15. The world you build is the world you enter |
 | Real-money purchase that moves the meter, washes a server, or skips the climb out of hell | Pay-to-win. Recovery is walked |
 | Real-money purchase that hides an allegiance or protects against exposure | Pay-to-win. Cover is risk, not a product |
-| A pay-to-win recovery kit, a paid server reset, or a paid admin wash | Pay-to-win, and nothing is wiped ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §4.2) |
+| A pay-to-win recovery kit, a paid server reset, or a paid admin wash | Pay-to-win. Player progress is never wiped ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §4.2). The only world restore is the earned time leap, which restores world state only and keeps all personal progress (§3.4.1) |
 | Any real-money effect at all from the meter or from a player path | Nothing here is for sale |
 | Electricity bought with real money, sold in any shop, or minted by the server | Pay-to-win. Electricity is gathered or crafted in play and is never for sale (§3.4.1) |
 | A time leap that rewinds personal progress: levels, gear, skills, earned items, memories, or the personal record | The leap rewinds the world, not the players (§3.4.1 keep list) |
@@ -348,7 +350,7 @@ These files were not edited.
 | Reading a faction as the meter, so that Draek or Dominion means hell | The meter reads acts on the shared world, not banners |
 | Counting consented-frame kills as grief | Duels, battlegrounds, and declared wars are consented ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §7.1) |
 | A permanent hell with no way out, or a permanent heaven with no upkeep | Sherif's ask: hell can be recovered, heaven can be ruined |
-| Wiping or deleting anything as the meter falls | Ruins, not deletion ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3g) |
+| Wiping player progress, or deleting anything, as the meter falls | Ruins, not deletion ([LAYERED_GAMES_AND_SERVER](../LAYERED_GAMES_AND_SERVER.md) §3g) |
 | A popup lecture about morality | Friction teaches. The world shows it |
 | Extending Crownstone, treaty, or war-week rules to feed the meter | Cited only. Those rules stay as written |
 | A new HUD anchor or panel for the meter | [design/UI_LAYOUT_SYSTEM](UI_LAYOUT_SYSTEM.md) §1.6; [COMBAT_AND_PVP](COMBAT_AND_PVP.md) §16 |
