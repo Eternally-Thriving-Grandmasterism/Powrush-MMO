@@ -667,6 +667,14 @@ struct SettingsGroveLabel;
 pub(crate) struct SettingsHudLayoutBtn;
 #[derive(Component)]
 pub(crate) struct SettingsHudResetBtn;
+/// Label on the Reset UI row. Not the button marker.
+#[derive(Component)]
+struct SettingsHudResetLabel;
+/// HUD tab — opens edit mode and closes this plate. Not a hotkey.
+#[derive(Component)]
+pub(crate) struct SettingsHudEditBtn;
+#[derive(Component)]
+struct SettingsHudEditLabel;
 #[derive(Component)]
 struct SettingsHudLayoutLabel;
 #[derive(Component)]
@@ -1799,7 +1807,8 @@ fn spawn_settings_stub(mut commands: Commands) {
                     SettingsHudLayoutBtn,
                     SettingsHudLayoutLabel,
                 );
-                spawn_settings_row(hud, "Reset UI", SettingsHudResetBtn, SettingsHudResetBtn);
+                spawn_settings_row(hud, "Edit HUD", SettingsHudEditBtn, SettingsHudEditLabel);
+                spawn_settings_row(hud, "Reset UI", SettingsHudResetBtn, SettingsHudResetLabel);
             });
             // Guide tab — one peak-memory sentence, wrapped in this plate.
             p.spawn((
@@ -7730,5 +7739,106 @@ mod tests {
         }
         let (h, _) = vp_panels_hue_sat("srgb", &[0.84, 0.69, 0.32]);
         assert!(!(120.0..=170.0).contains(&h), "TITLE_BORDER gold is not mint");
+    }
+
+    #[test]
+    fn hud_tab_reset_has_its_own_label_and_edit_hud_is_a_row() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, super::spawn_settings_stub);
+        app.update();
+        let mut reset_btns = app.world_mut().query::<&SettingsHudResetBtn>();
+        assert_eq!(reset_btns.iter(app.world()).count(), 1);
+        let mut reset_labels = app.world_mut().query::<&SettingsHudResetLabel>();
+        assert_eq!(reset_labels.iter(app.world()).count(), 1);
+        let mut edit_btns = app.world_mut().query::<&SettingsHudEditBtn>();
+        assert_eq!(edit_btns.iter(app.world()).count(), 1);
+        let mut edit_labels = app.world_mut().query::<&SettingsHudEditLabel>();
+        assert_eq!(edit_labels.iter(app.world()).count(), 1);
+    }
+
+    #[test]
+    fn esc_in_edit_mode_cancels_without_opening_the_pause_plate() {
+        use bevy::input::keyboard::Key;
+
+        let _dir = crate::hud_edit_mode::DirGuard::new();
+        let mut editing = App::new();
+        editing
+            .add_plugins(MinimalPlugins)
+            .add_plugins(bevy::input::InputPlugin)
+            .add_plugins(crate::input::InputPlugin)
+            .add_plugins(crate::hud_edit_mode::HudEditModePlugin)
+            .insert_resource(LocalSettingsState {
+                inner: LocalSettings::peace_defaults(),
+                dirty: false,
+            })
+            .insert_resource(LaunchDoor::InYard)
+            .insert_resource(HouseLabel {
+                house: HouseName::default(),
+                persist_present: false,
+                hour_two_held: false,
+                book_held: false,
+                settings_open: false,
+                draft: String::new(),
+                naming_offered: false,
+                seals_offered: false,
+            })
+            .init_resource::<PeaceRebindState>()
+            .add_systems(Update, esc_yard_pause);
+        {
+            let mut edit = editing
+                .world_mut()
+                .resource_mut::<crate::hud_edit_mode::HudEditMode>();
+            edit.active = true;
+            let anchors = crate::hud_presets::preset(crate::hud_presets::HudPresetId::Classic)
+                .anchors
+                .to_vec();
+            edit.staged = anchors.clone();
+            edit.opened = anchors;
+            edit.staged_base = crate::hud_presets::HudPresetId::Classic;
+            edit.opened_base = crate::hud_presets::HudPresetId::Classic;
+        }
+        editing.update();
+        editing.world_mut().send_event(KeyboardInput {
+            key_code: KeyCode::Escape,
+            logical_key: Key::Escape,
+            state: ButtonState::Pressed,
+            window: Entity::PLACEHOLDER,
+        });
+        editing.update();
+        assert!(!editing.world().resource::<HouseLabel>().settings_open);
+        assert!(!editing.world().resource::<crate::hud_edit_mode::HudEditMode>().active);
+
+        let mut paused = App::new();
+        paused
+            .add_plugins(MinimalPlugins)
+            .add_plugins(bevy::input::InputPlugin)
+            .add_plugins(crate::input::InputPlugin)
+            .insert_resource(LocalSettingsState {
+                inner: LocalSettings::peace_defaults(),
+                dirty: false,
+            })
+            .insert_resource(LaunchDoor::InYard)
+            .insert_resource(HouseLabel {
+                house: HouseName::default(),
+                persist_present: false,
+                hour_two_held: false,
+                book_held: false,
+                settings_open: false,
+                draft: String::new(),
+                naming_offered: false,
+                seals_offered: false,
+            })
+            .init_resource::<PeaceRebindState>()
+            .add_systems(Update, esc_yard_pause);
+        paused.update();
+        paused.world_mut().send_event(KeyboardInput {
+            key_code: KeyCode::Escape,
+            logical_key: Key::Escape,
+            state: ButtonState::Pressed,
+            window: Entity::PLACEHOLDER,
+        });
+        paused.update();
+        assert!(paused.world().resource::<HouseLabel>().settings_open);
     }
 }

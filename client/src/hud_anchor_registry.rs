@@ -10,8 +10,8 @@
 //! own visibility systems. Preset tables and the R3, R4, and R5 predicates live
 //! in `hud_presets`. `HudLayoutPlugin` applies them only while a preset is active.
 
-use bevy::prelude::Component;
-use bevy::ui::{UiRect, Val};
+use bevy::prelude::{Component, Mut};
+use bevy::ui::{Style, UiRect, Val};
 
 /// Marker on a HUD slab root. The string is the slab id (`Factory`, `Voice`).
 /// The marker does not write `Style` or `Visibility`.
@@ -978,6 +978,58 @@ fn snap_to_neighbour_gap(start: i32, span: i32, edges: impl Iterator<Item = (i32
     best.map(|(_, new_start)| new_start).unwrap_or(start)
 }
 
+/// §6.5. Writes only `top`, `bottom`, `left`, `right`, `margin.left`, and `width`.
+///
+/// Equal values are left untouched so a matching layout does not mark `Style` changed.
+/// Padding, border, the other margin edges, font, and `text_scale` are not fields here.
+pub fn write_hud_anchor_style(
+    style: &mut Mut<'_, Style>,
+    corner: HudCorner,
+    offset: HudOffset,
+    width: f32,
+) {
+    let auto = Val::Auto;
+    let width_val = Val::Px(width);
+    let (top, bottom, left, right, margin_left) = match corner {
+        HudCorner::TopLeft => (Val::Px(offset.y), auto, Val::Px(offset.x), auto, auto),
+        HudCorner::TopCentre => (
+            Val::Px(offset.y),
+            auto,
+            Val::Percent(50.0),
+            auto,
+            Val::Px(-width / 2.0),
+        ),
+        HudCorner::TopRight => (Val::Px(offset.y), auto, auto, Val::Px(offset.x), auto),
+        HudCorner::BottomLeft => (auto, Val::Px(offset.y), Val::Px(offset.x), auto, auto),
+        HudCorner::BottomCentre => (
+            auto,
+            Val::Px(offset.y),
+            Val::Percent(50.0),
+            auto,
+            Val::Px(-width / 2.0),
+        ),
+        HudCorner::BottomRight => (auto, Val::Px(offset.y), auto, Val::Px(offset.x), auto),
+    };
+    if style.top != top {
+        style.top = top;
+    }
+    if style.bottom != bottom {
+        style.bottom = bottom;
+    }
+    if style.left != left {
+        style.left = left;
+    }
+    if style.right != right {
+        style.right = right;
+    }
+    if style.margin.left != margin_left {
+        style.margin.left = margin_left;
+    }
+    if style.width != width_val {
+        style.width = width_val;
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1745,5 +1797,53 @@ mod tests {
                 );
             }
         }
+    }
+
+    /// §6.5. An override write touches only the six Style fields.
+    #[test]
+    fn override_write_touches_only_six_style_fields() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        let entity = app
+            .world_mut()
+            .spawn(Style {
+                padding: UiRect::all(Val::Px(7.0)),
+                border: UiRect::all(Val::Px(8.0)),
+                margin: UiRect {
+                    left: Val::Px(5.0),
+                    right: Val::Px(6.0),
+                    top: Val::Px(3.0),
+                    bottom: Val::Px(4.0),
+                },
+                top: Val::Px(1.0),
+                bottom: Val::Px(2.0),
+                left: Val::Px(9.0),
+                right: Val::Px(10.0),
+                width: Val::Px(11.0),
+                ..default()
+            })
+            .id();
+        app.add_systems(Update, move |mut styles: Query<&mut Style>| {
+            let mut style = styles.single_mut();
+            write_hud_anchor_style(
+                &mut style,
+                HudCorner::TopLeft,
+                HudOffset { x: 40.0, y: 200.0 },
+                520.0,
+            );
+        });
+        app.update();
+        let style = app.world().get::<Style>(entity).expect("style");
+        assert_eq!(style.top, Val::Px(200.0));
+        assert_eq!(style.left, Val::Px(40.0));
+        assert_eq!(style.width, Val::Px(520.0));
+        assert_eq!(style.bottom, Val::Auto);
+        assert_eq!(style.right, Val::Auto);
+        assert_eq!(style.margin.left, Val::Auto);
+        assert_eq!(style.padding.left, Val::Px(7.0));
+        assert_eq!(style.border.left, Val::Px(8.0));
+        assert_eq!(style.margin.right, Val::Px(6.0));
+        assert_eq!(style.margin.top, Val::Px(3.0));
+        assert_eq!(style.margin.bottom, Val::Px(4.0));
     }
 }

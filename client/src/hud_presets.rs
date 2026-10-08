@@ -7,7 +7,9 @@
 //!
 //! Ruled: Q1, Q2, Q3, Q5, Q6, Q7, Q8, Q9, Q11, Q12, Q16, Q19, Q20, and Q22.
 //! Q16: the saved layout is `data/powrush_hud_layout.json` (step 4a, data only).
-//! Open: Q4, Q10, Q13, Q14, Q15, Q17, Q18, and Q21.
+//! Q14 touch is culled while edit mode is up. Q17 the yard keeps running in
+//! edit mode; Use, the build wheel, and Esc-as-pause are dead there.
+//! Open: Q4, Q10, Q13, Q15, Q18, and Q21.
 //!
 //! Q1 Reset restores classic. Q2 push is accepted in a shared panel slot.
 //! Q3 cover is accepted, and a toast may expire while it is hidden.
@@ -39,7 +41,7 @@ use crate::hud_anchor_registry::{
     ID_PICKUP, ID_PLACE_NAME, ID_PRACTICE, ID_PULSE, ID_REALM, ID_REDEMPTION, ID_SOVEREIGN,
     ID_SPILL, ID_THRIVING, ID_VOICE, ID_WATCH, ID_WELCOME, ID_WELL, ID_WHISPER,
 };
-use crate::hud_anchor_registry::{clamp_hud_width, HUD_REGISTRY_REV};
+use crate::hud_anchor_registry::{clamp_hud_width, write_hud_anchor_style, HUD_REGISTRY_REV};
 use shared::hud_layout::{HudLayoutAnchor, HudLayoutCorner};
 use crate::human_soft_panels::HumanSoftPanels;
 use crate::rbe_allocate_choice::RbeAllocateChoice;
@@ -1337,6 +1339,37 @@ pub fn hud_save_allowed(layout: &HudPreset<'_>, view_w: f32, view_h: f32) -> boo
     views.iter().all(|(w, h)| save_allowed_at(layout, *w, *h))
 }
 
+/// §5 F7. S2–S4 at the current window only. A failure applies `base` for the
+/// session and does not write the save.
+pub fn hud_resize_holds(layout: &HudPreset<'_>, view_w: f32, view_h: f32) -> bool {
+    view_w.is_finite()
+        && view_h.is_finite()
+        && s2_inside_margin(layout, view_w, view_h)
+        && s3_coded_fit(layout)
+        && resize_s4_clear(layout, view_w, view_h)
+}
+
+fn resize_s4_clear(layout: &HudPreset<'_>, view_w: f32, view_h: f32) -> bool {
+    let mut shown: Vec<HudAnchor> = layout.anchors.iter().copied().collect();
+    for anchor in &mut shown {
+        if anchor.hidden {
+            anchor.occupants = &[];
+        }
+    }
+    let shown_layout = HudPreset {
+        id: layout.id,
+        name: layout.name,
+        anchors: &shown,
+    };
+    [HudHeightModel::A, HudHeightModel::B]
+        .into_iter()
+        .all(|model| {
+            overlap_census(&shown_layout, view_w, view_h, model)
+                .visible_together
+                .is_empty()
+        })
+}
+
 /// Apply overrides, then F6: a failed save check falls back to `base`, or to
 /// classic when `base` itself fails S1–S6.
 pub fn resolve_hud_layout(
@@ -1536,91 +1569,36 @@ fn s6_class_limits(layout: &HudPreset<'_>, view_w: f32, view_h: f32) -> bool {
     true
 }
 
-/// The six `Style` fields design §6.5 allows the registry to write.
-struct PresetEdges {
-    top: Val,
-    bottom: Val,
-    left: Val,
-    right: Val,
-    margin_left: Val,
-    width: Val,
-}
-
-fn preset_edges(corner: HudCorner, offset: HudOffset, width: f32) -> PresetEdges {
-    let auto = Val::Auto;
-    let width_val = Val::Px(width);
-    match corner {
-        HudCorner::TopLeft => PresetEdges {
-            top: Val::Px(offset.y),
-            bottom: auto,
-            left: Val::Px(offset.x),
-            right: auto,
-            margin_left: auto,
-            width: width_val,
-        },
-        HudCorner::TopCentre => PresetEdges {
-            top: Val::Px(offset.y),
-            bottom: auto,
-            left: Val::Percent(50.0),
-            right: auto,
-            margin_left: Val::Px(-width / 2.0),
-            width: width_val,
-        },
-        HudCorner::TopRight => PresetEdges {
-            top: Val::Px(offset.y),
-            bottom: auto,
-            left: auto,
-            right: Val::Px(offset.x),
-            margin_left: auto,
-            width: width_val,
-        },
-        HudCorner::BottomLeft => PresetEdges {
-            top: auto,
-            bottom: Val::Px(offset.y),
-            left: Val::Px(offset.x),
-            right: auto,
-            margin_left: auto,
-            width: width_val,
-        },
-        HudCorner::BottomCentre => PresetEdges {
-            top: auto,
-            bottom: Val::Px(offset.y),
-            left: Val::Percent(50.0),
-            right: auto,
-            margin_left: Val::Px(-width / 2.0),
-            width: width_val,
-        },
-        HudCorner::BottomRight => PresetEdges {
-            top: auto,
-            bottom: Val::Px(offset.y),
-            left: auto,
-            right: Val::Px(offset.x),
-            margin_left: auto,
-            width: width_val,
-        },
+/// Occupant width stays coded unless this anchor's override changed the width.
+fn slab_width_for(
+    using_overrides: bool,
+    base: &HudPreset<'_>,
+    anchor: &HudAnchor,
+    occupant: &HudOccupant,
+) -> f32 {
+    if !using_overrides {
+        return occupant.width;
+    }
+    match base.anchors.iter().find(|item| item.id == anchor.id) {
+        Some(original) if (original.width - anchor.width).abs() <= 0.5 => occupant.width,
+        _ => anchor.width,
     }
 }
 
-/// Writes the six fields only when the value differs. Callers pass `Mut` so a
-/// read does not mark `Style` changed.
-fn write_edges(style: &mut Mut<'_, Style>, edges: PresetEdges) {
-    if style.top != edges.top {
-        style.top = edges.top;
-    }
-    if style.bottom != edges.bottom {
-        style.bottom = edges.bottom;
-    }
-    if style.left != edges.left {
-        style.left = edges.left;
-    }
-    if style.right != edges.right {
-        style.right = edges.right;
-    }
-    if style.margin.left != edges.margin_left {
-        style.margin.left = edges.margin_left;
-    }
-    if style.width != edges.width {
-        style.width = edges.width;
+/// Saved base plus overrides, or the active preset table when no override is applied.
+fn session_layout<'a>(
+    id: HudPresetId,
+    session: &'a HudSessionLayout,
+    base: &'a HudPreset<'static>,
+) -> HudPreset<'a> {
+    if let Some(anchors) = session.anchors.as_deref() {
+        HudPreset {
+            id: session.base.unwrap_or(id),
+            name: base.name,
+            anchors,
+        }
+    } else {
+        *base
     }
 }
 
@@ -1638,6 +1616,14 @@ fn slab_on<'a>(preset: &'a HudPreset<'_>, id: &str) -> Option<(&'a HudAnchor, &'
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ActiveHudPreset {
     pub id: Option<HudPresetId>,
+}
+
+/// Applied anchor list when a save or an edit session differs from the preset table.
+/// `anchors: None` keeps the preset table, which is the no-file visual path.
+#[derive(Resource, Clone, Debug, Default)]
+pub struct HudSessionLayout {
+    pub base: Option<HudPresetId>,
+    pub anchors: Option<Vec<HudAnchor>>,
 }
 
 impl Default for ActiveHudPreset {
@@ -1677,6 +1663,7 @@ pub struct HudLayoutPlugin;
 impl Plugin for HudLayoutPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<ActiveHudPreset>()
+            .init_resource::<HudSessionLayout>()
             .init_resource::<HudYieldMemory>()
             .add_event::<HudLayoutCommand>()
             .add_systems(PreUpdate, restore_yielded_visibility)
@@ -1704,6 +1691,8 @@ impl Plugin for HudLayoutPlugin {
 pub(crate) fn apply_hud_layout_commands(
     mut commands: EventReader<HudLayoutCommand>,
     mut active: ResMut<ActiveHudPreset>,
+    mut session: ResMut<HudSessionLayout>,
+    edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
 ) {
     let mut chosen = None;
     for command in commands.read() {
@@ -1712,9 +1701,14 @@ pub(crate) fn apply_hud_layout_commands(
             HudLayoutCommand::Apply(id) => id,
         });
     }
+    if edit.as_ref().is_some_and(|mode| mode.active) {
+        return;
+    }
     let Some(id) = chosen else {
         return;
     };
+    session.anchors = None;
+    session.base = None;
     if active.id != Some(id) {
         active.id = Some(id);
     }
@@ -1739,6 +1733,7 @@ fn restore_yielded_visibility(
 
 fn push_shared_panels(
     active: Res<ActiveHudPreset>,
+    session: Res<HudSessionLayout>,
     mut edges: Local<PushEdges>,
     mut voice: Option<ResMut<VoiceYard>>,
     mut allocate: Option<ResMut<RbeAllocateChoice>>,
@@ -1749,7 +1744,9 @@ fn push_shared_panels(
         *edges = PushEdges::default();
         return;
     }
-    let layout = preset(active.id.expect("preset id"));
+    let id = active.id.expect("preset id");
+    let base = preset(id);
+    let layout = session_layout(id, &session, base);
     let voice_open = voice.as_ref().is_some_and(|yard| yard.sash_open);
     let allocate_open = allocate.as_ref().is_some_and(|choice| choice.panel_open);
     let mercy_open = soft.as_ref().is_some_and(|panels| panels.mercy_open);
@@ -1873,6 +1870,8 @@ struct LiveSlab {
 
 fn apply_active_preset(
     active: Res<ActiveHudPreset>,
+    session: Res<HudSessionLayout>,
+    edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
     mut memory: ResMut<HudYieldMemory>,
     mut styles: Query<(&HudSlab, &mut Style)>,
     mut vis_q: Query<(Entity, &HudSlab, &mut Visibility)>,
@@ -1885,7 +1884,9 @@ fn apply_active_preset(
     let Some(id) = active.id else {
         return;
     };
-    let layout = preset(id);
+    let base = preset(id);
+    let using_overrides = session.anchors.is_some();
+    let layout = session_layout(id, &session, base);
     let view = windows
         .iter()
         .next()
@@ -1899,21 +1900,21 @@ fn apply_active_preset(
         house_dress: door == Some(LaunchDoor::HouseDress),
         persona: persona.as_ref().is_some_and(|state| state.open),
     };
-    let yield_hud = r5_band_yields(modals, HudBand::Hud);
+    // §6.1. R5 stops hiding the HUD band while edit mode is up.
+    let yield_hud = !edit.as_ref().is_some_and(|mode| mode.active)
+        && r5_band_yields(modals, HudBand::Hud);
 
     for (slab, mut style) in &mut styles {
-        if let Some((anchor, occupant)) = slab_on(layout, slab.0) {
-            write_edges(
-                &mut style,
-                preset_edges(anchor.corner, anchor.offset, occupant.width),
-            );
+        if let Some((anchor, occupant)) = slab_on(&layout, slab.0) {
+            let width = slab_width_for(using_overrides, base, anchor, occupant);
+            write_hud_anchor_style(&mut style, anchor.corner, anchor.offset, width);
         }
     }
 
     let mut live = Vec::new();
     for (entity, slab, vis) in vis_q.iter() {
         let wants = *vis == Visibility::Visible;
-        if let Some((anchor, occupant)) = slab_on(layout, slab.0) {
+        if let Some((anchor, occupant)) = slab_on(&layout, slab.0) {
             let rect = view.map(|(view_w, view_h)| {
                 occupant_rect(anchor, occupant, HudHeightModel::B, view_w, view_h)
             });
@@ -1943,6 +1944,17 @@ fn apply_active_preset(
             hide.insert(item.entity);
         }
     } else {
+        // §6.3. A hidden class 4 or 5 anchor hides its occupants. Keys keep running.
+        for anchor in layout.anchors {
+            if !anchor.hidden {
+                continue;
+            }
+            for item in &live {
+                if item.anchor_id == anchor.id {
+                    hide.insert(item.entity);
+                }
+            }
+        }
         for anchor in layout.anchors {
             if anchor.share != HudShare::Yield {
                 continue;
