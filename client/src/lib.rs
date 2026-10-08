@@ -12,6 +12,7 @@ pub mod hour_two_resume;
 pub mod ui_above_world;
 pub mod hud_anchor_registry;
 pub mod hud_presets;
+pub mod hud_edit_mode;
 pub mod title_screen;
 pub mod hex_travel;
 pub mod depths_landing;
@@ -204,6 +205,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(lived_sim_bridge::LivedSimBridgePlugin);
         app.add_plugins(local_sovereign_session::LocalSovereignSessionPlugin);
         app.add_plugins(hud_presets::HudLayoutPlugin);
+        app.add_plugins(hud_edit_mode::HudEditModePlugin);
     }
 }
 

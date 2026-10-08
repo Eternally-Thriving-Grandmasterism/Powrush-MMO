@@ -55,6 +55,11 @@ pub enum LastPointerKind {
 #[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
 pub struct InputMapSet;
 
+/// PreUpdate chain that copies physical Peace keys onto the canon action keys.
+/// Edit mode's key guard runs after this set.
+#[derive(SystemSet, Debug, Clone, PartialEq, Eq, Hash)]
+pub struct PeaceRemapSet;
+
 /// Physical keyboard state retained before custom source keys are consumed.
 #[derive(Resource, Default)]
 struct PhysicalKeyboard {
@@ -71,11 +76,12 @@ impl Plugin for InputPlugin {
             .insert_resource(LastPointerKind::default())
             .init_resource::<PhysicalKeyboard>()
             .configure_sets(Update, InputMapSet)
+            .configure_sets(PreUpdate, PeaceRemapSet.after(InputSystem))
             .add_systems(
                 PreUpdate,
                 (capture_physical_keyboard, remap_peace_keyboard)
                     .chain()
-                    .after(InputSystem),
+                    .in_set(PeaceRemapSet),
             )
             .add_systems(
                 Update,
@@ -321,6 +327,7 @@ fn handle_player_input(
     axes: Res<Axis<GamepadAxis>>,
     buttons: Res<ButtonInput<GamepadButton>>,
     settings: Res<LocalSettingsState>,
+    edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
     mut player_input: ResMut<PlayerInput>,
 ) {
     let cfg = &settings.inner;
@@ -382,7 +389,13 @@ fn handle_player_input(
         .map(|g| pad_use_just_pressed(&buttons, g, cfg.gamepad_south_use))
         .unwrap_or(false);
     // One Use edge — keyboard E and South alias must not double-fire same frame.
-    player_input.interact = use_edge(kb_use, pad_use);
+    // Q17: edit mode kills Use. WASD, jump, and sprint above stay live.
+    let editing = edit.as_ref().is_some_and(|mode| mode.active);
+    player_input.interact = if editing {
+        false
+    } else {
+        use_edge(kb_use, pad_use)
+    };
 
     let kb_jump = keyboard.just_pressed(soft_play_bindings::JUMP);
     let pad_jump = pad
@@ -396,12 +409,18 @@ fn handle_player_input(
         .unwrap_or(false);
     player_input.sprint = kb_sprint || pad_sprint;
 
-    player_input.pause_toggle = pad
-        .map(|g| buttons.just_pressed(GamepadButton::new(g, GamepadButtonType::Start)))
-        .unwrap_or(false);
-    player_input.sheet_q = pad
-        .map(|g| buttons.just_pressed(GamepadButton::new(g, GamepadButtonType::West)))
-        .unwrap_or(false);
+    player_input.pause_toggle = if editing {
+        false
+    } else {
+        pad.map(|g| buttons.just_pressed(GamepadButton::new(g, GamepadButtonType::Start)))
+            .unwrap_or(false)
+    };
+    player_input.sheet_q = if editing {
+        false
+    } else {
+        pad.map(|g| buttons.just_pressed(GamepadButton::new(g, GamepadButtonType::West)))
+            .unwrap_or(false)
+    };
     player_input.sheet_l = pad
         .map(|g| buttons.just_pressed(GamepadButton::new(g, GamepadButtonType::North)))
         .unwrap_or(false);

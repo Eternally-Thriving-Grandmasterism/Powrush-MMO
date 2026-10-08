@@ -232,6 +232,7 @@ fn sync_touch_overlay_visibility(
     ledger: Option<Res<crate::ledger_bind::LedgerYard>>,
     inv: Option<Res<crate::human_inventory::HumanInventory>>,
     factory: Option<Res<crate::vertical_factory::FactoryYard>>,
+    edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
     mut roots: Query<&mut Visibility, With<TouchOverlayRoot>>,
     mut stick: ResMut<TouchStickState>,
 ) {
@@ -240,7 +241,8 @@ fn sync_touch_overlay_visibility(
         LaunchDoor::Title | LaunchDoor::NameHouse | LaunchDoor::HouseDress
     );
     let pause = house.settings_open
-        || places.map(|p| crate::hex_travel::places_culls_sticks(&p)).unwrap_or(false);
+        || places.map(|p| crate::hex_travel::places_culls_sticks(&p)).unwrap_or(false)
+        || edit.as_ref().is_some_and(|mode| mode.active);
     let ledger_open = ledger.map(|l| l.sash_open).unwrap_or(false);
     let inv_open = inv.map(|i| i.open).unwrap_or(false);
     let q_hint = factory
@@ -403,6 +405,109 @@ mod tests {
         assert!(
             overlay_should_cull(true, false, false, false, false)
                 || !overlay_sticks_visible(&s, LastPointerKind::Mouse)
+        );
+    }
+
+    fn quiet_house(settings_open: bool) -> crate::title_screen::HouseLabel {
+        crate::title_screen::HouseLabel {
+            house: shared::house_name::HouseName::default(),
+            persist_present: false,
+            hour_two_held: false,
+            book_held: false,
+            settings_open,
+            draft: String::new(),
+            naming_offered: false,
+            seals_offered: false,
+        }
+    }
+
+    fn touch_app(editing: bool) -> App {
+        let mut settings = LocalSettings::peace_defaults();
+        settings.on_screen_sticks = "on".into();
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(bevy::input::InputPlugin)
+            .add_plugins(crate::input::InputPlugin)
+            .insert_resource(LocalSettingsState {
+                inner: settings,
+                dirty: false,
+            })
+            .insert_resource(LastPointerKind::Touch)
+            .insert_resource(LaunchDoor::InYard)
+            .insert_resource(quiet_house(false))
+            .add_plugins(TouchControlsPlugin);
+        let mut mode = crate::hud_edit_mode::HudEditMode::default();
+        mode.active = editing;
+        app.insert_resource(mode);
+        app
+    }
+
+    /// Q14. Edit mode culls the touch overlay the same way a pause plate does.
+    #[test]
+    fn edit_mode_culls_the_touch_overlay() {
+        let mut shown = touch_app(false);
+        shown.update();
+        let mut vis = shown
+            .world_mut()
+            .query_filtered::<&Visibility, With<TouchOverlayRoot>>();
+        assert_eq!(
+            vis.iter(shown.world()).copied().next(),
+            Some(Visibility::Visible)
+        );
+
+        let mut app = touch_app(true);
+        app.update();
+        let mut hidden = app
+            .world_mut()
+            .query_filtered::<&Visibility, With<TouchOverlayRoot>>();
+        assert_eq!(
+            hidden.iter(app.world()).copied().next(),
+            Some(Visibility::Hidden)
+        );
+    }
+
+    /// Q17. A touch sheet-Q or Use press does not survive the edit-mode clear.
+    #[test]
+    fn edit_mode_clears_touch_sheet_q_and_use() {
+        let _dir = crate::hud_edit_mode::DirGuard::new();
+        let mut app = App::new();
+        let mut settings = LocalSettings::peace_defaults();
+        settings.on_screen_sticks = "on".into();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(bevy::input::InputPlugin)
+            .add_plugins(crate::input::InputPlugin)
+            .add_plugins(TouchControlsPlugin)
+            .add_plugins(crate::hud_edit_mode::HudEditModePlugin)
+            .insert_resource(LocalSettingsState {
+                inner: settings,
+                dirty: false,
+            })
+            .insert_resource(LastPointerKind::Touch)
+            .insert_resource(LaunchDoor::InYard)
+            .insert_resource(quiet_house(false));
+        app.world_mut().resource_mut::<crate::hud_edit_mode::HudEditMode>().active = true;
+        app.update();
+        {
+            let mut use_btn = app
+                .world_mut()
+                .query_filtered::<&mut Interaction, With<TouchUseBtn>>();
+            *use_btn.single_mut(app.world_mut()) = Interaction::Pressed;
+            let mut sheet = app
+                .world_mut()
+                .query_filtered::<&mut Interaction, With<TouchQBtn>>();
+            *sheet.single_mut(app.world_mut()) = Interaction::Pressed;
+        }
+        app.update();
+        let input = app.world().resource::<PlayerInput>();
+        assert!(!input.sheet_q);
+        assert!(!input.interact);
+        assert!(!input.pause_toggle);
+        let mut roots = app
+            .world_mut()
+            .query_filtered::<&Visibility, With<TouchOverlayRoot>>();
+        assert_eq!(
+            roots.iter(app.world()).copied().next(),
+            Some(Visibility::Hidden)
         );
     }
 }
