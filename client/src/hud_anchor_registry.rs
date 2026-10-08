@@ -1,5 +1,6 @@
 //! CARD HUD-ANCHOR-REGISTRY-1 — step 2a of the UI layout epic.
-//! CARD HUD-ANCHOR-REGISTRY-2B — the 19 as-is joiners from design §2.4.
+//! CARD HUD-ANCHOR-REGISTRY-2B — the 19 as-is joiners from design §2.4,
+//! plus rows 16 and 17 (Redemption, Hybrid) as position-only joiners.
 //!
 //! Anchor records follow design §2.1. Step 2a fills three of them, from §2.5:
 //! `ACTION_BAR`, `VOICE`, and `ALLOCATE_DOCK`. Step 2b moves each as-is
@@ -175,6 +176,8 @@ pub const ID_FACTORY: &str = "Factory";
 pub const ID_SPILL: &str = "Spill";
 pub const ID_FAB: &str = "Fab";
 pub const ID_EMBASSY: &str = "Embassy";
+pub const ID_REDEMPTION: &str = "Redemption";
+pub const ID_HYBRID: &str = "Hybrid";
 pub const ID_COMPASS: &str = "Compass";
 pub const ID_WELL: &str = "Well";
 pub const ID_PULSE: &str = "Pulse";
@@ -282,6 +285,32 @@ pub const EMBASSY: HudCodedPlace = coded(
     420.0,
     52.0,
     Val::Px(124.0),
+    Val::Px(16.0),
+    Val::Auto,
+    Val::Auto,
+    None,
+);
+/// Row 16. Top 204, right 16. Position only. Width stays the coded literal at the spawn.
+pub const REDEMPTION: HudCodedPlace = coded(
+    ID_REDEMPTION,
+    16,
+    5,
+    420.0,
+    52.0,
+    Val::Px(204.0),
+    Val::Px(16.0),
+    Val::Auto,
+    Val::Auto,
+    None,
+);
+/// Row 17. Top 244, right 16. Position only. Width stays the coded literal at the spawn.
+pub const HYBRID: HudCodedPlace = coded(
+    ID_HYBRID,
+    17,
+    5,
+    420.0,
+    52.0,
+    Val::Px(244.0),
     Val::Px(16.0),
     Val::Auto,
     Val::Auto,
@@ -483,12 +512,14 @@ pub const PLACE_NAME: HudCodedPlace = coded(
     Some(-140.0),
 );
 
-/// The 19 as-is joiners. Satchel is not here.
+/// The 21 coded joiners. Rows 16 and 17 are position only. Satchel is not here.
 pub const CODED_JOINERS: &[HudCodedPlace] = &[
     FACTORY,
     SPILL,
     FAB,
     EMBASSY,
+    REDEMPTION,
+    HYBRID,
     COMPASS,
     WELL,
     PULSE,
@@ -1159,17 +1190,19 @@ mod tests {
         }
     }
 
-    /// The 19 as-is joiners equal the coded Style literals. Satchel is absent.
-    /// These literals are the code at `8a79ce3d`, which matches design §2.4.
+    /// The 21 coded joiners equal the coded Style literals. Satchel is absent.
+    /// Rows 16 and 17 are position only: top and right come from the record.
+    /// These literals are the code at `8a79ce3d`, which matches design §2.4
+    /// for the original 19, and the coded spawn positions for rows 16 and 17.
     #[test]
     fn as_is_joiners_match_coded_style_literals() {
-        assert_eq!(CODED_JOINERS.len(), 19);
+        assert_eq!(CODED_JOINERS.len(), 21);
         assert!(CODED_JOINERS.iter().all(|place| place.id != "Satchel"));
         let rows: Vec<u8> = CODED_JOINERS.iter().map(|place| place.row).collect();
         assert_eq!(
             rows,
             vec![
-                8, 10, 12, 13, 18, 19, 28, 29, 31, 32, 34, 35, 38, 39, 40, 41, 42, 43, 44
+                8, 10, 12, 13, 16, 17, 18, 19, 28, 29, 31, 32, 34, 35, 38, 39, 40, 41, 42, 43, 44
             ]
         );
 
@@ -1178,6 +1211,8 @@ mod tests {
             (ID_SPILL, Val::Px(52.0), Val::Auto, Val::Auto, Val::Px(16.0), 520.0, 5),
             (ID_FAB, Val::Px(88.0), Val::Auto, Val::Auto, Val::Percent(50.0), 520.0, 5),
             (ID_EMBASSY, Val::Px(124.0), Val::Px(16.0), Val::Auto, Val::Auto, 420.0, 5),
+            (ID_REDEMPTION, Val::Px(204.0), Val::Px(16.0), Val::Auto, Val::Auto, 420.0, 5),
+            (ID_HYBRID, Val::Px(244.0), Val::Px(16.0), Val::Auto, Val::Auto, 420.0, 5),
             (ID_COMPASS, Val::Auto, Val::Px(16.0), Val::Px(92.0), Val::Auto, 420.0, 5),
             (ID_WELL, Val::Auto, Val::Auto, Val::Px(132.0), Val::Px(16.0), 420.0, 5),
             (ID_PULSE, Val::Px(118.0), Val::Auto, Val::Auto, Val::Percent(50.0), 560.0, 4),
@@ -1194,7 +1229,12 @@ mod tests {
             (ID_PEER, Val::Auto, Val::Px(16.0), Val::Px(16.0), Val::Auto, 280.0, 5),
             (ID_PLACE_NAME, Val::Px(18.0), Val::Auto, Val::Auto, Val::Percent(50.0), 280.0, 5),
         ];
-        assert_eq!(literals.len(), 19);
+        assert_eq!(literals.len(), 21);
+        for id in [ID_REDEMPTION, ID_HYBRID] {
+            let place = coded_joiner(id);
+            assert!(place.margin_left.is_none(), "{id} is not centred");
+            assert_eq!(place.margin_left, None);
+        }
         for (id, top, right, bottom, left, width, class) in literals {
             let place = coded_joiner(id);
             assert_eq!(place.top(), top, "{id} top");
@@ -1253,20 +1293,8 @@ mod tests {
                 view_w,
                 view_h,
             ),
-            "Hybrid" => slab_rect(
-                SlabPlace::TopRight { top: 244.0, right: 16.0 },
-                420.0,
-                52.0,
-                view_w,
-                view_h,
-            ),
-            "Redemption" => slab_rect(
-                SlabPlace::TopRight { top: 204.0, right: 16.0 },
-                420.0,
-                52.0,
-                view_w,
-                view_h,
-            ),
+            "Hybrid" => HYBRID.rect(view_w, view_h),
+            "Redemption" => REDEMPTION.rect(view_w, view_h),
             "Pickup" => PICKUP.rect(view_w, view_h),
             "Whisper" => WHISPER.rect(view_w, view_h),
             "Mercy" => MERCY.rect(view_w, view_h),

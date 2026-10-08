@@ -12,6 +12,7 @@ use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::crownstone::CrownstoneYard;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hour_sacred::HourSacred;
+use crate::hud_anchor_registry::REDEMPTION;
 use crate::ledger_bind::LedgerYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
@@ -43,8 +44,8 @@ fn spawn_redemption_slab(mut commands: Commands) {
             NodeBundle {
                 style: Style {
                     position_type: PositionType::Absolute,
-                    top: Val::Px(204.0),
-                    right: Val::Px(16.0),
+                    top: REDEMPTION.top(),
+                    right: REDEMPTION.right(),
                     width: Val::Px(420.0),
                     padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                     justify_content: JustifyContent::FlexStart,
@@ -153,6 +154,34 @@ fn update_redemption_slab(
 mod tests {
     use super::*;
     use shared::space_law::HexFlag;
+
+    /// CARD HUD-ANCHOR-REGISTRY-2B — Redemption position is the registry. Style is the coded literal.
+    #[test]
+    fn redemption_style_byte_identical_to_coded_place() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_systems(Startup, spawn_redemption_slab);
+        app.update();
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Style, With<RedemptionSlabRoot>>();
+        let style = q.single(app.world()).clone();
+        let coded = Style {
+            position_type: PositionType::Absolute,
+            top: Val::Px(204.0),
+            right: Val::Px(16.0),
+            width: Val::Px(420.0),
+            padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
+            justify_content: JustifyContent::FlexStart,
+            border: UiRect::all(Val::Px(1.0)),
+            ..default()
+        };
+        assert_eq!(style, coded);
+        assert_eq!(style.top, REDEMPTION.top());
+        assert_eq!(style.right, REDEMPTION.right());
+        assert_eq!(style.margin, UiRect::default());
+        assert_eq!(style.width, Val::Px(420.0));
+    }
 
     #[test]
     fn peace_hides_grove() {
