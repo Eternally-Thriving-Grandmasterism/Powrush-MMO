@@ -127,6 +127,24 @@ jobs:
         if: steps.gate.outputs.proceed == 'true'
         run: cargo test -p powrush-client --lib
 
-      - name: Squash auto-merge (waits on required checks)
+      - name: Dual GREEN and Core VOTE guard
+        id: dualguard
         if: steps.gate.outputs.proceed == 'true'
-        run: gh pr merge "$PR" --squash --auto
+        run: |
+          set -euo pipefail
+          SHA8="${HEAD_SHA:0:8}"
+          FIRST=$(gh api "repos/${GITHUB_REPOSITORY}/issues/${PR}/comments" --paginate --jq '.[].body|split("\n")[0]' || true)
+          dual=$(printf '%s\n' "$FIRST" | grep -E "^Clerk · Dual GREEN .*${SHA8}" || true)
+          core=$(printf '%s\n' "$FIRST" | grep -E "^Core · VOTE GREEN .*${SHA8}" || true)
+          if [ -n "$dual" ] && [ -n "$core" ]; then
+            echo "Dual guard: Clerk Dual GREEN + Core VOTE GREEN on ${SHA8}"
+            echo "ok=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Dual guard: no Dual GREEN / Core VOTE on ${SHA8}; not merging"
+            echo "ok=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+      - name: Squash auto-merge (waits on required checks)
+        if: steps.gate.outputs.proceed == 'true' && steps.dualguard.outputs.ok == 'true'
+        run: gh pr merge "$PR" --squash --auto --match-head-commit "$HEAD_SHA"
