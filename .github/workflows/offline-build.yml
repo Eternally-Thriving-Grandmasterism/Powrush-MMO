@@ -86,6 +86,7 @@ jobs:
           cat >> "${dist}/README.txt" << EOF
           Linux: tar xzf powrush-offline-linux-${sha8}.tar.gz, then ./powrush-client (from this folder, next to assets/).
           Windows: run powrush-client.exe (next to assets/).
+          Linux needs: libxkbcommon-x11-0 libasound2 libudev1 libvulkan1 and a Vulkan driver (e.g. mesa-vulkan-drivers).
           EOF
           {
             echo "os=${os}"
@@ -99,3 +100,33 @@ jobs:
           name: powrush-offline-${{ steps.package.outputs.os }}-${{ steps.package.outputs.sha8 }}
           path: ${{ steps.package.outputs.dist }}
           retention-days: 14
+
+      - name: Smoke boot packaged Linux build
+        if: runner.os == 'Linux'
+        shell: bash
+        env:
+          DIST: ${{ steps.package.outputs.dist }}
+          SHA8: ${{ steps.package.outputs.sha8 }}
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y mesa-vulkan-drivers libvulkan1 libgl1-mesa-dri xvfb
+          # Boot a copy. The uploaded dist directory stays the packaged bytes.
+          smoke="${RUNNER_TEMP}/smoke"
+          rm -rf "${smoke}"
+          mkdir -p "${smoke}"
+          cp -a "${DIST}/." "${smoke}/"
+          tar -xzf "${smoke}/powrush-offline-linux-${SHA8}.tar.gz" -C "${smoke}"
+          cd "${smoke}" || exit 1
+          set +e
+          POWRUSH_NET=off POWRUSH_USER_DIR="$(mktemp -d)" timeout 25 xvfb-run -a ./powrush-client > log 2>&1
+          code=$?
+          set -e
+          echo "smoke exit code: ${code}"
+          echo "---- log tail ----"
+          tail -n 200 log || true
+          if [[ "${code}" -ne 124 ]]; then
+            echo "---- full log ----"
+            cat log || true
+            echo "FAIL: expected exit 124 (still alive at 25s), got ${code}" >&2
+            exit 1
+          fi
