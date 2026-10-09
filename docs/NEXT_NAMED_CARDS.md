@@ -686,7 +686,7 @@ Gaps @ tip 2c084e71: listed, not queued, in [`GROK_BOT_TODO.md`](GROK_BOT_TODO.m
 
 ## DO-NOT-FREESTYLE (parked)
 
-`war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.14. Playable-preview tag `11c577e`. No OFFER NEXT.
+`war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.15. Playable-preview tag `11c577e`. No OFFER NEXT.
 
 ## BANK (cite only · do not cook)
 

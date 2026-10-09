@@ -67,6 +67,7 @@ fn spawn_lattice_panel(mut commands: Commands) {
                     row_gap: Val::Px(8.0),
                     border: UiRect::all(Val::Px(1.5)),
                     overflow: Overflow::clip_y(),
+                    overflow_clip_margin: OverflowClipMargin::border_box(),
                     ..default()
                 },
                 background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),

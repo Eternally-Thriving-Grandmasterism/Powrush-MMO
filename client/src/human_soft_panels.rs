@@ -71,6 +71,7 @@ fn spawn_soft_panels(mut commands: Commands) {
                     row_gap: Val::Px(6.0),
                     border: UiRect::all(Val::Px(1.5)),
                     overflow: Overflow::clip_y(),
+                    overflow_clip_margin: OverflowClipMargin::border_box(),
                     ..default()
                 },
                 background_color: TITLE_PLATE_BG.into(),
@@ -292,6 +293,7 @@ mod tests {
             row_gap: Val::Px(6.0),
             border: UiRect::all(Val::Px(1.5)),
             overflow: Overflow::clip_y(),
+            overflow_clip_margin: OverflowClipMargin::border_box(),
             ..default()
         };
         assert_eq!(mercy, mercy_coded);
