@@ -240,9 +240,9 @@ fn update_event_feed_ui(
                     ..default()
                 }, EventCard)).with_children(|card| {
                     // existing title + body rendering preserved
-                    card.spawn(TextBundle { text: Text::from_section(title, TextStyle { font_size: 13.5, color: Color::srgb(0.95, 0.95, 0.95), ..default() }), ..default() });
+                    card.spawn(TextBundle { text: Text::from_section(title, TextStyle { font_size: 13.5 / 1.2, color: Color::srgb(0.95, 0.95, 0.95), ..default() }), ..default() });
                     for line in body_lines {
-                        card.spawn(TextBundle { text: Text::from_section(line, TextStyle { font_size: 11.0, color: Color::srgb(0.8, 0.85, 0.9), ..default() }), ..default() });
+                        card.spawn(TextBundle { text: Text::from_section(line, TextStyle { font_size: 11.0 / 1.2, color: Color::srgb(0.8, 0.85, 0.9), ..default() }), ..default() });
                     }
                 });
             });

@@ -117,7 +117,7 @@ GlobalZIndex(LIVED_UI_Z_LEDGER),
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 14.0, ..default() },
+TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 LedgerSlabText,

@@ -410,7 +410,7 @@ fn spawn_care_cycle_strip(mut commands: Commands) {
             parent.spawn((
                 (
 Text::new(care_cycle_card_line(false)),
-TextFont { font_size: 16.0, ..default() },
+TextFont { font_size: 16.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 CareCycleStripText,
@@ -1234,6 +1234,6 @@ mod tests {
         let mut text = app
             .world_mut()
             .query_filtered::<&TextFont, With<CareCycleStripText>>();
-        assert_eq!(text.single(app.world()).font_size, 16.0);
+        assert_eq!(text.single(app.world()).font_size, 16.0 / 1.2);
     }
 }

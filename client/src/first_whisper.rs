@@ -76,7 +76,7 @@ fn spawn_whisper(mut commands: Commands) {
             p.spawn((
                 (
 Text::new(LINE),
-TextFont { font_size: 18.0, ..default() },
+TextFont { font_size: 18.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 WhisperText,

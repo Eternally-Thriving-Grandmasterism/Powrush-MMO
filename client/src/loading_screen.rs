@@ -319,7 +319,7 @@ GlobalZIndex(LOADING_Z),
                 panel.spawn((
                     (
 Text::new(percent),
-TextFont { font_size: 18.0, ..default() },
+TextFont { font_size: 18.0 / 1.2, ..default() },
 TextColor(TEXT_CREAM),
 TextLayout::new_with_justify(JustifyText::Center),
 Node {
@@ -332,7 +332,7 @@ Node {
                 panel.spawn((
                     (
 Text::new(flavour),
-TextFont { font_size: 16.0, ..default() },
+TextFont { font_size: 16.0 / 1.2, ..default() },
 TextColor(TEXT_ROSE),
 TextLayout::new_with_justify(JustifyText::Center),
 Node {

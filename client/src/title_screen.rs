@@ -1405,18 +1405,18 @@ GlobalZIndex(LIVED_UI_Z_TITLE),
             .with_children(|p| {
                 p.spawn((
 Text::new("POWRUSH"),
-TextFont { font_size: 28.0, ..default() },
+TextFont { font_size: 28.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ));
                 p.spawn((
 Text::new("Steward House · offline first"),
-TextFont { font_size: 14.0, ..default() },
+TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
                 p.spawn((
                     (
 Text::new(first_minutes_people_want_line()),
-TextFont { font_size: garden_boot_want_font_px(1.0), ..default() },
+TextFont { font_size: garden_boot_want_font_px(1.0) / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 Node {
                         max_width: Val::Px(TITLE_PLATE_MAX_WIDTH - 44.0),
@@ -1428,7 +1428,7 @@ Node {
                 p.spawn((
                     (
 Text::new(""),
-TextFont { font_size: 13.0, ..default() },
+TextFont { font_size: 13.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ),
                     TitleCueText,
@@ -1445,7 +1445,7 @@ TextColor(TITLE_TEXT_SECONDARY),
                 spawn_menu_btn(p, ONLINE_STUB_LABEL, TitleOnlineBtn, false);
                 p.spawn((
 Text::new("1 Play · 2 Continue · 3 Settings · Esc from yard opens pause"),
-TextFont { font_size: 11.0, ..default() },
+TextFont { font_size: 11.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
             });
@@ -1488,7 +1488,7 @@ GlobalZIndex(LIVED_UI_Z_PAUSE + 1),
         .with_children(|row| {
             row.spawn((
 Text::new(COMFORT_GRAPHICS_BANNER_COPY),
-TextFont { font_size: 13.0, ..default() },
+TextFont { font_size: 13.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
             row.spawn((
@@ -1508,7 +1508,7 @@ TextColor(TITLE_TEXT_SECONDARY),
             .with_children(|b| {
                 b.spawn((
 Text::new("Dismiss"),
-TextFont { font_size: 12.0, ..default() },
+TextFont { font_size: 12.0 / 1.2, ..default() },
 TextColor(TITLE_BTN_FG),
 ));
             });
@@ -1600,7 +1600,7 @@ fn spawn_menu_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C, en
     .with_children(|b| {
         b.spawn((
 Text::new(label),
-TextFont { font_size: 15.0, ..default() },
+TextFont { font_size: 15.0 / 1.2, ..default() },
 TextColor(fg),
 ));
     });
@@ -1644,7 +1644,7 @@ GlobalZIndex(LIVED_UI_Z_PAUSE),
             p.spawn((
                 (
 Text::new(YARD_WAITING),
-TextFont { font_size: 16.0, ..default() },
+TextFont { font_size: 16.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 PauseCueText,
@@ -1799,7 +1799,7 @@ TextColor(TITLE_TEXT_PRIMARY),
                 guide.spawn(
                     (
 Text::new(PAUSE_GUIDE_LINE),
-TextFont { font_size: 14.0, ..default() },
+TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 TextLayout::new_with_justify(JustifyText::Center),
 Node {
@@ -1857,13 +1857,13 @@ GlobalZIndex(140),
             .with_children(|p| {
                 p.spawn((
 Text::new("Name your House"),
-TextFont { font_size: 18.0, ..default() },
+TextFont { font_size: 18.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ));
                 p.spawn((
                     (
 Text::new(NAME_HOUSE_HINT),
-TextFont { font_size: 12.0, ..default() },
+TextFont { font_size: 12.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ),
                     NameHouseHintText,
@@ -1871,7 +1871,7 @@ TextColor(TITLE_TEXT_SECONDARY),
                 p.spawn((
                     (
 Text::new("_"),
-TextFont { font_size: 16.0, ..default() },
+TextFont { font_size: 16.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                     NameDraftText,
@@ -1919,12 +1919,12 @@ GlobalZIndex(141),
             .with_children(|p| {
                 p.spawn((
 Text::new("House seals · heritage"),
-TextFont { font_size: 18.0, ..default() },
+TextFont { font_size: 18.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ));
                 p.spawn((
 Text::new("Cosmetic only. Skip keeps none. No combat kits."),
-TextFont { font_size: 12.0, ..default() },
+TextFont { font_size: 12.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
                 spawn_dress_seal_row(p, "Well", DressSealWellBtn, DressSealWellLabel);
@@ -1949,7 +1949,7 @@ TextColor(TITLE_TEXT_SECONDARY),
                     b.spawn((
                         (
 Text::new("Heritage · none"),
-TextFont { font_size: 15.0, ..default() },
+TextFont { font_size: 15.0 / 1.2, ..default() },
 TextColor(TITLE_BTN_FG),
 ),
                         DressHeritageLabel,
@@ -1987,7 +1987,7 @@ fn spawn_dress_seal_row<B: Component, L: Component>(
         b.spawn((
             (
 Text::new(format!("Seal · {label} · off")),
-TextFont { font_size: 15.0, ..default() },
+TextFont { font_size: 15.0 / 1.2, ..default() },
 TextColor(TITLE_BTN_FG),
 ),
             text_marker,
@@ -2020,7 +2020,7 @@ fn spawn_persona_cycle_btn<B: Component, L: Component>(
         b.spawn((
             (
 Text::new(initial.to_string()),
-TextFont { font_size: 14.0, ..default() },
+TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(TITLE_BTN_FG),
 ),
             text_marker,
@@ -2067,13 +2067,13 @@ GlobalZIndex(142),
             .with_children(|p| {
                 p.spawn((
 Text::new("Persona creator · optional"),
-TextFont { font_size: 18.0, ..default() },
+TextFont { font_size: 18.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ));
                 p.spawn((
                     (
 Text::new(PersonaCreatorStep::MechanicalModule.as_label()),
-TextFont { font_size: 13.0, ..default() },
+TextFont { font_size: 13.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ),
                     PersonaCreatorStepLabel,
@@ -2081,7 +2081,7 @@ TextColor(TITLE_TEXT_SECONDARY),
                 p.spawn((
                     (
 Text::new(persona_step_guidance(PersonaCreatorStep::MechanicalModule)),
-TextFont { font_size: 12.0, ..default() },
+TextFont { font_size: 12.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ),
                     PersonaCreatorGuidance,
@@ -2089,7 +2089,7 @@ TextColor(TITLE_TEXT_SECONDARY),
                 p.spawn((
                     (
 Text::new("Name · (empty = nameless Steward)"),
-TextFont { font_size: 14.0, ..default() },
+TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                     PersonaCreatorBodyText,
@@ -2151,7 +2151,7 @@ TextColor(TITLE_TEXT_PRIMARY),
                 spawn_menu_btn(p, "H · hide guidance", PersonaHideGuidanceBtn, true);
                 p.spawn((
 Text::new("Title Online stays grey · no matchmaking power · presentation only"),
-TextFont { font_size: 11.0, ..default() },
+TextFont { font_size: 11.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
             });
@@ -2223,8 +2223,8 @@ fn refresh_garden_boot_want(
         if text.as_str() != value {
             **text = value;
         }
-        if (font_face.font_size - font_px).abs() > 0.01 {
-            font_face.font_size = font_px;
+        if (font_face.font_size - font_px / 1.2).abs() > 0.01 {
+            font_face.font_size = font_px / 1.2;
         }
         *vis = if spoken.is_some() {
             Visibility::Visible
@@ -2701,7 +2701,7 @@ fn spawn_pause_places_door(p: &mut ChildBuilder) {
     .with_children(|b| {
         b.spawn((
 Text::new(PLACES_ROW),
-TextFont { font_size: 15.0, ..default() },
+TextFont { font_size: 15.0 / 1.2, ..default() },
 TextColor(TITLE_BTN_FG),
 ));
     });
@@ -2726,7 +2726,7 @@ fn spawn_pause_tab_btn(p: &mut ChildBuilder, tab: PauseTab) {
     .with_children(|b| {
         b.spawn((
 Text::new(tab.label()),
-TextFont { font_size: 14.0, ..default() },
+TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(TITLE_BTN_FG),
 ));
     });
@@ -2855,7 +2855,7 @@ fn spawn_settings_row<B: Component, L: Component>(
         b.spawn((
             (
 Text::new(label),
-TextFont { font_size: 15.0, ..default() },
+TextFont { font_size: 15.0 / 1.2, ..default() },
 TextColor(TITLE_BTN_FG),
 ),
             text_marker,
@@ -3204,8 +3204,8 @@ fn set_btn_section_text(text: &mut Text, value: &str) {
 }
 
 fn set_btn_section_font(font: &mut TextFont, size: f32) {
-    if (font.font_size - size).abs() > 0.01 {
-        font.font_size = size;
+    if (font.font_size - size / 1.2).abs() > 0.01 {
+        font.font_size = size / 1.2;
     }
 }
 

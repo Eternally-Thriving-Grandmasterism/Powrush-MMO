@@ -111,7 +111,7 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn(TextBundle {
             text: Text::from_section("ENTER INVITE CODE", TextStyle {
                 font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                font_size: 22.0,
+                font_size: 22.0 / 1.2,
                 color: Color::srgb(0.35, 0.82, 1.0),
             }),
             style: Style { margin: UiRect::bottom(Val::Px(16.0)), ..default() },
@@ -136,7 +136,7 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
             field.spawn(TextBundle {
                 text: Text::from_section("", TextStyle {
                     font: asset_server.load("fonts/FiraSans-Regular.ttf"),
-                    font_size: 18.0,
+                    font_size: 18.0 / 1.2,
                     color: Color::srgb(0.9, 0.93, 1.0),
                 }),
                 ..default()
@@ -146,7 +146,7 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn((TextBundle {
             text: Text::from_section("Type code · Enter to submit", TextStyle {
                 font: asset_server.load("fonts/FiraSans-Regular.ttf"),
-                font_size: 14.0,
+                font_size: 14.0 / 1.2,
                 color: Color::srgb(0.85, 0.85, 0.9),
             }),
             style: Style { margin: UiRect::top(Val::Px(12.0)), ..default() },
@@ -180,7 +180,7 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn(TextBundle {
             text: Text::from_section("VERIFY YOU ARE HUMAN", TextStyle {
                 font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                font_size: 20.0,
+                font_size: 20.0 / 1.2,
                 color: Color::srgb(0.35, 0.82, 1.0),
             }),
             style: Style { margin: UiRect::bottom(Val::Px(12.0)), ..default() },
@@ -190,7 +190,7 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn((TextBundle {
             text: Text::from_section("", TextStyle {
                 font: asset_server.load("fonts/FiraSans-Regular.ttf"),
-                font_size: 18.0,
+                font_size: 18.0 / 1.2,
                 color: Color::WHITE,
             }),
             style: Style { margin: UiRect::bottom(Val::Px(16.0)), ..default() },
@@ -216,7 +216,7 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn((TextBundle {
             text: Text::from_section("", TextStyle {
                 font: asset_server.load("fonts/FiraSans-Regular.ttf"),
-                font_size: 14.0,
+                font_size: 14.0 / 1.2,
                 color: Color::srgb(0.85, 0.85, 0.9),
             }),
             style: Style { margin: UiRect::top(Val::Px(12.0)), ..default() },
@@ -249,7 +249,7 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn((TextBundle {
             text: Text::from_section("", TextStyle {
                 font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                font_size: 18.0,
+                font_size: 18.0 / 1.2,
                 color: Color::srgb(0.6, 0.85, 1.0),
             }),
             style: Style { margin: UiRect::bottom(Val::Px(10.0)), ..default() },
@@ -259,7 +259,7 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn((TextBundle {
             text: Text::from_section("", TextStyle {
                 font: asset_server.load("fonts/FiraSans-Regular.ttf"),
-                font_size: 15.0,
+                font_size: 15.0 / 1.2,
                 color: Color::srgb(0.92, 0.94, 0.98),
             }),
             style: Style { max_width: Val::Px(340.0), ..default() },
@@ -292,7 +292,7 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn(TextBundle {
             text: Text::from_section("", TextStyle {
                 font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                font_size: 16.0,
+                font_size: 16.0 / 1.2,
                 color: Color::srgb(0.95, 0.85, 1.0),
             }),
             style: Style { margin: UiRect::bottom(Val::Px(6.0)), ..default() },
@@ -302,7 +302,7 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn(TextBundle {
             text: Text::from_section("", TextStyle {
                 font: asset_server.load("fonts/FiraSans-Regular.ttf"),
-                font_size: 14.0,
+                font_size: 14.0 / 1.2,
                 color: Color::srgb(0.92, 0.94, 0.98),
             }),
             style: Style { max_width: Val::Px(340.0), ..default() },
@@ -335,7 +335,7 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn(TextBundle {
             text: Text::from_section("REALM STATUS — LIVE", TextStyle {
                 font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                font_size: 15.0,
+                font_size: 15.0 / 1.2,
                 color: Color::srgb(0.95, 0.7, 0.5),
             }),
             style: Style { margin: UiRect::bottom(Val::Px(6.0)), ..default() },
@@ -345,7 +345,7 @@ fn spawn_onboarding_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
         parent.spawn(TextBundle {
             text: Text::from_section("", TextStyle {
                 font: asset_server.load("fonts/FiraSans-Regular.ttf"),
-                font_size: 13.0,
+                font_size: 13.0 / 1.2,
                 color: Color::srgb(0.92, 0.9, 0.88),
             }),
             style: Style { max_width: Val::Px(360.0), ..default() },

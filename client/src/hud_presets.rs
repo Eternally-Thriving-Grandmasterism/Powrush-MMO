@@ -3250,7 +3250,7 @@ GlobalZIndex(77),
                 .spawn((
                     (
 Text::new("slab"),
-TextFont { font_size: 9.0, ..default() },
+TextFont { font_size: 9.0 / 1.2, ..default() },
 child_style.clone(),
 ),
                 ))

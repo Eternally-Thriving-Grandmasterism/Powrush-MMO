@@ -229,7 +229,7 @@ fn spawn_practice_strip(mut commands: Commands) {
             parent.spawn((
                 (
 Text::new(PracticeSurface::SanctuaryCap.prompt()),
-TextFont { font_size: 15.5, ..default() },
+TextFont { font_size: 15.5 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 LivingPracticeText,
@@ -558,6 +558,6 @@ mod tests {
         let mut text = app
             .world_mut()
             .query_filtered::<&TextFont, With<LivingPracticeText>>();
-        assert_eq!(text.single(app.world()).font_size, 15.5);
+        assert_eq!(text.single(app.world()).font_size, 15.5 / 1.2);
     }
 }

@@ -818,7 +818,7 @@ fn spawn_guidance_strip(mut commands: Commands) {
             parent.spawn((
                 (
 Text::new(card_line(GuidanceObjective::MoveAround.prompt())),
-TextFont { font_size: 17.0, ..default() },
+TextFont { font_size: 17.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 FirstSessionGuidanceText,
@@ -976,15 +976,15 @@ fn update_guidance_text(
         .unwrap_or(false);
     let font_differs = query
         .iter()
-        .any(|(_, font)| (font.font_size - card_px).abs() > 0.01);
+        .any(|(_, font)| (font.font_size - card_px / 1.2).abs() > 0.01);
     if !guidance.is_changed() && !place_changed && !settings_changed && !font_differs {
         return;
     }
     *last_place = place;
     let prompt = lived_card_line(&guidance, place);
     for (mut text, mut font) in &mut query {
-        if (font.font_size - card_px).abs() > 0.01 {
-            font.font_size = card_px;
+        if (font.font_size - card_px / 1.2).abs() > 0.01 {
+            font.font_size = card_px / 1.2;
         }
         if text.as_str() != prompt {
             **text = prompt.clone();
@@ -1197,7 +1197,7 @@ mod tests {
 
         app.update();
         let (spawned_px, prompt) = guidance_card_section(&app);
-        assert_eq!(spawned_px, 17.0);
+        assert_eq!(spawned_px, 17.0 / 1.2);
 
         app.world_mut()
             .resource_mut::<LocalSettingsState>()
@@ -1211,7 +1211,7 @@ mod tests {
         app.update();
 
         let (font_px, after) = guidance_card_section(&app);
-        assert_eq!(font_px, guidance_card_font_px(new_scale));
+        assert_eq!(font_px, guidance_card_font_px(new_scale) / 1.2);
         assert_eq!(after, prompt);
     }
 
@@ -3027,7 +3027,7 @@ mod tests {
         let mut text = app
             .world_mut()
             .query_filtered::<&TextFont, With<FirstSessionGuidanceText>>();
-        assert_eq!(text.single(app.world()).font_size, 17.0);
+        assert_eq!(text.single(app.world()).font_size, 17.0 / 1.2);
     }
 
     /// CARD GUIDANCE-WALK-BODY-1 — no previous sample is not travel.

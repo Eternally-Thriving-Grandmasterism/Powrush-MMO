@@ -183,7 +183,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                     "MY MERCY JOURNEY",
                     TextStyle {
                         font: font_bold.clone(),
-                        font_size: 19.0,
+                        font_size: 19.0 / 1.2,
                         color: Color::srgb(0.70, 0.95, 0.88),
                     },
                 ),
@@ -195,7 +195,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                     "Search (type freely • Esc clears)",
                     TextStyle {
                         font: font_reg.clone(),
-                        font_size: 11.5,
+                        font_size: 11.5 / 1.2,
                         color: Color::srgb(0.75, 0.85, 0.95),
                     },
                 ),
@@ -208,7 +208,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                         "[ type to search... ]",
                         TextStyle {
                             font: font_reg.clone(),
-                            font_size: 13.0,
+                            font_size: 13.0 / 1.2,
                             color: Color::srgb(0.9, 0.92, 1.0),
                         },
                     ),
@@ -268,7 +268,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                                         filter.label(),
                                         TextStyle {
                                             font: font_reg.clone(),
-                                            font_size: 11.5,
+                                            font_size: 11.5 / 1.2,
                                             color: Color::srgb(0.85, 0.92, 1.0),
                                         },
                                     ),
@@ -283,7 +283,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                     "Realm of Origin",
                     TextStyle {
                         font: font_reg.clone(),
-                        font_size: 11.0,
+                        font_size: 11.0 / 1.2,
                         color: Color::srgb(0.70, 0.80, 0.95),
                     },
                 ),
@@ -335,7 +335,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                                         realm_filter.label(),
                                         TextStyle {
                                             font: font_reg.clone(),
-                                            font_size: 11.0,
+                                            font_size: 11.0 / 1.2,
                                             color: Color::srgb(0.82, 0.90, 1.0),
                                         },
                                     ),
@@ -351,7 +351,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                         "Showing 0 entries",
                         TextStyle {
                             font: font_reg.clone(),
-                            font_size: 11.5,
+                            font_size: 11.5 / 1.2,
                             color: Color::srgb(0.7, 0.85, 0.95),
                         },
                     ),
@@ -369,7 +369,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                     "— LEGACY TIMELINE —",
                     TextStyle {
                         font: font_bold.clone(),
-                        font_size: 13.5,
+                        font_size: 13.5 / 1.2,
                         color: Color::srgb(1.0, 0.88, 0.55),
                     },
                 ),
@@ -391,7 +391,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                             },
                             TextStyle {
                                 font: font_reg.clone(),
-                                font_size: 12.0,
+                                font_size: 12.0 / 1.2,
                                 color: Color::srgb(0.92, 0.95, 1.0),
                             },
                         ),
@@ -410,7 +410,7 @@ fn spawn_my_mercy_journey_ui(mut commands: Commands, asset_server: Res<AssetServ
                     "F2 toggle  •  Type + Category + Realm filters  •  TOLC 8",
                     TextStyle {
                         font: font_reg.clone(),
-                        font_size: 10.0,
+                        font_size: 10.0 / 1.2,
                         color: Color::srgb(0.55, 0.65, 0.78),
                     },
                 ),

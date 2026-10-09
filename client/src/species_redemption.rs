@@ -64,7 +64,7 @@ fn spawn_redemption_slab(mut commands: Commands) {
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 14.0, ..default() },
+TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 RedemptionSlabText,

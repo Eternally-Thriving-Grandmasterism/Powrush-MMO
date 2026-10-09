@@ -138,7 +138,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: WATCH_STRIP_FONT_BASE, ..default() },
+TextFont { font_size: WATCH_STRIP_FONT_BASE / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 WatchStripText,
@@ -174,7 +174,7 @@ GlobalZIndex(LIVED_UI_Z_LEDGER),
             p.spawn((
                 (
 Text::new("SATCHEL"),
-TextFont { font_size: 14.0, ..default() },
+TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ),
                 SatchelFontBase(14.0),
@@ -182,7 +182,7 @@ TextColor(TITLE_TEXT_SECONDARY),
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 13.5, ..default() },
+TextFont { font_size: 13.5 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 SatchelBody,
@@ -191,7 +191,7 @@ TextColor(TITLE_TEXT_PRIMARY),
             p.spawn((
                 (
 Text::new("I close · 1–3 highlight · R allocate surplus"),
-TextFont { font_size: 11.0, ..default() },
+TextFont { font_size: 11.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ),
                 SatchelFontBase(11.0),
@@ -224,7 +224,7 @@ TextColor(TITLE_TEXT_SECONDARY),
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: PICKUP_FLASH_FONT_BASE, ..default() },
+TextFont { font_size: PICKUP_FLASH_FONT_BASE / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 PickupFlashText,
@@ -405,8 +405,8 @@ fn scale_strip_and_flash_fonts(
     };
     for (base, mut font) in &mut q {
         let px = satchel_font_px(base.0, scale);
-        if (font.font_size - px).abs() > 0.01 {
-            font.font_size = px;
+        if (font.font_size - px / 1.2).abs() > 0.01 {
+            font.font_size = px / 1.2;
         }
     }
 }
@@ -421,8 +421,8 @@ fn scale_satchel_fonts(
     };
     for (base, mut font) in &mut q {
         let px = satchel_font_px(base.0, scale);
-        if (font.font_size - px).abs() > 0.01 {
-            font.font_size = px;
+        if (font.font_size - px / 1.2).abs() > 0.01 {
+            font.font_size = px / 1.2;
         }
     }
 }
@@ -741,7 +741,7 @@ mod tests {
         let bases: Vec<f32> = spawned.iter().map(|(base, _, _)| *base).collect();
         assert_eq!(bases, vec![11.0, 13.5, 14.0]);
         for (base, px, _) in &spawned {
-            assert_eq!(*px, *base);
+            assert_eq!(*px, *base / 1.2);
         }
 
         app.world_mut()
@@ -759,7 +759,7 @@ mod tests {
         assert_eq!(after.len(), 3);
         for (before, (base, px, value)) in spawned.iter().zip(after.iter()) {
             assert_eq!(before.0, *base);
-            assert_eq!(*px, satchel_font_px(*base, new_scale));
+            assert_eq!(*px, satchel_font_px(*base, new_scale) / 1.2);
             assert_eq!(value, &before.2);
         }
     }
@@ -821,14 +821,14 @@ mod tests {
                 .map(|(base, px, value, kind)| (*base, *px, value.as_str(), *kind))
                 .collect::<Vec<_>>(),
             vec![
-                (WATCH_STRIP_FONT_BASE, WATCH_STRIP_FONT_BASE, "", "strip"),
-                (PICKUP_FLASH_FONT_BASE, PICKUP_FLASH_FONT_BASE, "", "flash"),
+                (WATCH_STRIP_FONT_BASE, WATCH_STRIP_FONT_BASE / 1.2, "", "strip"),
+                (PICKUP_FLASH_FONT_BASE, PICKUP_FLASH_FONT_BASE / 1.2, "", "flash"),
             ]
         );
         let plate = satchel_font_rows(&app);
         assert_eq!(plate.len(), 3);
         for (base, px, _) in &plate {
-            assert_eq!(*px, *base);
+            assert_eq!(*px, *base / 1.2);
         }
 
         app.world_mut()
@@ -847,15 +847,15 @@ mod tests {
         for (before, (base, px, value, kind)) in strip.iter().zip(after.iter()) {
             assert_eq!(before.0, *base);
             assert_eq!(before.3, *kind);
-            assert_eq!(*px, satchel_font_px(*base, new_scale));
+            assert_eq!(*px, satchel_font_px(*base, new_scale) / 1.2);
             assert_eq!(value, &before.2);
-            assert!(*px > *base);
+            assert!(*px > *base / 1.2);
         }
         let plate_after = satchel_font_rows(&app);
         assert_eq!(plate_after.len(), 3);
         for (before, (base, px, value)) in plate.iter().zip(plate_after.iter()) {
             assert_eq!(before.0, *base);
-            assert_eq!(*px, satchel_font_px(*base, new_scale));
+            assert_eq!(*px, satchel_font_px(*base, new_scale) / 1.2);
             assert_eq!(value, &before.2);
         }
 
@@ -866,10 +866,10 @@ mod tests {
                 .text_scale = extreme;
             app.update();
             for (base, px, _, _) in strip_flash_font_rows(&app) {
-                assert_eq!(px, satchel_font_px(base, extreme));
+                assert_eq!(px, satchel_font_px(base, extreme) / 1.2);
             }
             for (base, px, _) in satchel_font_rows(&app) {
-                assert_eq!(px, satchel_font_px(base, extreme));
+                assert_eq!(px, satchel_font_px(base, extreme) / 1.2);
             }
         }
     }
@@ -890,8 +890,8 @@ mod tests {
                 .map(|(base, px, _, kind)| (*base, *px, *kind))
                 .collect::<Vec<_>>(),
             vec![
-                (WATCH_STRIP_FONT_BASE, WATCH_STRIP_FONT_BASE, "strip"),
-                (PICKUP_FLASH_FONT_BASE, PICKUP_FLASH_FONT_BASE, "flash"),
+                (WATCH_STRIP_FONT_BASE, WATCH_STRIP_FONT_BASE / 1.2, "strip"),
+                (PICKUP_FLASH_FONT_BASE, PICKUP_FLASH_FONT_BASE / 1.2, "flash"),
             ]
         );
     }

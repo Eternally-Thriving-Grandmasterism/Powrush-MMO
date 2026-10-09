@@ -79,20 +79,20 @@ fn spawn_lattice_panel(mut commands: Commands) {
         .with_children(|p| {
             p.spawn((
 Text::new("FOUNDATION LATTICE"),
-TextFont { font_size: 15.5, ..default() },
+TextFont { font_size: 15.5 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
             p.spawn((
                 (
 Text::new("Loading soft foundations…"),
-TextFont { font_size: 12.5, ..default() },
+TextFont { font_size: 12.5 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 FoundationLatticeBody,
             ));
             p.spawn((
 Text::new(soft_play_bindings::soft_play_legend()),
-TextFont { font_size: 10.5, ..default() },
+TextFont { font_size: 10.5 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
         });

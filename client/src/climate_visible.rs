@@ -310,7 +310,7 @@ fn spawn_climate_state_slab(mut commands: Commands) {
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 14.0, ..default() },
+TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 ClimateStateText,
@@ -462,8 +462,8 @@ fn update_climate_state_slab(
         .map(|state| climate_slab_font_px(state.inner.text_scale))
         .unwrap_or(14.0);
     for (mut text, mut font) in &mut text_q {
-        if (font.font_size - slab_px).abs() > 0.01 {
-            font.font_size = slab_px;
+        if (font.font_size - slab_px / 1.2).abs() > 0.01 {
+            font.font_size = slab_px / 1.2;
         }
         if text.as_str() != line {
             **text = line.clone();

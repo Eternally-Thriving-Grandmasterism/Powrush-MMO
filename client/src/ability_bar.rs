@@ -95,7 +95,7 @@ fn spawn_ability_bar(mut commands: Commands, asset_server: Res<AssetServer>) {
                 slot.spawn(TextBundle {
                     text: Text::from_section(format!("{}", i + 1), TextStyle {
                         font: asset_server.load("fonts/Inter-Bold.ttf"),
-                        font_size: 14.0,
+                        font_size: 14.0 / 1.2,
                         color: Color::srgb(0.9, 0.95, 0.9),
                     }),
                     style: Style {

@@ -557,7 +557,7 @@ GlobalZIndex(FRAME_Z),
         .with_children(|frame| {
             frame.spawn((
                 Text::new(anchor.id),
-                TextFont { font_size: 12.0, ..default() },
+                TextFont { font_size: 12.0 / 1.2, ..default() },
                 TextColor(TITLE_TEXT_PRIMARY),
                 Node {
                     position_type: PositionType::Absolute,
@@ -608,7 +608,7 @@ GlobalZIndex(FRAME_Z),
                         hide.spawn((
                             (
 Text::new(face),
-TextFont { font_size: 11.0, ..default() },
+TextFont { font_size: 11.0 / 1.2, ..default() },
 TextColor(TITLE_BTN_FG),
 ),
                             HudEditHideText { id: anchor.id },
@@ -670,7 +670,7 @@ fn tool_button(parent: &mut ChildBuilder, label: &str, fill: Color, marker: impl
         .with_children(|button| {
             button.spawn((
 Text::new(label),
-TextFont { font_size: 14.0, ..default() },
+TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(TITLE_BTN_FG),
 ));
         });
@@ -688,7 +688,7 @@ fn sync_parse_notice(
             commands.spawn((
                 (
 Text::new(HUD_LAYOUT_PARSE_NOTICE),
-TextFont { font_size: 14.0, ..default() },
+TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 Node {
                     position_type: PositionType::Absolute,

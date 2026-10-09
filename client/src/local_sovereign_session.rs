@@ -102,7 +102,7 @@ fn spawn_banner(
             p.spawn((
                 (
 Text::new(line),
-TextFont { font_size: 14.0, ..default() },
+TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 SovereignBannerText,

@@ -61,7 +61,7 @@ fn spawn_crownstone_slab(mut commands: Commands) {
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 14.0, ..default() },
+TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(Color::srgb(0.94, 0.84, 1.0)),
 ),
                 CrownstoneSlabText,

@@ -476,13 +476,13 @@ GlobalZIndex(PLACES_PLATE_Z),
         .with_children(|p| {
             p.spawn((
 Text::new(PLACES_TITLE),
-TextFont { font_size: 18.0, ..default() },
+TextFont { font_size: 18.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ));
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 13.0, ..default() },
+TextFont { font_size: 13.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ),
                 PlacesCueText,
@@ -517,7 +517,7 @@ fn spawn_places_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C) 
     .with_children(|b| {
         b.spawn((
 Text::new(label),
-TextFont { font_size: 15.0, ..default() },
+TextFont { font_size: 15.0 / 1.2, ..default() },
 TextColor(TITLE_BTN_FG),
 ));
     });

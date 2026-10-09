@@ -107,7 +107,7 @@ GlobalZIndex(LIVED_UI_Z_LEDGER - 1),
             .with_children(|z| {
                 z.spawn((
 Text::new("+"),
-TextFont { font_size: 22.0, ..default() },
+TextFont { font_size: 22.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ));
             });
@@ -200,7 +200,7 @@ fn spawn_overlay_btn<B: Component>(
     .with_children(|b| {
         b.spawn((
 Text::new(label),
-TextFont { font_size: 15.0, ..default() },
+TextFont { font_size: 15.0 / 1.2, ..default() },
 TextColor(TITLE_BTN_FG),
 ));
     });

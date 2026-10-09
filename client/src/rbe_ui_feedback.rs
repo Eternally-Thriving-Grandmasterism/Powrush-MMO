@@ -44,7 +44,7 @@ fn spawn_harvest_feedback_ui(mut commands: Commands, asset_server: Res<AssetServ
                 "",
                 TextStyle {
                     font: asset_server.load("fonts/FiraSans-Bold.ttf"),
-                    font_size: 24.0,
+                    font_size: 24.0 / 1.2,
                     color: Color::rgb(0.9, 0.9, 0.3),
                 },
             ),
