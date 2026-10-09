@@ -86,6 +86,7 @@ fn spawn_sun_and_camera(mut commands: Commands) {
         tonemapping: WORLD_TONEMAPPING,
         color_grading: world_color_grading(),
         transform: Transform::from_xyz(0.0, 8.0, 14.0).looking_at(Vec3::ZERO, Vec3::Y),
+        msaa: bevy::render::view::Msaa::Off,
         ..default()
     });
     // CARD VP-GRADE-1 — the one Sanctuary sun (climate_plane::SANCTUARY_SUN).

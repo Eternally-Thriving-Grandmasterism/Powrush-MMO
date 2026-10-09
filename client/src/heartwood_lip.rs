@@ -137,8 +137,8 @@ fn sync_heartwood_lip(
         };
         commands.spawn((
             PbrBundle {
-                mesh,
-                material,
+                mesh: Mesh3d(mesh),
+                material: MeshMaterial3d(material),
                 transform: Transform {
                     translation: Vec3::from_array(instance.center),
                     rotation,
@@ -153,17 +153,17 @@ fn sync_heartwood_lip(
 
     commands.spawn((
         PbrBundle {
-            mesh: meshes.add(Cuboid::new(
+            mesh: Mesh3d(meshes.add(Cuboid::new(
                 THRESHOLD_SHELF_SIZE[0],
                 THRESHOLD_SHELF_SIZE[1],
                 THRESHOLD_SHELF_SIZE[2],
-            )),
-            material: materials.add(StandardMaterial {
+            ))),
+            material: MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgb(0.30, 0.18, 0.08),
                 emissive: LinearRgba::new(0.016, 0.007, 0.002, 1.0),
                 perceptual_roughness: 0.93,
                 ..default()
-            }),
+            })),
             transform: Transform::from_translation(Vec3::from_array(THRESHOLD_SHELF_CENTER)),
             ..default()
         },
@@ -173,13 +173,13 @@ fn sync_heartwood_lip(
 
     commands.spawn((
         PbrBundle {
-            mesh: meshes.add(Sphere::new(THRESHOLD_NODE_RADIUS)),
-            material: materials.add(StandardMaterial {
+            mesh: Mesh3d(meshes.add(Sphere::new(THRESHOLD_NODE_RADIUS))),
+            material: MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgb(0.42, 0.60, 0.48),
                 emissive: LinearRgba::new(0.08, 0.18, 0.10, 1.0),
                 perceptual_roughness: 0.58,
                 ..default()
-            }),
+            })),
             transform: Transform::from_translation(Vec3::from_array(THRESHOLD_NODE_CENTER)),
             ..default()
         },
@@ -189,13 +189,13 @@ fn sync_heartwood_lip(
 
     commands.spawn((
         PbrBundle {
-            mesh: meshes.add(Cylinder::new(WATER_POND_RADIUS, 0.04)),
-            material: materials.add(StandardMaterial {
+            mesh: Mesh3d(meshes.add(Cylinder::new(WATER_POND_RADIUS, 0.04))),
+            material: MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgba(0.06, 0.24, 0.28, 0.78),
                 perceptual_roughness: 0.48,
                 metallic: 0.02,
                 ..default()
-            }),
+            })),
             transform: Transform::from_xyz(WATER_POND_CENTER[0], 0.01, WATER_POND_CENTER[1]),
             ..default()
         },
@@ -338,7 +338,6 @@ mod tests {
         app.init_resource::<PlayerInput>();
         app.init_resource::<ThresholdShelfSession>();
         app.init_resource::<ButtonInput<KeyCode>>();
-        app.init_resource::<Gamepads>();
         app.init_resource::<FirstSessionGuidance>();
         app.init_resource::<ThrivingMoments>();
         app.init_resource::<AbundanceJourneyEcho>();

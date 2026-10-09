@@ -40,7 +40,7 @@ fn spawn_crownstone_slab(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: Val::Px(164.0),
                     right: Val::Px(16.0),
@@ -59,14 +59,11 @@ fn spawn_crownstone_slab(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 14.0,
-                        color: Color::srgb(0.94, 0.84, 1.0),
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: 14.0, ..default() },
+TextColor(Color::srgb(0.94, 0.84, 1.0)),
+),
                 CrownstoneSlabText,
             ));
         });
@@ -115,7 +112,7 @@ fn handle_crownstone(
         fire_thriving(
             &mut moments,
             ThrivingKind::FirstCrownstone,
-            time.elapsed_seconds_f64(),
+            time.elapsed_secs_f64(),
         );
     }
 }
@@ -140,10 +137,8 @@ fn update_crownstone_slab(
     }
     let line = yard.stone.slab_line();
     for mut text in &mut text_q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != line {
-                s.value = line.clone();
-            }
+        if text.as_str() != line {
+            **text = line.clone();
         }
     }
 }

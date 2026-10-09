@@ -139,7 +139,7 @@ fn breathe_and_weigh(
     realm: Res<SoftPlayerRealm>,
     mut body: ResMut<LivingBody>,
 ) {
-    let dt = time.delta_seconds();
+    let dt = time.delta_secs();
     body.heavy = pool.vitality >= 3.2;
     body.in_shade = matches!(realm.current, Some(0) | Some(2));
     let moving = input.movement.length_squared() > 0.04;

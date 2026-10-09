@@ -42,7 +42,7 @@ fn spawn_redemption_slab(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: REDEMPTION.top(),
                     right: REDEMPTION.right(),
@@ -62,14 +62,11 @@ fn spawn_redemption_slab(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: 14.0, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 RedemptionSlabText,
             ));
         });
@@ -118,7 +115,7 @@ fn handle_redemption(
         fire_thriving(
             &mut moments,
             ThrivingKind::FirstRedemption,
-            time.elapsed_seconds_f64(),
+            time.elapsed_secs_f64(),
         );
     }
 }
@@ -143,10 +140,8 @@ fn update_redemption_slab(
     }
     let line = yard.state.slab_line();
     for mut text in &mut text_q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != line {
-                s.value = line.clone();
-            }
+        if text.as_str() != line {
+            **text = line.clone();
         }
     }
 }
@@ -165,9 +160,9 @@ mod tests {
         app.update();
         let mut q = app
             .world_mut()
-            .query_filtered::<&Style, With<RedemptionSlabRoot>>();
+            .query_filtered::<&Node, With<RedemptionSlabRoot>>();
         let style = q.single(app.world()).clone();
-        let coded = Style {
+        let coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Px(204.0),
             right: Val::Px(16.0),

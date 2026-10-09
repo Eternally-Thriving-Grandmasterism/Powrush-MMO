@@ -233,8 +233,8 @@ fn spawn_ecology(
     for pos in tree_spots {
         commands.spawn((
             PbrBundle {
-                mesh: trunk.clone(),
-                material: wood.clone(),
+                mesh: Mesh3d(trunk.clone()),
+                material: MeshMaterial3d(wood.clone()),
                 transform: Transform::from_translation(pos),
                 ..default()
             },
@@ -242,8 +242,8 @@ fn spawn_ecology(
         ));
         commands.spawn((
             PbrBundle {
-                mesh: canopy.clone(),
-                material: leaf.clone(),
+                mesh: Mesh3d(canopy.clone()),
+                material: MeshMaterial3d(leaf.clone()),
                 transform: Transform::from_translation(pos + Vec3::Y * 1.35),
                 ..default()
             },
@@ -264,8 +264,8 @@ fn spawn_ecology(
     ] {
         commands.spawn((
             PbrBundle {
-                mesh: rock.clone(),
-                material: stone.clone(),
+                mesh: Mesh3d(rock.clone()),
+                material: MeshMaterial3d(stone.clone()),
                 transform: Transform::from_translation(pos).with_scale(Vec3::new(1.4, 0.6, 1.1)),
                 ..default()
             },
@@ -283,8 +283,8 @@ fn spawn_ecology(
     });
     commands.spawn((
         PbrBundle {
-            mesh: deer_mesh,
-            material: deer_mat,
+            mesh: Mesh3d(deer_mesh),
+            material: MeshMaterial3d(deer_mat),
             transform: Transform::from_translation(DEER_FAR),
             ..default()
         },
@@ -310,8 +310,8 @@ fn spawn_ecology(
         });
         commands.spawn((
             PbrBundle {
-                mesh: spire.clone(),
-                material: handle.clone(),
+                mesh: Mesh3d(spire.clone()),
+                material: MeshMaterial3d(handle.clone()),
                 transform: Transform::from_translation(pos),
                 ..default()
             },
@@ -345,8 +345,8 @@ fn spawn_ecology(
         });
         commands.spawn((
             PbrBundle {
-                mesh: thread_mesh.clone(),
-                material: handle.clone(),
+                mesh: Mesh3d(thread_mesh.clone()),
+                material: MeshMaterial3d(handle.clone()),
                 transform: Transform {
                     translation: mid,
                     rotation: rot,
@@ -431,7 +431,7 @@ fn move_deer(
         AnswerKind::Take => DEER_FAR,
         _ => Vec3::new(5.2, 0.55, 3.6),
     };
-    let dt = time.delta_seconds();
+    let dt = time.delta_secs();
     for mut tf in &mut q {
         tf.translation = tf.translation.lerp(target, (1.6 * dt).min(1.0));
     }
@@ -531,8 +531,8 @@ mod tests {
         let world = app.world_mut();
         let mut q = world.query::<(
             Entity,
-            &Handle<StandardMaterial>,
-            Option<&Handle<Mesh>>,
+            &MeshMaterial3d<StandardMaterial>,
+            Option<&Mesh3d>,
             Option<&EcologyProp>,
             Option<&SkyBackdropPart>,
             Option<&Name>,

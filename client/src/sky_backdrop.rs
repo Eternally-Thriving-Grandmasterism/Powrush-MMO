@@ -346,14 +346,14 @@ fn spawn_sky_backdrop(
     // the shadowed Sanctuary sun reaches the yard through it.
     commands.spawn((
         PbrBundle {
-            mesh: meshes.add(gradient_dome(DOME_RADIUS)),
-            material: materials.add(StandardMaterial {
+            mesh: Mesh3d(meshes.add(gradient_dome(DOME_RADIUS))),
+            material: MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::WHITE,
                 unlit: true,
                 fog_enabled: false,
                 cull_mode: None,
                 ..default()
-            }),
+            })),
             transform: Transform::IDENTITY,
             ..default()
         },
@@ -365,8 +365,8 @@ fn spawn_sky_backdrop(
     let mut spawn = |mesh: Mesh, mat: StandardMaterial, part: SkyBackdropPart, t: Transform| {
         commands.spawn((
             PbrBundle {
-                mesh: meshes.add(mesh),
-                material: materials.add(mat),
+                mesh: Mesh3d(meshes.add(mesh)),
+                material: MeshMaterial3d(materials.add(mat)),
                 transform: t,
                 ..default()
             },
@@ -517,7 +517,7 @@ mod tests {
         app.update();
         let one_tier = Mesh::from(Cone { radius: 1.1, height: 2.2 }).count_vertices();
         let world = app.world_mut();
-        let mut q = world.query::<(&SkyBackdropPart, &Visibility, &Handle<Mesh>, &Handle<StandardMaterial>)>();
+        let mut q = world.query::<(&SkyBackdropPart, &Visibility, &Mesh3d, &MeshMaterial3d<StandardMaterial>)>();
         let rows: Vec<_> = q
             .iter(world)
             .filter(|(_, v, _, _)| **v != Visibility::Hidden)

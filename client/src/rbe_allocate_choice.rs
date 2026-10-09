@@ -223,7 +223,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     bottom: ALLOCATE_DOCK.bottom(),
                     right: ALLOCATE_DOCK.right(),
@@ -244,19 +244,16 @@ fn spawn_allocate_panel(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "Allocate credit · Flow or Reserve",
-                    TextStyle {
-                        font_size: 15.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new("Allocate credit · Flow or Reserve"),
+TextFont { font_size: 15.0, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 AllocateBodyText,
             ));
 
             p.spawn(NodeBundle {
-                style: Style {
+                node: Node {
                     flex_direction: FlexDirection::Row,
                     column_gap: Val::Px(10.0),
                     justify_content: JustifyContent::Center,
@@ -268,7 +265,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
             .with_children(|row| {
                 row.spawn((
                     ButtonBundle {
-                        style: Style {
+                        node: Node {
                             padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                             border: UiRect::all(Val::Px(1.0)),
                             ..default()
@@ -280,19 +277,16 @@ fn spawn_allocate_panel(mut commands: Commands) {
                     AllocateFlowButton,
                 ))
                 .with_children(|b| {
-                    b.spawn(TextBundle::from_section(
-                        "Flow · field restore",
-                        TextStyle {
-                            font_size: 14.0,
-                            color: TITLE_BTN_FG,
-                            ..default()
-                        },
-                    ));
+                    b.spawn((
+Text::new("Flow · field restore"),
+TextFont { font_size: 14.0, ..default() },
+TextColor(TITLE_BTN_FG),
+));
                 });
 
                 row.spawn((
                     ButtonBundle {
-                        style: Style {
+                        node: Node {
                             padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                             border: UiRect::all(Val::Px(1.0)),
                             ..default()
@@ -304,25 +298,19 @@ fn spawn_allocate_panel(mut commands: Commands) {
                     AllocateReserveButton,
                 ))
                 .with_children(|b| {
-                    b.spawn(TextBundle::from_section(
-                        "Reserve · repair-rights",
-                        TextStyle {
-                            font_size: 14.0,
-                            color: TITLE_BTN_FG,
-                            ..default()
-                        },
-                    ));
+                    b.spawn((
+Text::new("Reserve · repair-rights"),
+TextFont { font_size: 14.0, ..default() },
+TextColor(TITLE_BTN_FG),
+));
                 });
             });
 
-            p.spawn(TextBundle::from_section(
-                "1 Flow · 2 Reserve · R close · credit logistics",
-                TextStyle {
-                    font_size: 12.0,
-                    color: TITLE_TEXT_SECONDARY,
-                    ..default()
-                },
-            ));
+            p.spawn((
+Text::new("1 Flow · 2 Reserve · R close · credit logistics"),
+TextFont { font_size: 12.0, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
         });
 }
 
@@ -443,9 +431,7 @@ fn update_allocate_body(
         place,
     );
     for mut text in &mut q {
-        if let Some(s) = text.sections.get_mut(0) {
-            s.value = body.clone();
-        }
+        **text = body.clone();
     }
 }
 
@@ -454,7 +440,7 @@ fn commit_allocate(
     moments: &mut ThrivingMoments,
     guidance: &mut FirstSessionGuidance,
     rumble: &mut EventWriter<GamepadRumbleRequest>,
-    gamepads: &Gamepads,
+    gamepads: impl IntoIterator<Item = Entity>,
     bind: &mut LivedHourBind,
     bridge: Option<&LivedSimBridge>,
     path: AllocatePath,
@@ -491,7 +477,7 @@ fn handle_allocate_buttons(
     mut moments: ResMut<ThrivingMoments>,
     mut guidance: ResMut<FirstSessionGuidance>,
     mut rumble: EventWriter<GamepadRumbleRequest>,
-    gamepads: Res<Gamepads>,
+    gamepads: Query<Entity, With<Gamepad>>,
     mut bind: ResMut<LivedHourBind>,
     bridge: Option<Res<LivedSimBridge>>,
     keyboard: Res<ButtonInput<KeyCode>>,
@@ -502,7 +488,7 @@ fn handle_allocate_buttons(
     if !allocate.panel_open {
         return;
     }
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     let path = if keyboard.just_pressed(KeyCode::Digit1) {
         Some(AllocatePath::FlowOutward)
     } else if keyboard.just_pressed(KeyCode::Digit2) {
@@ -516,7 +502,7 @@ fn handle_allocate_buttons(
             &mut moments,
             &mut guidance,
             &mut rumble,
-            &gamepads,
+            gamepads.iter(),
             &mut bind,
             bridge.as_deref(),
             path,
@@ -531,7 +517,7 @@ fn handle_allocate_buttons(
                 &mut moments,
                 &mut guidance,
                 &mut rumble,
-                &gamepads,
+                gamepads.iter(),
                 &mut bind,
                 bridge.as_deref(),
                 AllocatePath::FlowOutward,
@@ -547,7 +533,7 @@ fn handle_allocate_buttons(
                 &mut moments,
                 &mut guidance,
                 &mut rumble,
-                &gamepads,
+                gamepads.iter(),
                 &mut bind,
                 bridge.as_deref(),
                 AllocatePath::StewardReserve,
@@ -780,7 +766,7 @@ mod tests {
         app.update();
         let mut query = app
             .world_mut()
-            .query_filtered::<&Style, With<AllocatePanelRoot>>();
+            .query_filtered::<&Node, With<AllocatePanelRoot>>();
         let style = query.single(app.world()).clone();
         assert_eq!(style.bottom, ALLOCATE_DOCK.bottom());
         assert_eq!(style.right, ALLOCATE_DOCK.right());
@@ -791,7 +777,7 @@ mod tests {
         assert_eq!(style.border, UiRect::all(Val::Px(1.5)));
         let mut text = app
             .world_mut()
-            .query_filtered::<&Text, With<AllocateBodyText>>();
-        assert_eq!(text.single(app.world()).sections[0].style.font_size, 15.0);
+            .query_filtered::<&TextFont, With<AllocateBodyText>>();
+        assert_eq!(text.single(app.world()).font_size, 15.0);
     }
 }

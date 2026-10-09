@@ -795,7 +795,7 @@ fn spawn_guidance_strip(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     bottom: ACTION_BAR.bottom(),
                     right: ACTION_BAR.right(),
@@ -816,14 +816,11 @@ fn spawn_guidance_strip(mut commands: Commands) {
         ))
         .with_children(|parent| {
             parent.spawn((
-                TextBundle::from_section(
-                    card_line(GuidanceObjective::MoveAround.prompt()),
-                    TextStyle {
-                        font_size: 17.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(card_line(GuidanceObjective::MoveAround.prompt())),
+TextFont { font_size: 17.0, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 FirstSessionGuidanceText,
             ));
         });
@@ -936,7 +933,7 @@ pub(crate) fn update_guidance_visibility(
         epi.as_deref(),
         nearby.as_deref(),
         &guidance,
-        time.elapsed_seconds_f64(),
+        time.elapsed_secs_f64(),
         hidden_by_bind,
     );
     let show = in_yard && guidance.active && !guidance.dismissed && !hidden_by_bind
@@ -965,7 +962,7 @@ fn update_guidance_text(
     presence: Option<Res<SoftPresence>>,
     settings: Option<Res<LocalSettingsState>>,
     mut last_place: Local<Option<&'static str>>,
-    mut query: Query<&mut Text, With<FirstSessionGuidanceText>>,
+    mut query: Query<(&mut Text, &mut TextFont), With<FirstSessionGuidanceText>>,
 ) {
     let place = stood_place_label(travel.as_deref(), presence.as_deref());
     let place_changed = *last_place != place;
@@ -977,26 +974,20 @@ fn update_guidance_text(
         .as_ref()
         .map(|state| state.is_changed())
         .unwrap_or(false);
-    let font_differs = query.iter().any(|text| {
-        text.sections
-            .iter()
-            .any(|section| (section.style.font_size - card_px).abs() > 0.01)
-    });
+    let font_differs = query
+        .iter()
+        .any(|(_, font)| (font.font_size - card_px).abs() > 0.01);
     if !guidance.is_changed() && !place_changed && !settings_changed && !font_differs {
         return;
     }
     *last_place = place;
     let prompt = lived_card_line(&guidance, place);
-    for mut text in &mut query {
-        for section in text.sections.iter_mut() {
-            if (section.style.font_size - card_px).abs() > 0.01 {
-                section.style.font_size = card_px;
-            }
+    for (mut text, mut font) in &mut query {
+        if (font.font_size - card_px).abs() > 0.01 {
+            font.font_size = card_px;
         }
-        if let Some(section) = text.sections.get_mut(0) {
-            if section.value != prompt {
-                section.value = prompt.clone();
-            }
+        if text.as_str() != prompt {
+            **text = prompt.clone();
         }
     }
 }
@@ -1070,7 +1061,7 @@ pub(crate) fn track_simple_progress_signals(
             .as_deref()
             .map(|clock| clock.timestep().as_secs_f32())
             .unwrap_or(0.0);
-        guidance.moved_distance += body_step_xz(*last_xz, now, time.delta_seconds(), fixed_dt);
+        guidance.moved_distance += body_step_xz(*last_xz, now, time.delta_secs(), fixed_dt);
         *last_xz = Some(now);
     }
 
@@ -1141,7 +1132,7 @@ pub(crate) fn track_simple_progress_signals(
         || guidance.objective == GuidanceObjective::HourThreeHeld
         || guidance.objective == GuidanceObjective::FreeExploration
     {
-        guidance.free_since += time.delta_seconds();
+        guidance.free_since += time.delta_secs();
         if guidance.objective == GuidanceObjective::HourTwoHeld && guidance.free_since > 6.0 {
             guidance.objective = GuidanceObjective::PlantFabricator;
             guidance.free_since = 0.0;
@@ -1231,8 +1222,8 @@ mod tests {
                 continue;
             }
             let text = entity.get::<Text>().expect("guidance text");
-            let section = text.sections.first().expect("guidance section");
-            return (section.style.font_size, section.value.clone());
+            let font = entity.get::<TextFont>().expect("guidance font");
+            return (font.font_size, text.as_str().to_string());
         }
         panic!("guidance card text missing");
     }
@@ -2952,8 +2943,8 @@ mod tests {
         let (border, bg) = (border.0, bg.0);
         let mut t = app
             .world_mut()
-            .query_filtered::<&Text, With<FirstSessionGuidanceText>>();
-        let text = t.single(app.world()).sections[0].style.color;
+            .query_filtered::<&TextColor, With<FirstSessionGuidanceText>>();
+        let text = t.single(app.world()).0;
 
         for (c, want, alpha, what) in [
             (border, TITLE_BORDER, 0.82, "strip border"),
@@ -3023,7 +3014,7 @@ mod tests {
         app.update();
         let mut query = app
             .world_mut()
-            .query_filtered::<&Style, With<FirstSessionGuidanceStrip>>();
+            .query_filtered::<&Node, With<FirstSessionGuidanceStrip>>();
         let style = query.single(app.world()).clone();
         assert_eq!(style.position_type, PositionType::Absolute);
         assert_eq!(style.bottom, ACTION_BAR.bottom());
@@ -3035,8 +3026,8 @@ mod tests {
         assert_eq!(style.border, UiRect::all(Val::Px(2.0)));
         let mut text = app
             .world_mut()
-            .query_filtered::<&Text, With<FirstSessionGuidanceText>>();
-        assert_eq!(text.single(app.world()).sections[0].style.font_size, 17.0);
+            .query_filtered::<&TextFont, With<FirstSessionGuidanceText>>();
+        assert_eq!(text.single(app.world()).font_size, 17.0);
     }
 
     /// CARD GUIDANCE-WALK-BODY-1 — no previous sample is not travel.

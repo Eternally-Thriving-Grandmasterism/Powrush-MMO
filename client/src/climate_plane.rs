@@ -116,7 +116,7 @@
  */
 
 use bevy::core_pipeline::bloom::BloomSettings;
-use bevy::pbr::{FogFalloff, FogSettings, VolumetricFogSettings, VolumetricLight};
+use bevy::pbr::{FogFalloff, FogSettings, FogVolume, VolumetricFogSettings, VolumetricLight};
 use bevy::prelude::*;
 
 use shared::local_settings::{GraphicsPreset, WeatherFidelity};
@@ -745,27 +745,42 @@ const LIGHT_BLOOM_INTENSITY: f32 = 0.12;
 /// never a haze. Half of High's [`LIGHT_BLOOM_INTENSITY`].
 const MEDIUM_BLOOM_INTENSITY: f32 = 0.06;
 
+/// Camera fog plus the localized volume that replaced `max_depth` in Bevy 0.15.
+pub struct UltraVolumetric {
+    pub camera: VolumetricFogSettings,
+    pub volume: FogVolume,
+    /// Full edge of the fog box. Half of this is the old `max_depth` radius.
+    pub volume_scale: Vec3,
+}
+
 /// Ultra-only light shafts for a Comfort graphics tier.
 ///
 /// [`Some`] only on [`GraphicsPreset::Ultra`]. Mobile, Low, Medium, and High
 /// return [`None`]. Does not change [`fog_bed_for`].
 /// Cite [`docs/VISUAL_TARGET.md`] L180.
-pub fn ultra_volumetric_for(preset: GraphicsPreset) -> Option<VolumetricFogSettings> {
+pub fn ultra_volumetric_for(preset: GraphicsPreset) -> Option<UltraVolumetric> {
     if preset != GraphicsPreset::Ultra {
         return None;
     }
-    Some(VolumetricFogSettings {
-        fog_color: ULTRA_VOLUMETRIC_FOG_COLOR,
-        ambient_color: ULTRA_VOLUMETRIC_AMBIENT_COLOR,
-        ambient_intensity: ULTRA_VOLUMETRIC_AMBIENT_INTENSITY,
-        step_count: ULTRA_VOLUMETRIC_STEP_COUNT,
-        max_depth: ULTRA_VOLUMETRIC_MAX_DEPTH,
-        absorption: ULTRA_VOLUMETRIC_ABSORPTION,
-        scattering: ULTRA_VOLUMETRIC_SCATTERING,
-        density: ULTRA_VOLUMETRIC_DENSITY,
-        scattering_asymmetry: ULTRA_VOLUMETRIC_SCATTERING_ASYMMETRY,
-        light_tint: ULTRA_VOLUMETRIC_LIGHT_TINT,
-        light_intensity: ULTRA_VOLUMETRIC_LIGHT_INTENSITY,
+    Some(UltraVolumetric {
+        camera: VolumetricFogSettings {
+            ambient_color: ULTRA_VOLUMETRIC_AMBIENT_COLOR,
+            ambient_intensity: ULTRA_VOLUMETRIC_AMBIENT_INTENSITY,
+            // 0.14 had no ray-origin jitter. Bevy's 0.15 default is also 0.0.
+            jitter: 0.0,
+            step_count: ULTRA_VOLUMETRIC_STEP_COUNT,
+        },
+        volume: FogVolume {
+            fog_color: ULTRA_VOLUMETRIC_FOG_COLOR,
+            density_factor: ULTRA_VOLUMETRIC_DENSITY,
+            absorption: ULTRA_VOLUMETRIC_ABSORPTION,
+            scattering: ULTRA_VOLUMETRIC_SCATTERING,
+            scattering_asymmetry: ULTRA_VOLUMETRIC_SCATTERING_ASYMMETRY,
+            light_tint: ULTRA_VOLUMETRIC_LIGHT_TINT,
+            light_intensity: ULTRA_VOLUMETRIC_LIGHT_INTENSITY,
+            ..default()
+        },
+        volume_scale: Vec3::splat(ULTRA_VOLUMETRIC_MAX_DEPTH * 2.0),
     })
 }
 
@@ -852,7 +867,7 @@ impl SanctuarySun {
 /// check therefore runs inside the command: whichever applies first spawns
 /// the sun and the other spawns nothing. Exactly one sun.
 pub fn spawn_sanctuary_sun_once(commands: &mut Commands) {
-    commands.add(|world: &mut World| {
+    commands.queue(|world: &mut World| {
         let mut lights = world.query_filtered::<(), With<DirectionalLight>>();
         if lights.iter(world).next().is_none() {
             world.spawn((SANCTUARY_SUN.bundle(), Name::new("SanctuarySun")));
@@ -1065,13 +1080,13 @@ fn spawn_climate_place(
     let ground = meshes.add(Plane3d::default().mesh().size(56.0, 56.0));
     commands.spawn((
         PbrBundle {
-            mesh: ground,
-            material: materials.add(StandardMaterial {
+            mesh: Mesh3d(ground),
+            material: MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: look.ground,
                 perceptual_roughness: SANCTUARY_YARD_ROUGHNESS,
                 metallic: 0.0,
                 ..default()
-            }),
+            })),
             transform: Transform::from_xyz(0.0, 0.0, 0.0),
             ..default()
         },
@@ -1095,8 +1110,8 @@ fn spawn_climate_place(
             let p = dir * t;
             commands.spawn((
                 PbrBundle {
-                    mesh: stone_mesh.clone(),
-                    material: stone_mat.clone(),
+                    mesh: Mesh3d(stone_mesh.clone()),
+                    material: MeshMaterial3d(stone_mat.clone()),
                     transform: lod_stone_tf(p.x, 0.04, p.z, scale),
                     ..default()
                 },
@@ -1142,7 +1157,7 @@ fn spawn_climate_chip(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: PLACE_NAME.top(),
                     left: PLACE_NAME.left(),
@@ -1162,14 +1177,11 @@ fn spawn_climate_chip(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "Sanctuary Prime",
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new("Sanctuary Prime"),
+TextFont { font_size: 14.0, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 ClimateNameText,
             ));
         });
@@ -1204,6 +1216,7 @@ fn sync_ultra_volumetric(
     settings: Option<Res<LocalSettingsState>>,
     cameras: Query<(Entity, Option<&VolumetricFogSettings>), With<Camera3d>>,
     lights: Query<(Entity, &DirectionalLight, Option<&VolumetricLight>)>,
+    volumes: Query<Entity, With<FogVolume>>,
 ) {
     let preset = settings
         .as_ref()
@@ -1212,8 +1225,14 @@ fn sync_ultra_volumetric(
     if let Some(volumetric) = ultra_volumetric_for(preset) {
         for (entity, existing) in &cameras {
             if existing.is_none() {
-                commands.entity(entity).insert(volumetric);
+                commands.entity(entity).insert(volumetric.camera);
             }
+        }
+        if volumes.is_empty() {
+            commands.spawn((
+                volumetric.volume,
+                Transform::from_scale(volumetric.volume_scale),
+            ));
         }
         for (entity, light, existing) in &lights {
             if light.shadows_enabled {
@@ -1229,6 +1248,9 @@ fn sync_ultra_volumetric(
             if existing.is_some() {
                 commands.entity(entity).remove::<VolumetricFogSettings>();
             }
+        }
+        for entity in &volumes {
+            commands.entity(entity).despawn();
         }
         for (entity, _light, existing) in &lights {
             if existing.is_some() {
@@ -1304,9 +1326,9 @@ fn apply_climate_look(
     mut clear: ResMut<ClearColor>,
     mut ambient: ResMut<AmbientLight>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    grounds: Query<&Handle<StandardMaterial>, With<ClimateGround>>,
-    stones: Query<&Handle<StandardMaterial>, With<ClimateStone>>,
-    nodes: Query<&Handle<StandardMaterial>, With<MercyHarvestNode>>,
+    grounds: Query<&MeshMaterial3d<StandardMaterial>, With<ClimateGround>>,
+    stones: Query<&MeshMaterial3d<StandardMaterial>, With<ClimateStone>>,
+    nodes: Query<&MeshMaterial3d<StandardMaterial>, With<MercyHarvestNode>>,
     mut fogs: Query<&mut FogSettings>,
 ) {
     let id = realm.current.unwrap_or(0);
@@ -1451,7 +1473,7 @@ fn breathe_weather_bed(
         .unwrap_or(GraphicsPreset::Medium);
     let bed = fog_bed_for(realm.current.or(Some(0)), preset);
     let amp = coupled_breath_amp(&bed, coupling.band);
-    let pulse = (time.elapsed_seconds() * bed.breath_hz * std::f32::consts::TAU).sin() * amp;
+    let pulse = (time.elapsed_secs() * bed.breath_hz * std::f32::consts::TAU).sin() * amp;
     // Fog distance breathes gently around the Place bed.
     for mut fog in &mut fogs {
         fog.color = bed.fog;
@@ -1477,10 +1499,8 @@ fn update_climate_chip(
         .map(|t| t.chip_name())
         .unwrap_or_else(|| look_for(realm.current).name);
     for mut text in &mut text_q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != name {
-                s.value = name.to_string();
-            }
+        if text.as_str() != name {
+            **text = name.to_string();
         }
     }
 }
@@ -1662,9 +1682,9 @@ mod tests {
         app.update();
         let mut q = app
             .world_mut()
-            .query_filtered::<&Style, With<ClimateNameRoot>>();
+            .query_filtered::<&Node, With<ClimateNameRoot>>();
         let style = q.single(app.world()).clone();
-        let coded = Style {
+        let coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Px(18.0),
             left: Val::Percent(50.0),
@@ -1695,8 +1715,8 @@ mod tests {
             .query_filtered::<(&BorderColor, &BackgroundColor), With<ClimateNameRoot>>();
         let (border, bg) = q.single(app.world());
         let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
-        let mut t = app.world_mut().query_filtered::<&Text, With<ClimateNameText>>();
-        let txt = t.single(app.world()).sections[0].style.color.to_srgba();
+        let mut t = app.world_mut().query_filtered::<&TextColor, With<ClimateNameText>>();
+        let txt = t.single(app.world()).0.to_srgba();
         for (got, want, what) in [
             (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
             (border, TITLE_BORDER.to_srgba(), "rim"),
@@ -3451,20 +3471,27 @@ mod tests {
             let got = ultra_volumetric_for(preset);
             if preset == GraphicsPreset::Ultra {
                 let vol = got.expect("Ultra");
-                assert_eq!(vol.fog_color, ULTRA_VOLUMETRIC_FOG_COLOR);
-                assert_eq!(vol.ambient_color, ULTRA_VOLUMETRIC_AMBIENT_COLOR);
-                assert_eq!(vol.ambient_intensity, ULTRA_VOLUMETRIC_AMBIENT_INTENSITY);
-                assert_eq!(vol.step_count, ULTRA_VOLUMETRIC_STEP_COUNT);
-                assert_eq!(vol.max_depth, ULTRA_VOLUMETRIC_MAX_DEPTH);
-                assert_eq!(vol.absorption, ULTRA_VOLUMETRIC_ABSORPTION);
-                assert_eq!(vol.scattering, ULTRA_VOLUMETRIC_SCATTERING);
-                assert_eq!(vol.density, ULTRA_VOLUMETRIC_DENSITY);
+                assert_eq!(vol.volume.fog_color, ULTRA_VOLUMETRIC_FOG_COLOR);
+                assert_eq!(vol.camera.ambient_color, ULTRA_VOLUMETRIC_AMBIENT_COLOR);
                 assert_eq!(
-                    vol.scattering_asymmetry,
+                    vol.camera.ambient_intensity,
+                    ULTRA_VOLUMETRIC_AMBIENT_INTENSITY
+                );
+                assert_eq!(vol.camera.step_count, ULTRA_VOLUMETRIC_STEP_COUNT);
+                assert_eq!(vol.camera.jitter, 0.0);
+                assert_eq!(
+                    vol.volume_scale,
+                    Vec3::splat(ULTRA_VOLUMETRIC_MAX_DEPTH * 2.0)
+                );
+                assert_eq!(vol.volume.absorption, ULTRA_VOLUMETRIC_ABSORPTION);
+                assert_eq!(vol.volume.scattering, ULTRA_VOLUMETRIC_SCATTERING);
+                assert_eq!(vol.volume.density_factor, ULTRA_VOLUMETRIC_DENSITY);
+                assert_eq!(
+                    vol.volume.scattering_asymmetry,
                     ULTRA_VOLUMETRIC_SCATTERING_ASYMMETRY
                 );
-                assert_eq!(vol.light_tint, ULTRA_VOLUMETRIC_LIGHT_TINT);
-                assert_eq!(vol.light_intensity, ULTRA_VOLUMETRIC_LIGHT_INTENSITY);
+                assert_eq!(vol.volume.light_tint, ULTRA_VOLUMETRIC_LIGHT_TINT);
+                assert_eq!(vol.volume.light_intensity, ULTRA_VOLUMETRIC_LIGHT_INTENSITY);
             } else {
                 assert!(got.is_none(), "{preset:?}");
             }
@@ -3522,6 +3549,10 @@ mod tests {
         assert!(app.world().get::<FogSettings>(camera).is_none());
         assert!(app.world().get::<VolumetricLight>(sun).is_some());
         assert!(app.world().get::<VolumetricLight>(fallback).is_none());
+        let mut volumes = app.world_mut().query::<(&FogVolume, &Transform)>();
+        let (volume, transform) = volumes.single(app.world());
+        assert_eq!(volume.density_factor, ULTRA_VOLUMETRIC_DENSITY);
+        assert_eq!(transform.scale, Vec3::splat(ULTRA_VOLUMETRIC_MAX_DEPTH * 2.0));
 
         app.update();
         assert!(app.world().get::<VolumetricFogSettings>(camera).is_some());
@@ -3538,6 +3569,8 @@ mod tests {
         assert!(app.world().get::<VolumetricFogSettings>(camera).is_none());
         assert!(app.world().get::<VolumetricLight>(sun).is_none());
         assert!(app.world().get::<VolumetricLight>(fallback).is_none());
+        let mut volumes = app.world_mut().query::<&FogVolume>();
+        assert!(volumes.iter(app.world()).next().is_none());
 
         let mut registered = App::new();
         registered.add_plugins((MinimalPlugins, ClimatePlanePlugin));
@@ -3605,12 +3638,12 @@ mod tests {
                 assert_eq!(bloom.high_pass_frequency, natural.high_pass_frequency);
                 assert_eq!(bloom.composite_mode, natural.composite_mode);
                 assert_eq!(
-                    bloom.prefilter_settings.threshold,
-                    natural.prefilter_settings.threshold
+                    bloom.prefilter.threshold,
+                    natural.prefilter.threshold
                 );
                 assert_eq!(
-                    bloom.prefilter_settings.threshold_softness,
-                    natural.prefilter_settings.threshold_softness
+                    bloom.prefilter.threshold_softness,
+                    natural.prefilter.threshold_softness
                 );
             } else {
                 assert!(got.is_none(), "{preset:?}");
@@ -3779,11 +3812,11 @@ mod tests {
                     found = true;
                     let access = system.component_access();
                     assert!(
-                        access.has_write(camera),
+                        access.has_component_write(camera),
                         "Camera write missing; access was not initialized"
                     );
                     assert!(
-                        !access.has_write(ambient),
+                        !access.has_resource_write(ambient),
                         "sync_tier_bloom writes AmbientLight"
                     );
                     assert!(!access.has_write_all());
@@ -4150,13 +4183,13 @@ mod tests {
             ..default()
         });
         app.world_mut().spawn(PbrBundle {
-            mesh,
-            material,
+            mesh: Mesh3d(mesh),
+            material: MeshMaterial3d(material),
             transform: Transform::from_xyz(0.0, 0.7, 0.0),
             ..default()
         });
         app.world_mut().spawn(NodeBundle {
-            style: Style {
+            node: Node {
                 position_type: PositionType::Absolute,
                 top: Val::Px(8.0),
                 left: Val::Px(8.0),
@@ -4196,7 +4229,7 @@ fn ui_cam_hdr_still_false(app: &App, ui_cam: Entity) -> bool {
 #[cfg(test)]
 #[derive(Clone)]
 struct ProbeShot {
-    image: bevy::render::texture::Image,
+    image: bevy::image::Image,
     world_hdr: bool,
     ui_hdr: bool,
     world_bloom: bool,
@@ -4217,8 +4250,8 @@ struct ProbeSlots {
 #[cfg(test)]
 #[derive(Resource)]
 struct ProbeRun {
-    tx: std::sync::mpsc::Sender<bevy::render::texture::Image>,
-    rx: std::sync::Mutex<std::sync::mpsc::Receiver<bevy::render::texture::Image>>,
+    tx: std::sync::mpsc::Sender<bevy::image::Image>,
+    rx: std::sync::Mutex<std::sync::mpsc::Receiver<bevy::image::Image>>,
     frames: u32,
     phase: u8,
     requested: bool,
@@ -4245,9 +4278,9 @@ impl ProbeRun {
 
 #[cfg(test)]
 fn drive_bloom_probe(
+    mut commands: Commands,
     mut probe: ResMut<ProbeRun>,
     mut settings: ResMut<LocalSettingsState>,
-    mut shots: ResMut<bevy::render::view::screenshot::ScreenshotManager>,
     windows: Query<Entity, With<bevy::window::PrimaryWindow>>,
     world_cams: Query<
         (
@@ -4260,7 +4293,7 @@ fn drive_bloom_probe(
     ui_cams: Query<&Camera, With<crate::ui_above_world::LivedUiCamera>>,
     ui_bloom_cams: Query<(), (With<crate::ui_above_world::LivedUiCamera>, With<BloomSettings>)>,
     lights: Query<(), With<VolumetricLight>>,
-    msaa: Res<bevy::render::view::Msaa>,
+    msaa: Query<&bevy::render::view::Msaa>,
     mut exit: EventWriter<AppExit>,
 ) {
     use crate::ui_above_world::UI_CAMERA_ORDER;
@@ -4271,11 +4304,13 @@ fn drive_bloom_probe(
         if let Ok(window) = windows.get_single() {
             probe.requested = true;
             let tx = probe.tx.clone();
-            shots
-                .take_screenshot(window, move |img| {
-                    let _ = tx.send(img);
-                })
-                .expect("screenshot");
+            commands
+                .spawn(bevy::render::view::screenshot::Screenshot::window(window))
+                .observe(
+                    move |trigger: Trigger<bevy::render::view::screenshot::ScreenshotCaptured>| {
+                        let _ = tx.send(trigger.event().0.clone());
+                    },
+                );
         }
     }
     let received = probe.rx.lock().expect("shot inbox").try_recv().ok();
@@ -4292,7 +4327,8 @@ fn drive_bloom_probe(
             ui_order_10: ui.order == UI_CAMERA_ORDER,
             volumetric_fog: fog.is_some(),
             volumetric_light: !lights.is_empty(),
-            msaa_off: matches!(*msaa, bevy::render::view::Msaa::Off),
+            msaa_off: msaa.iter().all(|sample| matches!(*sample, bevy::render::view::Msaa::Off))
+                && msaa.iter().next().is_some(),
         };
         let mut slots = probe.slots.lock().expect("probe slots");
         if probe.phase == 0 {
@@ -4315,7 +4351,7 @@ fn drive_bloom_probe(
 }
 
 #[cfg(test)]
-fn assert_plate_over_world(image: &bevy::render::texture::Image, label: &str) {
+fn assert_plate_over_world(image: &bevy::image::Image, label: &str) {
     use bevy::render::render_resource::TextureFormat;
     let bpp = match image.texture_descriptor.format {
         TextureFormat::Rgba8Unorm | TextureFormat::Rgba8UnormSrgb | TextureFormat::Bgra8Unorm | TextureFormat::Bgra8UnormSrgb => 4,
@@ -4340,7 +4376,7 @@ fn assert_plate_over_world(image: &bevy::render::texture::Image, label: &str) {
 }
 
 #[cfg(test)]
-fn save_probe_png(image: &bevy::render::texture::Image, name: &str) {
+fn save_probe_png(image: &bevy::image::Image, name: &str) {
     let dir = std::env::var("SHOT_DIR").unwrap_or_else(|_| "/opt/cursor/artifacts".into());
     let path = std::path::Path::new(&dir).join(name);
     if let Some(parent) = path.parent() {

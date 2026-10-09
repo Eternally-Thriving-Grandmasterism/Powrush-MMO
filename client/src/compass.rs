@@ -37,7 +37,7 @@ fn spawn_compass_slab(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     bottom: COMPASS.bottom(),
                     right: COMPASS.right(),
@@ -57,14 +57,11 @@ fn spawn_compass_slab(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: 14.0, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 CompassSlabText,
             ));
         });
@@ -81,7 +78,7 @@ fn update_compass(
         fire_thriving(
             &mut moments,
             ThrivingKind::FirstCompass,
-            time.elapsed_seconds_f64(),
+            time.elapsed_secs_f64(),
         );
         yard.fired = true;
     }
@@ -116,10 +113,8 @@ fn update_compass_slab(
     };
     let painted = compass_line(travel.as_ref().map(|state| state.chip_name()), line);
     for mut text in &mut text_q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != painted {
-                s.value = painted.clone();
-            }
+        if text.as_str() != painted {
+            **text = painted.clone();
         }
     }
 }
@@ -138,9 +133,9 @@ mod tests {
         app.update();
         let mut q = app
             .world_mut()
-            .query_filtered::<&Style, With<CompassSlabRoot>>();
+            .query_filtered::<&Node, With<CompassSlabRoot>>();
         let style = q.single(app.world()).clone();
-        let coded = Style {
+        let coded = Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(92.0),
             right: Val::Px(16.0),
@@ -170,8 +165,8 @@ mod tests {
             .query_filtered::<(&BorderColor, &BackgroundColor), With<CompassSlabRoot>>();
         let (border, bg) = q.single(app.world());
         let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
-        let mut t = app.world_mut().query_filtered::<&Text, With<CompassSlabText>>();
-        let txt = t.single(app.world()).sections[0].style.color.to_srgba();
+        let mut t = app.world_mut().query_filtered::<&TextColor, With<CompassSlabText>>();
+        let txt = t.single(app.world()).0.to_srgba();
         for (got, want, what) in [
             (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
             (border, TITLE_BORDER.to_srgba(), "rim"),

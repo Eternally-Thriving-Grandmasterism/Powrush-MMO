@@ -350,8 +350,8 @@ fn sync_scatter(
         };
         commands.spawn((
             PbrBundle {
-                mesh,
-                material,
+                mesh: Mesh3d(mesh),
+                material: MeshMaterial3d(material),
                 transform: Transform::from_xyz(spot.x, spot.y, spot.z).with_scale(scale),
                 ..default()
             },

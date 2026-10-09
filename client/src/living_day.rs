@@ -78,7 +78,7 @@ fn turn_the_clock(
     mut echo: Option<ResMut<crate::abundance_journey_echo::AbundanceJourneyEcho>>,
     mut period_notes: Local<DayPeriodNoteMemory>,
 ) {
-    day.phase = (day.phase + time.delta_seconds() / DAY_SECS) % 1.0;
+    day.phase = (day.phase + time.delta_secs() / DAY_SECS) % 1.0;
     let abyss = realm.current == Some(3);
     let light = ambient_light_factor(day.phase, abyss);
     day.night = light < 0.40;

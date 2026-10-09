@@ -12,7 +12,7 @@ use bevy::prelude::*;
 
 use shared::skirmish_well::{SkirmishWell, WellHold, CONTEST_REACH, WELL_ANCHORS};
 
-use bevy::input::gamepad::{GamepadRumbleRequest, Gamepads};
+use bevy::input::gamepad::GamepadRumbleRequest;
 
 use crate::coop_voice::VoiceYard;
 use crate::hud_anchor_registry::{HudSlab, WELL};
@@ -105,7 +105,7 @@ fn spawn_well_slab(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     bottom: WELL.bottom(),
                     left: WELL.left(),
@@ -125,14 +125,11 @@ fn spawn_well_slab(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: 14.0, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 WellSlabText,
             ));
         });
@@ -164,19 +161,19 @@ fn pressure_hold(
     time: Res<Time>,
     mut yard: ResMut<WellYard>,
     mut pool: ResMut<SoftRbePool>,
-    gamepads: Res<Gamepads>,
+    gamepads: Query<Entity, With<Gamepad>>,
     mut rumble: EventWriter<GamepadRumbleRequest>,
 ) {
     if yard.well.hold != WellHold::Human {
         return;
     }
-    if time.elapsed_seconds_f64() < yard.hold_until {
+    if time.elapsed_secs_f64() < yard.hold_until {
         return;
     }
     let step = yard.well.traveler_answers();
     if let Some(kick) = well_contest_kick(step) {
         pool.kick = kick;
-        rumble_harvest(&mut rumble, &gamepads, false);
+        rumble_harvest(&mut rumble, gamepads.iter(), false);
     }
 }
 
@@ -189,7 +186,7 @@ pub(crate) fn handle_well(
     mut yard: ResMut<WellYard>,
     mut moments: ResMut<ThrivingMoments>,
     mut pool: ResMut<SoftRbePool>,
-    gamepads: Res<Gamepads>,
+    gamepads: Query<Entity, With<Gamepad>>,
     mut rumble: EventWriter<GamepadRumbleRequest>,
     time: Res<Time>,
 ) {
@@ -205,16 +202,16 @@ pub(crate) fn handle_well(
     }
     let step = yard.well.act();
     if step == "won" {
-        yard.hold_until = time.elapsed_seconds_f64() + HOLD_SECS;
+        yard.hold_until = time.elapsed_secs_f64() + HOLD_SECS;
         yard.well_glow = 1.0;
         if let Some(kick) = well_contest_kick(step) {
             pool.kick = kick;
-            rumble_harvest(&mut rumble, &gamepads, true);
+            rumble_harvest(&mut rumble, gamepads.iter(), true);
         }
         fire_thriving(
             &mut moments,
             ThrivingKind::FirstWell,
-            time.elapsed_seconds_f64(),
+            time.elapsed_secs_f64(),
         );
     }
 }
@@ -229,7 +226,7 @@ fn well_contest_kick(step: &str) -> Option<f32> {
 }
 
 fn tick_well_glow(time: Res<Time>, mut yard: ResMut<WellYard>) {
-    yard.well_glow = tick_well_glow_breath(yard.well_glow, time.delta_seconds());
+    yard.well_glow = tick_well_glow_breath(yard.well_glow, time.delta_secs());
 }
 
 /// Peace is where this well already lives. Not a PlaceId. Not a second slab.
@@ -313,10 +310,8 @@ fn update_well_slab(
     }
     let line = dressed_well_slab_line(&yard);
     for mut text in &mut text_q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != line {
-                s.value = line.clone();
-            }
+        if text.as_str() != line {
+            **text = line.clone();
         }
     }
 }
@@ -334,9 +329,9 @@ mod tests {
         app.update();
         let mut q = app
             .world_mut()
-            .query_filtered::<&Style, With<WellSlabRoot>>();
+            .query_filtered::<&Node, With<WellSlabRoot>>();
         let style = q.single(app.world()).clone();
-        let coded = Style {
+        let coded = Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(132.0),
             left: Val::Px(16.0),
@@ -522,8 +517,8 @@ mod tests {
         let (border, bg, vis) = (border.0, bg.0, *vis);
         let mut t = app
             .world_mut()
-            .query_filtered::<&Text, With<WellSlabText>>();
-        let text = t.single(app.world()).sections[0].style.color;
+            .query_filtered::<&TextColor, With<WellSlabText>>();
+        let text = t.single(app.world()).0;
         (border, bg, text, vis)
     }
 

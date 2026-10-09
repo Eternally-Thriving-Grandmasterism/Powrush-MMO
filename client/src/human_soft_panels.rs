@@ -60,7 +60,7 @@ fn spawn_soft_panels(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: MERCY.top(),
                     right: MERCY.right(),
@@ -82,39 +82,30 @@ fn spawn_soft_panels(mut commands: Commands) {
             HudSlab(MERCY.id),
         ))
         .with_children(|p| {
-            p.spawn(TextBundle::from_section(
-                "MY MERCY JOURNEY",
-                TextStyle {
-                    font_size: 15.0,
-                    color: TITLE_TEXT_SECONDARY,
-                    ..default()
-                },
-            ));
             p.spawn((
-                TextBundle::from_section(
-                    "Acts of thriving will gather here",
-                    TextStyle {
-                        font_size: 13.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+Text::new("MY MERCY JOURNEY"),
+TextFont { font_size: 15.0, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
+            p.spawn((
+                (
+Text::new("Acts of thriving will gather here"),
+TextFont { font_size: 13.0, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 MercySoftBody,
             ));
-            p.spawn(TextBundle::from_section(
-                "M toggle · J also opens the echo",
-                TextStyle {
-                    font_size: 11.0,
-                    color: TITLE_TEXT_SECONDARY,
-                    ..default()
-                },
-            ));
+            p.spawn((
+Text::new("M toggle · J also opens the echo"),
+TextFont { font_size: 11.0, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
         });
 
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: REALM.top(),
                     left: REALM.left(),
@@ -134,33 +125,24 @@ fn spawn_soft_panels(mut commands: Commands) {
             HudSlab(REALM.id),
         ))
         .with_children(|p| {
-            p.spawn(TextBundle::from_section(
-                "REALM TRAVEL",
-                TextStyle {
-                    font_size: 15.0,
-                    color: TITLE_TEXT_SECONDARY,
-                    ..default()
-                },
-            ));
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 13.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+Text::new("REALM TRAVEL"),
+TextFont { font_size: 15.0, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
+            p.spawn((
+                (
+Text::new(""),
+TextFont { font_size: 13.0, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 RealmSoftBody,
             ));
-            p.spawn(TextBundle::from_section(
-                "Z toggle · 1–5 choose climate",
-                TextStyle {
-                    font_size: 11.0,
-                    color: TITLE_TEXT_SECONDARY,
-                    ..default()
-                },
-            ));
+            p.spawn((
+Text::new("Z toggle · 1–5 choose climate"),
+TextFont { font_size: 11.0, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
         });
 }
 
@@ -262,10 +244,8 @@ fn update_soft_bodies(
             .join("\n")
     };
     for mut text in &mut mercy {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != mercy_body {
-                s.value = mercy_body.clone();
-            }
+        if text.as_str() != mercy_body {
+            **text = mercy_body.clone();
         }
     }
 
@@ -279,10 +259,8 @@ fn update_soft_bodies(
         realm_body.push_str(&format!("{mark} [{}] {name}\n", id + 1));
     }
     for mut text in &mut realm {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != realm_body {
-                s.value = realm_body.clone();
-            }
+        if text.as_str() != realm_body {
+            **text = realm_body.clone();
         }
     }
 }
@@ -301,9 +279,9 @@ mod tests {
 
         let mut mercy_q = app
             .world_mut()
-            .query_filtered::<&Style, With<MercySoftRoot>>();
+            .query_filtered::<&Node, With<MercySoftRoot>>();
         let mercy = mercy_q.single(app.world()).clone();
-        let mercy_coded = Style {
+        let mercy_coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Percent(10.0),
             right: Val::Percent(2.0),
@@ -324,9 +302,9 @@ mod tests {
 
         let mut realm_q = app
             .world_mut()
-            .query_filtered::<&Style, With<RealmSoftRoot>>();
+            .query_filtered::<&Node, With<RealmSoftRoot>>();
         let realm = realm_q.single(app.world()).clone();
-        let realm_coded = Style {
+        let realm_coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Percent(18.0),
             left: Val::Percent(2.0),

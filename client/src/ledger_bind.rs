@@ -94,7 +94,7 @@ fn spawn_ledger_slab(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     bottom: Val::Px(16.0),
                     left: Val::Px(16.0),
@@ -107,22 +107,19 @@ fn spawn_ledger_slab(mut commands: Commands) {
                 background_color: TITLE_PLATE_BG.into(),
                 border_color: TITLE_BORDER.with_alpha(1.0).into(),
                 visibility: Visibility::Hidden,
-                z_index: ZIndex::Global(LIVED_UI_Z_LEDGER),
-                ..default()
+                                ..default()
             },
+GlobalZIndex(LIVED_UI_Z_LEDGER),
             LedgerSlabRoot,
             LivedUiPlate,
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: 14.0, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 LedgerSlabText,
             ));
         });
@@ -213,7 +210,7 @@ fn handle_ledger(
         fire_thriving(
             &mut moments,
             ThrivingKind::FirstBind,
-            time.elapsed_seconds_f64(),
+            time.elapsed_secs_f64(),
         );
     }
 }
@@ -328,10 +325,8 @@ fn update_ledger_slab(
         format!("{face}\n{sign}\n{sash}")
     };
     for mut text in &mut text_q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != line {
-                s.value = line.clone();
-            }
+        if text.as_str() != line {
+            **text = line.clone();
         }
     }
 }
@@ -410,8 +405,8 @@ mod tests {
         let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
         let mut t = app
             .world_mut()
-            .query_filtered::<&Text, With<LedgerSlabText>>();
-        let txt = t.single(app.world()).sections[0].style.color.to_srgba();
+            .query_filtered::<&TextColor, With<LedgerSlabText>>();
+        let txt = t.single(app.world()).0.to_srgba();
         for (got, want, what) in [
             (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
             (border, TITLE_BORDER.to_srgba(), "rim"),
@@ -480,8 +475,7 @@ mod tests {
         let mut q = world.query_filtered::<&Text, With<LedgerSlabText>>();
         q.iter(world)
             .next()
-            .and_then(|t| t.sections.first())
-            .map(|s| s.value.clone())
+            .map(|t| t.as_str().to_string())
             .expect("ledger slab text")
     }
 
@@ -584,6 +578,7 @@ mod tests {
             key_code: soft_play_bindings::LEDGER,
             logical_key: Key::Character("l".into()),
             state: ButtonState::Pressed,
+            repeat: false,
             window,
         });
         app.update();

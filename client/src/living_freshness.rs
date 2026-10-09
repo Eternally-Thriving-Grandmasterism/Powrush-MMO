@@ -72,10 +72,10 @@ fn compost_unused_vitality(
     mut nodes: Query<&mut MercyHarvestNode>,
 ) {
     if pool.vitality < 0.45 {
-        fresh.age = (fresh.age - time.delta_seconds() * 0.4).max(0.0);
+        fresh.age = (fresh.age - time.delta_secs() * 0.4).max(0.0);
         return;
     }
-    fresh.age += time.delta_seconds() * climate_mul(realm.current);
+    fresh.age += time.delta_secs() * climate_mul(realm.current);
     if fresh.age < AGE_BEFORE_RETURN {
         return;
     }
@@ -94,7 +94,7 @@ fn compost_unused_vitality(
         }
     }
     fresh.returns = fresh.returns.saturating_add(1);
-    inv.pickup_until = time.elapsed_seconds_f64() + 2.4;
+    inv.pickup_until = time.elapsed_secs_f64() + 2.4;
     inv.pickup_line = compost_line(nearby.in_range, nearby.name.as_deref());
     if !fresh.first_return_lived {
         fresh.first_return_lived = true;

@@ -72,13 +72,13 @@ fn sync_depths_landing(
     debug_assert!(!depths_mesh_on_sanctuary());
     commands.spawn((
         PbrBundle {
-            mesh: meshes.add(Cylinder::new(1.6, 0.05)),
-            material: materials.add(StandardMaterial {
+            mesh: Mesh3d(meshes.add(Cylinder::new(1.6, 0.05))),
+            material: MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgb(0.12, 0.16, 0.22),
                 emissive: LinearRgba::new(0.01, 0.02, 0.03, 1.0),
                 perceptual_roughness: 0.9,
                 ..default()
-            }),
+            })),
             transform: Transform::from_translation(Vec3::new(0.0, 0.02, 0.0)),
             ..default()
         },
@@ -87,13 +87,13 @@ fn sync_depths_landing(
     ));
     commands.spawn((
         PbrBundle {
-            mesh: meshes.add(Sphere::new(DEPTHS_NODE_RADIUS)),
-            material: materials.add(StandardMaterial {
+            mesh: Mesh3d(meshes.add(Sphere::new(DEPTHS_NODE_RADIUS))),
+            material: MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgb(0.34, 0.70, 0.72),
                 emissive: LinearRgba::new(0.05, 0.18, 0.20, 1.0),
                 perceptual_roughness: 0.48,
                 ..default()
-            }),
+            })),
             transform: Transform::from_translation(DEPTHS_NODE_CENTER),
             ..default()
         },

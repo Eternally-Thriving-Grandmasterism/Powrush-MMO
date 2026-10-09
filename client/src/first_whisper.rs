@@ -53,7 +53,7 @@ fn spawn_whisper(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: WHISPER.top(),
                     left: WHISPER.left(),
@@ -74,14 +74,11 @@ fn spawn_whisper(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    LINE,
-                    TextStyle {
-                        font_size: 18.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(LINE),
+TextFont { font_size: 18.0, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 WhisperText,
             ));
         });
@@ -104,11 +101,11 @@ fn maybe_speak(
     persist.whisper_lived = true;
     persist.dirty = true;
     clock.showing = true;
-    clock.until = time.elapsed_seconds_f64() + HOLD_SECS;
+    clock.until = time.elapsed_secs_f64() + HOLD_SECS;
     if let Some(state) = travel.as_ref() {
         let dressed = whisper_line(Some(state.chip_name()));
         for mut text in &mut whisper {
-            text.sections[0].value = dressed.clone();
+            **text = dressed.clone();
         }
     }
     info!(target: "powrush::whisper", "one Lattice sentence — then silence");
@@ -119,7 +116,7 @@ fn update_whisper(
     time: Res<Time>,
     mut root: Query<&mut Visibility, With<WhisperRoot>>,
 ) {
-    let show = clock.showing && time.elapsed_seconds_f64() < clock.until;
+    let show = clock.showing && time.elapsed_secs_f64() < clock.until;
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible
@@ -143,9 +140,9 @@ mod tests {
         app.update();
         let mut q = app
             .world_mut()
-            .query_filtered::<&Style, With<WhisperRoot>>();
+            .query_filtered::<&Node, With<WhisperRoot>>();
         let style = q.single(app.world()).clone();
-        let coded = Style {
+        let coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Percent(28.0),
             left: Val::Percent(50.0),

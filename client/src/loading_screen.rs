@@ -12,13 +12,13 @@ use bevy::asset::{AssetServer, LoadState, RecursiveDependencyLoadState, UntypedA
 use bevy::audio::AudioSource;
 use bevy::ecs::schedule::common_conditions::any_with_component;
 use bevy::prelude::*;
-use bevy::render::texture::Image;
+use bevy::image::Image;
 use bevy::ui::FocusPolicy;
 
 use crate::loading_lines::LOADING_LINES;
 use crate::ui_above_world::LivedUiPlate;
 
-/// Above the title persona plate (`title_screen` `ZIndex::Global(142)`).
+/// Above the title persona plate (`title_screen` `GlobalZIndex(142)`).
 const LOADING_Z: i32 = 200;
 const LINE_INTERVAL_SECS: f32 = 3.5;
 const MIN_VISIBLE_SECS: f32 = 1.5;
@@ -109,7 +109,7 @@ fn classify_load(server: &AssetServer, id: UntypedAssetId) -> Option<bool> {
         Some(LoadState::Failed(_)) => Some(true),
         Some(LoadState::Loaded) => match server.get_recursive_dependency_load_state(id) {
             Some(RecursiveDependencyLoadState::Loaded)
-            | Some(RecursiveDependencyLoadState::Failed) => Some(true),
+            | Some(RecursiveDependencyLoadState::Failed(_)) => Some(true),
             Some(RecursiveDependencyLoadState::Loading)
             | Some(RecursiveDependencyLoadState::NotLoaded) => Some(false),
             None => Some(true),
@@ -229,23 +229,21 @@ fn spawn_loading_overlay(
     time: Res<Time<Real>>,
     server: Option<Res<AssetServer>>,
     fonts: Option<Res<Assets<Font>>>,
-    texts: Query<&Text>,
-    images: Query<&Handle<Image>>,
-    audio: Query<&Handle<AudioSource>>,
+    texts: Query<&TextFont>,
+    images: Query<&ImageNode>,
+    audio: Query<&AudioPlayer>,
 ) {
     if !should_spawn(q2_frame_set()) {
         return;
     }
-    let spawned_at = time.elapsed_seconds();
+    let spawned_at = time.elapsed_secs();
     let mut ids = Vec::new();
     push_observed(
         &mut ids,
         fonts.as_deref(),
-        texts
-            .iter()
-            .flat_map(|text| text.sections.iter().map(|s| s.style.font.id())),
-        images.iter().map(|handle| handle.id()),
-        audio.iter().map(|handle| handle.id()),
+        texts.iter().map(|font| font.font.id()),
+        images.iter().map(|node| node.image.id()),
+        audio.iter().map(|player| player.0.id()),
     );
     let snap = boot_snapshot(server.as_deref(), &ids);
     let fraction = progress_fraction(snap.settled, snap.tracked);
@@ -255,7 +253,7 @@ fn spawn_loading_overlay(
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
@@ -265,16 +263,16 @@ fn spawn_loading_overlay(
                     ..default()
                 },
                 background_color: VEIL.into(),
-                z_index: ZIndex::Global(LOADING_Z),
-                focus_policy: FocusPolicy::Block,
+                                focus_policy: FocusPolicy::Block,
                 ..default()
             },
+GlobalZIndex(LOADING_Z),
             LoadingRoot { spawned_at },
             LivedUiPlate,
         ))
         .with_children(|root| {
             root.spawn(NodeBundle {
-                style: Style {
+                node: Node {
                     width: Val::Px(520.0),
                     max_width: Val::Percent(100.0),
                     flex_direction: FlexDirection::Column,
@@ -292,7 +290,7 @@ fn spawn_loading_overlay(
             .with_children(|panel| {
                 panel
                     .spawn(NodeBundle {
-                        style: Style {
+                        node: Node {
                             width: Val::Percent(100.0),
                             height: Val::Px(14.0),
                             border: UiRect::all(Val::Px(1.0)),
@@ -307,7 +305,7 @@ fn spawn_loading_overlay(
                     .with_children(|track| {
                         track.spawn((
                             NodeBundle {
-                                style: Style {
+                                node: Node {
                                     width: Val::Percent((fraction * 100.0).clamp(0.0, 100.0)),
                                     height: Val::Percent(100.0),
                                     ..default()
@@ -319,41 +317,29 @@ fn spawn_loading_overlay(
                         ));
                     });
                 panel.spawn((
-                    TextBundle {
-                        text: Text::from_section(
-                            percent,
-                            TextStyle {
-                                font_size: 18.0,
-                                color: TEXT_CREAM,
-                                ..default()
-                            },
-                        )
-                        .with_justify(JustifyText::Center),
-                        style: Style {
+                    (
+Text::new(percent),
+TextFont { font_size: 18.0, ..default() },
+TextColor(TEXT_CREAM),
+TextLayout::new_with_justify(JustifyText::Center),
+Node {
                             width: Val::Percent(100.0),
                             ..default()
                         },
-                        ..default()
-                    },
+),
                     LoadingPercent,
                 ));
                 panel.spawn((
-                    TextBundle {
-                        text: Text::from_section(
-                            flavour,
-                            TextStyle {
-                                font_size: 16.0,
-                                color: TEXT_ROSE,
-                                ..default()
-                            },
-                        )
-                        .with_justify(JustifyText::Center),
-                        style: Style {
+                    (
+Text::new(flavour),
+TextFont { font_size: 16.0, ..default() },
+TextColor(TEXT_ROSE),
+TextLayout::new_with_justify(JustifyText::Center),
+Node {
                             width: Val::Percent(100.0),
                             ..default()
                         },
-                        ..default()
-                    },
+),
                     LoadingFlavour,
                 ));
             });
@@ -366,11 +352,11 @@ fn refresh_loading_overlay(
     time: Res<Time<Real>>,
     server: Option<Res<AssetServer>>,
     fonts: Option<Res<Assets<Font>>>,
-    texts: Query<&Text, (Without<LoadingPercent>, Without<LoadingFlavour>)>,
-    images: Query<&Handle<Image>>,
-    audio: Query<&Handle<AudioSource>>,
+    texts: Query<&TextFont, (Without<LoadingPercent>, Without<LoadingFlavour>)>,
+    images: Query<&ImageNode>,
+    audio: Query<&AudioPlayer>,
     roots: Query<(Entity, &LoadingRoot)>,
-    mut fills: Query<&mut Style, With<LoadingBarFill>>,
+    mut fills: Query<&mut Node, With<LoadingBarFill>>,
     mut percents: Query<&mut Text, (With<LoadingPercent>, Without<LoadingFlavour>)>,
     mut flavours: Query<&mut Text, (With<LoadingFlavour>, Without<LoadingPercent>)>,
 ) {
@@ -378,15 +364,13 @@ fn refresh_loading_overlay(
     push_observed(
         &mut ids,
         fonts.as_deref(),
-        texts
-            .iter()
-            .flat_map(|text| text.sections.iter().map(|s| s.style.font.id())),
-        images.iter().map(|handle| handle.id()),
-        audio.iter().map(|handle| handle.id()),
+        texts.iter().map(|font| font.font.id()),
+        images.iter().map(|node| node.image.id()),
+        audio.iter().map(|player| player.0.id()),
     );
     let snap = boot_snapshot(server.as_deref(), &ids);
     let fraction = progress_fraction(snap.settled, snap.tracked);
-    let now = time.elapsed_seconds();
+    let now = time.elapsed_secs();
 
     for mut style in &mut fills {
         style.width = Val::Percent((fraction * 100.0).clamp(0.0, 100.0));
@@ -397,14 +381,10 @@ fn refresh_loading_overlay(
         let percent = progress_label(fraction, snap.loaded_bytes, snap.total_bytes);
         let flavour = line_at(elapsed);
         for mut text in &mut percents {
-            if let Some(section) = text.sections.first_mut() {
-                section.value = percent.clone();
-            }
+            **text = percent.clone();
         }
         for mut text in &mut flavours {
-            if let Some(section) = text.sections.first_mut() {
-                section.value = flavour.to_string();
-            }
+            **text = flavour.to_string();
         }
         if overlay_ready(fraction, elapsed) {
             commands.entity(entity).despawn_recursive();

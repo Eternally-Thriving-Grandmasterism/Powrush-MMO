@@ -445,7 +445,7 @@ fn spawn_places_plate(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: Val::Percent(18.0),
                     left: Val::Percent(50.0),
@@ -465,32 +465,26 @@ fn spawn_places_plate(mut commands: Commands) {
                 border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
                 // Above pause Comfort (130) and Comfort graphics banner (131).
-                z_index: ZIndex::Global(PLACES_PLATE_Z),
-                focus_policy: bevy::ui::FocusPolicy::Block,
+                                focus_policy: bevy::ui::FocusPolicy::Block,
                 ..default()
             },
+GlobalZIndex(PLACES_PLATE_Z),
             PlacesRoot,
             LivedUiPlate,
             Name::new("PlacesPlate"),
         ))
         .with_children(|p| {
-            p.spawn(TextBundle::from_section(
-                PLACES_TITLE,
-                TextStyle {
-                    font_size: 18.0,
-                    color: TITLE_TEXT_PRIMARY,
-                    ..default()
-                },
-            ));
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 13.0,
-                        color: TITLE_TEXT_SECONDARY,
-                        ..default()
-                    },
-                ),
+Text::new(PLACES_TITLE),
+TextFont { font_size: 18.0, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+));
+            p.spawn((
+                (
+Text::new(""),
+TextFont { font_size: 13.0, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+),
                 PlacesCueText,
             ));
             spawn_places_btn(p, PlacesRoom::Sanctuary.display_name(), PlacesSanctuaryBtn);
@@ -505,7 +499,7 @@ fn spawn_places_plate(mut commands: Commands) {
 fn spawn_places_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C) {
     p.spawn((
         ButtonBundle {
-            style: Style {
+            node: Node {
                 // Fat-tap ≥44dp (lavapipe click-clean); Peace tone, stretch width.
                 min_height: Val::Px(PLACES_HIT_MIN),
                 padding: UiRect::axes(Val::Px(14.0), Val::Px(12.0)),
@@ -521,14 +515,11 @@ fn spawn_places_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C) 
         marker,
     ))
     .with_children(|b| {
-        b.spawn(TextBundle::from_section(
-            label,
-            TextStyle {
-                font_size: 15.0,
-                color: TITLE_BTN_FG,
-                ..default()
-            },
-        ));
+        b.spawn((
+Text::new(label),
+TextFont { font_size: 15.0, ..default() },
+TextColor(TITLE_BTN_FG),
+));
     });
 }
 
@@ -562,7 +553,7 @@ fn refresh_pause_places_row(
     door: Res<LaunchDoor>,
     hour: Option<Res<HourSacred>>,
     plate: Res<PlacesPlate>,
-    mut q: Query<(&mut Style, &mut Visibility), With<PausePlacesBtn>>,
+    mut q: Query<(&mut Node, &mut Visibility), With<PausePlacesBtn>>,
 ) {
     // On-plate door: hidden without Settled+book so Comfort/Controls/Guide height holds.
     let (settled, book) = book_flags(hour.as_deref());
@@ -598,10 +589,8 @@ fn refresh_places_labels(
         door_idle_cue()
     };
     for mut text in &mut cue {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != line {
-                s.value = line.clone();
-            }
+        if text.as_str() != line {
+            **text = line.clone();
         }
     }
 }
@@ -808,7 +797,6 @@ mod tests {
     fn yard_app(place: PlaceId) -> App {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins).add_plugins(BevyInputPlugin);
-        app.add_event::<bevy::window::ReceivedCharacter>();
         let mut house = HouseName::default();
         house.skip();
         house.skip_seals();
@@ -868,6 +856,7 @@ mod tests {
             key_code: code,
             logical_key: key.clone(),
             state: ButtonState::Pressed,
+            repeat: false,
             window,
         });
         app.update();
@@ -875,6 +864,7 @@ mod tests {
             key_code: code,
             logical_key: key,
             state: ButtonState::Released,
+            repeat: false,
             window,
         });
         app.update();
@@ -891,7 +881,7 @@ mod tests {
     /// Places row is laid out (not `Display::None`) on the open pause plate.
     fn places_row_live(app: &mut App) -> bool {
         let world = app.world_mut();
-        let mut q = world.query_filtered::<(&Style, &Visibility), With<PausePlacesBtn>>();
+        let mut q = world.query_filtered::<(&Node, &Visibility), With<PausePlacesBtn>>();
         q.iter(world)
             .any(|(style, vis)| style.display == Display::Flex && *vis == Visibility::Visible)
     }
@@ -1445,7 +1435,7 @@ mod tests {
         let world = app.world_mut();
         let mut heights: Vec<f32> = Vec::new();
         for style in world
-            .query_filtered::<&Style, With<PlacesSanctuaryBtn>>()
+            .query_filtered::<&Node, With<PlacesSanctuaryBtn>>()
             .iter(world)
         {
             match style.min_height {
@@ -1454,7 +1444,7 @@ mod tests {
             }
         }
         for style in world
-            .query_filtered::<&Style, With<PlacesHeartwoodBtn>>()
+            .query_filtered::<&Node, With<PlacesHeartwoodBtn>>()
             .iter(world)
         {
             match style.min_height {
@@ -1463,7 +1453,7 @@ mod tests {
             }
         }
         for style in world
-            .query_filtered::<&Style, With<PlacesThresholdBtn>>()
+            .query_filtered::<&Node, With<PlacesThresholdBtn>>()
             .iter(world)
         {
             match style.min_height {
@@ -1472,7 +1462,7 @@ mod tests {
             }
         }
         for style in world
-            .query_filtered::<&Style, With<PlacesDepthsBtn>>()
+            .query_filtered::<&Node, With<PlacesDepthsBtn>>()
             .iter(world)
         {
             match style.min_height {
@@ -1481,7 +1471,7 @@ mod tests {
             }
         }
         for style in world
-            .query_filtered::<&Style, With<PlacesConfirmBtn>>()
+            .query_filtered::<&Node, With<PlacesConfirmBtn>>()
             .iter(world)
         {
             match style.min_height {
@@ -1490,7 +1480,7 @@ mod tests {
             }
         }
         for style in world
-            .query_filtered::<&Style, With<PlacesBackBtn>>()
+            .query_filtered::<&Node, With<PlacesBackBtn>>()
             .iter(world)
         {
             match style.min_height {

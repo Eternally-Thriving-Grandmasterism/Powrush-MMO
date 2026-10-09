@@ -56,7 +56,7 @@ fn spawn_lattice_panel(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: Val::Percent(14.0),
                     right: Val::Percent(2.0),
@@ -77,33 +77,24 @@ fn spawn_lattice_panel(mut commands: Commands) {
             FoundationLatticeRoot,
         ))
         .with_children(|p| {
-            p.spawn(TextBundle::from_section(
-                "FOUNDATION LATTICE",
-                TextStyle {
-                    font_size: 15.5,
-                    color: TITLE_TEXT_SECONDARY,
-                    ..default()
-                },
-            ));
             p.spawn((
-                TextBundle::from_section(
-                    "Loading soft foundations…",
-                    TextStyle {
-                        font_size: 12.5,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+Text::new("FOUNDATION LATTICE"),
+TextFont { font_size: 15.5, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
+            p.spawn((
+                (
+Text::new("Loading soft foundations…"),
+TextFont { font_size: 12.5, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 FoundationLatticeBody,
             ));
-            p.spawn(TextBundle::from_section(
-                soft_play_bindings::soft_play_legend(),
-                TextStyle {
-                    font_size: 10.5,
-                    color: TITLE_TEXT_SECONDARY,
-                    ..default()
-                },
-            ));
+            p.spawn((
+Text::new(soft_play_bindings::soft_play_legend()),
+TextFont { font_size: 10.5, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
         });
 }
 
@@ -297,9 +288,7 @@ fn update_lattice_body(
         &transporters,
     );
     for mut text in &mut q {
-        if let Some(s) = text.sections.get_mut(0) {
-            s.value = body.clone();
-        }
+        **text = body.clone();
     }
 }
 
@@ -327,9 +316,10 @@ mod tests {
         let kids: Vec<Entity> = children.iter().copied().collect();
         assert_eq!(kids.len(), 3, "heading, body, legend");
         let colour = |e: Entity| {
-            app.world().get::<Text>(e).expect("text child").sections[0]
-                .style
-                .color
+            app.world()
+                .get::<TextColor>(e)
+                .expect("text child")
+                .0
                 .to_srgba()
         };
         let (heading, body, legend) = (colour(kids[0]), colour(kids[1]), colour(kids[2]));

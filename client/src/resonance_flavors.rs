@@ -108,17 +108,15 @@ fn cycle_resonance(
 
 fn tint_practice_strip_by_resonance(
     state: Res<ResonanceState>,
-    mut query: Query<&mut Text, With<LivingPracticeText>>,
+    mut query: Query<&mut TextColor, With<LivingPracticeText>>,
 ) {
     if !state.is_changed() {
         return;
     }
     let accent = state.current.accent();
-    for mut text in &mut query {
-        if let Some(section) = text.sections.get_mut(0) {
-            if section.style.color != Color::srgb(1.0, 0.95, 0.55) {
-                section.style.color = accent;
-            }
+    for mut color in &mut query {
+        if color.0 != Color::srgb(1.0, 0.95, 0.55) {
+            color.0 = accent;
         }
     }
 }

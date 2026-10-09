@@ -126,7 +126,7 @@ fn soft_idle_care(
     if !transporters.enabled {
         return;
     }
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     if now - transporters.last_care_at < CARE_INTERVAL_SECS {
         return;
     }

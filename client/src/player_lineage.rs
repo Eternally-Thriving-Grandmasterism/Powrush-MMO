@@ -87,7 +87,7 @@ fn cycle_lineage(
     }
     lineage.current = lineage.current.next();
     if let Some(mut inv) = inv_line {
-        inv.pickup_until = time.elapsed_seconds_f64() + 2.2;
+        inv.pickup_until = time.elapsed_secs_f64() + 2.2;
         inv.pickup_line = format!("lineage · {}", lineage.current.name());
     }
     info!(target: "powrush::lineage", race = lineage.current.name(), "C cycled");
@@ -96,7 +96,7 @@ fn cycle_lineage(
 fn paint_body(
     lineage: Res<PlayerLineage>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    q: Query<&Handle<StandardMaterial>, With<HumanPresence>>,
+    q: Query<&MeshMaterial3d<StandardMaterial>, With<HumanPresence>>,
 ) {
     if !lineage.is_changed() {
         return;

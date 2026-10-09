@@ -217,7 +217,7 @@ fn spawn_echo_panel(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: JOURNEY.top(),
                     left: JOURNEY.left(),
@@ -239,33 +239,24 @@ fn spawn_echo_panel(mut commands: Commands) {
             HudSlab(JOURNEY.id),
         ))
         .with_children(|p| {
-            p.spawn(TextBundle::from_section(
-                "ABUNDANCE JOURNEY",
-                TextStyle {
-                    font_size: 15.0,
-                    color: TITLE_TEXT_SECONDARY,
-                    ..default()
-                },
-            ));
             p.spawn((
-                TextBundle::from_section(
-                    "• Acts of thriving will echo here",
-                    TextStyle {
-                        font_size: 12.5,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+Text::new("ABUNDANCE JOURNEY"),
+TextFont { font_size: 15.0, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
+            p.spawn((
+                (
+Text::new("• Acts of thriving will echo here"),
+TextFont { font_size: 12.5, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 JourneyEchoBody,
             ));
-            p.spawn(TextBundle::from_section(
-                JOURNEY_ECHO_FOOTER,
-                TextStyle {
-                    font_size: 11.0,
-                    color: TITLE_TEXT_SECONDARY,
-                    ..default()
-                },
-            ));
+            p.spawn((
+Text::new(JOURNEY_ECHO_FOOTER),
+TextFont { font_size: 11.0, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
         });
 }
 
@@ -353,9 +344,7 @@ fn update_echo_body(
             .join("\n")
     };
     for mut text in &mut q {
-        if let Some(s) = text.sections.get_mut(0) {
-            s.value = body.clone();
-        }
+        **text = body.clone();
     }
 }
 
@@ -372,9 +361,9 @@ mod tests {
         app.update();
         let mut q = app
             .world_mut()
-            .query_filtered::<&Style, With<JourneyEchoRoot>>();
+            .query_filtered::<&Node, With<JourneyEchoRoot>>();
         let style = q.single(app.world()).clone();
-        let coded = Style {
+        let coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Percent(12.0),
             left: Val::Percent(2.0),

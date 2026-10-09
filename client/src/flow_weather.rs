@@ -196,8 +196,8 @@ fn seed_nectar(
         let pos = NECTAR_FROM + delta * t;
         commands.spawn((
             PbrBundle {
-                mesh: mesh.clone(),
-                material: mat.clone(),
+                mesh: Mesh3d(mesh.clone()),
+                material: MeshMaterial3d(mat.clone()),
                 transform: Transform::from_translation(pos),
                 visibility: Visibility::Hidden,
                 ..default()
@@ -219,9 +219,9 @@ fn read_band(
     let speed = Vec3::new(presence.velocity.x, 0.0, presence.velocity.z).length();
     let moving = speed > 0.4 || !presence.grounded;
     if moving {
-        weather.chain = (weather.chain + time.delta_seconds()).min(12.0);
+        weather.chain = (weather.chain + time.delta_secs()).min(12.0);
     } else {
-        weather.chain = (weather.chain - time.delta_seconds() * 0.55).max(0.0);
+        weather.chain = (weather.chain - time.delta_secs() * 0.55).max(0.0);
     }
     let winded = body.as_ref().map(|b| b.winded).unwrap_or(false);
     let heavy = body.as_ref().map(|b| b.heavy).unwrap_or(false);
@@ -256,7 +256,7 @@ fn maybe_awe(
     }
     weather.last_harvests = total;
     if weather.chain >= 2.4 || weather.band == FlowBand::Flow {
-        weather.awe_until = time.elapsed_seconds_f64() + AWE_SECS as f64;
+        weather.awe_until = time.elapsed_secs_f64() + AWE_SECS as f64;
         let line = flow_weather_line(travel.as_ref().map(|state| state.chip_name()));
         info!(target: "powrush::flow", "{line}");
     }
@@ -267,7 +267,7 @@ fn apply_awe_light(
     time: Res<Time>,
     mut ambient: ResMut<AmbientLight>,
 ) {
-    if weather.inhaling(time.elapsed_seconds_f64()) {
+    if weather.inhaling(time.elapsed_secs_f64()) {
         ambient.brightness = (ambient.brightness + 90.0).min(420.0);
     }
 }
@@ -294,12 +294,12 @@ fn drop_beads(
     if speed < 0.35 && presence.grounded {
         return;
     }
-    let now = time.elapsed_seconds();
+    let now = time.elapsed_secs();
     if now - *last < drop_secs_for(fidelity) {
         return;
     }
     *last = now;
-    let inhaling = weather.inhaling(time.elapsed_seconds_f64());
+    let inhaling = weather.inhaling(time.elapsed_secs_f64());
     let mood = place_mood_for(realm.current.or(Some(0)));
     let glow = if inhaling {
         let g = place_mood_glow(mood, FlowBand::Flow, fidelity);
@@ -316,8 +316,8 @@ fn drop_beads(
     let scale = bead_scale_for(weather.band, inhaling, fidelity);
     commands.spawn((
         PbrBundle {
-            mesh: kit.mesh.clone(),
-            material: handle.clone(),
+            mesh: Mesh3d(kit.mesh.clone()),
+            material: MeshMaterial3d(handle.clone()),
             transform: Transform::from_translation(presence.position - Vec3::Y * 0.55)
                 .with_scale(Vec3::splat(scale)),
             ..default()
@@ -336,7 +336,7 @@ fn fade_beads(
     mut materials: ResMut<Assets<StandardMaterial>>,
     q: Query<(Entity, &RibbonBead)>,
 ) {
-    let now = time.elapsed_seconds();
+    let now = time.elapsed_secs();
     for (entity, bead) in &q {
         let age = now - bead.born;
         if age > BEAD_LIFE {

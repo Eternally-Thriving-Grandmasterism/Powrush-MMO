@@ -206,7 +206,7 @@ fn spawn_practice_strip(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     bottom: ACTION_BAR.bottom(),
                     right: ACTION_BAR.right(),
@@ -227,14 +227,11 @@ fn spawn_practice_strip(mut commands: Commands) {
         ))
         .with_children(|parent| {
             parent.spawn((
-                TextBundle::from_section(
-                    PracticeSurface::SanctuaryCap.prompt(),
-                    TextStyle {
-                        font_size: 15.5,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(PracticeSurface::SanctuaryCap.prompt()),
+TextFont { font_size: 15.5, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 LivingPracticeText,
             ));
         });
@@ -279,7 +276,7 @@ pub(crate) fn update_practice_visibility(
         epi.as_deref(),
         nearby.as_deref(),
         &guidance,
-        time.elapsed_seconds_f64(),
+        time.elapsed_secs_f64(),
         guidance_hidden,
     );
     let show = practice.active && !practice.dismissed && !guidance_showing
@@ -324,26 +321,24 @@ fn practice_strip_body(practice: &LivingPracticeLoop, now: f64) -> String {
 fn update_practice_text(
     practice: Res<LivingPracticeLoop>,
     time: Res<Time>,
-    mut query: Query<&mut Text, With<LivingPracticeText>>,
+    mut query: Query<(&mut Text, &mut TextColor), With<LivingPracticeText>>,
 ) {
     if !practice.is_changed() && practice.celebrate_until <= 0.0 {
         return;
     }
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     let celebrating = now < practice.celebrate_until;
     let body = practice_strip_body(&practice, now);
-    for mut text in &mut query {
-        if let Some(section) = text.sections.get_mut(0) {
-            section.value = body.clone();
-            section.style.color = if celebrating {
-                // state: celebrate flash — warm gold, one breath, then back to the palette.
-                Color::srgb(1.0, 0.95, 0.55)
-            } else if practice.principle_sealed {
-                TITLE_TEXT_SECONDARY
-            } else {
-                TITLE_TEXT_PRIMARY
-            };
-        }
+    for (mut text, mut color) in &mut query {
+        **text = body.clone();
+        color.0 = if celebrating {
+            // state: celebrate flash — warm gold, one breath, then back to the palette.
+            Color::srgb(1.0, 0.95, 0.55)
+        } else if practice.principle_sealed {
+            TITLE_TEXT_SECONDARY
+        } else {
+            TITLE_TEXT_PRIMARY
+        };
     }
 }
 
@@ -395,7 +390,7 @@ fn soft_interact_harvest_credit(
 
     let player_realm = soft_realm.current;
     if !practice.allows_credit(player_realm) {
-        let now = time.elapsed_seconds_f64();
+        let now = time.elapsed_secs_f64();
         if now - practice.last_realm_mismatch_hint_at > 6.0 {
             practice.last_realm_mismatch_hint_at = now;
             if let Some(need) = practice.surface.realm_id() {
@@ -413,7 +408,7 @@ fn soft_interact_harvest_credit(
     apply_practice_credit(
         &mut practice,
         &mut moments,
-        time.elapsed_seconds_f64(),
+        time.elapsed_secs_f64(),
         player_realm,
     );
 }
@@ -448,7 +443,7 @@ fn bridge_rbe_feedback_to_practice(
     }
 
     practice.last_bridged_feedback = Some(fb.clone());
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     let player_realm = soft_realm.current;
     if !practice.allows_credit(player_realm) {
         if now - practice.last_realm_mismatch_hint_at > 6.0 {
@@ -551,7 +546,7 @@ mod tests {
         app.update();
         let mut query = app
             .world_mut()
-            .query_filtered::<&Style, With<LivingPracticeStrip>>();
+            .query_filtered::<&Node, With<LivingPracticeStrip>>();
         let style = query.single(app.world()).clone();
         assert_eq!(style.bottom, ACTION_BAR.bottom());
         assert_eq!(style.right, ACTION_BAR.right());
@@ -562,7 +557,7 @@ mod tests {
         assert_eq!(style.border, UiRect::all(Val::Px(1.5)));
         let mut text = app
             .world_mut()
-            .query_filtered::<&Text, With<LivingPracticeText>>();
-        assert_eq!(text.single(app.world()).sections[0].style.font_size, 15.5);
+            .query_filtered::<&TextFont, With<LivingPracticeText>>();
+        assert_eq!(text.single(app.world()).font_size, 15.5);
     }
 }

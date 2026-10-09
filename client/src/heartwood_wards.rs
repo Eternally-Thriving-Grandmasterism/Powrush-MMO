@@ -65,8 +65,8 @@ fn sync_heartwood_wards(
     for (i, center) in WARD_POST_CENTERS.iter().enumerate() {
         commands.spawn((
             PbrBundle {
-                mesh: mesh.clone(),
-                material: material.clone(),
+                mesh: Mesh3d(mesh.clone()),
+                material: MeshMaterial3d(material.clone()),
                 transform: Transform::from_translation(Vec3::from_array(*center)),
                 ..default()
             },
