@@ -1021,18 +1021,25 @@ pub(crate) fn handle_guidance_dismiss_input(
 const GUIDE_STEP_CAP_MPS: f32 = 5.4 * 2.0;
 
 /// Horizontal metres since the previous sample. Y is not an argument.
-/// Returns 0 when `prev` is missing, when `dt` is not positive, or when the
-/// XZ step is longer than [`GUIDE_STEP_CAP_MPS`] × `dt` (teleport, landing
-/// wake, garden bounce).
-fn body_step_xz(prev: Option<Vec2>, now: Vec2, dt: f32) -> f32 {
+///
+/// Locomotion is FixedUpdate at 60 Hz (`apply_locomotion`,
+/// `human_presence.rs` L548; `SIM_HZ` in `feel_move.rs` L15). This tracker
+/// stays on Update, so `dt` is the render frame. One frame can carry this
+/// render interval plus one fixed tick of motion. The cap is
+/// `(dt + fixed_dt)` times [`GUIDE_STEP_CAP_MPS`].
+///
+/// Returns 0 when `prev` is missing, when `dt + fixed_dt` is not positive,
+/// or when the XZ step exceeds that cap (teleport, landing wake, garden bounce).
+fn body_step_xz(prev: Option<Vec2>, now: Vec2, dt: f32, fixed_dt: f32) -> f32 {
     let Some(prev) = prev else {
         return 0.0;
     };
-    if dt <= 0.0 {
+    let window = dt + fixed_dt;
+    if window <= 0.0 {
         return 0.0;
     }
     let step = now.distance(prev);
-    if step > GUIDE_STEP_CAP_MPS * dt {
+    if step > GUIDE_STEP_CAP_MPS * window {
         0.0
     } else {
         step
@@ -1043,6 +1050,7 @@ pub(crate) fn track_simple_progress_signals(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut guidance: ResMut<FirstSessionGuidance>,
     time: Res<Time>,
+    fixed_time: Option<Res<Time<Fixed>>>,
     nearby: Option<Res<NearbyMercyNode>>,
     bind: Option<Res<LivedHourBind>>,
     hour: Option<Res<HourSacred>>,
@@ -1058,7 +1066,11 @@ pub(crate) fn track_simple_progress_signals(
 
     if let Some(body) = presence.as_deref() {
         let now = Vec2::new(body.position.x, body.position.z);
-        guidance.moved_distance += body_step_xz(*last_xz, now, time.delta_seconds());
+        let fixed_dt = fixed_time
+            .as_deref()
+            .map(|clock| clock.timestep().as_secs_f32())
+            .unwrap_or(0.0);
+        guidance.moved_distance += body_step_xz(*last_xz, now, time.delta_seconds(), fixed_dt);
         *last_xz = Some(now);
     }
 
@@ -3026,7 +3038,7 @@ mod tests {
     /// CARD GUIDANCE-WALK-BODY-1 — no previous sample is not travel.
     #[test]
     fn body_step_xz_prev_none_returns_zero() {
-        let step = body_step_xz(None, Vec2::new(3.0, 4.0), 1.0);
+        let step = body_step_xz(None, Vec2::new(3.0, 4.0), 1.0, 1.0 / 60.0);
         assert!(step.abs() < 1e-6);
     }
 
@@ -3034,8 +3046,9 @@ mod tests {
     #[test]
     fn body_step_xz_three_four_five_within_cap() {
         let dt = 1.0;
-        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(3.0, 4.0), dt);
-        assert!(5.0 <= GUIDE_STEP_CAP_MPS * dt);
+        let fixed_dt = 0.0;
+        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(3.0, 4.0), dt, fixed_dt);
+        assert!(5.0 <= GUIDE_STEP_CAP_MPS * (dt + fixed_dt));
         assert!((step - 5.0).abs() < 1e-5);
     }
 
@@ -3048,6 +3061,7 @@ mod tests {
             Some(Vec2::new(before.x, before.z)),
             Vec2::new(after.x, after.z),
             1.0,
+            1.0 / 60.0,
         );
         assert!(step.abs() < 1e-6);
     }
@@ -3056,8 +3070,9 @@ mod tests {
     #[test]
     fn body_step_xz_fifty_metre_jump_adds_zero() {
         let dt = 1.0 / 60.0;
-        assert!(50.0 > GUIDE_STEP_CAP_MPS * dt);
-        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(50.0, 0.0), dt);
+        let fixed_dt = 1.0 / 60.0;
+        assert!(50.0 > GUIDE_STEP_CAP_MPS * (dt + fixed_dt));
+        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(50.0, 0.0), dt, fixed_dt);
         assert!(step.abs() < 1e-6);
     }
 
@@ -3065,16 +3080,41 @@ mod tests {
     #[test]
     fn body_step_xz_mounted_sprint_counts_in_full() {
         let dt = 0.25;
+        let fixed_dt = 0.0;
         let metres = 6.91 * dt;
-        assert!(metres <= GUIDE_STEP_CAP_MPS * dt);
-        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(metres, 0.0), dt);
+        assert!(metres <= GUIDE_STEP_CAP_MPS * (dt + fixed_dt));
+        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(metres, 0.0), dt, fixed_dt);
+        assert!((step - metres).abs() < 1e-5);
+    }
+
+    /// CARD GUIDANCE-WALK-BODY-1 — one 60 Hz mounted tick still counts at 240 Hz.
+    #[test]
+    fn body_step_xz_one_mounted_tick_at_240hz_counts_in_full() {
+        let dt = 1.0 / 240.0;
+        let fixed_dt = 1.0 / 60.0;
+        let metres = 6.91 * (1.0 / 60.0);
+        assert!(metres > GUIDE_STEP_CAP_MPS * dt);
+        assert!(metres <= GUIDE_STEP_CAP_MPS * (dt + fixed_dt));
+        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(metres, 0.0), dt, fixed_dt);
+        assert!((step - metres).abs() < 1e-5);
+    }
+
+    /// CARD GUIDANCE-WALK-BODY-1 — two fixed ticks in one frame still count.
+    #[test]
+    fn body_step_xz_two_mounted_ticks_count_in_full() {
+        let dt = 1.0 / 61.0;
+        let fixed_dt = 1.0 / 60.0;
+        let metres = 6.91 * (2.0 / 60.0);
+        assert!(metres > GUIDE_STEP_CAP_MPS * dt);
+        assert!(metres <= GUIDE_STEP_CAP_MPS * (dt + fixed_dt));
+        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(metres, 0.0), dt, fixed_dt);
         assert!((step - metres).abs() < 1e-5);
     }
 
     /// CARD GUIDANCE-WALK-BODY-1 — a zero-length frame adds no metres.
     #[test]
     fn body_step_xz_zero_dt_adds_zero() {
-        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(4.0, 3.0), 0.0);
+        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(4.0, 3.0), 0.0, 0.0);
         assert!(step.abs() < 1e-6);
     }
 
@@ -3091,6 +3131,7 @@ mod tests {
                 .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
                     200,
                 )))
+                .insert_resource(Time::<Fixed>::from_hz(60.0))
                 .init_resource::<FirstSessionGuidance>()
                 .insert_resource(ButtonInput::<KeyCode>::default())
                 .init_resource::<SoftPresence>()
