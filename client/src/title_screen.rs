@@ -2675,8 +2675,19 @@ fn pause_plate_clicks(
             if let Some(places) = places.as_mut() {
                 places.close_door();
             }
+            persist_in_yard_hour(*door, &mut label, bind.as_deref());
             exit.send(AppExit::Success);
             return;
+        }
+    }
+}
+
+/// InYard only: house JSON, then the lived-hour bind. Pause Title and Pause Quit share this.
+fn persist_in_yard_hour(door: LaunchDoor, label: &mut HouseLabel, bind: Option<&LivedHourBind>) {
+    if door == LaunchDoor::InYard {
+        ensure_house_file_written(label);
+        if let Some(bind) = bind {
+            bind.persist();
         }
     }
 }
@@ -2692,10 +2703,7 @@ fn return_yard_to_title(
     if *door != LaunchDoor::InYard {
         return;
     }
-    ensure_house_file_written(label);
-    if let Some(bind) = bind {
-        bind.persist();
-    }
+    persist_in_yard_hour(*door, label, bind.map(|b| b.as_ref()));
     rite.0.clear();
     *door = LaunchDoor::Title;
 }
@@ -6747,6 +6755,77 @@ mod tests {
                 None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
             }
         }
+    }
+
+    fn quit_hour_scratch(tag: &str) -> (std::path::PathBuf, RestoreUserDir) {
+        let dir = std::env::temp_dir().join(format!(
+            "powrush-quit-hour-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("temp user dir");
+        let prev_dir = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+        (dir, RestoreUserDir(prev_dir))
+    }
+
+    fn unresolved_pause_label() -> HouseLabel {
+        HouseLabel {
+            house: HouseName::default(),
+            persist_present: false,
+            hour_two_held: false,
+            book_held: false,
+            settings_open: true,
+            draft: String::new(),
+            naming_offered: false,
+            seals_offered: false,
+        }
+    }
+
+    /// Pause Quit from the yard: house file and lived bind, door and rite untouched.
+    #[test]
+    fn pause_quit_from_yard_runs_both_saves() {
+        let _user_dir = crate::test_env::lock();
+        let (dir, _restore) = quit_hour_scratch("yard");
+        let door = LaunchDoor::InYard;
+        let rite = "still the rite".to_string();
+        let mut label = unresolved_pause_label();
+        let bind = l5_demo_bind();
+        super::persist_in_yard_hour(door, &mut label, Some(&bind));
+        assert_eq!(door, LaunchDoor::InYard);
+        assert_eq!(rite, "still the rite");
+        assert!(label.house.resolved);
+        assert!(label.persist_present);
+        assert!(label.settings_open);
+        assert!(dir.join("powrush_house.json").is_file());
+        let tick = dir.join("powrush_lived_tick.json");
+        assert!(tick.is_file());
+        assert!(std::fs::metadata(&tick).expect("tick meta").len() > 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Pause Quit on Title writes neither the house file nor the lived bind.
+    #[test]
+    fn pause_quit_from_title_runs_neither_save() {
+        let _user_dir = crate::test_env::lock();
+        let (dir, _restore) = quit_hour_scratch("title");
+        let door = LaunchDoor::Title;
+        let rite = "still the rite".to_string();
+        let mut label = unresolved_pause_label();
+        let bind = l5_demo_bind();
+        super::persist_in_yard_hour(door, &mut label, Some(&bind));
+        assert_eq!(door, LaunchDoor::Title);
+        assert_eq!(rite, "still the rite");
+        assert!(!label.house.resolved);
+        assert!(!label.persist_present);
+        assert!(!label.naming_offered);
+        assert!(label.settings_open);
+        assert!(!dir.join("powrush_house.json").exists());
+        assert!(!dir.join("powrush_lived_tick.json").exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
