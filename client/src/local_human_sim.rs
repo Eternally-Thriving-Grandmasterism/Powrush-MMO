@@ -74,8 +74,8 @@ fn seed_travelers(
         let pos = WELLS[well] + Vec3::new(1.4, 0.7, 0.6);
         commands.spawn((
             PbrBundle {
-                mesh: mesh.clone(),
-                material: mat,
+                mesh: Mesh3d(mesh.clone()),
+                material: MeshMaterial3d(mat),
                 transform: Transform::from_translation(pos),
                 ..default()
             },
@@ -90,7 +90,7 @@ fn seed_travelers(
 }
 
 fn walk_wells(time: Res<Time>, mut q: Query<(&mut Transform, &mut PracticeTraveler)>) {
-    let dt = time.delta_seconds();
+    let dt = time.delta_secs();
     let n = WELLS.len();
     for (mut tf, mut t) in &mut q {
         t.phase += dt * 0.18;
@@ -112,7 +112,7 @@ fn share_inhale(
     mut sim: ResMut<LocalHumanSim>,
     travelers: Query<&Transform, With<PracticeTraveler>>,
 ) {
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     let mut pocket = 0u32;
     for tf in &travelers {
         if tf.translation.distance(presence.position) <= POCKET {
@@ -126,7 +126,7 @@ fn share_inhale(
 }
 
 fn write_practice_peer(time: Res<Time>, mut sim: ResMut<LocalHumanSim>) {
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     if now - sim.last_peer_write < 18.0 {
         return;
     }

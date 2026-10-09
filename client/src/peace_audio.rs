@@ -155,7 +155,7 @@ fn sync_peace_bed(
         // Spawn at the current gain (0 when muted) so a muted boot cannot blast.
         commands.spawn((
             AudioBundle {
-                source: asset_server.load(BED_ASSET),
+                source: AudioPlayer(asset_server.load(BED_ASSET)),
                 settings: PlaybackSettings::LOOP.with_volume(Volume::new(gain)),
                 ..default()
             },
@@ -190,7 +190,7 @@ fn sync_first_e_oneshot(
     }
     commands.spawn((
         AudioBundle {
-            source: asset_server.load(STING_ASSET),
+            source: AudioPlayer(asset_server.load(STING_ASSET)),
             settings: PlaybackSettings::DESPAWN.with_volume(Volume::new(gain)),
             ..default()
         },
@@ -209,7 +209,7 @@ fn sync_well_sting(
     }
     commands.spawn((
         AudioBundle {
-            source: asset_server.load(STING_ASSET),
+            source: AudioPlayer(asset_server.load(STING_ASSET)),
             settings: PlaybackSettings::DESPAWN.with_volume(Volume::new(gain)),
             ..default()
         },

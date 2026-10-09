@@ -11,7 +11,7 @@
 //! in `hud_presets`. `HudLayoutPlugin` applies them only while a preset is active.
 
 use bevy::prelude::{Component, Mut};
-use bevy::ui::{Style, UiRect, Val};
+use bevy::ui::{Node, UiRect, Val};
 
 /// Marker on a HUD slab root. The string is the slab id (`Factory`, `Voice`).
 /// The marker does not write `Style` or `Visibility`.
@@ -983,7 +983,7 @@ fn snap_to_neighbour_gap(start: i32, span: i32, edges: impl Iterator<Item = (i32
 /// Equal values are left untouched so a matching layout does not mark `Style` changed.
 /// Padding, border, the other margin edges, font, and `text_scale` are not fields here.
 pub fn write_hud_anchor_style(
-    style: &mut Mut<'_, Style>,
+    style: &mut Mut<'_, Node>,
     corner: HudCorner,
     offset: HudOffset,
     width: f32,
@@ -1806,7 +1806,7 @@ mod tests {
         app.add_plugins(MinimalPlugins);
         let entity = app
             .world_mut()
-            .spawn(Style {
+            .spawn(Node {
                 padding: UiRect::all(Val::Px(7.0)),
                 border: UiRect::all(Val::Px(8.0)),
                 margin: UiRect {
@@ -1823,7 +1823,7 @@ mod tests {
                 ..default()
             })
             .id();
-        app.add_systems(Update, move |mut styles: Query<&mut Style>| {
+        app.add_systems(Update, move |mut styles: Query<&mut Node>| {
             let mut style = styles.single_mut();
             write_hud_anchor_style(
                 &mut style,
@@ -1833,7 +1833,7 @@ mod tests {
             );
         });
         app.update();
-        let style = app.world().get::<Style>(entity).expect("style");
+        let style = app.world().get::<Node>(entity).expect("style");
         assert_eq!(style.top, Val::Px(200.0));
         assert_eq!(style.left, Val::Px(40.0));
         assert_eq!(style.width, Val::Px(520.0));

@@ -99,7 +99,7 @@ fn follow_or_wait(
         bond.nearby = false;
         return;
     }
-    let dt = time.delta_seconds();
+    let dt = time.delta_secs();
     let player = presence.position;
     for (name, mut tf) in &mut deer {
         if name.as_str() != "ResonantDeer" {

@@ -70,7 +70,7 @@ fn arm_use_buffer_from_edge(
         buf.until = None;
         return;
     }
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     buf.until = Some(now + USE_BUFFER_SECS);
 }
 
@@ -87,7 +87,7 @@ fn resolve_use_buffer(
     let Some(until) = buf.until else {
         return;
     };
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     if now > until {
         buf.until = None;
         return;

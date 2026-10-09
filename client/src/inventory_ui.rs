@@ -275,12 +275,12 @@ fn spawn_inventory_panel(commands: &mut Commands) {
             header.spawn(TextBundle {
                 text: Text::from_section(
                     "INVENTORY — RBE Abundance Flow | Mercy Lattice",
-                    TextStyle { font_size: 22.0, color: Color::rgb(0.6, 0.9, 1.0), ..default() },
+                    TextStyle { font_size: 22.0 / 1.2, color: Color::rgb(0.6, 0.9, 1.0), ..default() },
                 ),
                 ..default()
             });
             header.spawn(TextBundle {
-                text: Text::from_section("[Search: Type to filter]", TextStyle { font_size: 14.0, color: Color::rgb(0.7, 0.7, 0.8), ..default() }),
+                text: Text::from_section("[Search: Type to filter]", TextStyle { font_size: 14.0 / 1.2, color: Color::rgb(0.7, 0.7, 0.8), ..default() }),
                 style: Style { margin: UiRect::left(Val::Px(30.0)), ..default() },
                 ..default()
             });
@@ -290,7 +290,7 @@ fn spawn_inventory_panel(commands: &mut Commands) {
                     background_color: Color::rgb(0.15, 0.25, 0.35).into(),
                     ..default()
                 }).with_children(|btn| {
-                    btn.spawn(TextBundle { text: Text::from_section(label, TextStyle { font_size: 12.0, color: Color::WHITE, ..default() }), ..default() });
+                    btn.spawn(TextBundle { text: Text::from_section(label, TextStyle { font_size: 12.0 / 1.2, color: Color::WHITE, ..default() }), ..default() });
                 });
             }
         });
@@ -331,7 +331,7 @@ fn spawn_inventory_panel(commands: &mut Commands) {
                         ..default()
                     });
                     slot.spawn(TextBundle {
-                        text: Text::from_section(format!("x{:02}", (i % 12) + 1), TextStyle { font_size: 11.0, color: Color::rgb(1.0, 0.9, 0.6), ..default() }),
+                        text: Text::from_section(format!("x{:02}", (i % 12) + 1), TextStyle { font_size: 11.0 / 1.2, color: Color::rgb(1.0, 0.9, 0.6), ..default() }),
                         style: Style { position_type: PositionType::Absolute, bottom: Val::Px(2.0), right: Val::Px(4.0), ..default() },
                         ..default()
                     });
@@ -354,7 +354,7 @@ fn spawn_inventory_panel(commands: &mut Commands) {
             footer.spawn(TextBundle {
                 text: Text::from_section(
                     "RBE Abundance: Infinite Flow  |  Mercy Gates: 7/7 Open  |  Council Synergy: +12% Harvest",
-                    TextStyle { font_size: 13.0, color: Color::rgb(0.5, 0.95, 0.7), ..default() },
+                    TextStyle { font_size: 13.0 / 1.2, color: Color::rgb(0.5, 0.95, 0.7), ..default() },
                 ),
                 ..default()
             });
@@ -411,7 +411,7 @@ pub fn update_item_tooltips(
                     TextBundle {
                         text: Text::from_section(
                             format!("Item #{}\nResonance: 0.{}\nAbundance Flow: \u221e\nMercy Gate: Service + Truth\nEpiphany Progress: +{}%", slot.index, (slot.index % 7) + 2, (slot.index % 5) * 7),
-                            TextStyle { font_size: 11.0, color: Color::rgb(0.9, 0.95, 1.0), ..default() },
+                            TextStyle { font_size: 11.0 / 1.2, color: Color::rgb(0.9, 0.95, 1.0), ..default() },
                         ),
                         style: Style {
                             position_type: PositionType::Absolute,

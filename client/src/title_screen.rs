@@ -114,7 +114,7 @@
 //! Play / Continue / Settings · Online grey unchanged.
 //! Contact: info@Rathor.ai
 
-use bevy::input::keyboard::KeyboardInput;
+use bevy::input::keyboard::{Key, KeyboardInput};
 use bevy::input::ButtonState;
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
@@ -1357,7 +1357,7 @@ fn spawn_title_screen(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
@@ -1372,12 +1372,12 @@ fn spawn_title_screen(mut commands: Commands) {
                 },
                 // Opaque dimmer — soft GPU must not alpha-blend menu into fog.
                 background_color: TITLE_DIM_BG.into(),
-                z_index: ZIndex::Global(LIVED_UI_Z_TITLE),
-                // Consume pointer focus across the opaque title door so clicks
+                                // Consume pointer focus across the opaque title door so clicks
                 // in its gaps cannot reach world UI/interactions below it.
                 focus_policy: FocusPolicy::Block,
                 ..default()
             },
+GlobalZIndex(LIVED_UI_Z_TITLE),
             TitleRoot,
             TitleBreath,
             LivedUiPlate,
@@ -1385,7 +1385,7 @@ fn spawn_title_screen(mut commands: Commands) {
         .with_children(|root| {
             root.spawn((
                 NodeBundle {
-                    style: Style {
+                    node: Node {
                         width: Val::Percent(100.0),
                         max_width: Val::Px(TITLE_PLATE_MAX_WIDTH),
                         max_height: Val::Percent(100.0),
@@ -1403,46 +1403,34 @@ fn spawn_title_screen(mut commands: Commands) {
                 TitlePlate,
             ))
             .with_children(|p| {
-                p.spawn(TextBundle::from_section(
-                    "POWRUSH",
-                    TextStyle {
-                        font_size: 28.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ));
-                p.spawn(TextBundle::from_section(
-                    "Steward House · offline first",
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_TEXT_SECONDARY,
-                        ..default()
-                    },
-                ));
                 p.spawn((
-                    TextBundle::from_section(
-                        first_minutes_people_want_line(),
-                        TextStyle {
-                            font_size: garden_boot_want_font_px(1.0),
-                            color: TITLE_TEXT_PRIMARY,
-                            ..default()
-                        },
-                    )
-                    .with_style(Style {
+Text::new("POWRUSH"),
+TextFont { font_size: 28.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+));
+                p.spawn((
+Text::new("Steward House · offline first"),
+TextFont { font_size: 14.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
+                p.spawn((
+                    (
+Text::new(first_minutes_people_want_line()),
+TextFont { font_size: garden_boot_want_font_px(1.0) / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+Node {
                         max_width: Val::Px(TITLE_PLATE_MAX_WIDTH - 44.0),
                         ..default()
-                    }),
+                    },
+),
                     TitleGardenWantText,
                 ));
                 p.spawn((
-                    TextBundle::from_section(
-                        "",
-                        TextStyle {
-                            font_size: 13.0,
-                            color: TITLE_TEXT_SECONDARY,
-                            ..default()
-                        },
-                    ),
+                    (
+Text::new(""),
+TextFont { font_size: 13.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+),
                     TitleCueText,
                 ));
                 spawn_menu_btn(p, TITLE_CHROME_PLAY, TitlePlayBtn, true);
@@ -1455,14 +1443,11 @@ fn spawn_title_screen(mut commands: Commands) {
                     PERSONA_CREATOR_ENABLED,
                 );
                 spawn_menu_btn(p, ONLINE_STUB_LABEL, TitleOnlineBtn, false);
-                p.spawn(TextBundle::from_section(
-                    "1 Play · 2 Continue · 3 Settings · Esc from yard opens pause",
-                    TextStyle {
-                        font_size: 11.0,
-                        color: TITLE_TEXT_SECONDARY,
-                        ..default()
-                    },
-                ));
+                p.spawn((
+Text::new("1 Play · 2 Continue · 3 Settings · Esc from yard opens pause"),
+TextFont { font_size: 11.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
             });
         });
 }
@@ -1473,7 +1458,7 @@ fn spawn_comfort_graphics_banner(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: Val::Px(10.0),
                     left: Val::Percent(50.0),
@@ -1493,25 +1478,22 @@ fn spawn_comfort_graphics_banner(mut commands: Commands) {
                 background_color: TITLE_PLATE_BG.into(),
                 border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
-                z_index: ZIndex::Global(LIVED_UI_Z_PAUSE + 1),
-                focus_policy: FocusPolicy::Block,
+                                focus_policy: FocusPolicy::Block,
                 ..default()
             },
+GlobalZIndex(LIVED_UI_Z_PAUSE + 1),
             ComfortGraphicsBannerRoot,
             LivedUiPlate,
         ))
         .with_children(|row| {
-            row.spawn(TextBundle::from_section(
-                COMFORT_GRAPHICS_BANNER_COPY,
-                TextStyle {
-                    font_size: 13.0,
-                    color: TITLE_TEXT_SECONDARY,
-                    ..default()
-                },
-            ));
+            row.spawn((
+Text::new(COMFORT_GRAPHICS_BANNER_COPY),
+TextFont { font_size: 13.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
             row.spawn((
                 ButtonBundle {
-                    style: Style {
+                    node: Node {
                         padding: UiRect::axes(Val::Px(10.0), Val::Px(6.0)),
                         justify_content: JustifyContent::Center,
                         border: UiRect::all(Val::Px(1.0)),
@@ -1524,14 +1506,11 @@ fn spawn_comfort_graphics_banner(mut commands: Commands) {
                 ComfortGraphicsBannerDismissBtn,
             ))
             .with_children(|b| {
-                b.spawn(TextBundle::from_section(
-                    "Dismiss",
-                    TextStyle {
-                        font_size: 12.0,
-                        color: TITLE_BTN_FG,
-                        ..default()
-                    },
-                ));
+                b.spawn((
+Text::new("Dismiss"),
+TextFont { font_size: 12.0 / 1.2, ..default() },
+TextColor(TITLE_BTN_FG),
+));
             });
         });
 }
@@ -1606,7 +1585,7 @@ fn spawn_menu_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C, en
     };
     p.spawn((
         ButtonBundle {
-            style: Style {
+            node: Node {
                 padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(1.0)),
@@ -1619,14 +1598,11 @@ fn spawn_menu_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C, en
         marker,
     ))
     .with_children(|b| {
-        b.spawn(TextBundle::from_section(
-            label,
-            TextStyle {
-                font_size: 15.0,
-                color: fg,
-                ..default()
-            },
-        ));
+        b.spawn((
+Text::new(label),
+TextFont { font_size: 15.0 / 1.2, ..default() },
+TextColor(fg),
+));
     });
 }
 
@@ -1635,7 +1611,7 @@ fn spawn_settings_stub(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     // Single active tab keeps the Settings plate readable at 720p.
                     top: Val::Percent(1.0),
@@ -1656,29 +1632,26 @@ fn spawn_settings_stub(mut commands: Commands) {
                 background_color: TITLE_PLATE_BG.into(),
                 border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
-                z_index: ZIndex::Global(LIVED_UI_Z_PAUSE),
-                // Keep pause chrome hits on this plate (Places door + tabs + Resume).
+                                // Keep pause chrome hits on this plate (Places door + tabs + Resume).
                 focus_policy: FocusPolicy::Block,
                 ..default()
             },
+GlobalZIndex(LIVED_UI_Z_PAUSE),
             SettingsStubRoot,
             LivedUiPlate,
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    YARD_WAITING,
-                    TextStyle {
-                        font_size: 16.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(YARD_WAITING),
+TextFont { font_size: 16.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 PauseCueText,
             ));
             // Tab strip — click or Tab / [ ] while pause is open.
             p.spawn(NodeBundle {
-                style: Style {
+                node: Node {
                     width: Val::Percent(100.0),
                     flex_direction: FlexDirection::Row,
                     column_gap: Val::Px(6.0),
@@ -1824,19 +1797,16 @@ fn spawn_settings_stub(mut commands: Commands) {
             ))
             .with_children(|guide| {
                 guide.spawn(
-                    TextBundle::from_section(
-                        PAUSE_GUIDE_LINE,
-                        TextStyle {
-                            font_size: 14.0,
-                            color: TITLE_TEXT_SECONDARY,
-                            ..default()
-                        },
-                    )
-                    .with_text_justify(JustifyText::Center)
-                    .with_style(Style {
+                    (
+Text::new(PAUSE_GUIDE_LINE),
+TextFont { font_size: 14.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+TextLayout::new_with_justify(JustifyText::Center),
+Node {
                         width: Val::Percent(100.0),
                         ..default()
-                    }),
+                    },
+),
                 );
             });
             // Settled+book Places door — opens four-room plate; not a Settings row.
@@ -1854,7 +1824,7 @@ fn spawn_name_house_panel(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
@@ -1864,15 +1834,15 @@ fn spawn_name_house_panel(mut commands: Commands) {
                 },
                 background_color: TITLE_DIM_BG.into(),
                 visibility: Visibility::Hidden,
-                z_index: ZIndex::Global(140),
-                ..default()
+                                ..default()
             },
+GlobalZIndex(140),
             NameHouseRoot,
             LivedUiPlate,
         ))
         .with_children(|root| {
             root.spawn(NodeBundle {
-                style: Style {
+                node: Node {
                     width: Val::Px(400.0),
                     padding: UiRect::all(Val::Px(18.0)),
                     flex_direction: FlexDirection::Column,
@@ -1885,34 +1855,25 @@ fn spawn_name_house_panel(mut commands: Commands) {
                 ..default()
             })
             .with_children(|p| {
-                p.spawn(TextBundle::from_section(
-                    "Name your House",
-                    TextStyle {
-                        font_size: 18.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ));
                 p.spawn((
-                    TextBundle::from_section(
-                        NAME_HOUSE_HINT,
-                        TextStyle {
-                            font_size: 12.0,
-                            color: TITLE_TEXT_SECONDARY,
-                            ..default()
-                        },
-                    ),
+Text::new("Name your House"),
+TextFont { font_size: 18.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+));
+                p.spawn((
+                    (
+Text::new(NAME_HOUSE_HINT),
+TextFont { font_size: 12.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+),
                     NameHouseHintText,
                 ));
                 p.spawn((
-                    TextBundle::from_section(
-                        "_",
-                        TextStyle {
-                            font_size: 16.0,
-                            color: TITLE_TEXT_PRIMARY,
-                            ..default()
-                        },
-                    ),
+                    (
+Text::new("_"),
+TextFont { font_size: 16.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                     NameDraftText,
                 ));
                 spawn_menu_btn(p, "Confirm", NameConfirmBtn, true);
@@ -1925,7 +1886,7 @@ fn spawn_house_dress_panel(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
@@ -1935,15 +1896,15 @@ fn spawn_house_dress_panel(mut commands: Commands) {
                 },
                 background_color: TITLE_DIM_BG.into(),
                 visibility: Visibility::Hidden,
-                z_index: ZIndex::Global(141),
-                ..default()
+                                ..default()
             },
+GlobalZIndex(141),
             HouseDressRoot,
             LivedUiPlate,
         ))
         .with_children(|root| {
             root.spawn(NodeBundle {
-                style: Style {
+                node: Node {
                     width: Val::Px(420.0),
                     padding: UiRect::all(Val::Px(18.0)),
                     flex_direction: FlexDirection::Column,
@@ -1956,28 +1917,22 @@ fn spawn_house_dress_panel(mut commands: Commands) {
                 ..default()
             })
             .with_children(|p| {
-                p.spawn(TextBundle::from_section(
-                    "House seals · heritage",
-                    TextStyle {
-                        font_size: 18.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ));
-                p.spawn(TextBundle::from_section(
-                    "Cosmetic only. Skip keeps none. No combat kits.",
-                    TextStyle {
-                        font_size: 12.0,
-                        color: TITLE_TEXT_SECONDARY,
-                        ..default()
-                    },
-                ));
+                p.spawn((
+Text::new("House seals · heritage"),
+TextFont { font_size: 18.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+));
+                p.spawn((
+Text::new("Cosmetic only. Skip keeps none. No combat kits."),
+TextFont { font_size: 12.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
                 spawn_dress_seal_row(p, "Well", DressSealWellBtn, DressSealWellLabel);
                 spawn_dress_seal_row(p, "Grove", DressSealGroveBtn, DressSealGroveLabel);
                 spawn_dress_seal_row(p, "Ember", DressSealEmberBtn, DressSealEmberLabel);
                 p.spawn((
                     ButtonBundle {
-                        style: Style {
+                        node: Node {
                             padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
                             justify_content: JustifyContent::Center,
                             border: UiRect::all(Val::Px(1.0)),
@@ -1992,14 +1947,11 @@ fn spawn_house_dress_panel(mut commands: Commands) {
                 ))
                 .with_children(|b| {
                     b.spawn((
-                        TextBundle::from_section(
-                            "Heritage · none",
-                            TextStyle {
-                                font_size: 15.0,
-                                color: TITLE_BTN_FG,
-                                ..default()
-                            },
-                        ),
+                        (
+Text::new("Heritage · none"),
+TextFont { font_size: 15.0 / 1.2, ..default() },
+TextColor(TITLE_BTN_FG),
+),
                         DressHeritageLabel,
                     ));
                 });
@@ -2018,7 +1970,7 @@ fn spawn_dress_seal_row<B: Component, L: Component>(
 ) {
     p.spawn((
         ButtonBundle {
-            style: Style {
+            node: Node {
                 padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(1.0)),
@@ -2033,14 +1985,11 @@ fn spawn_dress_seal_row<B: Component, L: Component>(
     ))
     .with_children(|b| {
         b.spawn((
-            TextBundle::from_section(
-                format!("Seal · {label} · off"),
-                TextStyle {
-                    font_size: 15.0,
-                    color: TITLE_BTN_FG,
-                    ..default()
-                },
-            ),
+            (
+Text::new(format!("Seal · {label} · off")),
+TextFont { font_size: 15.0 / 1.2, ..default() },
+TextColor(TITLE_BTN_FG),
+),
             text_marker,
         ));
     });
@@ -2054,7 +2003,7 @@ fn spawn_persona_cycle_btn<B: Component, L: Component>(
 ) {
     p.spawn((
         ButtonBundle {
-            style: Style {
+            node: Node {
                 padding: UiRect::axes(Val::Px(12.0), Val::Px(8.0)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(1.0)),
@@ -2069,14 +2018,11 @@ fn spawn_persona_cycle_btn<B: Component, L: Component>(
     ))
     .with_children(|b| {
         b.spawn((
-            TextBundle::from_section(
-                initial.to_string(),
-                TextStyle {
-                    font_size: 14.0,
-                    color: TITLE_BTN_FG,
-                    ..default()
-                },
-            ),
+            (
+Text::new(initial.to_string()),
+TextFont { font_size: 14.0 / 1.2, ..default() },
+TextColor(TITLE_BTN_FG),
+),
             text_marker,
         ));
     });
@@ -2086,7 +2032,7 @@ fn spawn_persona_creator_panel(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
@@ -2096,16 +2042,16 @@ fn spawn_persona_creator_panel(mut commands: Commands) {
                 },
                 background_color: TITLE_DIM_BG.into(),
                 visibility: Visibility::Hidden,
-                z_index: ZIndex::Global(142),
-                focus_policy: FocusPolicy::Block,
+                                focus_policy: FocusPolicy::Block,
                 ..default()
             },
+GlobalZIndex(142),
             PersonaCreatorRoot,
             LivedUiPlate,
         ))
         .with_children(|root| {
             root.spawn(NodeBundle {
-                style: Style {
+                node: Node {
                     width: Val::Px(440.0),
                     max_height: Val::Percent(92.0),
                     padding: UiRect::all(Val::Px(18.0)),
@@ -2119,45 +2065,33 @@ fn spawn_persona_creator_panel(mut commands: Commands) {
                 ..default()
             })
             .with_children(|p| {
-                p.spawn(TextBundle::from_section(
-                    "Persona creator · optional",
-                    TextStyle {
-                        font_size: 18.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ));
                 p.spawn((
-                    TextBundle::from_section(
-                        PersonaCreatorStep::MechanicalModule.as_label(),
-                        TextStyle {
-                            font_size: 13.0,
-                            color: TITLE_TEXT_SECONDARY,
-                            ..default()
-                        },
-                    ),
+Text::new("Persona creator · optional"),
+TextFont { font_size: 18.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+));
+                p.spawn((
+                    (
+Text::new(PersonaCreatorStep::MechanicalModule.as_label()),
+TextFont { font_size: 13.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+),
                     PersonaCreatorStepLabel,
                 ));
                 p.spawn((
-                    TextBundle::from_section(
-                        persona_step_guidance(PersonaCreatorStep::MechanicalModule),
-                        TextStyle {
-                            font_size: 12.0,
-                            color: TITLE_TEXT_SECONDARY,
-                            ..default()
-                        },
-                    ),
+                    (
+Text::new(persona_step_guidance(PersonaCreatorStep::MechanicalModule)),
+TextFont { font_size: 12.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+),
                     PersonaCreatorGuidance,
                 ));
                 p.spawn((
-                    TextBundle::from_section(
-                        "Name · (empty = nameless Steward)",
-                        TextStyle {
-                            font_size: 14.0,
-                            color: TITLE_TEXT_PRIMARY,
-                            ..default()
-                        },
-                    ),
+                    (
+Text::new("Name · (empty = nameless Steward)"),
+TextFont { font_size: 14.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                     PersonaCreatorBodyText,
                 ));
                 spawn_persona_cycle_btn(
@@ -2215,14 +2149,11 @@ fn spawn_persona_creator_panel(mut commands: Commands) {
                 spawn_menu_btn(p, "Commit · validate + persist", PersonaCommitBtn, true);
                 spawn_menu_btn(p, "Skip · nameless Steward", PersonaSkipNamelessBtn, true);
                 spawn_menu_btn(p, "H · hide guidance", PersonaHideGuidanceBtn, true);
-                p.spawn(TextBundle::from_section(
-                    "Title Online stays grey · no matchmaking power · presentation only",
-                    TextStyle {
-                        font_size: 11.0,
-                        color: TITLE_TEXT_SECONDARY,
-                        ..default()
-                    },
-                ));
+                p.spawn((
+Text::new("Title Online stays grey · no matchmaking power · presentation only"),
+TextFont { font_size: 11.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+));
             });
         });
 }
@@ -2235,7 +2166,7 @@ fn breath_title_border(
     if *door != LaunchDoor::Title {
         return;
     }
-    let pulse = 0.45 + (time.elapsed_seconds() * 1.2).sin() * 0.12;
+    let pulse = 0.45 + (time.elapsed_secs() * 1.2).sin() * 0.12;
     for mut border in &mut q {
         // TitleBreath is on the full-screen root (no border) — keep noop-safe.
         let _ = pulse; // opaque plate — no alpha breath on soft GPU
@@ -2254,10 +2185,8 @@ fn refresh_title_cue(label: Res<HouseLabel>, mut q: Query<&mut Text, With<TitleC
         None => house_cue,
     };
     for mut text in &mut q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != cue {
-                s.value = cue.clone();
-            }
+        if text.as_str() != cue {
+            **text = cue.clone();
         }
     }
 }
@@ -2276,7 +2205,7 @@ fn refresh_garden_boot_want(
     door: Res<LaunchDoor>,
     guidance: Option<Res<FirstSessionGuidance>>,
     settings: Res<LocalSettingsState>,
-    mut q: Query<(&mut Text, &mut Visibility), With<TitleGardenWantText>>,
+    mut q: Query<(&mut Text, &mut TextFont, &mut Visibility), With<TitleGardenWantText>>,
 ) {
     let hush = guidance
         .as_ref()
@@ -2288,16 +2217,14 @@ fn refresh_garden_boot_want(
     } else {
         None
     };
-    let font = garden_boot_want_font_px(settings.inner.text_scale);
-    for (mut text, mut vis) in &mut q {
-        if let Some(s) = text.sections.get_mut(0) {
-            let value = spoken.clone().unwrap_or_default();
-            if s.value != value {
-                s.value = value;
-            }
-            if (s.style.font_size - font).abs() > 0.01 {
-                s.style.font_size = font;
-            }
+    let font_px = garden_boot_want_font_px(settings.inner.text_scale);
+    for (mut text, mut font_face, mut vis) in &mut q {
+        let value = spoken.clone().unwrap_or_default();
+        if text.as_str() != value {
+            **text = value;
+        }
+        if (font_face.font_size - font_px / 1.2).abs() > 0.01 {
+            font_face.font_size = font_px / 1.2;
         }
         *vis = if spoken.is_some() {
             Visibility::Visible
@@ -2473,7 +2400,7 @@ fn sync_settings_stub(
     door: Res<LaunchDoor>,
     persona: Res<PersonaCreatorState>,
     places: Option<Res<PlacesPlate>>,
-    mut q: Query<(&mut Visibility, &mut Style), With<SettingsStubRoot>>,
+    mut q: Query<(&mut Visibility, &mut Node), With<SettingsStubRoot>>,
 ) {
     let places_open = places.map(|p| p.open).unwrap_or(false);
     let show = settings_visible_with_places(label.settings_open, places_open)
@@ -2498,7 +2425,7 @@ fn sync_settings_stub(
 
 /// Test/helper: Comfort pause chrome is laid out (not Display::None).
 pub(crate) fn settings_stub_is_showing(world: &mut bevy::prelude::World) -> bool {
-    let mut q = world.query_filtered::<(&Style, &Visibility), With<SettingsStubRoot>>();
+    let mut q = world.query_filtered::<(&Node, &Visibility), With<SettingsStubRoot>>();
     q.iter(world)
         .any(|(style, vis)| style.display == Display::Flex && *vis == Visibility::Visible)
 }
@@ -2635,10 +2562,8 @@ fn refresh_pause_cue(
     }
     let line = pause_plate_line(*door).unwrap_or("Local settings · Esc closes");
     for mut text in &mut q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != line {
-                s.value = line.to_string();
-            }
+        if text.as_str() != line {
+            **text = line.to_string();
         }
     }
 }
@@ -2731,7 +2656,7 @@ fn return_yard_to_title(
 
 fn settings_tab_panel_bundle(visible: bool) -> NodeBundle {
     NodeBundle {
-        style: Style {
+        node: Node {
             width: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(4.0),
@@ -2756,7 +2681,7 @@ fn settings_tab_panel_bundle(visible: bool) -> NodeBundle {
 fn spawn_pause_places_door(p: &mut ChildBuilder) {
     p.spawn((
         ButtonBundle {
-            style: Style {
+            node: Node {
                 width: Val::Percent(100.0),
                 padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
                 justify_content: JustifyContent::Center,
@@ -2774,21 +2699,18 @@ fn spawn_pause_places_door(p: &mut ChildBuilder) {
         Name::new("PausePlacesRow"),
     ))
     .with_children(|b| {
-        b.spawn(TextBundle::from_section(
-            PLACES_ROW,
-            TextStyle {
-                font_size: 15.0,
-                color: TITLE_BTN_FG,
-                ..default()
-            },
-        ));
+        b.spawn((
+Text::new(PLACES_ROW),
+TextFont { font_size: 15.0 / 1.2, ..default() },
+TextColor(TITLE_BTN_FG),
+));
     });
 }
 
 fn spawn_pause_tab_btn(p: &mut ChildBuilder, tab: PauseTab) {
     p.spawn((
         ButtonBundle {
-            style: Style {
+            node: Node {
                 padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(1.0)),
@@ -2802,14 +2724,11 @@ fn spawn_pause_tab_btn(p: &mut ChildBuilder, tab: PauseTab) {
         PauseTabBtn(tab),
     ))
     .with_children(|b| {
-        b.spawn(TextBundle::from_section(
-            tab.label(),
-            TextStyle {
-                font_size: 14.0,
-                color: TITLE_BTN_FG,
-                ..default()
-            },
-        ));
+        b.spawn((
+Text::new(tab.label()),
+TextFont { font_size: 14.0 / 1.2, ..default() },
+TextColor(TITLE_BTN_FG),
+));
     });
 }
 
@@ -2864,7 +2783,7 @@ fn pause_tab_keys(
 
 fn sync_pause_tabs(
     tab: Res<PauseTab>,
-    mut panels: Query<(&PauseTabPanel, &mut Visibility, &mut Style)>,
+    mut panels: Query<(&PauseTabPanel, &mut Visibility, &mut Node)>,
     mut btns: Query<(&PauseTabBtn, &mut BackgroundColor, &mut BorderColor)>,
 ) {
     for (panel, mut vis, mut style) in &mut panels {
@@ -2898,16 +2817,16 @@ fn sync_pause_tabs(
 fn refresh_hud_layout_label(
     label: Res<HouseLabel>,
     settings: Res<LocalSettingsState>,
-    mut texts: Query<&mut Text, With<SettingsHudLayoutLabel>>,
+    mut texts: Query<(&mut Text, &mut TextFont), With<SettingsHudLayoutLabel>>,
 ) {
     if !label.settings_open {
         return;
     }
     let face = format!("HUD layout · {}", settings.inner.hud_preset_face());
     let font = (15.0 * settings.inner.text_scale).clamp(11.0, 22.0);
-    for mut text in &mut texts {
+    for (mut text, mut font_face) in &mut texts {
         set_btn_section_text(&mut text, &face);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
 }
 
@@ -2919,7 +2838,7 @@ fn spawn_settings_row<B: Component, L: Component>(
 ) {
     p.spawn((
         ButtonBundle {
-            style: Style {
+            node: Node {
                 padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(1.0)),
@@ -2934,14 +2853,11 @@ fn spawn_settings_row<B: Component, L: Component>(
     ))
     .with_children(|b| {
         b.spawn((
-            TextBundle::from_section(
-                label,
-                TextStyle {
-                    font_size: 15.0,
-                    color: TITLE_BTN_FG,
-                    ..default()
-                },
-            ),
+            (
+Text::new(label),
+TextFont { font_size: 15.0 / 1.2, ..default() },
+TextColor(TITLE_BTN_FG),
+),
             text_marker,
         ));
     });
@@ -3260,13 +3176,13 @@ fn refresh_peace_rebind_labels(
     label: Res<HouseLabel>,
     settings: Res<LocalSettingsState>,
     state: Res<PeaceRebindState>,
-    mut texts: Query<(&SettingsPeaceBindLabel, &mut Text)>,
+    mut texts: Query<(&SettingsPeaceBindLabel, &mut Text, &mut TextFont)>,
 ) {
     if !label.settings_open {
         return;
     }
     let font = (15.0 * settings.inner.text_scale).clamp(11.0, 22.0);
-    for (marker, mut text) in &mut texts {
+    for (marker, mut text, mut font_face) in &mut texts {
         let value = if state.waiting == Some(marker.0) {
             format!(
                 "{} · {}",
@@ -3277,23 +3193,19 @@ fn refresh_peace_rebind_labels(
             peace_binding_label(marker.0, &settings.inner)
         };
         set_btn_section_text(&mut text, &value);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
 }
 
 fn set_btn_section_text(text: &mut Text, value: &str) {
-    if let Some(s) = text.sections.get_mut(0) {
-        if s.value != value {
-            s.value = value.to_string();
+    if text.as_str() != value {
+            **text = value.to_string();
         }
-    }
 }
 
-fn set_btn_section_font(text: &mut Text, size: f32) {
-    if let Some(s) = text.sections.get_mut(0) {
-        if (s.style.font_size - size).abs() > 0.01 {
-            s.style.font_size = size;
-        }
+fn set_btn_section_font(font: &mut TextFont, size: f32) {
+    if (font.font_size - size / 1.2).abs() > 0.01 {
+        font.font_size = size / 1.2;
     }
 }
 
@@ -3301,14 +3213,14 @@ fn refresh_local_settings_labels(
     label: Res<HouseLabel>,
     settings: Res<LocalSettingsState>,
     mut texts: ParamSet<(
-        Query<&mut Text, With<SettingsLookLabel>>,
-        Query<&mut Text, With<SettingsMuteLabel>>,
-        Query<&mut Text, With<SettingsInvertLabel>>,
-        Query<&mut Text, With<SettingsHideLabel>>,
-        Query<&mut Text, With<SettingsBrightnessLabel>>,
-        Query<&mut Text, With<SettingsTextScaleLabel>>,
-        Query<&mut Text, With<SettingsGroveLabel>>,
-        Query<&mut Text, With<SettingsLanLabel>>,
+        Query<(&mut Text, &mut TextFont), With<SettingsLookLabel>>,
+        Query<(&mut Text, &mut TextFont), With<SettingsMuteLabel>>,
+        Query<(&mut Text, &mut TextFont), With<SettingsInvertLabel>>,
+        Query<(&mut Text, &mut TextFont), With<SettingsHideLabel>>,
+        Query<(&mut Text, &mut TextFont), With<SettingsBrightnessLabel>>,
+        Query<(&mut Text, &mut TextFont), With<SettingsTextScaleLabel>>,
+        Query<(&mut Text, &mut TextFont), With<SettingsGroveLabel>>,
+        Query<(&mut Text, &mut TextFont), With<SettingsLanLabel>>,
     )>,
 ) {
     if !label.settings_open {
@@ -3324,53 +3236,53 @@ fn refresh_local_settings_labels(
     let grove = grove_btn_label(s);
     let lan = lan_btn_label(s);
     let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
-    for mut text in &mut texts.p0() {
+    for (mut text, mut font_face) in &mut texts.p0() {
         set_btn_section_text(&mut text, &look);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
-    for mut text in &mut texts.p1() {
+    for (mut text, mut font_face) in &mut texts.p1() {
         set_btn_section_text(&mut text, &mute);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
-    for mut text in &mut texts.p2() {
+    for (mut text, mut font_face) in &mut texts.p2() {
         set_btn_section_text(&mut text, &invert);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
-    for mut text in &mut texts.p3() {
+    for (mut text, mut font_face) in &mut texts.p3() {
         set_btn_section_text(&mut text, &hide);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
-    for mut text in &mut texts.p4() {
+    for (mut text, mut font_face) in &mut texts.p4() {
         set_btn_section_text(&mut text, &bright);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
-    for mut text in &mut texts.p5() {
+    for (mut text, mut font_face) in &mut texts.p5() {
         set_btn_section_text(&mut text, &scale);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
-    for mut text in &mut texts.p6() {
+    for (mut text, mut font_face) in &mut texts.p6() {
         set_btn_section_text(&mut text, &grove);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
-    for mut text in &mut texts.p7() {
+    for (mut text, mut font_face) in &mut texts.p7() {
         set_btn_section_text(&mut text, &lan);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
 }
 
 fn refresh_accessibility_settings_labels(
     label: Res<HouseLabel>,
     settings: Res<LocalSettingsState>,
-    mut graphics: Query<&mut Text, With<SettingsGraphicsLabel>>,
+    mut graphics: Query<(&mut Text, &mut TextFont), With<SettingsGraphicsLabel>>,
     mut reduced_motion: Query<
-        &mut Text,
+        (&mut Text, &mut TextFont),
         (
             With<SettingsReducedMotionLabel>,
             Without<SettingsGraphicsLabel>,
         ),
     >,
     mut rumble: Query<
-        &mut Text,
+        (&mut Text, &mut TextFont),
         (
             With<SettingsRumbleLabel>,
             Without<SettingsReducedMotionLabel>,
@@ -3378,7 +3290,7 @@ fn refresh_accessibility_settings_labels(
         ),
     >,
     mut colorblind: Query<
-        &mut Text,
+        (&mut Text, &mut TextFont),
         (
             With<SettingsColorblindWellsLabel>,
             Without<SettingsReducedMotionLabel>,
@@ -3396,21 +3308,21 @@ fn refresh_accessibility_settings_labels(
     let rumble_label = rumble_btn_label(s);
     let colorblind_label = colorblind_wells_btn_label(s);
     let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
-    for mut text in &mut graphics {
+    for (mut text, mut font_face) in &mut graphics {
         set_btn_section_text(&mut text, &graphics_label);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
-    for mut text in &mut reduced_motion {
+    for (mut text, mut font_face) in &mut reduced_motion {
         set_btn_section_text(&mut text, &reduced_motion_label);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
-    for mut text in &mut rumble {
+    for (mut text, mut font_face) in &mut rumble {
         set_btn_section_text(&mut text, &rumble_label);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
-    for mut text in &mut colorblind {
+    for (mut text, mut font_face) in &mut colorblind {
         set_btn_section_text(&mut text, &colorblind_label);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
 }
 
@@ -3587,7 +3499,7 @@ fn refresh_lethal_sign_label(
     label: Res<HouseLabel>,
     hour: Option<Res<HourSacred>>,
     bind: Option<Res<LivedHourBind>>,
-    mut texts: Query<&mut Text, With<SettingsLethalLabel>>,
+    mut texts: Query<(&mut Text, &mut TextFont), With<SettingsLethalLabel>>,
     settings: Res<LocalSettingsState>,
 ) {
     if !label.settings_open {
@@ -3609,9 +3521,9 @@ fn refresh_lethal_sign_label(
         .unwrap_or(false);
     let line = lethal_sign_btn_label(settled, book, charter, declared);
     let font = (15.0 * settings.inner.text_scale).clamp(11.0, 22.0);
-    for mut text in &mut texts {
+    for (mut text, mut font_face) in &mut texts {
         set_btn_section_text(&mut text, line);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
 }
 
@@ -3663,9 +3575,9 @@ fn refresh_controls_settings_labels(
     label: Res<HouseLabel>,
     settings: Res<LocalSettingsState>,
     mut texts: ParamSet<(
-        Query<&mut Text, With<SettingsSticksLabel>>,
-        Query<&mut Text, With<SettingsTapUseLabel>>,
-        Query<&mut Text, With<SettingsSprintLabel>>,
+        Query<(&mut Text, &mut TextFont), With<SettingsSticksLabel>>,
+        Query<(&mut Text, &mut TextFont), With<SettingsTapUseLabel>>,
+        Query<(&mut Text, &mut TextFont), With<SettingsSprintLabel>>,
     )>,
 ) {
     if !label.settings_open {
@@ -3676,17 +3588,17 @@ fn refresh_controls_settings_labels(
     let tap = tap_use_btn_label(s);
     let sprint = sprint_btn_label(s);
     let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
-    for mut text in &mut texts.p0() {
+    for (mut text, mut font_face) in &mut texts.p0() {
         set_btn_section_text(&mut text, &sticks);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
-    for mut text in &mut texts.p1() {
+    for (mut text, mut font_face) in &mut texts.p1() {
         set_btn_section_text(&mut text, &tap);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
-    for mut text in &mut texts.p2() {
+    for (mut text, mut font_face) in &mut texts.p2() {
         set_btn_section_text(&mut text, &sprint);
-        set_btn_section_font(&mut text, font);
+        set_btn_section_font(&mut font_face, font);
     }
 }
 
@@ -3907,33 +3819,47 @@ fn name_house_escape_act(
     }
 }
 
+/// Bevy 0.15 removed `ReceivedCharacter`. `Key::Space` is not a `Key::Character`.
+fn for_each_typed_char(key: &Key, mut push: impl FnMut(char)) {
+    match key {
+        Key::Character(text) => {
+            for c in text.chars() {
+                if !c.is_control() {
+                    push(c);
+                }
+            }
+        }
+        Key::Space => push(' '),
+        _ => {}
+    }
+}
+
 fn name_house_text_input(
     door: Res<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
     persona: Res<PersonaCreatorState>,
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut chars: EventReader<ReceivedCharacter>,
+    mut chars: EventReader<KeyboardInput>,
     mut draft_q: Query<&mut Text, With<NameDraftText>>,
 ) {
     if *door != LaunchDoor::NameHouse {
-        // Drain SmolStr ReceivedCharacter so Continue/name does not flicker with stale input.
+        // Drain key characters so Continue/name does not flicker with stale input.
         // Leave the stream alone while the gated persona creator owns typing.
         if !persona.open {
             chars.clear();
         }
         return;
     }
-    // Bevy 0.14: ReceivedCharacter.char is SmolStr (deprecated API; still compiles).
     for ev in chars.read() {
-        for c in ev.char.chars() {
-            if c.is_control() {
-                continue;
-            }
+        if !ev.state.is_pressed() {
+            continue;
+        }
+        for_each_typed_char(&ev.logical_key, |c| {
             if (c.is_alphanumeric() || c == ' ' || c == '-' || c == '\'') && label.draft.len() < 32
             {
                 label.draft.push(c);
             }
-        }
+        });
     }
     if keyboard.just_pressed(KeyCode::Backspace) {
         label.draft.pop();
@@ -3944,10 +3870,8 @@ fn name_house_text_input(
         label.draft.clone()
     };
     for mut text in &mut draft_q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != shown {
-                s.value = shown.clone();
-            }
+        if text.as_str() != shown {
+            **text = shown.clone();
         }
     }
 }
@@ -4299,7 +4223,7 @@ fn refresh_persona_creator_labels(
 fn persona_creator_text_input(
     mut persona: ResMut<PersonaCreatorState>,
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut chars: EventReader<ReceivedCharacter>,
+    mut chars: EventReader<KeyboardInput>,
 ) {
     if !persona.open || !PERSONA_CREATOR_ENABLED {
         return;
@@ -4310,10 +4234,10 @@ fn persona_creator_text_input(
         PersonaCreatorStep::Story | PersonaCreatorStep::Preview
     );
     for ev in chars.read() {
-        for c in ev.char.chars() {
-            if c.is_control() {
-                continue;
-            }
+        if !ev.state.is_pressed() {
+            continue;
+        }
+        for_each_typed_char(&ev.logical_key, |c| {
             if into_story {
                 if persona.story_draft.chars().count() < STORY_TEXT_MAX
                     && (c.is_alphanumeric()
@@ -4327,7 +4251,7 @@ fn persona_creator_text_input(
             {
                 persona.name_draft.push(c);
             }
-        }
+        });
     }
     if keyboard.just_pressed(KeyCode::Backspace) {
         if into_story {
@@ -4627,15 +4551,15 @@ mod tests {
         app.update();
 
         let world = app.world_mut();
-        let text = world
-            .query_filtered::<&Text, With<TitleGardenWantText>>()
+        let (text, color) = world
+            .query_filtered::<(&Text, &TextColor), With<TitleGardenWantText>>()
             .single(world);
-        let line = &text.sections[0].value;
+        let line = text.as_str();
         assert!(line.contains(SANCTUARY_PEOPLE));
         assert!(line.contains(GARDEN_WANT));
         assert!(line.contains("the yard needs tending or the well goes quiet"));
         assert_eq!(
-            text.sections[0].style.color,
+            color.0,
             TITLE_TEXT_PRIMARY,
             "Garden Want uses primary title text for Comfort Low"
         );
@@ -5850,13 +5774,13 @@ mod tests {
 
         let world = app.world_mut();
         let root = world
-            .query_filtered::<(&Style, &FocusPolicy), With<TitleRoot>>()
+            .query_filtered::<(&Node, &FocusPolicy), With<TitleRoot>>()
             .single(world);
         assert_eq!(root.0.padding, UiRect::all(Val::Px(TITLE_SAFE_INSET)));
         assert_eq!(*root.1, FocusPolicy::Block);
 
         let plate = world
-            .query_filtered::<&Style, With<TitlePlate>>()
+            .query_filtered::<&Node, With<TitlePlate>>()
             .single(world);
         assert_eq!(plate.width, Val::Percent(100.0));
         assert_eq!(plate.max_width, Val::Px(TITLE_PLATE_MAX_WIDTH));
@@ -7955,6 +7879,7 @@ mod tests {
             key_code: KeyCode::Escape,
             logical_key: Key::Escape,
             state: ButtonState::Pressed,
+            repeat: false,
             window: Entity::PLACEHOLDER,
         });
         editing.update();
@@ -7988,6 +7913,7 @@ mod tests {
             key_code: KeyCode::Escape,
             logical_key: Key::Escape,
             state: ButtonState::Pressed,
+            repeat: false,
             window: Entity::PLACEHOLDER,
         });
         paused.update();

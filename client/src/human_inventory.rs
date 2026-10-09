@@ -117,7 +117,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     bottom: WATCH.bottom(),
                     left: WATCH.left(),
@@ -136,14 +136,11 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: WATCH_STRIP_FONT_BASE,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: WATCH_STRIP_FONT_BASE / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 WatchStripText,
                 StripFlashFontBase(WATCH_STRIP_FONT_BASE),
             ));
@@ -152,7 +149,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     bottom: Val::Percent(22.0),
                     left: Val::Px(16.0),
@@ -167,45 +164,36 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                 background_color: TITLE_PLATE_BG.into(),
                 border_color: TITLE_BORDER.into(),
                 visibility: Visibility::Hidden,
-                z_index: ZIndex::Global(LIVED_UI_Z_LEDGER),
-                ..default()
+                                ..default()
             },
+GlobalZIndex(LIVED_UI_Z_LEDGER),
             SatchelRoot,
             LivedUiPlate,
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "SATCHEL",
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_TEXT_SECONDARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new("SATCHEL"),
+TextFont { font_size: 14.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+),
                 SatchelFontBase(14.0),
             ));
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 13.5,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: 13.5 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 SatchelBody,
                 SatchelFontBase(13.5),
             ));
             p.spawn((
-                TextBundle::from_section(
-                    "I close · 1–3 highlight · R allocate surplus",
-                    TextStyle {
-                        font_size: 11.0,
-                        color: TITLE_TEXT_SECONDARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new("I close · 1–3 highlight · R allocate surplus"),
+TextFont { font_size: 11.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_SECONDARY),
+),
                 SatchelFontBase(11.0),
             ));
         });
@@ -213,7 +201,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: PICKUP.top(),
                     left: PICKUP.left(),
@@ -234,14 +222,11 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: PICKUP_FLASH_FONT_BASE,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: PICKUP_FLASH_FONT_BASE / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 PickupFlashText,
                 StripFlashFontBase(PICKUP_FLASH_FONT_BASE),
             ));
@@ -303,7 +288,7 @@ fn notice_pickup(
         return;
     }
     inv.last_seen_harvests = pool.harvests;
-    inv.pickup_until = time.elapsed_seconds_f64() + 1.8;
+    inv.pickup_until = time.elapsed_secs_f64() + 1.8;
     let place = travel.as_ref().map(|state| state.chip_name());
     inv.pickup_line = satchel_grew_line(pool.last_credit, place);
 }
@@ -358,10 +343,8 @@ fn update_watch_strip(
         )
     };
     for mut text in &mut text_q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != line {
-                s.value = line.clone();
-            }
+        if text.as_str() != line {
+            **text = line.clone();
         }
     }
 }
@@ -414,36 +397,32 @@ pub fn satchel_font_px(base: f32, text_scale: f32) -> f32 {
 /// Plate bases stay on [`scale_satchel_fonts`]. Width and padding stay fixed.
 fn scale_strip_and_flash_fonts(
     settings: Option<Res<LocalSettingsState>>,
-    mut q: Query<(&StripFlashFontBase, &mut Text)>,
+    mut q: Query<(&StripFlashFontBase, &mut TextFont)>,
 ) {
     let scale = match &settings {
         Some(state) => state.inner.text_scale,
         None => 1.0,
     };
-    for (base, mut text) in &mut q {
+    for (base, mut font) in &mut q {
         let px = satchel_font_px(base.0, scale);
-        for section in &mut text.sections {
-            if (section.style.font_size - px).abs() > 0.01 {
-                section.style.font_size = px;
-            }
+        if (font.font_size - px / 1.2).abs() > 0.01 {
+            font.font_size = px / 1.2;
         }
     }
 }
 
 fn scale_satchel_fonts(
     settings: Option<Res<LocalSettingsState>>,
-    mut q: Query<(&SatchelFontBase, &mut Text)>,
+    mut q: Query<(&SatchelFontBase, &mut TextFont)>,
 ) {
     let scale = match &settings {
         Some(state) => state.inner.text_scale,
         None => 1.0,
     };
-    for (base, mut text) in &mut q {
+    for (base, mut font) in &mut q {
         let px = satchel_font_px(base.0, scale);
-        for section in &mut text.sections {
-            if (section.style.font_size - px).abs() > 0.01 {
-                section.style.font_size = px;
-            }
+        if (font.font_size - px / 1.2).abs() > 0.01 {
+            font.font_size = px / 1.2;
         }
     }
 }
@@ -505,10 +484,8 @@ Harvests {}{temper_block}",
         pool.harvests
     );
     for mut text in &mut body {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != body_line {
-                s.value = body_line.clone();
-            }
+        if text.as_str() != body_line {
+            **text = body_line.clone();
         }
     }
 }
@@ -519,7 +496,7 @@ fn update_pickup_flash(
     mut root: Query<&mut Visibility, With<PickupFlashRoot>>,
     mut text_q: Query<&mut Text, With<PickupFlashText>>,
 ) {
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     let show = now < inv.pickup_until && !inv.pickup_line.is_empty() && inv.pickup_until < 9000.0;
     for mut vis in &mut root {
         *vis = if show {
@@ -530,11 +507,9 @@ fn update_pickup_flash(
     }
     if show {
         for mut text in &mut text_q {
-            if let Some(s) = text.sections.get_mut(0) {
-                if s.value != inv.pickup_line {
-                    s.value = inv.pickup_line.clone();
-                }
-            }
+            if text.as_str() != inv.pickup_line {
+            **text = inv.pickup_line.clone();
+        }
         }
     }
 }
@@ -558,9 +533,9 @@ mod tests {
 
         let mut watch_q = app
             .world_mut()
-            .query_filtered::<&Style, With<WatchStripRoot>>();
+            .query_filtered::<&Node, With<WatchStripRoot>>();
         let watch = watch_q.single(app.world()).clone();
-        let watch_coded = Style {
+        let watch_coded = Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(16.0),
             left: Val::Px(16.0),
@@ -577,9 +552,9 @@ mod tests {
 
         let mut satchel_q = app
             .world_mut()
-            .query_filtered::<&Style, With<SatchelRoot>>();
+            .query_filtered::<&Node, With<SatchelRoot>>();
         let satchel = satchel_q.single(app.world()).clone();
-        let satchel_coded = Style {
+        let satchel_coded = Node {
             position_type: PositionType::Absolute,
             bottom: Val::Percent(22.0),
             left: Val::Px(16.0),
@@ -597,9 +572,9 @@ mod tests {
 
         let mut pickup_q = app
             .world_mut()
-            .query_filtered::<&Style, With<PickupFlashRoot>>();
+            .query_filtered::<&Node, With<PickupFlashRoot>>();
         let pickup = pickup_q.single(app.world()).clone();
-        let pickup_coded = Style {
+        let pickup_coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Percent(38.0),
             left: Val::Percent(50.0),
@@ -766,7 +741,7 @@ mod tests {
         let bases: Vec<f32> = spawned.iter().map(|(base, _, _)| *base).collect();
         assert_eq!(bases, vec![11.0, 13.5, 14.0]);
         for (base, px, _) in &spawned {
-            assert_eq!(*px, *base);
+            assert_eq!(*px, *base / 1.2);
         }
 
         app.world_mut()
@@ -784,7 +759,7 @@ mod tests {
         assert_eq!(after.len(), 3);
         for (before, (base, px, value)) in spawned.iter().zip(after.iter()) {
             assert_eq!(before.0, *base);
-            assert_eq!(*px, satchel_font_px(*base, new_scale));
+            assert_eq!(*px, satchel_font_px(*base, new_scale) / 1.2);
             assert_eq!(value, &before.2);
         }
     }
@@ -796,8 +771,8 @@ mod tests {
                 continue;
             };
             let text = entity.get::<Text>().expect("satchel font text");
-            let section = text.sections.first().expect("satchel section");
-            rows.push((base.0, section.style.font_size, section.value.clone()));
+            let font = entity.get::<TextFont>().expect("satchel font");
+            rows.push((base.0, font.font_size, text.as_str().to_string()));
         }
         rows.sort_by(|a, b| a.0.partial_cmp(&b.0).expect("satchel font base"));
         rows
@@ -846,14 +821,14 @@ mod tests {
                 .map(|(base, px, value, kind)| (*base, *px, value.as_str(), *kind))
                 .collect::<Vec<_>>(),
             vec![
-                (WATCH_STRIP_FONT_BASE, WATCH_STRIP_FONT_BASE, "", "strip"),
-                (PICKUP_FLASH_FONT_BASE, PICKUP_FLASH_FONT_BASE, "", "flash"),
+                (WATCH_STRIP_FONT_BASE, WATCH_STRIP_FONT_BASE / 1.2, "", "strip"),
+                (PICKUP_FLASH_FONT_BASE, PICKUP_FLASH_FONT_BASE / 1.2, "", "flash"),
             ]
         );
         let plate = satchel_font_rows(&app);
         assert_eq!(plate.len(), 3);
         for (base, px, _) in &plate {
-            assert_eq!(*px, *base);
+            assert_eq!(*px, *base / 1.2);
         }
 
         app.world_mut()
@@ -872,15 +847,15 @@ mod tests {
         for (before, (base, px, value, kind)) in strip.iter().zip(after.iter()) {
             assert_eq!(before.0, *base);
             assert_eq!(before.3, *kind);
-            assert_eq!(*px, satchel_font_px(*base, new_scale));
+            assert_eq!(*px, satchel_font_px(*base, new_scale) / 1.2);
             assert_eq!(value, &before.2);
-            assert!(*px > *base);
+            assert!(*px > *base / 1.2);
         }
         let plate_after = satchel_font_rows(&app);
         assert_eq!(plate_after.len(), 3);
         for (before, (base, px, value)) in plate.iter().zip(plate_after.iter()) {
             assert_eq!(before.0, *base);
-            assert_eq!(*px, satchel_font_px(*base, new_scale));
+            assert_eq!(*px, satchel_font_px(*base, new_scale) / 1.2);
             assert_eq!(value, &before.2);
         }
 
@@ -891,10 +866,10 @@ mod tests {
                 .text_scale = extreme;
             app.update();
             for (base, px, _, _) in strip_flash_font_rows(&app) {
-                assert_eq!(px, satchel_font_px(base, extreme));
+                assert_eq!(px, satchel_font_px(base, extreme) / 1.2);
             }
             for (base, px, _) in satchel_font_rows(&app) {
-                assert_eq!(px, satchel_font_px(base, extreme));
+                assert_eq!(px, satchel_font_px(base, extreme) / 1.2);
             }
         }
     }
@@ -915,8 +890,8 @@ mod tests {
                 .map(|(base, px, _, kind)| (*base, *px, *kind))
                 .collect::<Vec<_>>(),
             vec![
-                (WATCH_STRIP_FONT_BASE, WATCH_STRIP_FONT_BASE, "strip"),
-                (PICKUP_FLASH_FONT_BASE, PICKUP_FLASH_FONT_BASE, "flash"),
+                (WATCH_STRIP_FONT_BASE, WATCH_STRIP_FONT_BASE / 1.2, "strip"),
+                (PICKUP_FLASH_FONT_BASE, PICKUP_FLASH_FONT_BASE / 1.2, "flash"),
             ]
         );
     }
@@ -935,8 +910,8 @@ mod tests {
                 panic!("StripFlashFontBase without strip or flash text");
             };
             let text = entity.get::<Text>().expect("strip flash font text");
-            let section = text.sections.first().expect("strip flash section");
-            rows.push((base.0, section.style.font_size, section.value.clone(), kind));
+            let font = entity.get::<TextFont>().expect("strip flash font");
+            rows.push((base.0, font.font_size, text.as_str().to_string(), kind));
         }
         rows.sort_by(|a, b| a.0.partial_cmp(&b.0).expect("strip flash font base"));
         rows

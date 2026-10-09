@@ -75,7 +75,7 @@ fn hold_e_care_tend(
         hold.fired = false;
         return;
     }
-    hold.seconds += time.delta_seconds();
+    hold.seconds += time.delta_secs();
     // First-hour hold-E belongs to harvest tend breathe/harmony until that lands.
     if !climate_hold_e_care_waits_for_harvest_tend(harvest_tends) {
         return;
@@ -127,7 +127,7 @@ fn paint_climate_feel(
         );
     }
 
-    mem.sting_cooldown = (mem.sting_cooldown - time.delta_seconds()).max(0.0);
+    mem.sting_cooldown = (mem.sting_cooldown - time.delta_secs()).max(0.0);
     let spike = stress - mem.last_stress;
     mem.last_stress = stress;
     if spike >= 0.08 && mem.sting_cooldown <= 0.0 {
@@ -146,7 +146,7 @@ fn paint_climate_feel(
 
     // Quiet thriving pulse when harmony high and stress low.
     if harmony >= 0.65 && stress <= 0.25 {
-        let breath = (time.elapsed_seconds() * 1.6).sin().abs() * 0.08;
+        let breath = (time.elapsed_secs() * 1.6).sin().abs() * 0.08;
         for (_, mut node) in &mut nodes {
             if node.pulse < 0.2 {
                 node.pulse = breath;

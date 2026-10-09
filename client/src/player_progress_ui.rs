@@ -69,31 +69,31 @@ fn spawn_player_progress_ui(mut commands: Commands, asset_server: Res<AssetServe
         ))
         .with_children(|parent| {
             parent.spawn(TextBundle {
-                text: Text::from_section("PROGRESS", TextStyle { font: asset_server.load("fonts/FiraSans-Bold.ttf"), font_size: 17.0, color: Color::srgb(0.6, 0.85, 1.0) }),
+                text: Text::from_section("PROGRESS", TextStyle { font: asset_server.load("fonts/FiraSans-Bold.ttf"), font_size: 17.0 / 1.2, color: Color::srgb(0.6, 0.85, 1.0) }),
                 style: Style { margin: UiRect::bottom(Val::Px(10.0)), ..default() },
                 ..default()
             });
 
             parent.spawn((TextBundle {
-                text: Text::from_section("Epiphanies: 0", TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 15.0, color: Color::WHITE }),
+                text: Text::from_section("Epiphanies: 0", TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 15.0 / 1.2, color: Color::WHITE }),
                 ..default()
             }, EpiphanyCountText));
 
             parent.spawn((TextBundle {
-                text: Text::from_section("Muscle Memory: 1.00x", TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 15.0, color: Color::WHITE }),
+                text: Text::from_section("Muscle Memory: 1.00x", TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 15.0 / 1.2, color: Color::WHITE }),
                 style: Style { margin: UiRect::top(Val::Px(8.0)), ..default() },
                 ..default()
             }, MuscleMemoryText));
 
             parent.spawn((TextBundle {
-                text: Text::from_section("Multiplier: 1.00x (inactive)", TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 14.0, color: Color::srgb(1.0, 0.9, 0.5) }),
+                text: Text::from_section("Multiplier: 1.00x (inactive)", TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 14.0 / 1.2, color: Color::srgb(1.0, 0.9, 0.5) }),
                 style: Style { margin: UiRect::top(Val::Px(10.0)), ..default() },
                 ..default()
             }, ActiveMultiplierText));
 
             // v19.2: New compact widget for persisted RBE abundance + proactive joy signals
             parent.spawn((TextBundle {
-                text: Text::from_section("RBE Abundance: 0.0", TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 14.0, color: Color::srgb(0.6, 1.0, 0.8) }),
+                text: Text::from_section("RBE Abundance: 0.0", TextStyle { font: asset_server.load("fonts/FiraSans-Regular.ttf"), font_size: 14.0 / 1.2, color: Color::srgb(0.6, 1.0, 0.8) }),
                 style: Style { margin: UiRect::top(Val::Px(10.0)), ..default() },
                 ..default()
             }, RBEAbundanceText));

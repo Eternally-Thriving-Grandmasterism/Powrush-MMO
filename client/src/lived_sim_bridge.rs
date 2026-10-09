@@ -153,7 +153,7 @@ impl Plugin for LivedSimBridgePlugin {
 }
 
 fn write_lived_tick(time: Res<Time>, mut bridge: ResMut<LivedSimBridge>) {
-    bridge.accum += time.delta_seconds();
+    bridge.accum += time.delta_secs();
     if bridge.accum < PERIOD {
         return;
     }

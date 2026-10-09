@@ -65,7 +65,7 @@ fn spawn_touch_overlay(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
@@ -74,9 +74,9 @@ fn spawn_touch_overlay(mut commands: Commands) {
                 // state: fully transparent full-screen hit root — no plate drawn.
                 background_color: Color::srgba(0.0, 0.0, 0.0, 0.0).into(),
                 visibility: Visibility::Hidden,
-                z_index: ZIndex::Global(LIVED_UI_Z_LEDGER - 1),
-                ..default()
+                                ..default()
             },
+GlobalZIndex(LIVED_UI_Z_LEDGER - 1),
             TouchOverlayRoot,
             LivedUiPlate,
             Name::new("TouchOverlay"),
@@ -85,7 +85,7 @@ fn spawn_touch_overlay(mut commands: Commands) {
             // Left stick zone (bottom-left)
             root.spawn((
                 NodeBundle {
-                    style: Style {
+                    node: Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(24.0),
                         bottom: Val::Px(24.0),
@@ -105,14 +105,11 @@ fn spawn_touch_overlay(mut commands: Commands) {
                 Interaction::default(),
             ))
             .with_children(|z| {
-                z.spawn(TextBundle::from_section(
-                    "+",
-                    TextStyle {
-                        font_size: 22.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ));
+                z.spawn((
+Text::new("+"),
+TextFont { font_size: 22.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+));
             });
 
             // Right Use (≥44px)
@@ -178,7 +175,7 @@ fn spawn_overlay_btn<B: Component>(
 ) {
     p.spawn((
         ButtonBundle {
-            style: Style {
+            node: Node {
                 position_type: PositionType::Absolute,
                 left: inset.left,
                 right: inset.right,
@@ -201,14 +198,11 @@ fn spawn_overlay_btn<B: Component>(
         marker,
     ))
     .with_children(|b| {
-        b.spawn(TextBundle::from_section(
-            label,
-            TextStyle {
-                font_size: 15.0,
-                color: TITLE_BTN_FG,
-                ..default()
-            },
-        ));
+        b.spawn((
+Text::new(label),
+TextFont { font_size: 15.0 / 1.2, ..default() },
+TextColor(TITLE_BTN_FG),
+));
     });
 }
 
@@ -312,7 +306,7 @@ fn touch_overlay_button_clicks(
 
 fn touch_stick_drag(
     roots: Query<&Visibility, With<TouchOverlayRoot>>,
-    zones: Query<(&Interaction, &Node, &GlobalTransform), With<TouchStickZone>>,
+    zones: Query<(&Interaction, &ComputedNode, &GlobalTransform), With<TouchStickZone>>,
     windows: Query<&Window>,
     touches: Res<Touches>,
     mut stick: ResMut<TouchStickState>,

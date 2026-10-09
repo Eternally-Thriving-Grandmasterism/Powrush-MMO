@@ -74,7 +74,7 @@ fn spawn_factory_slab(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: FACTORY.top(),
                     left: FACTORY.left(),
@@ -95,14 +95,11 @@ fn spawn_factory_slab(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: 14.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 FactorySlabText,
             ));
         });
@@ -135,7 +132,7 @@ fn handle_factory_q(
         fire_thriving(
             &mut moments,
             ThrivingKind::FirstArrival,
-            time.elapsed_seconds_f64(),
+            time.elapsed_secs_f64(),
         );
     }
 }
@@ -215,10 +212,8 @@ fn update_factory_slab(
         }
     }
     for mut text in &mut text_q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != line {
-                s.value = line.clone();
-            }
+        if text.as_str() != line {
+            **text = line.clone();
         }
     }
 }
@@ -236,9 +231,9 @@ mod tests {
         app.update();
         let mut q = app
             .world_mut()
-            .query_filtered::<&Style, With<FactorySlabRoot>>();
+            .query_filtered::<&Node, With<FactorySlabRoot>>();
         let style = q.single(app.world()).clone();
-        let coded = Style {
+        let coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Px(16.0),
             left: Val::Percent(50.0),
@@ -300,6 +295,7 @@ mod tests {
             key_code: soft_play_bindings::BUILD_WHEEL,
             logical_key: Key::Character("q".into()),
             state: ButtonState::Pressed,
+            repeat: false,
             window,
         });
         app.update();
@@ -343,6 +339,7 @@ mod tests {
             key_code: soft_play_bindings::BUILD_WHEEL,
             logical_key: Key::Character("q".into()),
             state: ButtonState::Pressed,
+            repeat: false,
             window,
         });
         app.update();

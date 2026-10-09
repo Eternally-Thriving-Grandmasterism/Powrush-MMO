@@ -345,14 +345,14 @@ fn spawn_mercy_nodes(
         commands
             .spawn((
                 PbrBundle {
-                    mesh: mesh.clone(),
-                    material: materials.add(StandardMaterial {
+                    mesh: Mesh3d(mesh.clone()),
+                    material: MeshMaterial3d(materials.add(StandardMaterial {
                         base_color: color,
                         emissive,
                         perceptual_roughness: 0.35,
                         metallic: 0.05,
                         ..default()
-                    }),
+                    })),
                     transform: Transform::from_translation(pos),
                     ..default()
                 },
@@ -387,7 +387,7 @@ fn spawn_care_cycle_strip(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     bottom: ACTION_BAR.bottom(),
                     right: ACTION_BAR.right(),
@@ -408,14 +408,11 @@ fn spawn_care_cycle_strip(mut commands: Commands) {
         ))
         .with_children(|parent| {
             parent.spawn((
-                TextBundle::from_section(
-                    care_cycle_card_line(false),
-                    TextStyle {
-                        font_size: 16.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(care_cycle_card_line(false)),
+TextFont { font_size: 16.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 CareCycleStripText,
             ));
         });
@@ -463,8 +460,8 @@ pub(crate) fn pulse_harvested_nodes(
     feel: Option<Res<BiomeFeel>>,
     mut nodes: Query<(&mut MercyHarvestNode, &mut Transform)>,
 ) {
-    let dt = time.delta_seconds();
-    let t = time.elapsed_seconds();
+    let dt = time.delta_secs();
+    let t = time.elapsed_secs();
     let mul = feel.map(|f| f.regen_mul).unwrap_or(1.0);
     for (mut node, mut tf) in &mut nodes {
         if node.pulse > 0.0 {
@@ -489,7 +486,7 @@ fn watch_idle_after_tend(
     // One live offer at a time — no loop spam while the card is up.
     let mut busy = offer.active;
     let tends = epiphany.as_ref().map(|e| e.tends_this_session).unwrap_or(0);
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     let pulse_until = epiphany.as_ref().map(|e| e.pulse_until).unwrap_or(0.0);
     let pulse_line = epiphany
         .as_ref()
@@ -667,10 +664,8 @@ pub(crate) fn update_care_cycle_strip(
         return;
     }
     for mut text in &mut texts {
-        if let Some(section) = text.sections.get_mut(0) {
-            if section.value != line {
-                section.value = line.clone();
-            }
+        if text.as_str() != line {
+            **text = line.clone();
         }
     }
 }
@@ -708,7 +703,7 @@ fn sync_lived_hour_from_peace_use(
         *last_tends = t;
         return;
     }
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     if h > *last_harvests {
         sync_lived_hour_use(
             bind.as_deref_mut(),
@@ -765,7 +760,7 @@ fn try_soft_harvest_sting(
     *last = Some(node.harvests);
     let path = sting_path_for_realm(realm.and_then(|r| r.current));
     commands.spawn(AudioBundle {
-        source: asset_server.load(path),
+        source: AudioPlayer(asset_server.load(path)),
         settings: PlaybackSettings::DESPAWN,
         ..default()
     });
@@ -816,7 +811,7 @@ mod tests {
                     pulse: 1.0,
                 },
                 Transform::default(),
-                handle.clone(),
+                MeshMaterial3d(handle.clone()),
             ))
             .id();
         app.world_mut().entity_mut(node).add_child(light);
@@ -1227,7 +1222,7 @@ mod tests {
         app.update();
         let mut query = app
             .world_mut()
-            .query_filtered::<&Style, With<CareCycleStrip>>();
+            .query_filtered::<&Node, With<CareCycleStrip>>();
         let style = query.single(app.world()).clone();
         assert_eq!(style.bottom, ACTION_BAR.bottom());
         assert_eq!(style.right, ACTION_BAR.right());
@@ -1238,7 +1233,7 @@ mod tests {
         assert_eq!(style.border, UiRect::all(Val::Px(2.0)));
         let mut text = app
             .world_mut()
-            .query_filtered::<&Text, With<CareCycleStripText>>();
-        assert_eq!(text.single(app.world()).sections[0].style.font_size, 16.0);
+            .query_filtered::<&TextFont, With<CareCycleStripText>>();
+        assert_eq!(text.single(app.world()).font_size, 16.0 / 1.2);
     }
 }

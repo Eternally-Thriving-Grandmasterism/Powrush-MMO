@@ -113,14 +113,14 @@ pub fn credit_soft_and_global(
 
 pub fn rumble_mercy_harvest(
     rumble: &mut EventWriter<GamepadRumbleRequest>,
-    gamepads: &Gamepads,
+    gamepads: impl IntoIterator<Item = Entity>,
 ) {
     rumble_harvest(rumble, gamepads, false);
 }
 
 pub fn rumble_harvest(
     rumble: &mut EventWriter<GamepadRumbleRequest>,
-    gamepads: &Gamepads,
+    gamepads: impl IntoIterator<Item = Entity>,
     first: bool,
 ) {
     let (strong, weak, ms) = if first {
@@ -128,7 +128,7 @@ pub fn rumble_harvest(
     } else {
         (0.12, 0.28, 90)
     };
-    for gamepad in gamepads.iter() {
+    for gamepad in gamepads {
         rumble.send(GamepadRumbleRequest::Add {
             gamepad,
             intensity: GamepadRumbleIntensity {
@@ -149,7 +149,7 @@ pub fn note_lived_hour_take(bind: Option<&mut LivedHourBind>) {
 }
 
 fn tick_harvest_juice(time: Res<Time>, mut pool: ResMut<SoftRbePool>) {
-    pool.tick_juice(time.delta_seconds());
+    pool.tick_juice(time.delta_secs());
 }
 
 fn sync_lived_hour_take(

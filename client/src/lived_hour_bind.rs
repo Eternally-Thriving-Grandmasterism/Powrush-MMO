@@ -419,7 +419,7 @@ fn hour_set_failure_line(miss: &HourSetMiss) -> String {
 }
 
 fn tick_lived_hour(time: Res<Time>, mut bind: ResMut<LivedHourBind>, mut acc: Local<f32>) {
-    *acc += time.delta_seconds();
+    *acc += time.delta_secs();
     if *acc < 1.0 {
         return;
     }

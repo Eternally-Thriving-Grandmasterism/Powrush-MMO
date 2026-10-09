@@ -65,7 +65,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                         TextBundle::from_section(
                             "Powrush-MMO — Eternal Thriving ⚡",
                             TextStyle {
-                                font_size: 26.0,
+                                font_size: 26.0 / 1.2,
                                 color: Color::srgb(0.95, 0.97, 1.0),
                                 ..default()
                             },
@@ -93,7 +93,7 @@ fn setup_ui(mut commands: Commands, asset_server: Res<AssetServer>) {
                         TextBundle::from_section(
                             "Mercy Flow: Ready",
                             TextStyle {
-                                font_size: 18.0,
+                                font_size: 18.0 / 1.2,
                                 color: Color::srgb(0.7, 0.9, 0.8),
                                 ..default()
                             },

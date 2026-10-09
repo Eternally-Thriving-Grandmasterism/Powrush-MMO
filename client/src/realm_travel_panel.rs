@@ -149,7 +149,7 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                     "REALM TRAVEL",
                     TextStyle {
                         font: font_bold.clone(),
-                        font_size: 17.0,
+                        font_size: 17.0 / 1.2,
                         color: Color::srgb(0.75, 0.95, 1.0),
                     },
                 ),
@@ -162,7 +162,7 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                         "Current: Sanctuary Prime",
                         TextStyle {
                             font: font_reg.clone(),
-                            font_size: 12.5,
+                            font_size: 12.5 / 1.2,
                             color: Color::srgb(0.70, 0.95, 0.80),
                         },
                     ),
@@ -177,7 +177,7 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                         "Presence accumulating...",
                         TextStyle {
                             font: font_reg.clone(),
-                            font_size: 12.0,
+                            font_size: 12.0 / 1.2,
                             color: Color::srgb(0.95, 0.85, 0.55),
                         },
                     ),
@@ -192,7 +192,7 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                         "",
                         TextStyle {
                             font: font_reg.clone(),
-                            font_size: 11.0,
+                            font_size: 11.0 / 1.2,
                             color: Color::srgb(0.70, 0.88, 0.75),
                         },
                     ),
@@ -207,7 +207,7 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                         "Attunement: 0.000  |  Total: 0.000",
                         TextStyle {
                             font: font_reg.clone(),
-                            font_size: 11.5,
+                            font_size: 11.5 / 1.2,
                             color: Color::srgb(0.85, 0.75, 1.0),
                         },
                     ),
@@ -222,7 +222,7 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                         "Origin Affinity: None",
                         TextStyle {
                             font: font_reg.clone(),
-                            font_size: 11.5,
+                            font_size: 11.5 / 1.2,
                             color: Color::srgb(0.75, 0.72, 0.68),
                         },
                     ),
@@ -236,7 +236,7 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                     "Choose a realm to travel to",
                     TextStyle {
                         font: font_reg.clone(),
-                        font_size: 11.5,
+                        font_size: 11.5 / 1.2,
                         color: Color::srgb(0.70, 0.82, 0.95),
                     },
                 ),
@@ -268,7 +268,7 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                                     format!("[{}] {}", id, name),
                                     TextStyle {
                                         font: font_reg.clone(),
-                                        font_size: 13.0,
+                                        font_size: 13.0 / 1.2,
                                         color: Color::srgb(0.90, 0.95, 1.0),
                                     },
                                 ),
@@ -288,7 +288,7 @@ fn spawn_realm_travel_panel(mut commands: Commands, asset_server: Res<AssetServe
                         "F3 toggle  •  Click to travel",
                         TextStyle {
                             font: font_reg.clone(),
-                            font_size: 11.0,
+                            font_size: 11.0 / 1.2,
                             color: Color::srgb(0.60, 0.72, 0.85),
                         },
                     ),

@@ -1873,7 +1873,7 @@ fn apply_active_preset(
     session: Res<HudSessionLayout>,
     edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
     mut memory: ResMut<HudYieldMemory>,
-    mut styles: Query<(&HudSlab, &mut Style)>,
+    mut styles: Query<(&HudSlab, &mut Node)>,
     mut vis_q: Query<(Entity, &HudSlab, &mut Visibility)>,
     windows: Query<&Window, With<PrimaryWindow>>,
     door: Option<Res<LaunchDoor>>,
@@ -3127,7 +3127,7 @@ mod tests {
     }
 
     fn tape_style_and_vis(
-        styles: Query<Ref<Style>, With<HudSlab>>,
+        styles: Query<Ref<Node>, With<HudSlab>>,
         vis: Query<Ref<Visibility>, With<HudSlab>>,
         mut tape: ResMut<StyleChangeTape>,
     ) {
@@ -3144,8 +3144,8 @@ mod tests {
         app
     }
 
-    fn sentinel_style() -> Style {
-        Style {
+    fn sentinel_style() -> Node {
+        Node {
             position_type: PositionType::Absolute,
             top: Val::Px(1.0),
             bottom: Val::Px(2.0),
@@ -3225,7 +3225,7 @@ mod tests {
     #[test]
     fn t4_reset_restores_classic_and_second_reset_is_quiet() {
         let mut app = layout_app();
-        let child_style = Style {
+        let child_style = Node {
             width: Val::Px(4.0),
             height: Val::Px(5.0),
             ..default()
@@ -3236,29 +3236,23 @@ mod tests {
                 .world_mut()
                 .spawn((
                     NodeBundle {
-                        style: sentinel_style(),
-                        z_index: ZIndex::Global(77),
-                        focus_policy: FocusPolicy::Pass,
+                        node: sentinel_style(),
+                                                focus_policy: FocusPolicy::Pass,
                         visibility: Visibility::Visible,
                         ..default()
                     },
+GlobalZIndex(77),
                     HudSlab(metrics.id),
                 ))
                 .id();
             let child = app
                 .world_mut()
                 .spawn((
-                    TextBundle {
-                        style: child_style.clone(),
-                        text: Text::from_section(
-                            "slab",
-                            TextStyle {
-                                font_size: 9.0,
-                                ..default()
-                            },
-                        ),
-                        ..default()
-                    },
+                    (
+Text::new("slab"),
+TextFont { font_size: 9.0 / 1.2, ..default() },
+child_style.clone(),
+),
                 ))
                 .id();
             app.world_mut().entity_mut(root).add_child(child);
@@ -3274,7 +3268,7 @@ mod tests {
                 .find(|(id, _, _)| *id == ID_FACTORY)
                 .expect("factory")
                 .1;
-            let style = app.world().get::<Style>(factory).expect("factory style");
+            let style = app.world().get::<Node>(factory).expect("factory style");
             assert_eq!(style.top, Val::Px(180.0));
             assert_eq!(style.right, Val::Px(16.0));
             assert_eq!(style.left, Val::Auto);
@@ -3286,7 +3280,7 @@ mod tests {
         app.world_mut().send_event(HudLayoutCommand::Reset);
         app.update();
         for (id, root, child) in &roots {
-            let style = app.world().get::<Style>(*root).expect(id);
+            let style = app.world().get::<Node>(*root).expect(id);
             let (top, bottom, left, right, margin_left, width) = classic_six(id);
             assert_eq!(style.top, top, "{id} top");
             assert_eq!(style.bottom, bottom, "{id} bottom");
@@ -3301,26 +3295,26 @@ mod tests {
             assert_eq!(style.border, UiRect::all(Val::Px(12.0)), "{id}");
             assert_eq!(style.position_type, PositionType::Absolute, "{id}");
             assert_eq!(
-                *app.world().get::<ZIndex>(*root).expect(id),
-                ZIndex::Global(77)
+                *app.world().get::<GlobalZIndex>(*root).expect(id),
+                GlobalZIndex(77)
             );
             assert_eq!(
                 *app.world().get::<FocusPolicy>(*root).expect(id),
                 FocusPolicy::Pass
             );
-            let child_now = app.world().get::<Style>(*child).expect("child");
+            let child_now = app.world().get::<Node>(*child).expect("child");
             assert_eq!(child_now.width, Val::Px(4.0));
             assert_eq!(child_now.height, Val::Px(5.0));
         }
-        let before: Vec<Style> = roots
+        let before: Vec<Node> = roots
             .iter()
-            .map(|(_, root, _)| app.world().get::<Style>(*root).expect("style").clone())
+            .map(|(_, root, _)| app.world().get::<Node>(*root).expect("style").clone())
             .collect();
         app.world_mut().send_event(HudLayoutCommand::Reset);
         app.update();
         for ((_, root, _), previous) in roots.iter().zip(before) {
             assert_eq!(
-                app.world().get::<Style>(*root).expect("style").clone(),
+                app.world().get::<Node>(*root).expect("style").clone(),
                 previous
             );
         }
@@ -3355,7 +3349,7 @@ mod tests {
             .world_mut()
             .spawn((
                 NodeBundle {
-                    style: sentinel.clone(),
+                    node: sentinel.clone(),
                     visibility: Visibility::Visible,
                     ..default()
                 },
@@ -3366,7 +3360,7 @@ mod tests {
             .world_mut()
             .spawn((
                 NodeBundle {
-                    style: sentinel.clone(),
+                    node: sentinel.clone(),
                     visibility: Visibility::Visible,
                     ..default()
                 },
@@ -3376,7 +3370,7 @@ mod tests {
         let plain = app
             .world_mut()
             .spawn(NodeBundle {
-                style: sentinel.clone(),
+                node: sentinel.clone(),
                 visibility: Visibility::Visible,
                 ..default()
             })
@@ -3384,7 +3378,7 @@ mod tests {
         app.update();
         app.update();
         for entity in [pulse, welcome, plain] {
-            assert_eq!(app.world().get::<Style>(entity).expect("style").clone(), sentinel);
+            assert_eq!(app.world().get::<Node>(entity).expect("style").clone(), sentinel);
             assert_eq!(
                 *app.world().get::<Visibility>(entity).expect("vis"),
                 Visibility::Visible
@@ -3467,7 +3461,7 @@ mod tests {
                 .world_mut()
                 .spawn((
                     NodeBundle {
-                        style: sentinel_style(),
+                        node: sentinel_style(),
                         visibility: Visibility::Visible,
                         ..default()
                     },
@@ -3510,11 +3504,11 @@ mod tests {
         }
     }
 
-    fn fixed_style_rows(app: &mut App) -> Vec<(Entity, Style)> {
+    fn fixed_style_rows(app: &mut App) -> Vec<(Entity, Node)> {
         let mut query = app
             .world_mut()
-            .query_filtered::<(Entity, &Style), Without<HudSlab>>();
-        let mut rows: Vec<(Entity, Style)> = query
+            .query_filtered::<(Entity, &Node), Without<HudSlab>>();
+        let mut rows: Vec<(Entity, Node)> = query
             .iter(app.world())
             .map(|(entity, style)| (entity, style.clone()))
             .collect();
@@ -3522,22 +3516,22 @@ mod tests {
         rows
     }
 
-    fn global_z(z: Option<&ZIndex>, want: i32) -> bool {
-        matches!(z, Some(ZIndex::Global(n)) if *n == want)
+    fn global_z(z: Option<&GlobalZIndex>, want: i32) -> bool {
+        matches!(z, Some(GlobalZIndex(n)) if *n == want)
     }
 
     /// Rows 1–7, 11, 20–25, and 33, located on the entities the real spawn
     /// systems created. The match is a locator, not a copied `Style`.
     fn assert_real_fixed_rows_spawned(app: &mut App) {
         let mut query = app.world_mut().query_filtered::<(
-            &Style,
-            Option<&ZIndex>,
+            &Node,
+            Option<&GlobalZIndex>,
         ), Without<HudSlab>>();
-        let rows: Vec<(Style, Option<ZIndex>)> = query
+        let rows: Vec<(Node, Option<GlobalZIndex>)> = query
             .iter(app.world())
             .map(|(style, z)| (style.clone(), z.copied()))
             .collect();
-        let hit = |pred: &dyn Fn(&Style, Option<ZIndex>) -> bool, name: &str| {
+        let hit = |pred: &dyn Fn(&Node, Option<GlobalZIndex>) -> bool, name: &str| {
             assert!(
                 rows.iter().any(|(style, z)| pred(style, *z)),
                 "real fixed row missing: {name}"
@@ -3694,7 +3688,7 @@ mod tests {
             .world_mut()
             .spawn((
                 NodeBundle {
-                    style: Style {
+                    node: Node {
                         top: Val::Px(1.0),
                         ..default()
                     },
@@ -3710,10 +3704,10 @@ mod tests {
             "real spawn tree, not 15 hand-copied rows ({})",
             fixed.len()
         );
-        let assert_fixed = |app: &App, fixed: &[(Entity, Style)]| {
+        let assert_fixed = |app: &App, fixed: &[(Entity, Node)]| {
             for (entity, style) in fixed {
                 assert_eq!(
-                    app.world().get::<Style>(*entity).expect("fixed").clone(),
+                    app.world().get::<Node>(*entity).expect("fixed").clone(),
                     *style
                 );
             }
@@ -3724,7 +3718,7 @@ mod tests {
         app.world_mut().run_schedule(PostUpdate);
         assert_fixed(&app, &fixed);
         assert_eq!(
-            app.world().get::<Style>(mover).expect("mover").top,
+            app.world().get::<Node>(mover).expect("mover").top,
             Val::Px(180.0)
         );
         app.world_mut().resource_mut::<ActiveHudPreset>().id = Some(HudPresetId::Management);
@@ -3734,11 +3728,11 @@ mod tests {
         app.world_mut().run_schedule(PostUpdate);
         assert_fixed(&app, &fixed);
         assert_eq!(
-            app.world().get::<Style>(mover).expect("mover").top,
+            app.world().get::<Node>(mover).expect("mover").top,
             Val::Px(93.0)
         );
         assert_eq!(
-            app.world().get::<Style>(mover).expect("mover").left,
+            app.world().get::<Node>(mover).expect("mover").left,
             Val::Px(16.0)
         );
     }

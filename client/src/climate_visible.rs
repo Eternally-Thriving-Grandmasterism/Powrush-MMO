@@ -190,7 +190,7 @@ fn paint_nodes_from_hour(
     mut materials: ResMut<Assets<StandardMaterial>>,
     nodes: Query<(
         &MercyHarvestNode,
-        &Handle<StandardMaterial>,
+        &MeshMaterial3d<StandardMaterial>,
         Option<&Children>,
     )>,
     mut lights: Query<&mut PointLight>,
@@ -259,7 +259,7 @@ fn tick_week_feel_glow(bind: Res<LivedHourBind>, time: Res<Time>, mut glow: ResM
         bind.climate.updated_at,
         &bind.last_line,
     );
-    glow.glow = tick_well_glow_breath(glow.glow, time.delta_seconds());
+    glow.glow = tick_well_glow_breath(glow.glow, time.delta_secs());
 }
 
 fn tick_wards_notice_glow(
@@ -276,7 +276,7 @@ fn tick_wards_notice_glow(
     }
     glow.last_near = near;
     glow.last_tends = tends;
-    glow.glow = tick_well_glow_breath(glow.glow, time.delta_seconds());
+    glow.glow = tick_well_glow_breath(glow.glow, time.delta_secs());
 }
 
 /// CARD UI-SCALE-SLABS-1 — climate slab type follows `text_scale` (11–22).
@@ -288,7 +288,7 @@ fn spawn_climate_state_slab(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     bottom: CLIMATE_STATE.bottom(),
                     left: CLIMATE_STATE.left(),
@@ -308,14 +308,11 @@ fn spawn_climate_state_slab(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: 14.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 ClimateStateText,
             ));
         });
@@ -339,7 +336,7 @@ fn update_climate_state_slab(
         (&mut Visibility, &mut BorderColor, &mut BackgroundColor),
         With<ClimateStateRoot>,
     >,
-    mut text_q: Query<&mut Text, With<ClimateStateText>>,
+    mut text_q: Query<(&mut Text, &mut TextFont), With<ClimateStateText>>,
 ) {
     let threshold_line = threshold_speech_if_near(threshold.as_deref());
     let wards_line = wards_notice_if_near(wards.as_deref());
@@ -464,16 +461,12 @@ fn update_climate_state_slab(
         .as_ref()
         .map(|state| climate_slab_font_px(state.inner.text_scale))
         .unwrap_or(14.0);
-    for mut text in &mut text_q {
-        for section in text.sections.iter_mut() {
-            if (section.style.font_size - slab_px).abs() > 0.01 {
-                section.style.font_size = slab_px;
-            }
+    for (mut text, mut font) in &mut text_q {
+        if (font.font_size - slab_px / 1.2).abs() > 0.01 {
+            font.font_size = slab_px / 1.2;
         }
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != line {
-                s.value = line.clone();
-            }
+        if text.as_str() != line {
+            **text = line.clone();
         }
     }
 }
@@ -685,9 +678,9 @@ mod tests {
         app.update();
         let mut q = app
             .world_mut()
-            .query_filtered::<&Style, With<ClimateStateRoot>>();
+            .query_filtered::<&Node, With<ClimateStateRoot>>();
         let style = q.single(app.world()).clone();
-        let coded = Style {
+        let coded = Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(176.0),
             left: Val::Px(16.0),
@@ -1596,8 +1589,8 @@ mod tests {
         let (border, bg) = (border.0, bg.0);
         let mut t = app
             .world_mut()
-            .query_filtered::<&Text, With<ClimateStateText>>();
-        let text = t.single(app.world()).sections[0].style.color;
+            .query_filtered::<&TextColor, With<ClimateStateText>>();
+        let text = t.single(app.world()).0;
         (border, bg, text)
     }
 

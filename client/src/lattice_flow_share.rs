@@ -90,7 +90,7 @@ fn spawn_peer_presence_chip(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     bottom: PEER.bottom(),
                     right: PEER.right(),
@@ -109,14 +109,11 @@ fn spawn_peer_presence_chip(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 12.5,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: 12.5 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 PeerPresenceText,
             ));
         });
@@ -142,7 +139,7 @@ fn export_on_allocate_change(
         choices_made: allocate.choices_made,
         last_path,
         mercy_note: "Voluntary abundance direction — never scarcity".into(),
-        exported_at_secs: time.elapsed_seconds_f64(),
+        exported_at_secs: time.elapsed_secs_f64(),
     };
 
     let path = shared::user_persist::persist_path(SHARE_PATH);
@@ -173,7 +170,7 @@ fn try_read_envelope(path: impl AsRef<std::path::Path>) -> Option<LatticeFlowSha
 }
 
 fn ambient_peer_poll(mut share: ResMut<LatticeFlowShare>, time: Res<Time>) {
-    share.poll_accum += time.delta_seconds();
+    share.poll_accum += time.delta_secs();
     if share.poll_accum < AMBIENT_POLL {
         return;
     }
@@ -243,11 +240,9 @@ fn update_peer_presence_chip(
         );
         let line = lattice_share_line(&bare, stood_chip(travel.as_deref()));
         for mut text in &mut text_q {
-            if let Some(s) = text.sections.get_mut(0) {
-                if s.value != line {
-                    s.value = line.clone();
-                }
-            }
+            if text.as_str() != line {
+            **text = line.clone();
+        }
         }
     }
 }
@@ -265,9 +260,9 @@ mod tests {
         app.update();
         let mut q = app
             .world_mut()
-            .query_filtered::<&Style, With<PeerPresenceRoot>>();
+            .query_filtered::<&Node, With<PeerPresenceRoot>>();
         let style = q.single(app.world()).clone();
-        let coded = Style {
+        let coded = Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(16.0),
             right: Val::Px(16.0),
@@ -296,8 +291,8 @@ mod tests {
             .query_filtered::<(&BorderColor, &BackgroundColor), With<PeerPresenceRoot>>();
         let (border, bg) = q.single(app.world());
         let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
-        let mut t = app.world_mut().query_filtered::<&Text, With<PeerPresenceText>>();
-        let txt = t.single(app.world()).sections[0].style.color.to_srgba();
+        let mut t = app.world_mut().query_filtered::<&TextColor, With<PeerPresenceText>>();
+        let txt = t.single(app.world()).0.to_srgba();
         for (got, want, what) in [
             (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
             (border, TITLE_BORDER.to_srgba(), "rim"),

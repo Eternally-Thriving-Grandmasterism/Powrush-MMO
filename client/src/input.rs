@@ -10,7 +10,6 @@
 //! No second Use verb. No combat face. Soft GPU first-class.
 //! Contact: info@Rathor.ai · Yoi ⚡
 
-use bevy::input::gamepad::{GamepadAxis, GamepadAxisType, GamepadButton, GamepadButtonType};
 use bevy::input::keyboard::KeyboardInput;
 use bevy::input::mouse::MouseButtonInput;
 use bevy::input::touch::TouchInput;
@@ -272,9 +271,7 @@ fn track_last_pointer_kind(
     mut last: ResMut<LastPointerKind>,
     mut mouse: EventReader<MouseButtonInput>,
     mut touch: EventReader<TouchInput>,
-    gamepads: Res<Gamepads>,
-    buttons: Res<ButtonInput<GamepadButton>>,
-    axes: Res<Axis<GamepadAxis>>,
+    gamepads: Query<&Gamepad>,
 ) {
     if touch.read().next().is_some() {
         *last = LastPointerKind::Touch;
@@ -284,35 +281,28 @@ fn track_last_pointer_kind(
         *last = LastPointerKind::Mouse;
         return;
     }
-    // Any connected pad activity → Pad (hot-plug: first connected is P1 elsewhere).
-    for gamepad in gamepads.iter() {
+    // Any connected pad activity → Pad (hot-plug: first query hit is P1).
+    for gamepad in &gamepads {
         let active_btn = [
-            GamepadButtonType::South,
-            GamepadButtonType::East,
-            GamepadButtonType::West,
-            GamepadButtonType::North,
-            GamepadButtonType::Start,
-            GamepadButtonType::Select,
-            GamepadButtonType::LeftTrigger,
-            GamepadButtonType::RightTrigger,
-            GamepadButtonType::LeftThumb,
-            GamepadButtonType::RightThumb,
+            GamepadButton::South,
+            GamepadButton::East,
+            GamepadButton::West,
+            GamepadButton::North,
+            GamepadButton::Start,
+            GamepadButton::Select,
+            GamepadButton::LeftTrigger,
+            GamepadButton::RightTrigger,
+            GamepadButton::LeftThumb,
+            GamepadButton::RightThumb,
         ]
         .iter()
-        .any(|t| {
-            buttons.pressed(GamepadButton::new(gamepad, *t))
-                || buttons.just_pressed(GamepadButton::new(gamepad, *t))
-        });
+        .any(|button| gamepad.pressed(*button) || gamepad.just_pressed(*button));
         if active_btn {
             *last = LastPointerKind::Pad;
             return;
         }
-        let lx = axes
-            .get(GamepadAxis::new(gamepad, GamepadAxisType::LeftStickX))
-            .unwrap_or(0.0);
-        let ly = axes
-            .get(GamepadAxis::new(gamepad, GamepadAxisType::LeftStickY))
-            .unwrap_or(0.0);
+        let lx = gamepad.get(GamepadAxis::LeftStickX).unwrap_or(0.0);
+        let ly = gamepad.get(GamepadAxis::LeftStickY).unwrap_or(0.0);
         if lx.abs() > STICK_DEADZONE || ly.abs() > STICK_DEADZONE {
             *last = LastPointerKind::Pad;
             return;
@@ -323,9 +313,7 @@ fn track_last_pointer_kind(
 
 fn handle_player_input(
     keyboard: Res<ButtonInput<KeyCode>>,
-    gamepads: Res<Gamepads>,
-    axes: Res<Axis<GamepadAxis>>,
-    buttons: Res<ButtonInput<GamepadButton>>,
+    gamepads: Query<&Gamepad>,
     settings: Res<LocalSettingsState>,
     edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
     mut player_input: ResMut<PlayerInput>,
@@ -349,14 +337,10 @@ fn handle_player_input(
 
     // Gamepad left stick — Player 1 = first connected (hot-plug safe).
     let mut pad = None;
-    for gamepad in gamepads.iter() {
+    for gamepad in &gamepads {
         pad = Some(gamepad);
-        let lx = axes
-            .get(GamepadAxis::new(gamepad, GamepadAxisType::LeftStickX))
-            .unwrap_or(0.0);
-        let ly = axes
-            .get(GamepadAxis::new(gamepad, GamepadAxisType::LeftStickY))
-            .unwrap_or(0.0);
+        let lx = gamepad.get(GamepadAxis::LeftStickX).unwrap_or(0.0);
+        let ly = gamepad.get(GamepadAxis::LeftStickY).unwrap_or(0.0);
         if lx.abs() > STICK_DEADZONE {
             movement.x += lx;
         }
@@ -386,7 +370,7 @@ fn handle_player_input(
 
     let kb_use = keyboard.just_pressed(soft_play_bindings::INTERACT);
     let pad_use = pad
-        .map(|g| pad_use_just_pressed(&buttons, g, cfg.gamepad_south_use))
+        .map(|g| pad_use_just_pressed(g, cfg.gamepad_south_use))
         .unwrap_or(false);
     // One Use edge — keyboard E and South alias must not double-fire same frame.
     // Q17: edit mode kills Use. WASD, jump, and sprint above stay live.
@@ -399,30 +383,30 @@ fn handle_player_input(
 
     let kb_jump = keyboard.just_pressed(soft_play_bindings::JUMP);
     let pad_jump = pad
-        .map(|g| pad_jump_just_pressed(&buttons, g, cfg.gamepad_south_use))
+        .map(|g| pad_jump_just_pressed(g, cfg.gamepad_south_use))
         .unwrap_or(false);
     player_input.jump = kb_jump || pad_jump;
 
     let kb_sprint = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
     let pad_sprint = pad
-        .map(|g| pad_sprint_pressed(&buttons, g, cfg.sprint_mode.as_str()))
+        .map(|g| pad_sprint_pressed(g, cfg.sprint_mode.as_str()))
         .unwrap_or(false);
     player_input.sprint = kb_sprint || pad_sprint;
 
     player_input.pause_toggle = if editing {
         false
     } else {
-        pad.map(|g| buttons.just_pressed(GamepadButton::new(g, GamepadButtonType::Start)))
+        pad.map(|g| g.just_pressed(GamepadButton::Start))
             .unwrap_or(false)
     };
     player_input.sheet_q = if editing {
         false
     } else {
-        pad.map(|g| buttons.just_pressed(GamepadButton::new(g, GamepadButtonType::West)))
+        pad.map(|g| g.just_pressed(GamepadButton::West))
             .unwrap_or(false)
     };
     player_input.sheet_l = pad
-        .map(|g| buttons.just_pressed(GamepadButton::new(g, GamepadButtonType::North)))
+        .map(|g| g.just_pressed(GamepadButton::North))
         .unwrap_or(false);
 }
 
@@ -432,15 +416,11 @@ pub fn use_edge(keyboard_use: bool, pad_use: bool) -> bool {
 }
 
 /// Pure: pad Use when South maps to Use.
-pub fn pad_use_just_pressed(
-    buttons: &ButtonInput<GamepadButton>,
-    gamepad: Gamepad,
-    gamepad_south_use: bool,
-) -> bool {
+pub fn pad_use_just_pressed(gamepad: &Gamepad, gamepad_south_use: bool) -> bool {
     if !gamepad_south_use {
         return false;
     }
-    buttons.just_pressed(GamepadButton::new(gamepad, GamepadButtonType::South))
+    gamepad.just_pressed(GamepadButton::South)
 }
 
 /// Pure helper for unit tests — South maps to Use iff enabled.
@@ -450,16 +430,12 @@ pub fn south_is_use(gamepad_south_use: bool) -> bool {
 
 /// Jump on pad: when South is Use, jump is LeftTrigger or LeftBumper (LB).
 /// When South is not Use, South remains jump (legacy escape hatch).
-pub fn pad_jump_just_pressed(
-    buttons: &ButtonInput<GamepadButton>,
-    gamepad: Gamepad,
-    gamepad_south_use: bool,
-) -> bool {
+pub fn pad_jump_just_pressed(gamepad: &Gamepad, gamepad_south_use: bool) -> bool {
     if gamepad_south_use {
-        // Bevy 0.14: LeftTrigger = LB (bumper); LeftTrigger2 = LT (analog).
-        buttons.just_pressed(GamepadButton::new(gamepad, GamepadButtonType::LeftTrigger))
+        // Bevy 0.15: LeftTrigger is still the bumper; LeftTrigger2 is the analog trigger.
+        gamepad.just_pressed(GamepadButton::LeftTrigger)
     } else {
-        buttons.just_pressed(GamepadButton::new(gamepad, GamepadButtonType::South))
+        gamepad.just_pressed(GamepadButton::South)
     }
 }
 
@@ -467,14 +443,10 @@ pub fn pad_jump_just_pressed(
 /// `key` = keyboard Shift only (no pad sprint).
 /// `stick` = LeftThumb (stick click).
 /// `trigger` = LeftTrigger2 (LT analog digital).
-pub fn pad_sprint_pressed(
-    buttons: &ButtonInput<GamepadButton>,
-    gamepad: Gamepad,
-    sprint_mode: &str,
-) -> bool {
+pub fn pad_sprint_pressed(gamepad: &Gamepad, sprint_mode: &str) -> bool {
     match sprint_mode.trim().to_ascii_lowercase().as_str() {
-        "stick" => buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::LeftThumb)),
-        "trigger" => buttons.pressed(GamepadButton::new(gamepad, GamepadButtonType::LeftTrigger2)),
+        "stick" => gamepad.pressed(GamepadButton::LeftThumb),
+        "trigger" => gamepad.pressed(GamepadButton::LeftTrigger2),
         _ => false, // key = Shift only
     }
 }

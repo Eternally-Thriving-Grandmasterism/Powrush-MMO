@@ -73,12 +73,12 @@ impl Plugin for UiAboveWorldPlugin {
     fn build(&self, app: &mut App) {
         // Sample4 MSAA writeback across Camera3d → Camera2d re-buries mid-screen
         // plates on lavapipe after Settled/Continue (F3). Off keeps UI honest.
-        app.insert_resource(Msaa::Off)
-            .add_systems(Startup, spawn_lived_ui_camera)
+        app.add_systems(Startup, spawn_lived_ui_camera)
             .add_systems(
                 Update,
                 (
                     ensure_lived_ui_camera,
+                    stamp_soft_gpu_msaa,
                     stamp_world_camera_order,
                     stamp_lived_ui_camera,
                     strip_world_default_ui_camera,
@@ -109,6 +109,7 @@ fn spawn_ui_camera_entity(commands: &mut Commands) {
                 clear_color: ClearColorConfig::None,
                 ..default()
             },
+            msaa: Msaa::Off,
             ..default()
         },
         IsDefaultUiCamera,
@@ -134,6 +135,16 @@ fn ensure_lived_ui_camera(
             "LivedUiCamera missing — respawning (ui-above-world after Settled)"
         );
         spawn_ui_camera_entity(&mut commands);
+    }
+}
+
+/// Bevy 0.15 moved `Msaa` off the global resource onto each camera.
+/// The old resource was `Msaa::Off` for every camera (soft-GPU writeback).
+fn stamp_soft_gpu_msaa(mut cameras: Query<&mut Msaa>) {
+    for mut msaa in &mut cameras {
+        if *msaa != Msaa::Off {
+            *msaa = Msaa::Off;
+        }
     }
 }
 
@@ -244,10 +255,10 @@ mod tests {
         use bevy::MinimalPlugins;
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
-            .insert_resource(Msaa::Sample4)
             .add_plugins(UiAboveWorldPlugin);
-        // Plugin build inserts Msaa::Off immediately.
-        assert!(soft_gpu_msaa_is_off(*app.world().resource::<Msaa>()));
+        app.update();
+        let mut msaa = app.world_mut().query_filtered::<&Msaa, With<LivedUiCamera>>();
+        assert!(soft_gpu_msaa_is_off(*msaa.single(app.world())));
         assert!(ui_camera_draws_above_world());
     }
 
@@ -266,7 +277,6 @@ mod tests {
             .init_resource::<Assets<Mesh>>()
             .init_resource::<Assets<StandardMaterial>>()
             .init_resource::<SoftPlayerRealm>()
-            .insert_resource(Msaa::Sample4)
             .insert_resource(LocalSettingsState {
                 inner: {
                     let mut settings = LocalSettings::default();
@@ -405,7 +415,14 @@ mod tests {
         assert_eq!(ui_hdr.expect("ui camera"), world_hdr, "{label} ui hdr");
         assert_eq!(ui_order.unwrap(), UI_CAMERA_ORDER, "{label}");
         assert!(ui_clear_none, "{label} clear");
-        assert!(soft_gpu_msaa_is_off(*world_ref.resource::<Msaa>()), "{label}");
+        let mut saw_camera = false;
+        for entity in world_ref.iter_entities() {
+            if let Some(msaa) = entity.get::<Msaa>() {
+                saw_camera = true;
+                assert!(soft_gpu_msaa_is_off(*msaa), "{label}");
+            }
+        }
+        assert!(saw_camera, "{label} msaa");
         assert!(!bloom_on_ui, "{label} bloom on ui");
         let world_bloom = world_ref.get::<BloomSettings>(world_cam).is_some();
         assert_eq!(world_bloom, expect_hdr, "{label} world bloom");

@@ -93,7 +93,7 @@ fn setup_faction_diplomacy_ui(mut commands: Commands) {
             text: Text::from_section(
                 "✧ FACTION DIPLOMACY COUNCIL ✧",
                 TextStyle {
-                    font_size: 26.0,
+                    font_size: 26.0 / 1.2,
                     color: Color::srgb(0.92, 0.96, 0.82), // Warm abundance gold
                     ..default()
                 },
@@ -106,7 +106,7 @@ fn setup_faction_diplomacy_ui(mut commands: Commands) {
             text: Text::from_section(
                 "Aligned with the Eternal Flow • Mercy-Guided Relations • RBE Harmony",
                 TextStyle {
-                    font_size: 13.0,
+                    font_size: 13.0 / 1.2,
                     color: Color::srgb(0.55, 0.78, 0.68),
                     ..default()
                 },
@@ -138,7 +138,7 @@ fn setup_faction_diplomacy_ui(mut commands: Commands) {
             text: Text::from_section(
                 "⚡ Your sovereign choices shape the living world. Choose with radical mercy. ⚡",
                 TextStyle {
-                    font_size: 11.0,
+                    font_size: 11.0 / 1.2,
                     color: Color::srgb(0.65, 0.82, 0.72),
                     ..default()
                 },
@@ -178,7 +178,7 @@ fn spawn_faction_card(parent: &mut ChildBuilder, faction: Faction) {
         card.spawn(TextBundle {
             text: Text::from_section(
                 name,
-                TextStyle { font_size: 15.0, color: Color::WHITE, ..default() },
+                TextStyle { font_size: 15.0 / 1.2, color: Color::WHITE, ..default() },
             ),
             style: Style { margin: UiRect::bottom(Val::Px(6.0)), ..default() },
             ..default()
@@ -214,7 +214,7 @@ fn spawn_faction_card(parent: &mut ChildBuilder, faction: Faction) {
         // Live standing value
         card.spawn((
             TextBundle {
-                text: Text::from_section("Standing: 0.0", TextStyle { font_size: 11.0, color: Color::WHITE, ..default() }),
+                text: Text::from_section("Standing: 0.0", TextStyle { font_size: 11.0 / 1.2, color: Color::WHITE, ..default() }),
                 style: Style { margin: UiRect::bottom(Val::Px(6.0)), ..default() },
                 ..default()
             },
@@ -224,7 +224,7 @@ fn spawn_faction_card(parent: &mut ChildBuilder, faction: Faction) {
         card.spawn(TextBundle {
             text: Text::from_section(
                 lore_snippet,
-                TextStyle { font_size: 9.5, color: Color::srgb(0.72, 0.78, 0.82), ..default() },
+                TextStyle { font_size: 9.5 / 1.2, color: Color::srgb(0.72, 0.78, 0.82), ..default() },
             ),
             style: Style { margin: UiRect::bottom(Val::Px(8.0)), ..default() },
             ..default()
@@ -252,7 +252,7 @@ fn spawn_faction_card(parent: &mut ChildBuilder, faction: Faction) {
                 DiplomacyActionButton { action, target_faction: faction },
             )).with_children(|btn| {
                 btn.spawn(TextBundle {
-                    text: Text::from_section(label, TextStyle { font_size: 12.0, color: Color::WHITE, ..default() }),
+                    text: Text::from_section(label, TextStyle { font_size: 12.0 / 1.2, color: Color::WHITE, ..default() }),
                     ..default()
                 });
             });

@@ -417,7 +417,7 @@ fn sync_edit_chrome(
     windows: Query<&Window, With<PrimaryWindow>>,
     mut commands: Commands,
     roots: Query<Entity, With<HudEditRoot>>,
-    mut frames: Query<(&HudEditFrame, &mut Style, &mut BorderColor)>,
+    mut frames: Query<(&HudEditFrame, &mut Node, &mut BorderColor)>,
     mut saves: Query<&mut BackgroundColor, With<HudEditSaveBtn>>,
     mut hide_text: Query<(&HudEditHideText, &mut Text)>,
 ) {
@@ -481,10 +481,8 @@ fn sync_edit_chrome(
             continue;
         };
         let face = if anchor.hidden { "Show" } else { "Hide" };
-        if text.sections.first().map(|section| section.value.as_str()) != Some(face) {
-            if let Some(section) = text.sections.first_mut() {
-                section.value = face.to_string();
-            }
+        if text.as_str() != face {
+            **text = face.to_string();
         }
     }
 }
@@ -496,17 +494,17 @@ fn spawn_chrome(commands: &mut Commands, edit: &HudEditMode, view_w: f32, view_h
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
                     ..default()
                 },
                 focus_policy: FocusPolicy::Pass,
-                z_index: ZIndex::Global(FRAME_Z),
-                background_color: Color::NONE.into(),
+                                background_color: Color::NONE.into(),
                 ..default()
             },
+GlobalZIndex(FRAME_Z),
             HudEditRoot,
         ))
         .with_children(|root| {
@@ -539,7 +537,7 @@ fn spawn_frame(
     parent
         .spawn((
             ButtonBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     left: Val::Px(rect.x0 as f32),
                     top: Val::Px(rect.y0 as f32),
@@ -551,31 +549,27 @@ fn spawn_frame(
                 background_color: Color::srgba(0.07, 0.05, 0.09, 0.28).into(),
                 border_color: border.into(),
                 focus_policy: FocusPolicy::Block,
-                z_index: ZIndex::Global(FRAME_Z),
-                ..default()
+                                ..default()
             },
+GlobalZIndex(FRAME_Z),
             HudEditFrame { id: anchor.id },
         ))
         .with_children(|frame| {
-            let mut id_text = TextBundle::from_section(
-                anchor.id,
-                TextStyle {
-                    font_size: 12.0,
-                    color: TITLE_TEXT_PRIMARY,
+            frame.spawn((
+                Text::new(anchor.id),
+                TextFont { font_size: 12.0 / 1.2, ..default() },
+                TextColor(TITLE_TEXT_PRIMARY),
+                Node {
+                    position_type: PositionType::Absolute,
+                    left: Val::Px(4.0),
+                    top: Val::Px(2.0),
                     ..default()
                 },
-            )
-            .with_style(Style {
-                position_type: PositionType::Absolute,
-                left: Val::Px(4.0),
-                top: Val::Px(2.0),
-                ..default()
-            });
-            id_text.focus_policy = FocusPolicy::Pass;
-            frame.spawn(id_text);
+                FocusPolicy::Pass,
+            ));
             frame.spawn((
                 ButtonBundle {
-                    style: Style {
+                    node: Node {
                         position_type: PositionType::Absolute,
                         right: Val::Px(0.0),
                         top: Val::Px(0.0),
@@ -594,7 +588,7 @@ fn spawn_frame(
                 frame
                     .spawn((
                         ButtonBundle {
-                            style: Style {
+                            node: Node {
                                 position_type: PositionType::Absolute,
                                 left: Val::Px(0.0),
                                 bottom: Val::Px(0.0),
@@ -612,14 +606,11 @@ fn spawn_frame(
                     ))
                     .with_children(|hide| {
                         hide.spawn((
-                            TextBundle::from_section(
-                                face,
-                                TextStyle {
-                                    font_size: 11.0,
-                                    color: TITLE_BTN_FG,
-                                    ..default()
-                                },
-                            ),
+                            (
+Text::new(face),
+TextFont { font_size: 11.0 / 1.2, ..default() },
+TextColor(TITLE_BTN_FG),
+),
                             HudEditHideText { id: anchor.id },
                         ));
                     });
@@ -636,7 +627,7 @@ fn spawn_toolbar(parent: &mut ChildBuilder, save_enabled: bool) {
     parent
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: Val::Px(16.0),
                     left: Val::Px(16.0),
@@ -645,10 +636,10 @@ fn spawn_toolbar(parent: &mut ChildBuilder, save_enabled: bool) {
                     ..default()
                 },
                 focus_policy: FocusPolicy::Block,
-                z_index: ZIndex::Global(TOOLBAR_Z),
-                background_color: Color::NONE.into(),
+                                background_color: Color::NONE.into(),
                 ..default()
             },
+GlobalZIndex(TOOLBAR_Z),
             Name::new("HudEditToolbar"),
         ))
         .with_children(|bar| {
@@ -662,7 +653,7 @@ fn tool_button(parent: &mut ChildBuilder, label: &str, fill: Color, marker: impl
     parent
         .spawn((
             ButtonBundle {
-                style: Style {
+                node: Node {
                     min_width: Val::Px(44.0),
                     min_height: Val::Px(44.0),
                     padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
@@ -677,14 +668,11 @@ fn tool_button(parent: &mut ChildBuilder, label: &str, fill: Color, marker: impl
             marker,
         ))
         .with_children(|button| {
-            button.spawn(TextBundle::from_section(
-                label,
-                TextStyle {
-                    font_size: 14.0,
-                    color: TITLE_BTN_FG,
-                    ..default()
-                },
-            ));
+            button.spawn((
+Text::new(label),
+TextFont { font_size: 14.0 / 1.2, ..default() },
+TextColor(TITLE_BTN_FG),
+));
         });
 }
 
@@ -698,21 +686,18 @@ fn sync_parse_notice(
     if show {
         if existing.is_empty() {
             commands.spawn((
-                TextBundle::from_section(
-                    HUD_LAYOUT_PARSE_NOTICE,
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                )
-                .with_style(Style {
+                (
+Text::new(HUD_LAYOUT_PARSE_NOTICE),
+TextFont { font_size: 14.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+Node {
                     position_type: PositionType::Absolute,
                     top: Val::Px(8.0),
                     left: Val::Px(16.0),
                     ..default()
-                }),
-                ZIndex::Global(NOTICE_Z),
+                },
+),
+                GlobalZIndex(NOTICE_Z),
                 HudParseNotice,
             ));
         }
@@ -1083,7 +1068,7 @@ mod tests {
         HudEditHide, HudEditMode, HudEditModePlugin, HudEditResetBtn, HudEditSaveBtn,
     };
     use bevy::input::gamepad::{
-        GamepadButtonChangedEvent, GamepadConnection, GamepadConnectionEvent, GamepadInfo,
+        GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent, RawGamepadEvent,
     };
     use bevy::input::keyboard::{Key, KeyboardInput};
     use bevy::input::ButtonState;
@@ -1597,14 +1582,12 @@ mod tests {
         assert!(!hides.iter().any(|id| *id == "WINDOW"));
         let mut texts = app.world_mut().query::<&Text>();
         for text in texts.iter(app.world()) {
-            for section in &text.sections {
-                for word in ["Places", "Ledger", "Title", "Online", "Door", "door"] {
-                    assert!(
-                        !section.value.contains(word),
-                        "forbidden row text {}",
-                        section.value
-                    );
-                }
+            for word in ["Places", "Ledger", "Title", "Online", "Door", "door"] {
+                assert!(
+                    !text.as_str().contains(word),
+                    "forbidden row text {}",
+                    text.as_str()
+                );
             }
         }
     }
@@ -1675,7 +1658,7 @@ mod tests {
             .world_mut()
             .spawn((
                 NodeBundle {
-                    style: Style {
+                    node: Node {
                         padding: UiRect::all(Val::Px(7.0)),
                         border: UiRect::all(Val::Px(8.0)),
                         margin: UiRect {
@@ -1696,7 +1679,7 @@ mod tests {
         app.insert_resource(PressTape(0));
         app.add_systems(Update, count_allocate_presses);
         app.update();
-        let style = app.world().get::<Style>(root).expect("style");
+        let style = app.world().get::<Node>(root).expect("style");
         assert_eq!(style.top, Val::Px(200.0));
         assert_eq!(style.left, Val::Px(40.0));
         assert_eq!(style.width, Val::Px(520.0));
@@ -1868,6 +1851,7 @@ mod tests {
             key_code,
             logical_key,
             state: ButtonState::Pressed,
+            repeat: false,
             window: Entity::PLACEHOLDER,
         });
     }
@@ -1927,28 +1911,21 @@ mod tests {
         app.insert_resource(DoorTape::default());
         app.add_systems(PostUpdate, door_probe);
         app.update();
-        let pad = Gamepad::new(0);
-        app.world_mut().send_event(GamepadConnectionEvent {
-            gamepad: pad,
-            connection: GamepadConnection::Connected(GamepadInfo {
+        let pad = app.world_mut().spawn_empty().id();
+        app.world_mut().send_event(GamepadConnectionEvent::new(
+            pad,
+            GamepadConnection::Connected {
                 name: "test pad".into(),
-            }),
-        });
-        app.world_mut().send_event(GamepadButtonChangedEvent::new(
-            pad,
-            GamepadButtonType::South,
-            1.0,
+                vendor_id: None,
+                product_id: None,
+            },
         ));
-        app.world_mut().send_event(GamepadButtonChangedEvent::new(
-            pad,
-            GamepadButtonType::West,
-            1.0,
-        ));
-        app.world_mut().send_event(GamepadButtonChangedEvent::new(
-            pad,
-            GamepadButtonType::Start,
-            1.0,
-        ));
+        app.update();
+        for button in [GamepadButton::South, GamepadButton::West, GamepadButton::Start] {
+            app.world_mut().send_event(RawGamepadEvent::Button(
+                RawGamepadButtonChangedEvent::new(pad, button, 1.0),
+            ));
+        }
         app.update();
         let input = app.world().resource::<PlayerInput>();
         assert!(!input.interact);

@@ -1,8 +1,8 @@
 # BEVY CLIMB PLAN — banked 2026-09-23
 
 **Councils:** Truth, Service, Abundance. Contact: info@Rathor.ai.
-**Lived pin today:** `bevy = "0.14"` on `client/Cargo.toml` (also parked `server/`, `simulation/`, `host/`).
-**Do not treat this file as permission to bump Cargo this week.**
+**Lived pin today:** `bevy = "0.15"` on `client/Cargo.toml` (parked `server/`, `simulation/`, `host/`, `powrush-divine-module/` stay 0.14)
+Climb is live: one minor per card (Sherif GO 2026-10-09).
 
 Title Online grey. Floor `2163551`. Tag `playable-preview` `11c577e`. Workspace `21.88.0`.
 Model seat: Grok 4.7 High / 4.6 High only (`docs/CURSOR_GROK_MODEL_SEAT.md`).

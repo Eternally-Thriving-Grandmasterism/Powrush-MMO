@@ -78,7 +78,7 @@ fn spawn_banner(
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: SOVEREIGN.top(),
                     left: SOVEREIGN.left(),
@@ -100,14 +100,11 @@ fn spawn_banner(
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    line,
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(line),
+TextFont { font_size: 14.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 SovereignBannerText,
             ));
         });
@@ -149,7 +146,7 @@ fn update_banner(
     mut root: Query<&mut Visibility, With<SovereignBannerRoot>>,
     mut text_q: Query<&mut Text, With<SovereignBannerText>>,
 ) {
-    let show = !session.dismissed && time.elapsed_seconds_f64() < session.banner_until;
+    let show = !session.dismissed && time.elapsed_secs_f64() < session.banner_until;
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible
@@ -162,10 +159,8 @@ fn update_banner(
     }
     let line = sovereign_banner_line(travel.as_ref().map(|state| state.chip_name()));
     for mut text in &mut text_q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != line {
-                s.value = line.clone();
-            }
+        if text.as_str() != line {
+            **text = line.clone();
         }
     }
 }
@@ -184,9 +179,9 @@ mod tests {
         app.update();
         let mut q = app
             .world_mut()
-            .query_filtered::<&Style, With<SovereignBannerRoot>>();
+            .query_filtered::<&Node, With<SovereignBannerRoot>>();
         let style = q.single(app.world()).clone();
-        let coded = Style {
+        let coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Px(52.0),
             left: Val::Percent(50.0),
@@ -218,8 +213,8 @@ mod tests {
             .query_filtered::<(&BorderColor, &BackgroundColor), With<SovereignBannerRoot>>();
         let (border, bg) = q.single(app.world());
         let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
-        let mut t = app.world_mut().query_filtered::<&Text, With<SovereignBannerText>>();
-        let txt = t.single(app.world()).sections[0].style.color.to_srgba();
+        let mut t = app.world_mut().query_filtered::<&TextColor, With<SovereignBannerText>>();
+        let txt = t.single(app.world()).0.to_srgba();
         for (got, want, what) in [
             (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
             (border, TITLE_BORDER.to_srgba(), "rim"),

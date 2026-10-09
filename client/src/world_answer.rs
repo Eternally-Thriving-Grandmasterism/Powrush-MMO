@@ -112,7 +112,7 @@ fn notice_allocate(
         return;
     }
     *last = allocate.choices_made;
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     let Some(path) = allocate.last_choice else {
         return;
     };
@@ -185,7 +185,7 @@ fn paint_world_answer(
     mut nodes: Query<&mut MercyHarvestNode>,
     mut last_kind: Local<AnswerKind>,
 ) {
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     let live = answer.live(now);
     let fade = if live {
         ((answer.until - now) / 3.4).clamp(0.0, 1.0) as f32

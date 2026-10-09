@@ -229,7 +229,7 @@ fn spawn_treaty_negotiation_panel(
                         "TREATY NEGOTIATION — ETERNAL FLOW DIPLOMACY",
                         TextStyle {
                             font: asset_server.load("fonts/Inter-Bold.ttf"),
-                            font_size: 18.0,
+                            font_size: 18.0 / 1.2,
                             color: Color::srgb(0.95, 0.9, 0.75),
                         },
                     ),
@@ -254,7 +254,7 @@ fn spawn_treaty_negotiation_panel(
                         text: Text::from_section(
                             "✕",
                             TextStyle {
-                                font_size: 20.0,
+                                font_size: 20.0 / 1.2,
                                 color: Color::srgb(0.95, 0.85, 0.85),
                             },
                         ),
@@ -268,7 +268,7 @@ fn spawn_treaty_negotiation_panel(
                 parent.spawn(TextBundle {
                     text: Text::from_section(
                         format!("Negotiating with: {:?}", faction),
-                        TextStyle { font_size: 15.0, color: Color::srgb(0.85, 0.85, 0.9), ..default() },
+                        TextStyle { font_size: 15.0 / 1.2, color: Color::srgb(0.85, 0.85, 0.9), ..default() },
                     ),
                     margin: UiRect::bottom(Val::Px(8.0)),
                     ..default()
@@ -312,14 +312,14 @@ fn spawn_treaty_negotiation_panel(
                             text: Text::from_section(
                                 format!("{}  •  Mercy: {:.0}  •  Standing: +{:.0}  •  {}d",
                                     term.name(), term.mercy_cost(), term.standing_delta(), term.duration_days()),
-                                TextStyle { font_size: 13.5, color: Color::WHITE, ..default() },
+                                TextStyle { font_size: 13.5 / 1.2, color: Color::WHITE, ..default() },
                             ),
                             ..default()
                         });
                         card.spawn(TextBundle {
                             text: Text::from_section(
                                 term.description(),
-                                TextStyle { font_size: 11.5, color: Color::srgb(0.75, 0.8, 0.85), ..default() },
+                                TextStyle { font_size: 11.5 / 1.2, color: Color::srgb(0.75, 0.8, 0.85), ..default() },
                             ),
                             margin: UiRect::top(Val::Px(3.0)),
                             ..default()
@@ -347,7 +347,7 @@ fn spawn_treaty_negotiation_panel(
                 btn.spawn(TextBundle {
                     text: Text::from_section(
                         "Clear selection",
-                        TextStyle { font_size: 12.0, color: Color::srgb(0.8, 0.85, 0.9), ..default() },
+                        TextStyle { font_size: 12.0 / 1.2, color: Color::srgb(0.8, 0.85, 0.9), ..default() },
                     ),
                     ..default()
                 });
@@ -358,7 +358,7 @@ fn spawn_treaty_negotiation_panel(
                 TextBundle {
                     text: Text::from_section(
                         "Selected: 0 / 5 terms",
-                        TextStyle { font_size: 13.0, color: Color::srgb(0.7, 0.85, 0.75), ..default() },
+                        TextStyle { font_size: 13.0 / 1.2, color: Color::srgb(0.7, 0.85, 0.75), ..default() },
                     ),
                     margin: UiRect::bottom(Val::Px(6.0)),
                     ..default()
@@ -370,7 +370,7 @@ fn spawn_treaty_negotiation_panel(
             parent.spawn(TextBundle {
                 text: Text::from_section(
                     "LIVE IMPACT PREVIEW  (weighed by 13+ PATSAGi Councils)",
-                    TextStyle { font_size: 13.0, color: Color::srgb(0.7, 0.85, 0.7), ..default() },
+                    TextStyle { font_size: 13.0 / 1.2, color: Color::srgb(0.7, 0.85, 0.7), ..default() },
                 ),
                 ..default()
             });
@@ -378,7 +378,7 @@ fn spawn_treaty_negotiation_panel(
                 TextBundle {
                     text: Text::from_section(
                         "Net Mercy Cost: 0.0   |   Net Standing Gain: 0.0",
-                        TextStyle { font_size: 15.0, color: Color::srgb(0.9, 0.95, 0.85), ..default() },
+                        TextStyle { font_size: 15.0 / 1.2, color: Color::srgb(0.9, 0.95, 0.85), ..default() },
                     ),
                     ..default()
                 },
@@ -404,7 +404,7 @@ fn spawn_treaty_negotiation_panel(
                 btn.spawn(TextBundle {
                     text: Text::from_section(
                         "SEND TREATY PROPOSAL  ⚡  ALIGNED WITH MERCY",
-                        TextStyle { font_size: 14.5, color: Color::WHITE, ..default() },
+                        TextStyle { font_size: 14.5 / 1.2, color: Color::WHITE, ..default() },
                     ),
                     ..default()
                 });
@@ -414,7 +414,7 @@ fn spawn_treaty_negotiation_panel(
             parent.spawn(TextBundle {
                 text: Text::from_section(
                     "Every term is weighed in the Eternal Flow. The Councils speak through the Southern Cross and 7 Gates.",
-                    TextStyle { font_size: 10.5, color: Color::srgb(0.55, 0.7, 0.55), ..default() },
+                    TextStyle { font_size: 10.5 / 1.2, color: Color::srgb(0.55, 0.7, 0.55), ..default() },
                 ),
                 margin: UiRect::top(Val::Px(10.0)),
                 ..default()

@@ -590,8 +590,8 @@ fn spawn_human_presence(
     commands
         .spawn((
             PbrBundle {
-                mesh: hips,
-                material: earth.clone(),
+                mesh: Mesh3d(hips),
+                material: MeshMaterial3d(earth.clone()),
                 transform: Transform::from_xyz(0.0, STAND, 0.0),
                 ..default()
             },
@@ -610,8 +610,8 @@ fn spawn_human_presence(
             .with_children(|waist| {
                 waist.spawn((
                     PbrBundle {
-                        mesh: torso,
-                        material: earth.clone(),
+                        mesh: Mesh3d(torso),
+                        material: MeshMaterial3d(earth.clone()),
                         transform: lod_mesh_tf(0.0, TORSO_Y, 0.0, scale),
                         ..default()
                     },
@@ -620,8 +620,8 @@ fn spawn_human_presence(
                 waist
                     .spawn((
                         PbrBundle {
-                            mesh: head,
-                            material: earth.clone(),
+                            mesh: Mesh3d(head),
+                            material: MeshMaterial3d(earth.clone()),
                             transform: lod_mesh_tf(0.0, HEAD_Y, 0.0, scale),
                             ..default()
                         },
@@ -634,8 +634,8 @@ fn spawn_human_presence(
                         // face ≠ class — look direction only, never a race lobby.
                         face.spawn((
                             PbrBundle {
-                                mesh: brow,
-                                material: earth.clone(),
+                                mesh: Mesh3d(brow),
+                                material: MeshMaterial3d(earth.clone()),
                                 transform: lod_mesh_tf(0.0, 0.01, HEAD_R * 0.86, scale),
                                 ..default()
                             },
@@ -659,8 +659,8 @@ fn spawn_human_presence(
                         .with_children(|limb| {
                             limb.spawn((
                                 PbrBundle {
-                                    mesh: arm.clone(),
-                                    material: earth.clone(),
+                                    mesh: Mesh3d(arm.clone()),
+                                    material: MeshMaterial3d(earth.clone()),
                                     transform: lod_mesh_tf(0.0, ARM_Y, 0.0, scale),
                                     ..default()
                                 },
@@ -669,8 +669,8 @@ fn spawn_human_presence(
                             if side > 0.0 {
                                 limb.spawn((
                                     PbrBundle {
-                                        mesh: hand.clone(),
-                                        material: accent.clone(),
+                                        mesh: Mesh3d(hand.clone()),
+                                        material: MeshMaterial3d(accent.clone()),
                                         transform: lod_mesh_tf(0.0, HAND_Y, 0.0, scale),
                                         ..default()
                                     },
@@ -694,8 +694,8 @@ fn spawn_human_presence(
                 .with_children(|limb| {
                     limb.spawn((
                         PbrBundle {
-                            mesh: leg.clone(),
-                            material: earth.clone(),
+                            mesh: Mesh3d(leg.clone()),
+                            material: MeshMaterial3d(earth.clone()),
                             transform: lod_mesh_tf(0.0, LEG_Y, 0.0, scale),
                             ..default()
                         },
@@ -764,7 +764,7 @@ fn apply_locomotion(
     mut latch: ResMut<JumpLatch>,
     mut presence: ResMut<SoftPresence>,
 ) {
-    let dt = time.delta_seconds();
+    let dt = time.delta_secs();
     let sprint_ok = body.as_ref().map(|b| b.can_sprint()).unwrap_or(true);
     let mut speed = if input.sprint && sprint_ok {
         SPRINT
@@ -832,7 +832,7 @@ fn latch_use_attend(
         }
     }
     let held = keyboard.pressed(soft_play_bindings::INTERACT);
-    attend.level = attend_level(attend.level, input.interact, held, time.delta_seconds());
+    attend.level = attend_level(attend.level, input.interact, held, time.delta_secs());
     attend.near_glow = nearest.map(|(_, d)| glow_proximity(d)).unwrap_or(0.0);
     attend.toward = if attend.level > 0.0 {
         nearest.map(|(pos, _)| pos)
@@ -872,9 +872,9 @@ fn pose_person(
     mut rhythm: ResMut<PersonRhythm>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     mut parts: Query<(&PersonPart, &mut Transform)>,
-    accents: Query<&Handle<StandardMaterial>, With<PersonAccent>>,
+    accents: Query<&MeshMaterial3d<StandardMaterial>, With<PersonAccent>>,
 ) {
-    let dt = time.delta_seconds();
+    let dt = time.delta_secs();
     let speed = Vec2::new(presence.velocity.x, presence.velocity.z).length();
     let tell = body.as_ref().map(|b| b.tell()).unwrap_or_default();
     let breath_rise = body.as_ref().map(|b| b.breath_rise()).unwrap_or(0.012);

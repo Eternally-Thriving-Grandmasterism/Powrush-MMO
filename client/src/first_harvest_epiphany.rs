@@ -309,7 +309,7 @@ fn spawn_lived_surfaces(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     bottom: ACTION_BAR.bottom(),
                     right: ACTION_BAR.right(),
@@ -330,14 +330,11 @@ fn spawn_lived_surfaces(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "Walk toward a glowing node",
-                    TextStyle {
-                        font_size: 16.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new("Walk toward a glowing node"),
+TextFont { font_size: 16.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 WorldCarePromptText,
             ));
         });
@@ -345,7 +342,7 @@ fn spawn_lived_surfaces(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: PULSE.top(),
                     left: PULSE.left(),
@@ -367,14 +364,11 @@ fn spawn_lived_surfaces(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 16.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: 16.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 HarvestPulseText,
             ));
         });
@@ -382,7 +376,7 @@ fn spawn_lived_surfaces(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: WELCOME.top(),
                     left: WELCOME.left(),
@@ -402,14 +396,11 @@ fn spawn_lived_surfaces(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 13.5,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: 13.5 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 WelcomeBackText,
             ));
         });
@@ -443,11 +434,9 @@ fn maybe_welcome_back(
         }
         return;
     };
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     for mut text in &mut text_q {
-        if let Some(s) = text.sections.get_mut(0) {
-            s.value = line.clone();
-        }
+        **text = line.clone();
     }
     state.welcome_until = Some(now + WELCOME_SECS);
 }
@@ -516,12 +505,12 @@ fn handle_interact_harvest(
     mut pool: ResMut<SoftRbePool>,
     mut global: Option<ResMut<RbeGlobalState>>,
     mut rumble: EventWriter<GamepadRumbleRequest>,
-    gamepads: Res<Gamepads>,
+    gamepads: Query<Entity, With<Gamepad>>,
     mut rbe_ui: Option<ResMut<RbeUiSync>>,
     mut answer: ResMut<WorldAnswer>,
     time: Res<Time>,
 ) {
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     let e_down = keyboard.pressed(soft_play_bindings::INTERACT);
     let e_up = keyboard.just_released(soft_play_bindings::INTERACT);
     let pad_tap = player_input.interact;
@@ -572,7 +561,7 @@ fn handle_interact_harvest(
         resolve_take(
             now, &mut state, &mut guidance, &mut moments, &mut echo,
             &mut nearby, &mut nodes, &mut pool, global.as_deref_mut(),
-            &mut rumble, &gamepads, rbe_ui.as_deref_mut(), &mut answer,
+            &mut rumble, gamepads.iter(), rbe_ui.as_deref_mut(), &mut answer,
         );
         return;
     }
@@ -592,7 +581,7 @@ fn handle_interact_harvest(
         let place = state.stood_place;
         if resolve_tend(
             now, &mut state, &mut guidance, &mut nearby, &mut nodes, &mut pool,
-            &mut rumble, &gamepads, &mut answer, place,
+            &mut rumble, gamepads.iter(), &mut answer, place,
         ) {
             hold.tended = true;
         }
@@ -603,7 +592,7 @@ fn handle_interact_harvest(
             resolve_take(
                 now, &mut state, &mut guidance, &mut moments, &mut echo,
                 &mut nearby, &mut nodes, &mut pool, global.as_deref_mut(),
-                &mut rumble, &gamepads, rbe_ui.as_deref_mut(), &mut answer,
+                &mut rumble, gamepads.iter(), rbe_ui.as_deref_mut(), &mut answer,
             );
         }
         hold.holding = false;
@@ -622,7 +611,7 @@ fn resolve_take(
     pool: &mut SoftRbePool,
     global: Option<&mut RbeGlobalState>,
     rumble: &mut EventWriter<GamepadRumbleRequest>,
-    gamepads: &Gamepads,
+    gamepads: impl IntoIterator<Item = Entity>,
     rbe_ui: Option<&mut RbeUiSync>,
     answer: &mut WorldAnswer,
 ) {
@@ -689,7 +678,7 @@ fn resolve_tend(
     nodes: &mut Query<&mut MercyHarvestNode>,
     pool: &mut SoftRbePool,
     rumble: &mut EventWriter<GamepadRumbleRequest>,
-    gamepads: &Gamepads,
+    gamepads: impl IntoIterator<Item = Entity>,
     answer: &mut WorldAnswer,
     place: Option<&str>,
 ) -> bool {
@@ -736,7 +725,7 @@ pub(crate) fn update_world_care_prompt(
     mut root: Query<&mut Visibility, With<WorldCarePromptRoot>>,
     mut text_q: Query<&mut Text, With<WorldCarePromptText>>,
 ) {
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     let guidance_hidden = bind.as_ref().is_some_and(|bind| bind.guidance_hidden);
     let (_care_strip, show) = action_bar_prompts_showing(
         care.as_deref(),
@@ -759,10 +748,8 @@ pub(crate) fn update_world_care_prompt(
         state.first_harvest_lived,
     );
     for mut text in &mut text_q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != line {
-                s.value = line.to_string();
-            }
+        if text.as_str() != line {
+            **text = line.to_string();
         }
     }
 }
@@ -773,7 +760,7 @@ fn update_harvest_pulse(
     mut root: Query<&mut Visibility, With<HarvestPulseRoot>>,
     mut text_q: Query<&mut Text, With<HarvestPulseText>>,
 ) {
-    let now = time.elapsed_seconds_f64();
+    let now = time.elapsed_secs_f64();
     let show = now < state.pulse_until && !state.pulse_line.is_empty();
     for mut vis in &mut root {
         *vis = if show {
@@ -784,11 +771,9 @@ fn update_harvest_pulse(
     }
     if show {
         for mut text in &mut text_q {
-            if let Some(s) = text.sections.get_mut(0) {
-                if s.value != state.pulse_line {
-                    s.value = state.pulse_line.clone();
-                }
-            }
+            if text.as_str() != state.pulse_line {
+            **text = state.pulse_line.clone();
+        }
         }
     }
 }
@@ -803,9 +788,9 @@ fn update_welcome_back(
 ) {
     // Same decay as well_glow / bench_glow — one breath, then rest.
     if state.welcome_glow > 0.0 {
-        state.welcome_glow = (state.welcome_glow - time.delta_seconds() * 0.55).max(0.0);
+        state.welcome_glow = (state.welcome_glow - time.delta_secs() * 0.55).max(0.0);
     }
-    let show = welcome_visible(&state, time.elapsed_seconds_f64());
+    let show = welcome_visible(&state, time.elapsed_secs_f64());
     let glow = state.welcome_glow;
     for (mut vis, mut border, mut bg) in &mut root {
         *vis = if show {
@@ -1063,7 +1048,7 @@ mod tests {
     /// E tends the well. Wards do not claim Use. The climate slab line is untouched.
     #[test]
     fn both_near_e_tends_the_well() {
-        use bevy::input::gamepad::{GamepadRumbleRequest, Gamepads};
+        use bevy::input::gamepad::GamepadRumbleRequest;
         use bevy::prelude::*;
         use shared::ledger_bind::LedgerBoard;
         use shared::skirmish_well::{WellHold, WELL_ANCHORS};
@@ -1098,7 +1083,6 @@ mod tests {
             .init_resource::<FirstHarvestEpiphany>()
             .init_resource::<ThrivingMoments>()
             .init_resource::<SoftRbePool>()
-            .init_resource::<Gamepads>()
             .init_resource::<ButtonInput<KeyCode>>()
             .add_event::<GamepadRumbleRequest>()
             .add_systems(PreUpdate, mark_well_near)
@@ -1496,7 +1480,7 @@ mod tests {
 
         let mut prompt = app
             .world_mut()
-            .query_filtered::<&Style, With<WorldCarePromptRoot>>();
+            .query_filtered::<&Node, With<WorldCarePromptRoot>>();
         let prompt = prompt.single(app.world()).clone();
         assert_eq!(prompt.bottom, ACTION_BAR.bottom());
         assert_eq!(prompt.right, ACTION_BAR.right());
@@ -1508,7 +1492,7 @@ mod tests {
 
         let mut pulse = app
             .world_mut()
-            .query_filtered::<&Style, With<HarvestPulseRoot>>();
+            .query_filtered::<&Node, With<HarvestPulseRoot>>();
         let pulse = pulse.single(app.world()).clone();
         assert_eq!(pulse.top, Val::Px(118.0));
         assert_eq!(pulse.left, Val::Percent(50.0));
@@ -1518,7 +1502,7 @@ mod tests {
         assert_eq!(pulse.left, PULSE.left());
         assert_eq!(pulse.margin, PULSE.margin());
         assert_eq!(pulse.width, Val::Px(PULSE.width));
-        let pulse_coded = Style {
+        let pulse_coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Px(118.0),
             left: Val::Percent(50.0),
@@ -1534,7 +1518,7 @@ mod tests {
 
         let mut welcome = app
             .world_mut()
-            .query_filtered::<&Style, With<WelcomeBackRoot>>();
+            .query_filtered::<&Node, With<WelcomeBackRoot>>();
         let welcome = welcome.single(app.world()).clone();
         assert_eq!(welcome.top, Val::Px(16.0));
         assert_eq!(welcome.left, Val::Px(16.0));
@@ -1543,7 +1527,7 @@ mod tests {
         assert_eq!(welcome.left, WELCOME.left());
         assert_eq!(welcome.margin, UiRect::default());
         assert_eq!(welcome.width, Val::Px(WELCOME.width));
-        let welcome_coded = Style {
+        let welcome_coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Px(16.0),
             left: Val::Px(16.0),
@@ -1556,15 +1540,15 @@ mod tests {
 
         let mut prompt_text = app
             .world_mut()
-            .query_filtered::<&Text, With<WorldCarePromptText>>();
-        assert_eq!(prompt_text.single(app.world()).sections[0].style.font_size, 16.0);
+            .query_filtered::<&TextFont, With<WorldCarePromptText>>();
+        assert_eq!(prompt_text.single(app.world()).font_size, 16.0 / 1.2);
         let mut pulse_text = app
             .world_mut()
-            .query_filtered::<&Text, With<HarvestPulseText>>();
-        assert_eq!(pulse_text.single(app.world()).sections[0].style.font_size, 16.0);
+            .query_filtered::<&TextFont, With<HarvestPulseText>>();
+        assert_eq!(pulse_text.single(app.world()).font_size, 16.0 / 1.2);
         let mut welcome_text = app
             .world_mut()
-            .query_filtered::<&Text, With<WelcomeBackText>>();
-        assert_eq!(welcome_text.single(app.world()).sections[0].style.font_size, 13.5);
+            .query_filtered::<&TextFont, With<WelcomeBackText>>();
+        assert_eq!(welcome_text.single(app.world()).font_size, 13.5 / 1.2);
     }
 }

@@ -1210,6 +1210,7 @@ mod tests {
             key_code: soft_play_bindings::CHART,
             logical_key: Key::Tab,
             state: ButtonState::Pressed,
+            repeat: false,
             window,
         });
         app.update();
@@ -1256,6 +1257,7 @@ mod tests {
             key_code: soft_play_bindings::CHART,
             logical_key: Key::Tab,
             state: ButtonState::Pressed,
+            repeat: false,
             window,
         });
         app.update();

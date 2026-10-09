@@ -101,7 +101,7 @@ fn glance_toward_nearest_node(
         return;
     }
 
-    glance.idle_secs += time.delta_seconds();
+    glance.idle_secs += time.delta_secs();
     if glance.idle_secs < IDLE_BEFORE_GLANCE {
         return;
     }

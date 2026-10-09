@@ -72,7 +72,7 @@ fn spawn_fab_slab(mut commands: Commands) {
     commands
         .spawn((
             NodeBundle {
-                style: Style {
+                node: Node {
                     position_type: PositionType::Absolute,
                     top: FAB.top(),
                     left: FAB.left(),
@@ -93,14 +93,11 @@ fn spawn_fab_slab(mut commands: Commands) {
         ))
         .with_children(|p| {
             p.spawn((
-                TextBundle::from_section(
-                    "",
-                    TextStyle {
-                        font_size: 14.0,
-                        color: TITLE_TEXT_PRIMARY,
-                        ..default()
-                    },
-                ),
+                (
+Text::new(""),
+TextFont { font_size: 14.0 / 1.2, ..default() },
+TextColor(TITLE_TEXT_PRIMARY),
+),
                 FabSlabText,
             ));
         });
@@ -246,14 +243,14 @@ fn handle_fab_q(
         fire_thriving(
             &mut moments,
             ThrivingKind::FirstProofPack,
-            time.elapsed_seconds_f64(),
+            time.elapsed_secs_f64(),
         );
     }
 }
 
 fn tick_bench_glow(time: Res<Time>, mut yard: ResMut<FabricatorYard>) {
     if yard.bench_glow > 0.0 {
-        yard.bench_glow = (yard.bench_glow - time.delta_seconds() * 0.55).max(0.0);
+        yard.bench_glow = (yard.bench_glow - time.delta_secs() * 0.55).max(0.0);
     }
 }
 
@@ -301,10 +298,8 @@ fn update_fab_slab(
     let place = fabricator_stood_place_label(travel.as_deref(), presence.as_deref());
     let line = fabricator_slab_at_place(&yard.fab, place);
     for mut text in &mut text_q {
-        if let Some(s) = text.sections.get_mut(0) {
-            if s.value != line {
-                s.value = line.clone();
-            }
+        if text.as_str() != line {
+            **text = line.clone();
         }
     }
 }
@@ -322,9 +317,9 @@ mod tests {
         app.update();
         let mut q = app
             .world_mut()
-            .query_filtered::<&Style, With<FabSlabRoot>>();
+            .query_filtered::<&Node, With<FabSlabRoot>>();
         let style = q.single(app.world()).clone();
-        let coded = Style {
+        let coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Px(88.0),
             left: Val::Percent(50.0),
@@ -355,8 +350,8 @@ mod tests {
             .query_filtered::<(&BorderColor, &BackgroundColor), With<FabSlabRoot>>();
         let (border, bg) = q.single(app.world());
         let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
-        let mut t = app.world_mut().query_filtered::<&Text, With<FabSlabText>>();
-        let txt = t.single(app.world()).sections[0].style.color.to_srgba();
+        let mut t = app.world_mut().query_filtered::<&TextColor, With<FabSlabText>>();
+        let txt = t.single(app.world()).0.to_srgba();
         for (got, want, what) in [
             (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
             (border, TITLE_BORDER.to_srgba(), "rim"),

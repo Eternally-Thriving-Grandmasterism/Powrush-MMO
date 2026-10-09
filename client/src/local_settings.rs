@@ -14,7 +14,7 @@
 //! · [`docs/ART_BIBLE.md`] · [`docs/ASSET_BUDGET_COURT.md`] @ `5eff19c`.
 //! Contact: info@Rathor.ai
 
-use bevy::input::gamepad::{GamepadRumbleRequest, Gamepads};
+use bevy::input::gamepad::GamepadRumbleRequest;
 use bevy::prelude::*;
 
 use shared::local_settings::{GraphicsPreset, LocalSettings, MeshLod};
@@ -341,7 +341,7 @@ fn persist_dirty_settings(mut settings: ResMut<LocalSettingsState>) {
 
 fn suppress_disabled_rumble(
     feedback: Res<LocalFeedbackFeel>,
-    gamepads: Res<Gamepads>,
+    gamepads: Query<Entity, With<Gamepad>>,
     mut requests: ResMut<Events<GamepadRumbleRequest>>,
     mut was_enabled: Local<Option<bool>>,
 ) {
@@ -352,7 +352,7 @@ fn suppress_disabled_rumble(
 
     requests.clear();
     if previously_enabled {
-        for gamepad in gamepads.iter() {
+        for gamepad in &gamepads {
             requests.send(GamepadRumbleRequest::Stop { gamepad });
         }
     }
@@ -581,7 +581,6 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .insert_resource(crate::lived_hour_bind::LivedHourBind::default())
             .insert_resource(open_label())
-            .init_resource::<bevy::input::gamepad::Gamepads>()
             .add_event::<bevy::input::gamepad::GamepadRumbleRequest>()
             .add_plugins(LocalSettingsPlugin)
             .add_plugins(crate::hud_presets::HudLayoutPlugin)
