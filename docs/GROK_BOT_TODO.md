@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `9fe03794` (`9fe03794f44d11107fb89aac541fd17e36613258`) — spent #592 through #595 (bank #593–#595 after TODO-SYNC-RITE #592; P3 CONTINUE-BAK-AWARE RETIRED, not cooked). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). Standing Next: [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT (recorded on #577) · #577–#584 SPENT (recorded on #585) · #585–#586 SPENT (recorded on #587) · #587–#588 SPENT (recorded on #589) · #589–#591 SPENT (recorded on #592) · #592–#595 SPENT on this tip.
+Tip `2c084e71` (`2c084e719c538b4b752da0383685bfd1bdc7ade9`) — spent #596 through #703. Spent #592 through #595 (bank #593–#595 after TODO-SYNC-RITE #592; P3 CONTINUE-BAK-AWARE RETIRED, not cooked). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). Standing Next: [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT (recorded on #577) · #577–#584 SPENT (recorded on #585) · #585–#586 SPENT (recorded on #587) · #587–#588 SPENT (recorded on #589) · #589–#591 SPENT (recorded on #592) · #592–#595 SPENT (recorded on #596) · #596–#703 SPENT on this tip.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -153,6 +153,113 @@ Court 2026-09-11–12. Do not re-litigate. Do not rebuild.
 - **#589 TODO-SYNC-GAPS** — Landed #589 / `4e9923d7` (`4e9923d752a612ab90e72ddcfe0c1e9264ff11b3`). PATHS `docs/GROK_BOT_TODO.md` (+21/−5) · `docs/NEXT_NAMED_CARDS.md` (+21/−7). Docs only. Docs stamp for the #587–#588 bank at tip `61ae66fb`. Spent. Cite only. Do not rebuild.
 - **#590 NAME-RITE-SEED** — Landed #590 / `1da57daf` (`1da57daf40c30efede5dae2c78acb737f4f98b46`). PATH exact `shared/house_name.rs` (+319/−6). A persisted seed with reuse order main, then .bak, then mint; last-good save (.tmp then rename, .bak only when the file parses). Spent. Cite only. Do not rebuild.
 - **#591 NAME-RITE-OFFER** — Landed #591 / tip `a6f838da` (`a6f838da8721052eb68c9061dd576f5aa03cafb3`). PATH exact `client/src/title_screen.rs` (+684/−27). After Settled with an Hour 1 persist and an unresolved house, the existing NameHouse hint reads 'the house calls you {offer}' from name_rite::offer(seed). The offer is pre-filled, so Enter accepts and Escape or an empty draft skips. Cold Title, resolved houses, and seed 0 never call offer. The disk seed is copied once at plate open, and the Settled mint is the only new disk write. Spent. Cite only. Do not rebuild.
+TODO-SYNC-RITE spent at #592 `2a7e90c0`. Stamp P1 NAME-RITE-DOC-SYNC #593 `29c4eb95`, P2 RITE-QUIT-SAFE #594 `0951567a`, P4 NAME-RITE-COPRIME #595 `9fe03794`. P3 CONTINUE-BAK-AWARE RETIRED, not cooked.
+- **#596** — CARD P5 TODO-SYNC (#596) · `36ad71f`. Spent. Cite only. Do not rebuild.
+- **#597** — DOCS-CYDRUID-FORM-1 (#597) · `b429f7b`. Spent. Cite only. Do not rebuild.
+- **#598** — DOCS-LORE-ORIGINS-1 (#598) · `7b84648`. Spent. Cite only. Do not rebuild.
+- **#599** — DOCS-CYDRUID-UPGRADE-PATH-1 (#599) · `868e60e`. Spent. Cite only. Do not rebuild.
+- **#600** — DOCS-CYDRUID-STANDING-1 (#600) · `6db11a7`. Spent. Cite only. Do not rebuild.
+- **#601** — AUDIT-LAUNCH-READINESS-1: launch readiness gap audit (docs only) (#601) · `b91979f`. Spent. Cite only. Do not rebuild.
+- **#602** — LR-01 SAVE-NAMED-ATOMIC-1: atomic write_named with .bak fallback (#602) · `ac5542f`. Spent. Cite only. Do not rebuild.
+- **#603** — LR-02 SAVE-HOUR-SET-1: tick-last ordered persist + warn (client/src/lived_hour_bind.rs) (#603) · `ce1b45f`. Spent. Cite only. Do not rebuild.
+- **#604** — NAMED-EXISTS-BAK-1: named_exists matches read_named (live or good .bak) (shared/user_persist.rs) (#604) · `828d1f9`. Spent. Cite only. Do not rebuild.
+- **#606** — CLIENT-ENV-LOCK-1: one crate-wide test lock for POWRUSH_USER_DIR (#606) · `9934329`. Spent. Cite only. Do not rebuild.
+- **#605** — LR-04 CRASH-LOG-HOOK-1: client panic hook appends data/crash.log (#605) · `287db83`. Spent. Cite only. Do not rebuild.
+- **#607** — LR-03 JOURNEY-SAVE-QUIET-1: journey echo writes only on real change, atomic via write_named (#607) · `03db948`. Spent. Cite only. Do not rebuild.
+- **#608** — CARD LR-08 LIVE-MOUTH-TICK-1 (#608) · `d0cde0c`. Spent. Cite only. Do not rebuild.
+- **#609** — docs(lr-05): re-mark launch checklist client claims against lived plugins (#609) · `c052552`. Spent. Cite only. Do not rebuild.
+- **#610** — ci(q2): CARD Q2-RELOAD-GATE-1 second boot keeps seeded lived-tick counts (#610) · `6b6fe4d`. Spent. Cite only. Do not rebuild.
+- **#611** — CARD ART-TARGET-1 — docs/VISUAL_TARGET.md (visual target as procedural knobs) (#611) · `8da2a9e`. Spent. Cite only. Do not rebuild.
+- **#613** — CARD GFX-TIER-LADDER-1 — GraphicsPreset Mobile + Ultra (additive ladder) (#613) · `0c44c94`. Spent. Cite only. Do not rebuild.
+- **#614** — CARD SKY-TIER-1: Mobile sky desaturates toward its luminance (#614) · `e9818c4`. Spent. Cite only. Do not rebuild.
+- **#615** — CARD DOCS-TIER-SYNC-1: five-tier ladder and Mobile sky in visual docs (#615) · `58eaab5`. Spent. Cite only. Do not rebuild.
+- **#616** — CARD FOG-OWNER-1: order six Update fog writers in one SystemSet (#616) · `ab449e3`. Spent. Cite only. Do not rebuild.
+- **#617** — CARD FOG-TIER-1: still Mobile fog wash via fog_bed_for (#617) · `6a33630`. Spent. Cite only. Do not rebuild.
+- **#618** — CARD FOG-HIGH-DEPTH-1: closer Depths fog end on High and Ultra (#618) · `d4f2676`. Spent. Cite only. Do not rebuild.
+- **#619** — CARD DOCS-FOG-SYNC-1: sync VISUAL_TARGET fog lines after #617/#618 (#619) · `60e979e`. Spent. Cite only. Do not rebuild.
+- **#620** — CARD FOG-ULTRA-VOLUMETRIC-1: Ultra VolumetricFogSettings + sun VolumetricLight (#620) · `a12e13c`. Spent. Cite only. Do not rebuild.
+- **#621** — CARD LIGHT-BLOOM-1: High/Ultra BloomSettings + HDR on world Camera3d (#621) · `ba80ea2`. Spent. Cite only. Do not rebuild.
+- **#622** — CARD GUIDANCE-AFTER-BOOK-1: after-book guidance names E tend (#622) · `4ad861b`. Spent. Cite only. Do not rebuild.
+- **#623** — CARD PLAYTEST-AUDIT-REFRESH-1: dated update notes in playtest audit (#623) · `3a954f9`. Spent. Cite only. Do not rebuild.
+- **#624** — CARD FRAME-TIME-LOG-1: log FPS and frame time to the console (#624) · `7d8ab72`. Spent. Cite only. Do not rebuild.
+- **#625** — CARD UI-SCALE-SLABS-1: scale climate slab and guidance card by text_scale (#625) · `650a26e`. Spent. Cite only. Do not rebuild.
+- **#626** — CARD UI-SCALE-SLABS-2: satchel plate fonts follow text_scale (#626) · `1d99f02`. Spent. Cite only. Do not rebuild.
+- **#627** — CARD UI-SCALE-DOC-1: stamp live text scale on FIRST_LAUNCH_UI_SCALE (#627) · `2a535fe`. Spent. Cite only. Do not rebuild.
+- **#628** — CARD PLACE-DRESS-STAMP-1 (LR-19): present-tense Place dress stamp (#628) · `9f1ebcc`. Spent. Cite only. Do not rebuild.
+- **#629** — CARD AUDIO-README-TRACK-1 (LR-18): tracked / generated / planned labels on audio READMEs (#629) · `293cf6f`. Spent. Cite only. Do not rebuild.
+- **#630** — FACTION-HERALDRY-0: docs/FACTION_HERALDRY.md (workshop finishes + house heraldry proposal; docs only) (#630) · `311b8e2`. Spent. Cite only. Do not rebuild.
+- **#631** — VP-FONT-1: Fira Sans (OFL) as the default UI font; no more tofu on lived-hour plates (#631) · `e8e49c2`. Spent. Cite only. Do not rebuild.
+- **#632** — VP-SKY-1: Sanctuary blue-sky valley (sky dome, mountain ring, conifer belt); VISUAL-PASS-1 (a) (#632) · `43fdcad`. Spent. Cite only. Do not rebuild.
+- **#633** — CARD VP-GRADE-1: one shadowed Sanctuary sun, AgX grade, dome casts no shadow (#633) · `f39b7dd`. Spent. Cite only. Do not rebuild.
+- **#634** — CARD WELL-GLOW-OWNER-1: one per-frame writer for well glow and light (#634) · `f4cf57e`. Spent. Cite only. Do not rebuild.
+- **#635** — CARD VP-BLOOM-MED-1 · gentle Medium bloom (#635) · `a8e9172`. Spent. Cite only. Do not rebuild.
+- **#636** — CARD VP-UI-REGAL-1 · regal gold and royal purple title palette (#636) · `679dc19`. Spent. Cite only. Do not rebuild.
+- **#637** — CARD VP-UI-REGAL-2 · title_screen inline colours to regal palette, champagne tab borders (#637) · `65794be`. Spent. Cite only. Do not rebuild.
+- **#638** — CARD VP-HUD-GOLD-1 · yard HUD plates to regal palette, opaque fills (#638) · `86fb478`. Spent. Cite only. Do not rebuild.
+- **#639** — CARD DESIGN-LAYERS-1 · layered games and authoritative server charter, docs only (#639) · `fdd2928`. Spent. Cite only. Do not rebuild.
+- **#640** — CARD DESIGN-LAYERS-2 · wider cast, world_harm_mode, reliability + challenge tiers · docs only (#640) · `777f2a4`. Spent. Cite only. Do not rebuild.
+- **#641** — CARD Q2-GRAB-SETTLE-1 · settle loop re-grabs black Q2 frame within budget · headless script only (#641) · `addb53d`. Spent. Cite only. Do not rebuild.
+- **#642** — CARD VP-PANELS-REGAL-1 · 12 panels to gold + royal purple title palette, mint scanner test (#642) · `124bb52`. Spent. Cite only. Do not rebuild.
+- **#643** — CARD VP-RIM-POLISH-1 · gold chip/well rims at alpha 1, rgb pulse, see-through touch overlay (#643) · `c9b3cf4`. Spent. Cite only. Do not rebuild.
+- **#644** — CARD VP-HUD-TOP-1: hide empty welcome plate; Sanctuary Prime + peer chips on TITLE palette (#644) · `7f8c090`. Spent. Cite only. Do not rebuild.
+- **#645** — CARD WELCOME-FIELD-1 (#645) · `1edf721`. Spent. Cite only. Do not rebuild.
+- **#646** — CARD STABILITY-BATCH-SPENT (#646) · `a375ee0`. Spent. Cite only. Do not rebuild.
+- **#647** — CARD GUIDANCE-AFTER-BOOK-1 (#647) · `d2c2dd4`. Spent. Cite only. Do not rebuild.
+- **#648** — CARD WELL-CONTEST-FEEL-1 (#648) · `fa7413b`. Spent. Cite only. Do not rebuild.
+- **#649** — CARD TEMPER-HOOK-DIGIT1 (#649) · `4934a4b`. Spent. Cite only. Do not rebuild.
+- **#650** — CARD UI-TEXT-PRESET-1 (#650) · `a1371a6`. Spent. Cite only. Do not rebuild.
+- **#651** — CARD SEAT-WINDOW-2026-10-04 (#651) · `cd36eff`. Spent. Cite only. Do not rebuild.
+- **#652** — CARD PLAYTEST-AUDIT-REFRESH-1 (#652) · `9d6abdc`. Spent. Cite only. Do not rebuild.
+- **#653** — CARD WELL-BEFORE-WARDS-1 (#653) · `63fcef9`. Spent. Cite only. Do not rebuild.
+- **#654** — CARD PRACTICE-AFTER-SEAL-1 (#654) · `0897bd7`. Spent. Cite only. Do not rebuild.
+- **#655** — CARD AUDIO-README-HONEST-1 (#655) · `0fe2720`. Spent. Cite only. Do not rebuild.
+- **#656** — CARD CLIENT-AUDIO-README-HONEST-1 (#656) · `681e335`. Spent. Cite only. Do not rebuild.
+- **#657** — CARD SEAT-WINDOW-CURSOR-1 (#657) · `a8576d4`. Spent. Cite only. Do not rebuild.
+- **#658** — CARD UI-SCALE-DOC-1 (#658) · `514a74d`. Spent. Cite only. Do not rebuild.
+- **#659** — CARD TEMPER-VISIBLE-1 (#659) · `39803ff`. Spent. Cite only. Do not rebuild.
+- **#660** — CARD PICKUP-STRIP-SCALE-1 (#660) · `6079676`. Spent. Cite only. Do not rebuild.
+- **#661** — CARD UI-SCALE-DOC-2 (#661) · `53d88d8`. Spent. Cite only. Do not rebuild.
+- **#662** — CARD UI-SCALE-DOC-3 (#662) · `9844ad7`. Spent. Cite only. Do not rebuild.
+- **#663** — CARD SEAT-WINDOW-CURSOR-2 (#663) · `7211c46`. Spent. Cite only. Do not rebuild.
+- **#664** — CARD HOUR-TEMPER-NOTE-1 (#664) · `72c6c19`. Spent. Cite only. Do not rebuild.
+- **#665** — CARD DOOR-LANDING-NOTE-1 (#665) · `0d04554`. Spent. Cite only. Do not rebuild.
+- **#666** — CARD DOOR-LINE-AFTER-TEND-1 (#666) · `7587efa`. Spent. Cite only. Do not rebuild.
+- **#667** — CARD SWARM-LESSON-1 (#667) · `a4b2bbd`. Spent. Cite only. Do not rebuild.
+- **#668** — CARD DOOR-LINE-CAN-CROSS-1 (#668) · `696db3f`. Spent. Cite only. Do not rebuild.
+- **#669** — CARD DOOR-LINE-NOT-EQ-1 (#669) · `e60605a`. Spent. Cite only. Do not rebuild.
+- **#670** — CARD VP-SLABS-REGAL-1 · compass, infra, sovereign and fabricator slabs to regal palette (#670) · `fca2caa`. Spent. Cite only. Do not rebuild.
+- **#672** — CARD VP-SLABS-REGAL-2 · embassy, hybrid matrix, thriving and foundation lattice slabs to regal palette (#672) · `84f22c1`. Spent. Cite only. Do not rebuild.
+- **#671** — CARD SYNC-WORKFLOW-FIX-1 · sync-from-ra-thor.yml parses; drop scratch checkout (#671) · `24a3ea9`. Spent. Cite only. Do not rebuild.
+- **#673** — CARD SYNC-WORKFLOW-RETIRE-1 · retire sync-from-ra-thor.yml (#673) · `8b8fa14`. Spent. Cite only. Do not rebuild.
+- **#674** — CARD DOCS-LR07-RETIRE-1 · mark LR-07 retired by #673 in docs (#674) · `42a0bae`. Spent. Cite only. Do not rebuild.
+- **#675** — CARD VP-SLABS-REGAL-3 · coop voice + ledger slabs on TITLE_* palette (#675) · `a51f7ee`. Spent. Cite only. Do not rebuild.
+- **#676** — CARD HUD-SLAB-MAP-1: docs/visual-pass/HUD_SLAB_MAP.md (#676) · `47dbc43`. Spent. Cite only. Do not rebuild.
+- **#677** — CARD VOICE-ABOVE-LEDGER-1: voice slab bottom 88 -> 144 (#677) · `6092b9b`. Spent. Cite only. Do not rebuild.
+- **#678** — CARD CARE-PROMPT-YIELD-1: world-care prompt yields to active care strip (#678) · `027c980`. Spent. Cite only. Do not rebuild.
+- **#679** — CARD UI-LAYOUT-DESIGN-1 · docs/design/UI_LAYOUT_SYSTEM.md, step 1 of the UI layout epic (#679) · `4ec8054`. Spent. Cite only. Do not rebuild.
+- **#680** — CARD HUD-ANCHOR-REGISTRY-1: central HUD anchor registry (step 2a) (#680) · `e4db01f`. Spent. Cite only. Do not rebuild.
+- **#681** — CARD HUD-ANCHOR-REGISTRY-1B: hour-1 Guidance outranks CarePrompt, one shared helper, seventh accepted pair (#681) · `8a79ce3`. Spent. Cite only. Do not rebuild.
+- **#682** — CARD HUD-ANCHOR-REGISTRY-2B: 21 as-is HUD slabs read positions from the registry, byte-identical (#682) · `71f4961`. Spent. Cite only. Do not rebuild.
+- **#683** — CARD HUD-PRESETS-1 (step 3a): preset tables + R3/R4/R5 predicates + pure tests (#683) · `011d2bd`. Spent. Cite only. Do not rebuild.
+- **#684** — CARD HUD-PRESETS-APPLY-1 (step 3b): HudLayoutPlugin, dark by default + runtime R2-R5 + T4/T6/T7 (#684) · `4fc13ba`. Spent. Cite only. Do not rebuild.
+- **#685** — COMBAT-PVP-DESIGN-1: combat & PvP design doc (docs only) (#685) · `1316dda`. Spent. Cite only. Do not rebuild.
+- **#686** — LEGACY-GDD-RECON-1: legacy GDD v1.5-v2.1 reconciliation (docs only) (#686) · `421d895`. Spent. Cite only. Do not rebuild.
+- **#687** — HUD-PRESETS-UI-1 (3c): HUD tab, preset cycle, Reset UI, saved hud_preset (#687) · `660e657`. Spent. Cite only. Do not rebuild.
+- **#688** — FACTION-LEADERS-1: docs/design/FACTION_LEADERS.md + DESIGN-INDEX line (#688) · `04ca080`. Spent. Cite only. Do not rebuild.
+- **#689** — SOLMARIS-RENAME-1: Quellorian leader is High Luminar Solmaris Orynthe (#689) · `1d1334f`. Spent. Cite only. Do not rebuild.
+- **#690** — HUD-EDIT-DATA-1 (4a): saved-layout data, edit rules and classify (#690) · `2334af4`. Spent. Cite only. Do not rebuild.
+- **#691** — WEB-PORTAL-LORE-1: race-card copy to canon, Draexx→Draek in GDD_ADAPTATION L39 (#691) · `b2a0926`. Spent. Cite only. Do not rebuild.
+- **#693** — docs(lore): rename the Unbound to Vrendak (VRENDAK-RENAME-1) (#693) · `5511f36`. Spent. Cite only. Do not rebuild.
+- **#692** — docs(design): server morality, double agents and heaven-hell meter (SERVER-MORALITY-1) (#692) · `3e78d41`. Spent. Cite only. Do not rebuild.
+- **#694** — docs(lore): unconfirmed fled-sect clues + Vrendak's veterans (DRAEK-FLED-SECT-CLUES-1) (#694) · `5e1ec85`. Spent. Cite only. Do not rebuild.
+- **#695** — feat(client): HUD edit mode runtime (HUD-EDIT-MODE-1, 4b) (#695) · `82679ea`. Spent. Cite only. Do not rebuild.
+- **#696** — CARD CODEX-ART-PROMPTS-1 (#696) · `decdc1f`. Spent. Cite only. Do not rebuild.
+- **#697** — chore: nits sweep, PvP wording, morality nits, duplicate test attr (NITS-SWEEP-1) (#697) · `3bb35a2`. Spent. Cite only. Do not rebuild.
+- **#698** — docs: one-world site art look, Draek plates, pale-gold disc (ART-BIBLE-COHESION-1) (#698) · `b77e939`. Spent. Cite only. Do not rebuild.
+- **#699** — web-portal: drop legacy Solana NFT claim (SITE-NFT-OFF-1) (#699) · `f7bd094`. Spent. Cite only. Do not rebuild.
+- **#700** — docs: Cydruid stalactite city may become a later Place (PLACE-CYDRUID-CITY-1) (#700) · `d3decdb`. Spent. Cite only. Do not rebuild.
+- **#701** — ci: first-line Dual GREEN + Core VOTE guard before auto-merge (GH-DUAL-GUARD-1) (#701) · `7beb09b`. Spent. Cite only. Do not rebuild.
+- **#703** — CARD LOADING-SCREEN-1: boot loading overlay with real asset progress and rotating lines (#703) · `2c084e7`. Spent. Cite only. Do not rebuild.
 - **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is named on [`BOT_RESET_QUEUE.md`](BOT_RESET_QUEUE.md) after CLERK-LAG-LABELS. Do not open a heartbeat PR from this stamp.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
@@ -161,7 +268,7 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT. Standing Next is [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). Cook that file. Do not copy a second queue onto this page.
 
-0. **CARD P5 TODO-SYNC** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. TODO-SYNC-RITE spent at #592 `2a7e90c0`. Stamp P1 NAME-RITE-DOC-SYNC #593 `29c4eb95`, P2 RITE-QUIT-SAFE #594 `0951567a`, P4 NAME-RITE-COPRIME #595 `9fe03794`. P3 CONTINUE-BAK-AWARE RETIRED, not cooked. Next: HEARTBEAT, then DARK. No new card named.
+0. **CARD TODO-SYNC-703** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Next: HEARTBEAT, then Gap 7 (pending Sherif's word for .github/**). No other card named.
 1. **Standing Next** — [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). CLERK-LAG-LABELS is spent (#578). Do not invent PATHS.
 
 Bounds (not cards):
@@ -183,9 +290,9 @@ Named later (not ranked · needs Core bounds before anyone cooks · not fixed on
 
 Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/src/lib.rs`) → JUNCTION · HOLD · Dual names PATH.
 
-**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 9fe03794. Method B confirm UI stays JUNCTION until Steward names PATH.
+**STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 2c084e71. Method B confirm UI stays JUNCTION until Steward names PATH.
 
-**Effective order (verified):** P5 TODO-SYNC → HEARTBEAT → DARK. No new card named.
+**Effective order (verified):** TODO-SYNC-703 → HEARTBEAT → Gap 7 (pending Sherif's word for .github/**). No other card named.
 
 **DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · Bevy bump · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.14. Playable-preview tag `11c577e`. No OFFER NEXT.
 
@@ -195,7 +302,7 @@ NEVER: race lobby · five-gate Title · gold · XP HUD · Market · Unreal.
 
 Grok Hands cook Grok 4.7 Extra High (non-fast); fallback 4.7 High. Never Fast / Codex / GPT / Claude / Auto / Composer. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 
-## Gaps @ tip 9fe03794
+## Gaps @ tip 2c084e71
 
 Listed, not queued.
 
@@ -205,8 +312,8 @@ Listed, not queued.
 4. 0 TODO markers in compiled modules at 61ae66fb; the markers found sit in uncompiled files. Gate: folded into the gap-1 audit, no separate sweep card.
 5. Name rite offer is on the existing NameHouse hint after Settled (#591). Cold Title, resolved houses, and seed 0 never call offer. Gate: spent.
 6. Human gates open: playtest minutes, Steam App ID, Online R2, Bevy climb (pin 0.14). Gate: SHERIF GATE.
-7. CI runs cargo test on ubuntu only; no shippable build or artifact. Gate: candidate; needs Core bounds and Sherif's word before any .github/** change.
-8. No panic hook / crash log. Gate: candidate; local file only, no upload.
+7. CI runs cargo test on ubuntu only; no shippable build or artifact. Gate: candidate; needs Core bounds and Sherif's word before any .github/** change. Note: needs .github/** so it waits for Sherif's own word.
+8. No panic hook / crash log. Spent by #605 LR-04 CRASH-LOG-HOOK-1 @ `287db83`. Gate: spent.
 9. name_rite given and house lists were both 12 words. P4 NAME-RITE-COPRIME spent at #595, main `9fe03794`: HOUSE appended "Vysholt", lists now 12 GIVEN x 13 HOUSE, coprime, 156 distinct offers. Gate: spent.
 10. When only .bak survives, Continue checks the main file only. P3 CONTINUE-BAK-AWARE RETIRED: already covered by the `HouseName::load_from_path` `.bak` fallback from #590. Not cooked. Gate: retired.
 11. Quit with plate open. P2 RITE-QUIT-SAFE spent at #594, main `0951567a`. Gate: spent.
