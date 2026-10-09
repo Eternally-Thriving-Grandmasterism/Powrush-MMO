@@ -1082,7 +1082,7 @@ pub(crate) fn track_simple_progress_signals(
         guidance.near_glow = near.in_range;
     }
 
-    if let Some(bind) = bind {
+    if let Some(bind) = bind.as_deref() {
         let taken = bind.satchel_count() as u32
             + bind.hour.allocation.flow
             + bind.hour.allocation.reserve;
@@ -1150,7 +1150,11 @@ pub(crate) fn track_simple_progress_signals(
             guidance.free_since = 0.0;
         } else if guidance.objective == GuidanceObjective::FreeExploration && guidance.free_since > 8.0
         {
+            // CARD HOUR-CARD-END-1 — this branch only. H hush does not persist.
             guidance.dismiss();
+            if let Some(bind) = bind.as_deref() {
+                bind.persist();
+            }
         }
     }
 }
@@ -3160,5 +3164,129 @@ mod tests {
         let walked = walking.world().resource::<FirstSessionGuidance>();
         assert!((walked.moved_distance - 5.0).abs() < 1e-4);
         assert_eq!(walked.objective, GuidanceObjective::ApproachGlowingNode);
+    }
+
+    /// Restores the user-dir override on drop, including panic.
+    struct RestoreUserDir(Option<String>);
+
+    impl Drop for RestoreUserDir {
+        fn drop(&mut self) {
+            match &self.0 {
+                Some(value) => {
+                    std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value)
+                }
+                None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
+            }
+        }
+    }
+
+    fn hour_card_end_scratch(tag: &str) -> (std::path::PathBuf, RestoreUserDir) {
+        let dir = std::env::temp_dir().join(format!(
+            "powrush-hour-card-end-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("temp user dir");
+        let prev_dir = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+        (dir, RestoreUserDir(prev_dir))
+    }
+
+    /// Bevy's first real-time sample records the instant and leaves delta at 0.
+    /// That update only starts the manual clock. `free_since` is set after it,
+    /// so the caller's `app.update()` is the one that moves the timer.
+    fn hour_card_end_app(free_since: f32) -> App {
+        use bevy::ecs::schedule::ExecutorKind;
+        use bevy::time::TimeUpdateStrategy;
+        use std::time::Duration;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+                200,
+            )))
+            .init_resource::<FirstSessionGuidance>()
+            .insert_resource(ButtonInput::<KeyCode>::default())
+            .insert_resource(l5_demo_bind())
+            .add_systems(Update, track_simple_progress_signals);
+        app.edit_schedule(Update, |schedule| {
+            schedule.set_executor_kind(ExecutorKind::SingleThreaded);
+        });
+        app.update();
+        {
+            let mut guidance = app.world_mut().resource_mut::<FirstSessionGuidance>();
+            guidance.objective = GuidanceObjective::FreeExploration;
+            guidance.free_since = free_since;
+            guidance.active = true;
+            guidance.dismissed = false;
+        }
+        app
+    }
+
+    /// CARD HOUR-CARD-END-1 — free_since sits on the 8s edge. One update pushes
+    /// it past 8, dismisses the card, and writes the lived tick.
+    #[test]
+    fn hour_card_end_past_eight_persists_lived_tick() {
+        let _user_dir = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("end");
+        let tick = dir.join("powrush_lived_tick.json");
+        let mut app = hour_card_end_app(8.0);
+        assert!(!tick.exists(), "arming the clock does not end the card");
+        app.update();
+        let guidance = app.world().resource::<FirstSessionGuidance>();
+        assert!(guidance.dismissed);
+        assert!(!guidance.active);
+        assert!(guidance.free_since > 8.0);
+        assert!(tick.is_file());
+        assert!(std::fs::metadata(&tick).expect("tick meta").len() > 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// CARD HOUR-CARD-END-1 — free_since still under 8 after the update stays
+    /// on the card and writes nothing.
+    #[test]
+    fn hour_card_end_under_eight_writes_nothing() {
+        let _user_dir = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("under");
+        let mut app = hour_card_end_app(7.0);
+        app.update();
+        let guidance = app.world().resource::<FirstSessionGuidance>();
+        assert!(!guidance.dismissed);
+        assert!(guidance.active);
+        assert!(guidance.free_since < 8.0);
+        assert_eq!(guidance.objective, GuidanceObjective::FreeExploration);
+        assert!(!dir.join("powrush_lived_tick.json").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// CARD HOUR-CARD-END-1 — H hush dismisses and hides. It does not persist.
+    #[test]
+    fn hour_card_end_h_hush_writes_nothing() {
+        use bevy::ecs::schedule::ExecutorKind;
+
+        let _user_dir = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("hush");
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<FirstSessionGuidance>()
+            .insert_resource(ButtonInput::<KeyCode>::default())
+            .insert_resource(l5_demo_bind())
+            .add_systems(Update, handle_guidance_dismiss_input);
+        app.edit_schedule(Update, |schedule| {
+            schedule.set_executor_kind(ExecutorKind::SingleThreaded);
+        });
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyH);
+        app.update();
+        let guidance = app.world().resource::<FirstSessionGuidance>();
+        assert!(guidance.dismissed);
+        assert!(!guidance.active);
+        assert!(app.world().resource::<LivedHourBind>().guidance_hidden);
+        assert!(!dir.join("powrush_lived_tick.json").exists());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
