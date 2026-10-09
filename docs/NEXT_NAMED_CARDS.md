@@ -653,7 +653,7 @@ Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / 
 
 **PATHS:** `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`
 
-Next: HEARTBEAT, then Gap 7 (pending Sherif's word for .github/**). No other card named.
+Next: OFFLINE-BUILD-1 spent (build-only CI artifact, .github/workflows/offline-build.yml; Sherif's word 2026-10-09 via Lead Mate); next HEARTBEAT. No other card named.
 
 ### 1. Standing Next — [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md)
 
@@ -680,7 +680,7 @@ Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/s
 
 **STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 2c084e71. Method B confirm UI stays JUNCTION until Steward names PATH.
 
-**Effective order (verified):** TODO-SYNC-703 → HEARTBEAT → Gap 7 (pending Sherif's word for .github/**). No other card named.
+**Effective order (verified):** OFFLINE-BUILD-1 spent (build-only CI artifact, .github/workflows/offline-build.yml; Sherif's word 2026-10-09 via Lead Mate); next HEARTBEAT. No other card named.
 
 Gaps @ tip 2c084e71: listed, not queued, in [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md).
 
