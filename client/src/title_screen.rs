@@ -1342,7 +1342,14 @@ impl Plugin for TitleScreenPlugin {
                 Update,
                 refresh_peace_rebind_labels.after(capture_peace_rebind),
             )
-            .add_systems(Update, esc_yard_pause.after(InputMapSet));
+            .add_systems(Update, esc_yard_pause.after(InputMapSet))
+            // Idempotent if WindowPlugin already registered it. Tests that add
+            // this plugin without a window still have the event resource.
+            .add_event::<bevy::window::WindowCloseRequested>()
+            .add_systems(
+                Update,
+                persist_in_yard_on_window_close.before(bevy::window::close_when_requested),
+            );
     }
 }
 
@@ -2670,7 +2677,7 @@ fn pause_plate_clicks(
     }
     for i in &quit {
         if *i == Interaction::Pressed {
-            // Same window-close / Settings quit path — not Esc.
+            // Pause Quit (not Esc).
             label.settings_open = false;
             if let Some(places) = places.as_mut() {
                 places.close_door();
@@ -2689,6 +2696,20 @@ fn persist_in_yard_hour(door: LaunchDoor, label: &mut HouseLabel, bind: Option<&
         if let Some(bind) = bind {
             bind.persist();
         }
+    }
+}
+
+/// Window close (X / Alt-F4): the same InYard saves, once per frame.
+/// Leaves the door, the pause plate, and `close_when_requested` alone.
+fn persist_in_yard_on_window_close(
+    mut close: EventReader<bevy::window::WindowCloseRequested>,
+    door: Res<LaunchDoor>,
+    mut label: ResMut<HouseLabel>,
+    bind: Option<Res<LivedHourBind>>,
+) {
+    if close.read().next().is_some() {
+        persist_in_yard_hour(*door, &mut label, bind.as_deref());
+        close.clear();
     }
 }
 
@@ -6823,6 +6844,58 @@ mod tests {
         assert!(!label.persist_present);
         assert!(!label.naming_offered);
         assert!(label.settings_open);
+        assert!(!dir.join("powrush_house.json").exists());
+        assert!(!dir.join("powrush_lived_tick.json").exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Window close from the yard writes the house file and the lived bind.
+    #[test]
+    fn window_close_from_yard_writes_house_and_lived_tick() {
+        let _user_dir = crate::test_env::lock();
+        let (dir, _restore) = quit_hour_scratch("close-yard");
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_event::<bevy::window::WindowCloseRequested>()
+            .insert_resource(LaunchDoor::InYard)
+            .insert_resource(unresolved_pause_label())
+            .insert_resource(l5_demo_bind())
+            .add_systems(Update, super::persist_in_yard_on_window_close);
+        // Persist runs on this thread so it can reenter the user-dir lock.
+        app.edit_schedule(Update, |schedule| {
+            schedule.set_executor_kind(bevy::ecs::schedule::ExecutorKind::SingleThreaded);
+        });
+        app.world_mut()
+            .send_event(bevy::window::WindowCloseRequested {
+                window: Entity::PLACEHOLDER,
+            });
+        app.update();
+        assert!(dir.join("powrush_house.json").is_file());
+        assert!(dir.join("powrush_lived_tick.json").is_file());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// Window close on Title writes neither the house file nor the lived bind.
+    #[test]
+    fn window_close_from_title_writes_neither_file() {
+        let _user_dir = crate::test_env::lock();
+        let (dir, _restore) = quit_hour_scratch("close-title");
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_event::<bevy::window::WindowCloseRequested>()
+            .insert_resource(LaunchDoor::Title)
+            .insert_resource(unresolved_pause_label())
+            .insert_resource(l5_demo_bind())
+            .add_systems(Update, super::persist_in_yard_on_window_close);
+        // Persist runs on this thread so it can reenter the user-dir lock.
+        app.edit_schedule(Update, |schedule| {
+            schedule.set_executor_kind(bevy::ecs::schedule::ExecutorKind::SingleThreaded);
+        });
+        app.world_mut()
+            .send_event(bevy::window::WindowCloseRequested {
+                window: Entity::PLACEHOLDER,
+            });
+        app.update();
         assert!(!dir.join("powrush_house.json").exists());
         assert!(!dir.join("powrush_lived_tick.json").exists());
         let _ = std::fs::remove_dir_all(&dir);
