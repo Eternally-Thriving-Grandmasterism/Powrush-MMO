@@ -75,6 +75,8 @@ pub mod resonance_flavors;
 pub mod mercy_transporters;
 pub mod steam_abundance_mirror;
 pub mod ui_font;
+pub mod loading_lines;
+pub mod loading_screen;
 
 /// CARD CLIENT-ENV-LOCK-1 — one process-wide lock for `POWRUSH_USER_DIR` in `--lib` tests.
 #[cfg(test)]
@@ -206,6 +208,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(local_sovereign_session::LocalSovereignSessionPlugin);
         app.add_plugins(hud_presets::HudLayoutPlugin);
         app.add_plugins(hud_edit_mode::HudEditModePlugin);
+        app.add_plugins(loading_screen::LoadingScreenPlugin);
     }
 }
 
