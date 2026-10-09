@@ -3966,7 +3966,7 @@ mod tests {
         assert!(main_fn.contains("WORLD_TONEMAPPING"));
         assert!(main_fn.contains("world_color_grading()"));
         assert_eq!(main_fn.matches("Camera3d").count(), 1);
-        assert!(!fallback_fn.contains("Camera3dBundle"));
+        assert!(!fallback_fn.contains("Camera3d::default()"));
     }
 
     /// CARD VP-GRADE-1 — AgX on the world camera; the grade is subtle.

@@ -270,7 +270,7 @@ fn merged(parts: impl IntoIterator<Item = Mesh>) -> Option<Mesh> {
     let mut it = parts.into_iter();
     let mut first = it.next()?;
     for m in it {
-        first.merge(&m);
+        first.merge(&m).expect("sky_backdrop mesh merge");
     }
     Some(first)
 }
