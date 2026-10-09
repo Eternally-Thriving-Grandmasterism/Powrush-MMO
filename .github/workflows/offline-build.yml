@@ -40,6 +40,8 @@ jobs:
       - name: Package offline dist
         id: package
         shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
           set -euo pipefail
           case "${RUNNER_OS}" in
@@ -60,10 +62,18 @@ jobs:
             echo "release binary missing: ${bin}" >&2
             exit 1
           fi
-          sha8="${GITHUB_SHA:0:8}"
+          sha8="${HEAD_SHA:0:8}"
           dist="dist/powrush-offline-${os}-${sha8}"
           mkdir -p "${dist}/assets"
-          cp -f "${bin}" "${dist}/"
+          if [[ "${os}" == "linux" ]]; then
+            # tar from the binary's directory so the archive member is ./powrush-client
+            (
+              cd "$(dirname "${bin}")" || exit 1
+              tar czf "${OLDPWD}/${dist}/powrush-offline-linux-${sha8}.tar.gz" powrush-client
+            )
+          else
+            cp -f "${bin}" "${dist}/"
+          fi
           # Root assets first. client/assets wins on clash
           # (shaders/forgiveness_wave.wgsl, audio/README.md).
           cp -a assets/. "${dist}/assets/"
@@ -73,9 +83,15 @@ jobs:
           Online is grey and disabled.
           This is a prototype CI artifact, not a release.
           EOF
-          echo "os=${os}" >> "${GITHUB_OUTPUT}"
-          echo "sha8=${sha8}" >> "${GITHUB_OUTPUT}"
-          echo "dist=${dist}" >> "${GITHUB_OUTPUT}"
+          cat >> "${dist}/README.txt" << EOF
+          Linux: tar xzf powrush-offline-linux-${sha8}.tar.gz, then ./powrush-client (from this folder, next to assets/).
+          Windows: run powrush-client.exe (next to assets/).
+          EOF
+          {
+            echo "os=${os}"
+            echo "sha8=${sha8}"
+            echo "dist=${dist}"
+          } >> "${GITHUB_OUTPUT}"
 
       - name: Upload offline artifact
         uses: actions/upload-artifact@v4
