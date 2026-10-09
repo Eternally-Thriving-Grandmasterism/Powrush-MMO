@@ -1356,8 +1356,8 @@ impl Plugin for TitleScreenPlugin {
 fn spawn_title_screen(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
@@ -1371,12 +1371,11 @@ fn spawn_title_screen(mut commands: Commands) {
                     ..default()
                 },
                 // Opaque dimmer — soft GPU must not alpha-blend menu into fog.
-                background_color: TITLE_DIM_BG.into(),
-                                // Consume pointer focus across the opaque title door so clicks
+                BackgroundColor(TITLE_DIM_BG),
+                // Consume pointer focus across the opaque title door so clicks
                 // in its gaps cannot reach world UI/interactions below it.
-                focus_policy: FocusPolicy::Block,
-                ..default()
-            },
+                FocusPolicy::Block,
+            ),
 GlobalZIndex(LIVED_UI_Z_TITLE),
             TitleRoot,
             TitleBreath,
@@ -1384,8 +1383,8 @@ GlobalZIndex(LIVED_UI_Z_TITLE),
         ))
         .with_children(|root| {
             root.spawn((
-                NodeBundle {
-                    node: Node {
+                (
+                    Node {
                         width: Val::Percent(100.0),
                         max_width: Val::Px(TITLE_PLATE_MAX_WIDTH),
                         max_height: Val::Percent(100.0),
@@ -1396,10 +1395,9 @@ GlobalZIndex(LIVED_UI_Z_TITLE),
                         align_items: AlignItems::Stretch,
                         ..default()
                     },
-                    background_color: TITLE_PLATE_BG.into(),
-                    border_color: TITLE_BORDER.into(),
-                    ..default()
-                },
+                    BackgroundColor(TITLE_PLATE_BG),
+                    BorderColor(TITLE_BORDER),
+                ),
                 TitlePlate,
             ))
             .with_children(|p| {
@@ -1457,8 +1455,8 @@ fn spawn_comfort_graphics_banner(mut commands: Commands) {
     // Top-of-screen strip — title / yard pause first-launch only. Online stays grey.
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: Val::Px(10.0),
                     left: Val::Percent(50.0),
@@ -1475,12 +1473,11 @@ fn spawn_comfort_graphics_banner(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                                focus_policy: FocusPolicy::Block,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                FocusPolicy::Block,
+                Visibility::Hidden,
+            ),
 GlobalZIndex(LIVED_UI_Z_PAUSE + 1),
             ComfortGraphicsBannerRoot,
             LivedUiPlate,
@@ -1492,17 +1489,17 @@ TextFont { font_size: 13.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
             row.spawn((
-                ButtonBundle {
-                    node: Node {
+                (
+                    Button,
+                    Node {
                         padding: UiRect::axes(Val::Px(10.0), Val::Px(6.0)),
                         justify_content: JustifyContent::Center,
                         border: UiRect::all(Val::Px(1.0)),
                         ..default()
                     },
-                    background_color: TITLE_BTN_BG.into(),
-                    border_color: TITLE_BORDER.into(),
-                    ..default()
-                },
+                    BorderColor(TITLE_BORDER),
+                    BackgroundColor(TITLE_BTN_BG),
+                ),
                 ComfortGraphicsBannerDismissBtn,
             ))
             .with_children(|b| {
@@ -1572,7 +1569,7 @@ fn comfort_graphics_banner_dismiss_clicks(
     }
 }
 
-fn spawn_menu_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C, enabled: bool) {
+fn spawn_menu_btn<C: Component>(p: &mut ChildSpawnerCommands, label: &str, marker: C, enabled: bool) {
     let bg = if enabled {
         TITLE_BTN_BG
     } else {
@@ -1584,17 +1581,17 @@ fn spawn_menu_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C, en
         TITLE_BTN_DISABLED_FG
     };
     p.spawn((
-        ButtonBundle {
-            node: Node {
+        (
+            Button,
+            Node {
                 padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(1.0)),
                 ..default()
             },
-            background_color: bg.into(),
-            border_color: TITLE_BORDER.into(),
-            ..default()
-        },
+            BorderColor(TITLE_BORDER),
+            BackgroundColor(bg),
+        ),
         marker,
     ))
     .with_children(|b| {
@@ -1610,8 +1607,8 @@ fn spawn_settings_stub(mut commands: Commands) {
     // D1 Pause honesty + D2 local settings — Comfort · Controls · Guide tabs (no second HUD).
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     // Single active tab keeps the Settings plate readable at 720p.
                     top: Val::Percent(1.0),
@@ -1629,13 +1626,12 @@ fn spawn_settings_stub(mut commands: Commands) {
                     align_items: AlignItems::Center,
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                                // Keep pause chrome hits on this plate (Places door + tabs + Resume).
-                focus_policy: FocusPolicy::Block,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                // Keep pause chrome hits on this plate (Places door + tabs + Resume).
+                FocusPolicy::Block,
+                Visibility::Hidden,
+            ),
 GlobalZIndex(LIVED_UI_Z_PAUSE),
             SettingsStubRoot,
             LivedUiPlate,
@@ -1650,16 +1646,13 @@ TextColor(TITLE_TEXT_PRIMARY),
                 PauseCueText,
             ));
             // Tab strip — click or Tab / [ ] while pause is open.
-            p.spawn(NodeBundle {
-                node: Node {
+            p.spawn(Node {
                     width: Val::Percent(100.0),
                     flex_direction: FlexDirection::Row,
                     column_gap: Val::Px(6.0),
                     justify_content: JustifyContent::Center,
                     ..default()
-                },
-                ..default()
-            })
+                })
             .with_children(|tabs| {
                 for tab in PauseTab::ALL {
                     spawn_pause_tab_btn(tabs, tab);
@@ -1823,8 +1816,8 @@ Node {
 fn spawn_name_house_panel(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
@@ -1832,17 +1825,16 @@ fn spawn_name_house_panel(mut commands: Commands) {
                     align_items: AlignItems::Center,
                     ..default()
                 },
-                background_color: TITLE_DIM_BG.into(),
-                visibility: Visibility::Hidden,
-                                ..default()
-            },
+                BackgroundColor(TITLE_DIM_BG),
+                Visibility::Hidden,
+            ),
 GlobalZIndex(140),
             NameHouseRoot,
             LivedUiPlate,
         ))
         .with_children(|root| {
-            root.spawn(NodeBundle {
-                node: Node {
+            root.spawn((
+                Node {
                     width: Val::Px(400.0),
                     padding: UiRect::all(Val::Px(18.0)),
                     flex_direction: FlexDirection::Column,
@@ -1850,10 +1842,9 @@ GlobalZIndex(140),
                     border: UiRect::all(Val::Px(1.5)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                ..default()
-            })
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+            ))
             .with_children(|p| {
                 p.spawn((
 Text::new("Name your House"),
@@ -1885,8 +1876,8 @@ TextColor(TITLE_TEXT_PRIMARY),
 fn spawn_house_dress_panel(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
@@ -1894,17 +1885,16 @@ fn spawn_house_dress_panel(mut commands: Commands) {
                     align_items: AlignItems::Center,
                     ..default()
                 },
-                background_color: TITLE_DIM_BG.into(),
-                visibility: Visibility::Hidden,
-                                ..default()
-            },
+                BackgroundColor(TITLE_DIM_BG),
+                Visibility::Hidden,
+            ),
 GlobalZIndex(141),
             HouseDressRoot,
             LivedUiPlate,
         ))
         .with_children(|root| {
-            root.spawn(NodeBundle {
-                node: Node {
+            root.spawn((
+                Node {
                     width: Val::Px(420.0),
                     padding: UiRect::all(Val::Px(18.0)),
                     flex_direction: FlexDirection::Column,
@@ -1912,10 +1902,9 @@ GlobalZIndex(141),
                     border: UiRect::all(Val::Px(1.5)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                ..default()
-            })
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+            ))
             .with_children(|p| {
                 p.spawn((
 Text::new("House seals · heritage"),
@@ -1931,18 +1920,18 @@ TextColor(TITLE_TEXT_SECONDARY),
                 spawn_dress_seal_row(p, "Grove", DressSealGroveBtn, DressSealGroveLabel);
                 spawn_dress_seal_row(p, "Ember", DressSealEmberBtn, DressSealEmberLabel);
                 p.spawn((
-                    ButtonBundle {
-                        node: Node {
+                    (
+                        Button,
+                        Node {
                             padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
                             justify_content: JustifyContent::Center,
                             border: UiRect::all(Val::Px(1.0)),
                             width: Val::Percent(100.0),
                             ..default()
                         },
-                        background_color: TITLE_BTN_BG.into(),
-                        border_color: TITLE_BORDER.into(),
-                        ..default()
-                    },
+                        BorderColor(TITLE_BORDER),
+                        BackgroundColor(TITLE_BTN_BG),
+                    ),
                     DressHeritageBtn,
                 ))
                 .with_children(|b| {
@@ -1963,24 +1952,24 @@ TextColor(TITLE_BTN_FG),
 }
 
 fn spawn_dress_seal_row<B: Component, L: Component>(
-    p: &mut ChildBuilder,
+    p: &mut ChildSpawnerCommands,
     label: &str,
     btn: B,
     text_marker: L,
 ) {
     p.spawn((
-        ButtonBundle {
-            node: Node {
+        (
+            Button,
+            Node {
                 padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(1.0)),
                 width: Val::Percent(100.0),
                 ..default()
             },
-            background_color: TITLE_BTN_BG.into(),
-            border_color: TITLE_BORDER.into(),
-            ..default()
-        },
+            BorderColor(TITLE_BORDER),
+            BackgroundColor(TITLE_BTN_BG),
+        ),
         btn,
     ))
     .with_children(|b| {
@@ -1996,24 +1985,24 @@ TextColor(TITLE_BTN_FG),
 }
 
 fn spawn_persona_cycle_btn<B: Component, L: Component>(
-    p: &mut ChildBuilder,
+    p: &mut ChildSpawnerCommands,
     initial: &str,
     btn: B,
     text_marker: L,
 ) {
     p.spawn((
-        ButtonBundle {
-            node: Node {
+        (
+            Button,
+            Node {
                 padding: UiRect::axes(Val::Px(12.0), Val::Px(8.0)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(1.0)),
                 width: Val::Percent(100.0),
                 ..default()
             },
-            background_color: TITLE_BTN_BG.into(),
-            border_color: TITLE_BORDER.into(),
-            ..default()
-        },
+            BorderColor(TITLE_BORDER),
+            BackgroundColor(TITLE_BTN_BG),
+        ),
         btn,
     ))
     .with_children(|b| {
@@ -2031,8 +2020,8 @@ TextColor(TITLE_BTN_FG),
 fn spawn_persona_creator_panel(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
@@ -2040,18 +2029,17 @@ fn spawn_persona_creator_panel(mut commands: Commands) {
                     align_items: AlignItems::Center,
                     ..default()
                 },
-                background_color: TITLE_DIM_BG.into(),
-                visibility: Visibility::Hidden,
-                                focus_policy: FocusPolicy::Block,
-                ..default()
-            },
+                BackgroundColor(TITLE_DIM_BG),
+                FocusPolicy::Block,
+                Visibility::Hidden,
+            ),
 GlobalZIndex(142),
             PersonaCreatorRoot,
             LivedUiPlate,
         ))
         .with_children(|root| {
-            root.spawn(NodeBundle {
-                node: Node {
+            root.spawn((
+                Node {
                     width: Val::Px(440.0),
                     max_height: Val::Percent(92.0),
                     padding: UiRect::all(Val::Px(18.0)),
@@ -2060,10 +2048,9 @@ GlobalZIndex(142),
                     border: UiRect::all(Val::Px(1.5)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                ..default()
-            })
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+            ))
             .with_children(|p| {
                 p.spawn((
 Text::new("Persona creator · optional"),
@@ -2654,9 +2641,9 @@ fn return_yard_to_title(
     *door = LaunchDoor::Title;
 }
 
-fn settings_tab_panel_bundle(visible: bool) -> NodeBundle {
-    NodeBundle {
-        node: Node {
+fn settings_tab_panel_bundle(visible: bool) -> impl Bundle {
+    (
+        Node {
             width: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
             row_gap: Val::Px(4.0),
@@ -2669,19 +2656,19 @@ fn settings_tab_panel_bundle(visible: bool) -> NodeBundle {
             },
             ..default()
         },
-        visibility: if visible {
+        if visible {
             Visibility::Visible
         } else {
             Visibility::Hidden
         },
-        ..default()
-    }
+    )
 }
 
-fn spawn_pause_places_door(p: &mut ChildBuilder) {
+fn spawn_pause_places_door(p: &mut ChildSpawnerCommands) {
     p.spawn((
-        ButtonBundle {
-            node: Node {
+        (
+            Button,
+            Node {
                 width: Val::Percent(100.0),
                 padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
                 justify_content: JustifyContent::Center,
@@ -2690,11 +2677,10 @@ fn spawn_pause_places_door(p: &mut ChildBuilder) {
                 display: Display::None,
                 ..default()
             },
-            background_color: TITLE_BTN_BG.into(),
-            border_color: TITLE_BORDER.into(),
-            visibility: Visibility::Hidden,
-            ..default()
-        },
+            BorderColor(TITLE_BORDER),
+            BackgroundColor(TITLE_BTN_BG),
+            Visibility::Hidden,
+        ),
         PausePlacesBtn,
         Name::new("PausePlacesRow"),
     ))
@@ -2707,20 +2693,20 @@ TextColor(TITLE_BTN_FG),
     });
 }
 
-fn spawn_pause_tab_btn(p: &mut ChildBuilder, tab: PauseTab) {
+fn spawn_pause_tab_btn(p: &mut ChildSpawnerCommands, tab: PauseTab) {
     p.spawn((
-        ButtonBundle {
-            node: Node {
+        (
+            Button,
+            Node {
                 padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(1.0)),
                 flex_grow: 1.0,
                 ..default()
             },
-            background_color: TITLE_BTN_BG.into(),
-            border_color: TITLE_BORDER.into(),
-            ..default()
-        },
+            BorderColor(TITLE_BORDER),
+            BackgroundColor(TITLE_BTN_BG),
+        ),
         PauseTabBtn(tab),
     ))
     .with_children(|b| {
@@ -2831,24 +2817,24 @@ fn refresh_hud_layout_label(
 }
 
 fn spawn_settings_row<B: Component, L: Component>(
-    p: &mut ChildBuilder,
+    p: &mut ChildSpawnerCommands,
     label: &str,
     btn: B,
     text_marker: L,
 ) {
     p.spawn((
-        ButtonBundle {
-            node: Node {
+        (
+            Button,
+            Node {
                 padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(1.0)),
                 width: Val::Percent(100.0),
                 ..default()
             },
-            background_color: TITLE_BTN_BG.into(),
-            border_color: TITLE_BORDER.into(),
-            ..default()
-        },
+            BorderColor(TITLE_BORDER),
+            BackgroundColor(TITLE_BTN_BG),
+        ),
         btn,
     ))
     .with_children(|b| {
@@ -4553,7 +4539,7 @@ mod tests {
         let world = app.world_mut();
         let (text, color) = world
             .query_filtered::<(&Text, &TextColor), With<TitleGardenWantText>>()
-            .single(world);
+            .single(world).unwrap();
         let line = text.as_str();
         assert!(line.contains(SANCTUARY_PEOPLE));
         assert!(line.contains(GARDEN_WANT));
@@ -5775,13 +5761,13 @@ mod tests {
         let world = app.world_mut();
         let root = world
             .query_filtered::<(&Node, &FocusPolicy), With<TitleRoot>>()
-            .single(world);
+            .single(world).unwrap();
         assert_eq!(root.0.padding, UiRect::all(Val::Px(TITLE_SAFE_INSET)));
         assert_eq!(*root.1, FocusPolicy::Block);
 
         let plate = world
             .query_filtered::<&Node, With<TitlePlate>>()
-            .single(world);
+            .single(world).unwrap();
         assert_eq!(plate.width, Val::Percent(100.0));
         assert_eq!(plate.max_width, Val::Px(TITLE_PLATE_MAX_WIDTH));
         assert_eq!(plate.max_height, Val::Percent(100.0));
@@ -7880,6 +7866,7 @@ mod tests {
             logical_key: Key::Escape,
             state: ButtonState::Pressed,
             repeat: false,
+            text: None,
             window: Entity::PLACEHOLDER,
         });
         editing.update();
@@ -7914,6 +7901,7 @@ mod tests {
             logical_key: Key::Escape,
             state: ButtonState::Pressed,
             repeat: false,
+            text: None,
             window: Entity::PLACEHOLDER,
         });
         paused.update();

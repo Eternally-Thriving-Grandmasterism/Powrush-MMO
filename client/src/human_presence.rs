@@ -589,42 +589,39 @@ fn spawn_human_presence(
 
     commands
         .spawn((
-            PbrBundle {
-                mesh: Mesh3d(hips),
-                material: MeshMaterial3d(earth.clone()),
-                transform: Transform::from_xyz(0.0, STAND, 0.0),
-                ..default()
-            },
+            (
+                Mesh3d(hips),
+                MeshMaterial3d(earth.clone()),
+                Transform::from_xyz(0.0, STAND, 0.0),
+            ),
             HumanPresence,
             Name::new("HumanPresence"),
         ))
         .with_children(|root| {
             root.spawn((
-                SpatialBundle {
-                    transform: Transform::from_xyz(0.0, WAIST_Y, 0.0),
-                    ..default()
-                },
+                (
+                    Transform::from_xyz(0.0, WAIST_Y, 0.0),
+                    Visibility::default(),
+                ),
                 PersonPart::Waist,
                 Name::new("PersonWaist"),
             ))
             .with_children(|waist| {
                 waist.spawn((
-                    PbrBundle {
-                        mesh: Mesh3d(torso),
-                        material: MeshMaterial3d(earth.clone()),
-                        transform: lod_mesh_tf(0.0, TORSO_Y, 0.0, scale),
-                        ..default()
-                    },
+                    (
+                        Mesh3d(torso),
+                        MeshMaterial3d(earth.clone()),
+                        lod_mesh_tf(0.0, TORSO_Y, 0.0, scale),
+                    ),
                     PersonLodMesh,
                 ));
                 waist
                     .spawn((
-                        PbrBundle {
-                            mesh: Mesh3d(head),
-                            material: MeshMaterial3d(earth.clone()),
-                            transform: lod_mesh_tf(0.0, HEAD_Y, 0.0, scale),
-                            ..default()
-                        },
+                        (
+                            Mesh3d(head),
+                            MeshMaterial3d(earth.clone()),
+                            lod_mesh_tf(0.0, HEAD_Y, 0.0, scale),
+                        ),
                         PersonPart::Head,
                         PersonLodMesh,
                         Name::new("PersonHead"),
@@ -633,47 +630,44 @@ fn spawn_human_presence(
                         // Brow nub: which way the person looks reads in a still.
                         // face ≠ class — look direction only, never a race lobby.
                         face.spawn((
-                            PbrBundle {
-                                mesh: Mesh3d(brow),
-                                material: MeshMaterial3d(earth.clone()),
-                                transform: lod_mesh_tf(0.0, 0.01, HEAD_R * 0.86, scale),
-                                ..default()
-                            },
+                            (
+                                Mesh3d(brow),
+                                MeshMaterial3d(earth.clone()),
+                                lod_mesh_tf(0.0, 0.01, HEAD_R * 0.86, scale),
+                            ),
                             PersonLodMesh,
                         ));
                     });
                 for side in [-1.0f32, 1.0] {
                     waist
                         .spawn((
-                            SpatialBundle {
-                                transform: Transform::from_xyz(
+                            (
+                                Transform::from_xyz(
                                     side * SHOULDER_X,
                                     SHOULDER_Y,
                                     0.0,
                                 ),
-                                ..default()
-                            },
+                                Visibility::default(),
+                            ),
                             PersonPart::Shoulder(side),
                             Name::new("PersonShoulder"),
                         ))
                         .with_children(|limb| {
                             limb.spawn((
-                                PbrBundle {
-                                    mesh: Mesh3d(arm.clone()),
-                                    material: MeshMaterial3d(earth.clone()),
-                                    transform: lod_mesh_tf(0.0, ARM_Y, 0.0, scale),
-                                    ..default()
-                                },
+                                (
+                                    Mesh3d(arm.clone()),
+                                    MeshMaterial3d(earth.clone()),
+                                    lod_mesh_tf(0.0, ARM_Y, 0.0, scale),
+                                ),
                                 PersonLodMesh,
                             ));
                             if side > 0.0 {
                                 limb.spawn((
-                                    PbrBundle {
-                                        mesh: Mesh3d(hand.clone()),
-                                        material: MeshMaterial3d(accent.clone()),
-                                        transform: lod_mesh_tf(0.0, HAND_Y, 0.0, scale),
-                                        ..default()
-                                    },
+                                    (
+                                        Mesh3d(hand.clone()),
+                                        MeshMaterial3d(accent.clone()),
+                                        lod_mesh_tf(0.0, HAND_Y, 0.0, scale),
+                                    ),
                                     PersonAccent,
                                     PersonLodMesh,
                                     Name::new("PersonAccent"),
@@ -684,21 +678,20 @@ fn spawn_human_presence(
             });
             for side in [-1.0f32, 1.0] {
                 root.spawn((
-                    SpatialBundle {
-                        transform: Transform::from_xyz(side * HIP_PIVOT_X, HIP_PIVOT_Y, 0.0),
-                        ..default()
-                    },
+                    (
+                        Transform::from_xyz(side * HIP_PIVOT_X, HIP_PIVOT_Y, 0.0),
+                        Visibility::default(),
+                    ),
                     PersonPart::Hip(side),
                     Name::new("PersonHip"),
                 ))
                 .with_children(|limb| {
                     limb.spawn((
-                        PbrBundle {
-                            mesh: Mesh3d(leg.clone()),
-                            material: MeshMaterial3d(earth.clone()),
-                            transform: lod_mesh_tf(0.0, LEG_Y, 0.0, scale),
-                            ..default()
-                        },
+                        (
+                            Mesh3d(leg.clone()),
+                            MeshMaterial3d(earth.clone()),
+                            lod_mesh_tf(0.0, LEG_Y, 0.0, scale),
+                        ),
                         PersonLodMesh,
                     ));
                 });

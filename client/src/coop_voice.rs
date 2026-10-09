@@ -40,8 +40,8 @@ impl Plugin for CoopVoicePlugin {
 fn spawn_voice_slab(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     bottom: VOICE.bottom(),
                     right: VOICE.right(),
@@ -51,11 +51,10 @@ fn spawn_voice_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
-                border_color: TITLE_BORDER.with_alpha(1.0).into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
+                BorderColor(TITLE_BORDER.with_alpha(1.0)),
+                Visibility::Hidden,
+            ),
             VoiceSlabRoot,
             HudSlab(ID_VOICE),
         ))
@@ -161,10 +160,10 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<(&BorderColor, &BackgroundColor), With<VoiceSlabRoot>>();
-        let (border, bg) = q.single(app.world());
+        let (border, bg) = q.single(app.world()).unwrap();
         let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
         let mut t = app.world_mut().query_filtered::<&TextColor, With<VoiceSlabText>>();
-        let txt = t.single(app.world()).0.to_srgba();
+        let txt = t.single(app.world()).unwrap().0.to_srgba();
         for (got, want, what) in [
             (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
             (border, TITLE_BORDER.to_srgba(), "rim"),
@@ -188,7 +187,7 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<&Node, With<VoiceSlabRoot>>();
-        let style = q.single(app.world());
+        let style = q.single(app.world()).unwrap();
         let bottom = style.bottom;
         assert_eq!(bottom, crate::hud_anchor_registry::VOICE.bottom());
         assert_eq!(style.right, crate::hud_anchor_registry::VOICE.right());

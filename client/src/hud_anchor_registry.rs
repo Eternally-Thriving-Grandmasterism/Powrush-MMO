@@ -1824,7 +1824,7 @@ mod tests {
             })
             .id();
         app.add_systems(Update, move |mut styles: Query<&mut Node>| {
-            let mut style = styles.single_mut();
+            let mut style = styles.single_mut().unwrap();
             write_hud_anchor_style(
                 &mut style,
                 HudCorner::TopLeft,

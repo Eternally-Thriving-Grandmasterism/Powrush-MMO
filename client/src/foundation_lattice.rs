@@ -55,8 +55,8 @@ impl Plugin for FoundationLatticePlugin {
 fn spawn_lattice_panel(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: Val::Percent(14.0),
                     right: Val::Percent(2.0),
@@ -70,11 +70,10 @@ fn spawn_lattice_panel(mut commands: Commands) {
                     overflow_clip_margin: OverflowClipMargin::border_box(),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
-                border_color: TITLE_BORDER.with_alpha(1.0).into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
+                BorderColor(TITLE_BORDER.with_alpha(1.0)),
+                Visibility::Hidden,
+            ),
             FoundationLatticeRoot,
         ))
         .with_children(|p| {
@@ -312,9 +311,9 @@ mod tests {
             &BackgroundColor,
             &Children,
         ), With<FoundationLatticeRoot>>();
-        let (border, bg, children) = q.single(app.world());
+        let (border, bg, children) = q.single(app.world()).unwrap();
         let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
-        let kids: Vec<Entity> = children.iter().copied().collect();
+        let kids: Vec<Entity> = children.iter().collect();
         assert_eq!(kids.len(), 3, "heading, body, legend");
         let colour = |e: Entity| {
             app.world()

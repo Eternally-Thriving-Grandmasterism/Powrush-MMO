@@ -345,18 +345,17 @@ fn spawn_sky_backdrop(
     // CARD VP-GRADE-1 — the dome neither casts nor receives sun shadows, so
     // the shadowed Sanctuary sun reaches the yard through it.
     commands.spawn((
-        PbrBundle {
-            mesh: Mesh3d(meshes.add(gradient_dome(DOME_RADIUS))),
-            material: MeshMaterial3d(materials.add(StandardMaterial {
+        (
+            Mesh3d(meshes.add(gradient_dome(DOME_RADIUS))),
+            MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::WHITE,
                 unlit: true,
                 fog_enabled: false,
                 cull_mode: None,
                 ..default()
             })),
-            transform: Transform::IDENTITY,
-            ..default()
-        },
+            Transform::IDENTITY,
+        ),
         SkyBackdropPart::Dome,
         Name::new("VP-SKY-1 backdrop"),
         bevy::pbr::NotShadowCaster,
@@ -364,12 +363,11 @@ fn spawn_sky_backdrop(
     ));
     let mut spawn = |mesh: Mesh, mat: StandardMaterial, part: SkyBackdropPart, t: Transform| {
         commands.spawn((
-            PbrBundle {
-                mesh: Mesh3d(meshes.add(mesh)),
-                material: MeshMaterial3d(materials.add(mat)),
-                transform: t,
-                ..default()
-            },
+            (
+                Mesh3d(meshes.add(mesh)),
+                MeshMaterial3d(materials.add(mat)),
+                t,
+            ),
             part,
             Name::new("VP-SKY-1 backdrop"),
         ));

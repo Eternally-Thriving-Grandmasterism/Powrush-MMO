@@ -64,18 +64,17 @@ impl Plugin for TouchControlsPlugin {
 fn spawn_touch_overlay(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
                     ..default()
                 },
                 // state: fully transparent full-screen hit root — no plate drawn.
-                background_color: Color::srgba(0.0, 0.0, 0.0, 0.0).into(),
-                visibility: Visibility::Hidden,
-                                ..default()
-            },
+                BackgroundColor(Color::srgba(0.0, 0.0, 0.0, 0.0)),
+                Visibility::Hidden,
+            ),
 GlobalZIndex(LIVED_UI_Z_LEDGER - 1),
             TouchOverlayRoot,
             LivedUiPlate,
@@ -84,8 +83,8 @@ GlobalZIndex(LIVED_UI_Z_LEDGER - 1),
         .with_children(|root| {
             // Left stick zone (bottom-left)
             root.spawn((
-                NodeBundle {
-                    node: Node {
+                (
+                    Node {
                         position_type: PositionType::Absolute,
                         left: Val::Px(24.0),
                         bottom: Val::Px(24.0),
@@ -97,10 +96,9 @@ GlobalZIndex(LIVED_UI_Z_LEDGER - 1),
                         ..default()
                     },
                     // state: overlay stays see-through over play
-                    background_color: TITLE_PLATE_BG.with_alpha(0.45).into(),
-                    border_color: TITLE_BORDER.with_alpha(0.55).into(),
-                    ..default()
-                },
+                    BackgroundColor(TITLE_PLATE_BG.with_alpha(0.45)),
+                    BorderColor(TITLE_BORDER.with_alpha(0.55)),
+                ),
                 TouchStickZone,
                 Interaction::default(),
             ))
@@ -167,15 +165,16 @@ TextColor(TITLE_TEXT_PRIMARY),
 }
 
 fn spawn_overlay_btn<B: Component>(
-    p: &mut ChildBuilder,
+    p: &mut ChildSpawnerCommands,
     label: &str,
     marker: B,
     inset: UiRect,
     bg: Color,
 ) {
     p.spawn((
-        ButtonBundle {
-            node: Node {
+        (
+            Button,
+            Node {
                 position_type: PositionType::Absolute,
                 left: inset.left,
                 right: inset.right,
@@ -190,11 +189,10 @@ fn spawn_overlay_btn<B: Component>(
                 border: UiRect::all(Val::Px(1.5)),
                 ..default()
             },
-            background_color: bg.into(),
             // state: overlay stays see-through over play
-            border_color: TITLE_BORDER.with_alpha(0.65).into(),
-            ..default()
-        },
+            BorderColor(TITLE_BORDER.with_alpha(0.65)),
+            BackgroundColor(bg),
+        ),
         marker,
     ))
     .with_children(|b| {
@@ -485,11 +483,11 @@ mod tests {
             let mut use_btn = app
                 .world_mut()
                 .query_filtered::<&mut Interaction, With<TouchUseBtn>>();
-            *use_btn.single_mut(app.world_mut()) = Interaction::Pressed;
+            *use_btn.single_mut(app.world_mut()).unwrap() = Interaction::Pressed;
             let mut sheet = app
                 .world_mut()
                 .query_filtered::<&mut Interaction, With<TouchQBtn>>();
-            *sheet.single_mut(app.world_mut()) = Interaction::Pressed;
+            *sheet.single_mut(app.world_mut()).unwrap() = Interaction::Pressed;
         }
         app.update();
         let input = app.world().resource::<PlayerInput>();

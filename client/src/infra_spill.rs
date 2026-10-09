@@ -65,8 +65,8 @@ impl Plugin for InfraSpillPlugin {
 fn spawn_spill_slab(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: SPILL.top(),
                     left: SPILL.left(),
@@ -76,11 +76,10 @@ fn spawn_spill_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
-                border_color: TITLE_BORDER.with_alpha(1.0).into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
+                BorderColor(TITLE_BORDER.with_alpha(1.0)),
+                Visibility::Hidden,
+            ),
             SpillSlabRoot,
             HudSlab(SPILL.id),
         ))
@@ -167,7 +166,7 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<&Node, With<SpillSlabRoot>>();
-        let style = q.single(app.world()).clone();
+        let style = q.single(app.world()).unwrap().clone();
         let coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Px(52.0),
@@ -196,10 +195,10 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<(&BorderColor, &BackgroundColor), With<SpillSlabRoot>>();
-        let (border, bg) = q.single(app.world());
+        let (border, bg) = q.single(app.world()).unwrap();
         let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
         let mut t = app.world_mut().query_filtered::<&TextColor, With<SpillSlabText>>();
-        let txt = t.single(app.world()).0.to_srgba();
+        let txt = t.single(app.world()).unwrap().0.to_srgba();
         for (got, want, what) in [
             (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
             (border, TITLE_BORDER.to_srgba(), "rim"),

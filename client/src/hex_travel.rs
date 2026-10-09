@@ -444,8 +444,8 @@ fn boot_guard_no_book_stays_sanctuary(
 fn spawn_places_plate(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: Val::Percent(18.0),
                     left: Val::Percent(50.0),
@@ -461,13 +461,12 @@ fn spawn_places_plate(mut commands: Commands) {
                     align_items: AlignItems::Stretch,
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
                 // Above pause Comfort (130) and Comfort graphics banner (131).
-                                focus_policy: bevy::ui::FocusPolicy::Block,
-                ..default()
-            },
+                bevy::ui::FocusPolicy::Block,
+                Visibility::Hidden,
+            ),
 GlobalZIndex(PLACES_PLATE_Z),
             PlacesRoot,
             LivedUiPlate,
@@ -496,10 +495,11 @@ TextColor(TITLE_TEXT_SECONDARY),
         });
 }
 
-fn spawn_places_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C) {
+fn spawn_places_btn<C: Component>(p: &mut ChildSpawnerCommands, label: &str, marker: C) {
     p.spawn((
-        ButtonBundle {
-            node: Node {
+        (
+            Button,
+            Node {
                 // Fat-tap ≥44dp (lavapipe click-clean); Peace tone, stretch width.
                 min_height: Val::Px(PLACES_HIT_MIN),
                 padding: UiRect::axes(Val::Px(14.0), Val::Px(12.0)),
@@ -508,10 +508,9 @@ fn spawn_places_btn<C: Component>(p: &mut ChildBuilder, label: &str, marker: C) 
                 border: UiRect::all(Val::Px(1.0)),
                 ..default()
             },
-            background_color: TITLE_BTN_BG.into(),
-            border_color: TITLE_BORDER.into(),
-            ..default()
-        },
+            BorderColor(TITLE_BORDER),
+            BackgroundColor(TITLE_BTN_BG),
+        ),
         marker,
     ))
     .with_children(|b| {
@@ -857,6 +856,7 @@ mod tests {
             logical_key: key.clone(),
             state: ButtonState::Pressed,
             repeat: false,
+            text: None,
             window,
         });
         app.update();
@@ -865,6 +865,7 @@ mod tests {
             logical_key: key,
             state: ButtonState::Released,
             repeat: false,
+            text: None,
             window,
         });
         app.update();

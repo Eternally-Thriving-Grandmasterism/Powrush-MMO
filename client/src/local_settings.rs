@@ -670,11 +670,11 @@ mod tests {
             let mut app = boot_app();
             let layout = app
                 .world_mut()
-                .spawn((ButtonBundle::default(), SettingsHudLayoutBtn))
+                .spawn((Button, SettingsHudLayoutBtn))
                 .id();
             let reset = app
                 .world_mut()
-                .spawn((ButtonBundle::default(), SettingsHudResetBtn))
+                .spawn((Button, SettingsHudResetBtn))
                 .id();
             app.update();
             assert!(take_cmds(&mut app).is_empty());

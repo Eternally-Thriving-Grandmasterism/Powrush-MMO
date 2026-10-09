@@ -794,8 +794,8 @@ impl Plugin for FirstSessionGuidancePlugin {
 fn spawn_guidance_strip(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     bottom: ACTION_BAR.bottom(),
                     right: ACTION_BAR.right(),
@@ -806,11 +806,10 @@ fn spawn_guidance_strip(mut commands: Commands) {
                     border: UiRect::all(Val::Px(2.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
-                border_color: TITLE_BORDER.with_alpha(0.82).into(),
-                visibility: Visibility::Visible,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
+                BorderColor(TITLE_BORDER.with_alpha(0.82)),
+                Visibility::Visible,
+            ),
             FirstSessionGuidanceStrip,
             HudSlab(ID_GUIDANCE),
         ))
@@ -2939,12 +2938,12 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<(&BorderColor, &BackgroundColor), With<FirstSessionGuidanceStrip>>();
-        let (border, bg) = q.single(app.world());
+        let (border, bg) = q.single(app.world()).unwrap();
         let (border, bg) = (border.0, bg.0);
         let mut t = app
             .world_mut()
             .query_filtered::<&TextColor, With<FirstSessionGuidanceText>>();
-        let text = t.single(app.world()).0;
+        let text = t.single(app.world()).unwrap().0;
 
         for (c, want, alpha, what) in [
             (border, TITLE_BORDER, 0.82, "strip border"),
@@ -2979,7 +2978,7 @@ mod tests {
             let mut q = app
                 .world_mut()
                 .query_filtered::<&BackgroundColor, With<FirstSessionGuidanceStrip>>();
-            q.single(app.world()).0.to_srgba().alpha
+            q.single(app.world()).unwrap().0.to_srgba().alpha
         }
 
         let mut app = App::new();
@@ -3015,7 +3014,7 @@ mod tests {
         let mut query = app
             .world_mut()
             .query_filtered::<&Node, With<FirstSessionGuidanceStrip>>();
-        let style = query.single(app.world()).clone();
+        let style = query.single(app.world()).unwrap().clone();
         assert_eq!(style.position_type, PositionType::Absolute);
         assert_eq!(style.bottom, ACTION_BAR.bottom());
         assert_eq!(style.right, ACTION_BAR.right());
@@ -3027,7 +3026,7 @@ mod tests {
         let mut text = app
             .world_mut()
             .query_filtered::<&TextFont, With<FirstSessionGuidanceText>>();
-        assert_eq!(text.single(app.world()).font_size, 17.0 / 1.2);
+        assert_eq!(text.single(app.world()).unwrap().font_size, 17.0 / 1.2);
     }
 
     /// CARD GUIDANCE-WALK-BODY-1 — no previous sample is not travel.

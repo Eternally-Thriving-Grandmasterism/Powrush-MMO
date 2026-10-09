@@ -38,8 +38,8 @@ impl Plugin for WarWeekPlugin {
 fn spawn_war_slab(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     bottom: Val::Px(52.0),
                     right: Val::Px(16.0),
@@ -49,11 +49,10 @@ fn spawn_war_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                Visibility::Hidden,
+            ),
             WarSlabRoot,
         ))
         .with_children(|p| {

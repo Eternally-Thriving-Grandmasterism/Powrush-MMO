@@ -13,7 +13,7 @@
 //! Peak memory, cited: walked · tended · week was the bill · yard remembered.
 //! Contact: info@Rathor.ai
 
-use bevy::pbr::{FogFalloff, FogSettings};
+use bevy::pbr::{FogFalloff, DistanceFog};
 use bevy::prelude::*;
 
 use shared::genshare::{append_genshare, load_genshare, GenShare, GENSHARE_PATH};
@@ -349,12 +349,11 @@ fn sync_scatter(
             ),
         };
         commands.spawn((
-            PbrBundle {
-                mesh: Mesh3d(mesh),
-                material: MeshMaterial3d(material),
-                transform: Transform::from_xyz(spot.x, spot.y, spot.z).with_scale(scale),
-                ..default()
-            },
+            (
+                Mesh3d(mesh),
+                MeshMaterial3d(material),
+                Transform::from_xyz(spot.x, spot.y, spot.z).with_scale(scale),
+            ),
             LightGenProp,
             HexScatter,
             Name::new("LightGenProp"),
@@ -379,7 +378,7 @@ fn sync_scatter(
 fn paint_world_fog_from_climate(
     door: Res<LightGenDoor>,
     bind: Res<LivedHourBind>,
-    mut fogs: Query<&mut FogSettings, (With<Camera3d>, Without<LivedUiCamera>)>,
+    mut fogs: Query<&mut DistanceFog, (With<Camera3d>, Without<LivedUiCamera>)>,
 ) {
     if !door.is_light() {
         return;

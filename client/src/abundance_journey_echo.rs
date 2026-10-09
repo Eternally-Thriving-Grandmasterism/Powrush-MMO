@@ -216,8 +216,8 @@ fn save_journey_persist(
 fn spawn_echo_panel(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: JOURNEY.top(),
                     left: JOURNEY.left(),
@@ -231,11 +231,10 @@ fn spawn_echo_panel(mut commands: Commands) {
                     overflow_clip_margin: OverflowClipMargin::border_box(),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                Visibility::Hidden,
+            ),
             JourneyEchoRoot,
             HudSlab(JOURNEY.id),
         ))
@@ -363,7 +362,7 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<&Node, With<JourneyEchoRoot>>();
-        let style = q.single(app.world()).clone();
+        let style = q.single(app.world()).unwrap().clone();
         let coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Percent(12.0),

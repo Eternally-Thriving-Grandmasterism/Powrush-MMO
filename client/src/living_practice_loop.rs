@@ -205,8 +205,8 @@ impl Plugin for LivingPracticeLoopPlugin {
 fn spawn_practice_strip(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     bottom: ACTION_BAR.bottom(),
                     right: ACTION_BAR.right(),
@@ -217,11 +217,10 @@ fn spawn_practice_strip(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.5)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                Visibility::Hidden,
+            ),
             LivingPracticeStrip,
             HudSlab(ID_PRACTICE),
         ))
@@ -547,7 +546,7 @@ mod tests {
         let mut query = app
             .world_mut()
             .query_filtered::<&Node, With<LivingPracticeStrip>>();
-        let style = query.single(app.world()).clone();
+        let style = query.single(app.world()).unwrap().clone();
         assert_eq!(style.bottom, ACTION_BAR.bottom());
         assert_eq!(style.right, ACTION_BAR.right());
         assert_eq!(style.left, Val::Auto);
@@ -558,6 +557,6 @@ mod tests {
         let mut text = app
             .world_mut()
             .query_filtered::<&TextFont, With<LivingPracticeText>>();
-        assert_eq!(text.single(app.world()).font_size, 15.5 / 1.2);
+        assert_eq!(text.single(app.world()).unwrap().font_size, 15.5 / 1.2);
     }
 }

@@ -73,8 +73,8 @@ impl Plugin for VerticalFactoryPlugin {
 fn spawn_factory_slab(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: FACTORY.top(),
                     left: FACTORY.left(),
@@ -85,11 +85,10 @@ fn spawn_factory_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                Visibility::Hidden,
+            ),
             FactorySlabRoot,
             HudSlab(FACTORY.id),
         ))
@@ -232,7 +231,7 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<&Node, With<FactorySlabRoot>>();
-        let style = q.single(app.world()).clone();
+        let style = q.single(app.world()).unwrap().clone();
         let coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Px(16.0),
@@ -296,6 +295,7 @@ mod tests {
             logical_key: Key::Character("q".into()),
             state: ButtonState::Pressed,
             repeat: false,
+            text: None,
             window,
         });
         app.update();
@@ -340,6 +340,7 @@ mod tests {
             logical_key: Key::Character("q".into()),
             state: ButtonState::Pressed,
             repeat: false,
+            text: None,
             window,
         });
         app.update();

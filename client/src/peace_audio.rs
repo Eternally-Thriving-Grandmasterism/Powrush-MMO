@@ -128,7 +128,7 @@ fn sync_peace_bed(
     state: Res<PeaceAudioState>,
     feel: Option<Res<LocalMeshLodFeel>>,
     settings: Option<Res<LocalSettingsState>>,
-    beds: Query<(Entity, Option<&AudioSink>), With<PeaceYardBed>>,
+    mut beds: Query<(Entity, Option<&mut AudioSink>), With<PeaceYardBed>>,
 ) {
     let want = state.voice.should_play_bed();
     // CARD OPT-AUDIO-COMFORT-LOW — cap bed AudioSink volume on Graphics Low only.
@@ -141,9 +141,9 @@ fn sync_peace_bed(
     );
 
     if !state.voice.device_ok || !state.voice.in_yard {
-        for (entity, sink) in &beds {
-            if let Some(sink) = sink {
-                sink.set_volume(0.0);
+        for (entity, sink) in &mut beds {
+            if let Some(mut sink) = sink {
+                sink.set_volume(Volume::Linear(0.0));
                 sink.pause();
             }
             commands.entity(entity).despawn_recursive();
@@ -154,19 +154,18 @@ fn sync_peace_bed(
     if beds.is_empty() {
         // Spawn at the current gain (0 when muted) so a muted boot cannot blast.
         commands.spawn((
-            AudioBundle {
-                source: AudioPlayer(asset_server.load(BED_ASSET)),
-                settings: PlaybackSettings::LOOP.with_volume(Volume::new(gain)),
-                ..default()
-            },
+            (
+                AudioPlayer::<AudioSource>(asset_server.load(BED_ASSET)),
+                PlaybackSettings::LOOP.with_volume(Volume::Linear(gain)),
+            ),
             PeaceYardBed,
         ));
         return;
     }
 
-    for (_, sink) in &beds {
-        if let Some(sink) = sink {
-            sink.set_volume(gain);
+    for (_, sink) in &mut beds {
+        if let Some(mut sink) = sink {
+            sink.set_volume(Volume::Linear(gain));
             if want {
                 sink.play();
             } else {
@@ -189,11 +188,10 @@ fn sync_first_e_oneshot(
         return;
     }
     commands.spawn((
-        AudioBundle {
-            source: AudioPlayer(asset_server.load(STING_ASSET)),
-            settings: PlaybackSettings::DESPAWN.with_volume(Volume::new(gain)),
-            ..default()
-        },
+        (
+            AudioPlayer::<AudioSource>(asset_server.load(STING_ASSET)),
+            PlaybackSettings::DESPAWN.with_volume(Volume::Linear(gain)),
+        ),
         PeaceFirstEOneShot,
     ));
 }
@@ -208,11 +206,10 @@ fn sync_well_sting(
         return;
     }
     commands.spawn((
-        AudioBundle {
-            source: AudioPlayer(asset_server.load(STING_ASSET)),
-            settings: PlaybackSettings::DESPAWN.with_volume(Volume::new(gain)),
-            ..default()
-        },
+        (
+            AudioPlayer::<AudioSource>(asset_server.load(STING_ASSET)),
+            PlaybackSettings::DESPAWN.with_volume(Volume::Linear(gain)),
+        ),
         PeaceWellSting,
     ));
 }

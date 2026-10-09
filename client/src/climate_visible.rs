@@ -206,7 +206,7 @@ fn paint_nodes_from_hour(
         }
         if let Some(children) = children {
             for child in children.iter() {
-                if let Ok(mut light) = lights.get_mut(*child) {
+                if let Ok(mut light) = lights.get_mut(child) {
                     light.intensity = intensity;
                     light.range = range;
                 }
@@ -287,8 +287,8 @@ pub fn climate_slab_font_px(text_scale: f32) -> f32 {
 fn spawn_climate_state_slab(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     bottom: CLIMATE_STATE.bottom(),
                     left: CLIMATE_STATE.left(),
@@ -298,11 +298,10 @@ fn spawn_climate_state_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
-                border_color: TITLE_BORDER.with_alpha(1.0).into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
+                BorderColor(TITLE_BORDER.with_alpha(1.0)),
+                Visibility::Hidden,
+            ),
             ClimateStateRoot,
             HudSlab(CLIMATE_STATE.id),
         ))
@@ -679,7 +678,7 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<&Node, With<ClimateStateRoot>>();
-        let style = q.single(app.world()).clone();
+        let style = q.single(app.world()).unwrap().clone();
         let coded = Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(176.0),
@@ -1585,12 +1584,12 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<(&BorderColor, &BackgroundColor), With<ClimateStateRoot>>();
-        let (border, bg) = q.single(app.world());
+        let (border, bg) = q.single(app.world()).unwrap();
         let (border, bg) = (border.0, bg.0);
         let mut t = app
             .world_mut()
             .query_filtered::<&TextColor, With<ClimateStateText>>();
-        let text = t.single(app.world()).0;
+        let text = t.single(app.world()).unwrap().0;
         (border, bg, text)
     }
 

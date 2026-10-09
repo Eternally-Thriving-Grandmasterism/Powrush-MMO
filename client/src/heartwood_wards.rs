@@ -64,12 +64,11 @@ fn sync_heartwood_wards(
     });
     for (i, center) in WARD_POST_CENTERS.iter().enumerate() {
         commands.spawn((
-            PbrBundle {
-                mesh: Mesh3d(mesh.clone()),
-                material: MeshMaterial3d(material.clone()),
-                transform: Transform::from_translation(Vec3::from_array(*center)),
-                ..default()
-            },
+            (
+                Mesh3d(mesh.clone()),
+                MeshMaterial3d(material.clone()),
+                Transform::from_translation(Vec3::from_array(*center)),
+            ),
             WardPost,
             Name::new(format!("WardPost{i}")),
         ));

@@ -308,8 +308,8 @@ impl Plugin for FirstHarvestEpiphanyPlugin {
 fn spawn_lived_surfaces(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     bottom: ACTION_BAR.bottom(),
                     right: ACTION_BAR.right(),
@@ -320,11 +320,10 @@ fn spawn_lived_surfaces(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Visible,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                Visibility::Visible,
+            ),
             WorldCarePromptRoot,
             HudSlab(ID_CARE_PROMPT),
         ))
@@ -341,8 +340,8 @@ TextColor(TITLE_TEXT_PRIMARY),
 
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: PULSE.top(),
                     left: PULSE.left(),
@@ -354,11 +353,10 @@ TextColor(TITLE_TEXT_PRIMARY),
                     border: UiRect::all(Val::Px(1.2)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                Visibility::Hidden,
+            ),
             HarvestPulseRoot,
             HudSlab(PULSE.id),
         ))
@@ -375,8 +373,8 @@ TextColor(TITLE_TEXT_PRIMARY),
 
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: WELCOME.top(),
                     left: WELCOME.left(),
@@ -385,11 +383,10 @@ TextColor(TITLE_TEXT_PRIMARY),
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.with_alpha(0.40).into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER.with_alpha(0.40)),
+                Visibility::Hidden,
+            ),
             WelcomeBackRoot,
             HudSlab(WELCOME.id),
             LivedUiPlate,
@@ -1481,7 +1478,7 @@ mod tests {
         let mut prompt = app
             .world_mut()
             .query_filtered::<&Node, With<WorldCarePromptRoot>>();
-        let prompt = prompt.single(app.world()).clone();
+        let prompt = prompt.single(app.world()).unwrap().clone();
         assert_eq!(prompt.bottom, ACTION_BAR.bottom());
         assert_eq!(prompt.right, ACTION_BAR.right());
         assert_eq!(prompt.left, Val::Auto);
@@ -1493,7 +1490,7 @@ mod tests {
         let mut pulse = app
             .world_mut()
             .query_filtered::<&Node, With<HarvestPulseRoot>>();
-        let pulse = pulse.single(app.world()).clone();
+        let pulse = pulse.single(app.world()).unwrap().clone();
         assert_eq!(pulse.top, Val::Px(118.0));
         assert_eq!(pulse.left, Val::Percent(50.0));
         assert_eq!(pulse.width, Val::Px(560.0));
@@ -1519,7 +1516,7 @@ mod tests {
         let mut welcome = app
             .world_mut()
             .query_filtered::<&Node, With<WelcomeBackRoot>>();
-        let welcome = welcome.single(app.world()).clone();
+        let welcome = welcome.single(app.world()).unwrap().clone();
         assert_eq!(welcome.top, Val::Px(16.0));
         assert_eq!(welcome.left, Val::Px(16.0));
         assert_eq!(welcome.width, Val::Px(380.0));
@@ -1541,14 +1538,14 @@ mod tests {
         let mut prompt_text = app
             .world_mut()
             .query_filtered::<&TextFont, With<WorldCarePromptText>>();
-        assert_eq!(prompt_text.single(app.world()).font_size, 16.0 / 1.2);
+        assert_eq!(prompt_text.single(app.world()).unwrap().font_size, 16.0 / 1.2);
         let mut pulse_text = app
             .world_mut()
             .query_filtered::<&TextFont, With<HarvestPulseText>>();
-        assert_eq!(pulse_text.single(app.world()).font_size, 16.0 / 1.2);
+        assert_eq!(pulse_text.single(app.world()).unwrap().font_size, 16.0 / 1.2);
         let mut welcome_text = app
             .world_mut()
             .query_filtered::<&TextFont, With<WelcomeBackText>>();
-        assert_eq!(welcome_text.single(app.world()).font_size, 13.5 / 1.2);
+        assert_eq!(welcome_text.single(app.world()).unwrap().font_size, 13.5 / 1.2);
     }
 }

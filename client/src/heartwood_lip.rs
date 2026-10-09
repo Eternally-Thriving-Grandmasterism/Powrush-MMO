@@ -136,69 +136,65 @@ fn sync_heartwood_lip(
             ),
         };
         commands.spawn((
-            PbrBundle {
-                mesh: Mesh3d(mesh),
-                material: MeshMaterial3d(material),
-                transform: Transform {
+            (
+                Mesh3d(mesh),
+                MeshMaterial3d(material),
+                Transform {
                     translation: Vec3::from_array(instance.center),
                     rotation,
                     ..default()
                 },
-                ..default()
-            },
+            ),
             HeartwoodLipProp,
             Name::new(format!("{label}_{index}")),
         ));
     }
 
     commands.spawn((
-        PbrBundle {
-            mesh: Mesh3d(meshes.add(Cuboid::new(
+        (
+            Mesh3d(meshes.add(Cuboid::new(
                 THRESHOLD_SHELF_SIZE[0],
                 THRESHOLD_SHELF_SIZE[1],
                 THRESHOLD_SHELF_SIZE[2],
             ))),
-            material: MeshMaterial3d(materials.add(StandardMaterial {
+            MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgb(0.30, 0.18, 0.08),
                 emissive: LinearRgba::new(0.016, 0.007, 0.002, 1.0),
                 perceptual_roughness: 0.93,
                 ..default()
             })),
-            transform: Transform::from_translation(Vec3::from_array(THRESHOLD_SHELF_CENTER)),
-            ..default()
-        },
+            Transform::from_translation(Vec3::from_array(THRESHOLD_SHELF_CENTER)),
+        ),
         ThresholdShelf,
         Name::new("ThresholdShelfLookTend"),
     ));
 
     commands.spawn((
-        PbrBundle {
-            mesh: Mesh3d(meshes.add(Sphere::new(THRESHOLD_NODE_RADIUS))),
-            material: MeshMaterial3d(materials.add(StandardMaterial {
+        (
+            Mesh3d(meshes.add(Sphere::new(THRESHOLD_NODE_RADIUS))),
+            MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgb(0.42, 0.60, 0.48),
                 emissive: LinearRgba::new(0.08, 0.18, 0.10, 1.0),
                 perceptual_roughness: 0.58,
                 ..default()
             })),
-            transform: Transform::from_translation(Vec3::from_array(THRESHOLD_NODE_CENTER)),
-            ..default()
-        },
+            Transform::from_translation(Vec3::from_array(THRESHOLD_NODE_CENTER)),
+        ),
         ThresholdPeaceOrb,
         Name::new("ThresholdPeaceNode"),
     ));
 
     commands.spawn((
-        PbrBundle {
-            mesh: Mesh3d(meshes.add(Cylinder::new(WATER_POND_RADIUS, 0.04))),
-            material: MeshMaterial3d(materials.add(StandardMaterial {
+        (
+            Mesh3d(meshes.add(Cylinder::new(WATER_POND_RADIUS, 0.04))),
+            MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: Color::srgba(0.06, 0.24, 0.28, 0.78),
                 perceptual_roughness: 0.48,
                 metallic: 0.02,
                 ..default()
             })),
-            transform: Transform::from_xyz(WATER_POND_CENTER[0], 0.01, WATER_POND_CENTER[1]),
-            ..default()
-        },
+            Transform::from_xyz(WATER_POND_CENTER[0], 0.01, WATER_POND_CENTER[1]),
+        ),
         HeartwoodWater,
         Name::new("HeartwoodBath"),
     ));

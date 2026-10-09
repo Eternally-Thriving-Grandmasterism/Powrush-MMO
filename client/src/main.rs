@@ -67,7 +67,7 @@ fn main() {
     App::new()
         .add_plugins(default_plugins)
         .add_plugins(PowrushClientBundle)
-        .add_plugins((FrameTimeDiagnosticsPlugin, frame_time_log_plugin()))
+        .add_plugins((FrameTimeDiagnosticsPlugin::default(), frame_time_log_plugin()))
         .add_systems(Startup, spawn_sun_and_camera)
         .run();
 }
@@ -78,17 +78,17 @@ fn spawn_sun_and_camera(mut commands: Commands) {
     };
     // World camera order 0 — lived UI Camera2d (order 10) draws above on soft GPU.
     // CARD VP-GRADE-1 — AgX + the one world grade; the UI camera stays bare.
-    commands.spawn(Camera3dBundle {
-        camera: Camera {
+    commands.spawn((
+        Camera3d::default(),
+        Camera {
             order: powrush_client::ui_above_world::WORLD_CAMERA_ORDER,
             ..default()
         },
-        tonemapping: WORLD_TONEMAPPING,
-        color_grading: world_color_grading(),
-        transform: Transform::from_xyz(0.0, 8.0, 14.0).looking_at(Vec3::ZERO, Vec3::Y),
-        msaa: bevy::render::view::Msaa::Off,
-        ..default()
-    });
+        WORLD_TONEMAPPING,
+        world_color_grading(),
+        Transform::from_xyz(0.0, 8.0, 14.0).looking_at(Vec3::ZERO, Vec3::Y),
+        bevy::render::view::Msaa::Off,
+    ));
     // CARD VP-GRADE-1 — the one Sanctuary sun (climate_plane::SANCTUARY_SUN).
     spawn_sanctuary_sun_once(&mut commands);
 }
@@ -224,7 +224,10 @@ mod frame_time_log_tests {
         if !app.is_plugin_added::<DiagnosticsPlugin>() {
             app.add_plugins(DiagnosticsPlugin);
         }
-        app.add_plugins((FrameTimeDiagnosticsPlugin, frame_time_log_plugin()));
+        app.add_plugins((
+            FrameTimeDiagnosticsPlugin::default(),
+            frame_time_log_plugin(),
+        ));
         for _ in 0..3 {
             app.update();
         }
