@@ -39,7 +39,7 @@ This document provides deep, immersive detail for each playable race — design,
 | **Draek** | Depths (teal way-home) | Depths |
 | **Ambrosian** | Sanctuary well-from-above | Sanctuary — **same Sanctuary Place as Human, not a 5th room** |
 
-Four Places remain: Sanctuary · Heartwood · Threshold · Depths. Market is not a Place. Do not invent a sixth People or a fifth Place. Title stays Play / Continue / Settings · **Online grey**. No race portraits on Title from this stamp.
+Four Places remain: Sanctuary · Heartwood · Threshold · Depths. Market is not a Place. There is still no sixth People, and the Hour-1 landings stay these four Places; Sherif (2026-10-08) set no cap on Places, so the Cydruid stalactite city in Earth's hollows may become a later Place, which is not an Hour-1 landing and has no PlaceId yet. Title stays Play / Continue / Settings · **Online grey**. No race portraits on Title from this stamp.
 
 Cydruid lands Heartwood. Heartwood Place may stay living-wood; **the Cydruid is not a tree.** Cite steward C0 · this Cydruid block.
 
