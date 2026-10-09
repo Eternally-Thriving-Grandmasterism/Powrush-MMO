@@ -86,7 +86,7 @@ jobs:
           cat >> "${dist}/README.txt" << EOF
           Linux: tar xzf powrush-offline-linux-${sha8}.tar.gz, then ./powrush-client (from this folder, next to assets/).
           Windows: run powrush-client.exe (next to assets/).
-          Linux needs: libxkbcommon-x11-0 libasound2 libudev1 libvulkan1 and a Vulkan driver (e.g. mesa-vulkan-drivers).
+          Linux needs: libxkbcommon-x11-0 libasound2t64 libudev1 libvulkan1 libxcursor1 libxi6 and a Vulkan driver (e.g. mesa-vulkan-drivers).
           EOF
           {
             echo "os=${os}"
@@ -130,3 +130,61 @@ jobs:
             echo "FAIL: expected exit 124 (still alive at 25s), got ${code}" >&2
             exit 1
           fi
+
+  # Matrix outputs keep whichever leg finishes last, so recompute sha8
+  # from the same expression the package step uses.
+  clean-boot:
+    name: clean-boot
+    needs: build
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    steps:
+      - name: Recompute Linux artifact name
+        id: linux_artifact
+        shell: bash
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+        run: |
+          set -euo pipefail
+          sha8="${HEAD_SHA:0:8}"
+          echo "sha8=${sha8}" >> "${GITHUB_OUTPUT}"
+
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: powrush-offline-linux-${{ steps.linux_artifact.outputs.sha8 }}
+          path: offline-dist
+
+      - name: Clean boot packaged Linux build
+        shell: bash
+        env:
+          DEBIAN_FRONTEND: noninteractive
+          SHA8: ${{ steps.linux_artifact.outputs.sha8 }}
+        run: |
+          set -euo pipefail
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            libxkbcommon-x11-0 \
+            libasound2t64 \
+            libudev1 \
+            libvulkan1 \
+            libxcursor1 \
+            libxi6 \
+            mesa-vulkan-drivers \
+            xvfb \
+            xauth
+          cd offline-dist
+          tar xzf "powrush-offline-linux-${SHA8}.tar.gz"
+          set +e
+          POWRUSH_NET=off POWRUSH_USER_DIR="$(mktemp -d)" timeout 25 xvfb-run -a ./powrush-client > log 2>&1
+          code=$?
+          set -e
+          echo "clean-boot exit code: ${code}"
+          if [[ "${code}" -ne 124 ]]; then
+            echo "---- full log ----"
+            cat log || true
+            echo "FAIL: expected exit 124 (still alive at 25s), got ${code}" >&2
+            exit 1
+          fi
+          echo "---- log tail ----"
+          tail -n 200 log || true
