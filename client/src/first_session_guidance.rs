@@ -1014,6 +1014,31 @@ pub(crate) fn handle_guidance_dismiss_input(
     }
 }
 
+/// CARD GUIDANCE-WALK-BODY-1 — fastest real horizontal step is mounted sprint.
+/// `SPRINT` (5.4) is `client/src/human_presence.rs` L76. The mount multiplier
+/// 1.28 is `human_presence.rs` L777-778. 5.4 × 1.0 × 1.28 ≈ 6.91 m/s, so 2×
+/// SPRINT never clips a real step.
+const GUIDE_STEP_CAP_MPS: f32 = 5.4 * 2.0;
+
+/// Horizontal metres since the previous sample. Y is not an argument.
+/// Returns 0 when `prev` is missing, when `dt` is not positive, or when the
+/// XZ step is longer than [`GUIDE_STEP_CAP_MPS`] × `dt` (teleport, landing
+/// wake, garden bounce).
+fn body_step_xz(prev: Option<Vec2>, now: Vec2, dt: f32) -> f32 {
+    let Some(prev) = prev else {
+        return 0.0;
+    };
+    if dt <= 0.0 {
+        return 0.0;
+    }
+    let step = now.distance(prev);
+    if step > GUIDE_STEP_CAP_MPS * dt {
+        0.0
+    } else {
+        step
+    }
+}
+
 pub(crate) fn track_simple_progress_signals(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut guidance: ResMut<FirstSessionGuidance>,
@@ -1024,22 +1049,17 @@ pub(crate) fn track_simple_progress_signals(
     ledger: Option<Res<LedgerYard>>,
     fab: Option<Res<FabricatorYard>>,
     embassy: Option<Res<EmbassyYard>>,
+    presence: Option<Res<SoftPresence>>,
+    mut last_xz: Local<Option<Vec2>>,
 ) {
     if guidance.dismissed {
         return;
     }
 
-    let moving = keyboard.pressed(KeyCode::KeyW)
-        || keyboard.pressed(KeyCode::KeyA)
-        || keyboard.pressed(KeyCode::KeyS)
-        || keyboard.pressed(KeyCode::KeyD)
-        || keyboard.pressed(KeyCode::ArrowUp)
-        || keyboard.pressed(KeyCode::ArrowDown)
-        || keyboard.pressed(KeyCode::ArrowLeft)
-        || keyboard.pressed(KeyCode::ArrowRight);
-
-    if moving {
-        guidance.moved_distance += time.delta_seconds() * 6.0;
+    if let Some(body) = presence.as_deref() {
+        let now = Vec2::new(body.position.x, body.position.z);
+        guidance.moved_distance += body_step_xz(*last_xz, now, time.delta_seconds());
+        *last_xz = Some(now);
     }
 
     if keyboard.just_pressed(KeyCode::KeyI) {
@@ -3001,5 +3021,103 @@ mod tests {
             .world_mut()
             .query_filtered::<&Text, With<FirstSessionGuidanceText>>();
         assert_eq!(text.single(app.world()).sections[0].style.font_size, 17.0);
+    }
+
+    /// CARD GUIDANCE-WALK-BODY-1 — no previous sample is not travel.
+    #[test]
+    fn body_step_xz_prev_none_returns_zero() {
+        let step = body_step_xz(None, Vec2::new(3.0, 4.0), 1.0);
+        assert!(step.abs() < 1e-6);
+    }
+
+    /// CARD GUIDANCE-WALK-BODY-1 — 3-4-5 within the cap is the XZ length.
+    #[test]
+    fn body_step_xz_three_four_five_within_cap() {
+        let dt = 1.0;
+        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(3.0, 4.0), dt);
+        assert!(5.0 <= GUIDE_STEP_CAP_MPS * dt);
+        assert!((step - 5.0).abs() < 1e-5);
+    }
+
+    /// CARD GUIDANCE-WALK-BODY-1 — a vertical change is not horizontal travel.
+    #[test]
+    fn body_step_xz_ignores_y() {
+        let before = Vec3::new(2.0, 0.5, -1.0);
+        let after = Vec3::new(2.0, 40.0, -1.0);
+        let step = body_step_xz(
+            Some(Vec2::new(before.x, before.z)),
+            Vec2::new(after.x, after.z),
+            1.0,
+        );
+        assert!(step.abs() < 1e-6);
+    }
+
+    /// CARD GUIDANCE-WALK-BODY-1 — a 50 m single-frame jump is not a step.
+    #[test]
+    fn body_step_xz_fifty_metre_jump_adds_zero() {
+        let dt = 1.0 / 60.0;
+        assert!(50.0 > GUIDE_STEP_CAP_MPS * dt);
+        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(50.0, 0.0), dt);
+        assert!(step.abs() < 1e-6);
+    }
+
+    /// CARD GUIDANCE-WALK-BODY-1 — mounted sprint (6.91 m/s) counts in full.
+    #[test]
+    fn body_step_xz_mounted_sprint_counts_in_full() {
+        let dt = 0.25;
+        let metres = 6.91 * dt;
+        assert!(metres <= GUIDE_STEP_CAP_MPS * dt);
+        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(metres, 0.0), dt);
+        assert!((step - metres).abs() < 1e-5);
+    }
+
+    /// CARD GUIDANCE-WALK-BODY-1 — a zero-length frame adds no metres.
+    #[test]
+    fn body_step_xz_zero_dt_adds_zero() {
+        let step = body_step_xz(Some(Vec2::ZERO), Vec2::new(4.0, 3.0), 0.0);
+        assert!(step.abs() < 1e-6);
+    }
+
+    /// CARD GUIDANCE-WALK-BODY-1 — 5 m of in-cap XZ travel leaves MoveAround.
+    /// Standing on the same spot does not.
+    #[test]
+    fn body_xz_travel_advances_move_around_standing_still_does_not() {
+        use bevy::time::TimeUpdateStrategy;
+        use std::time::Duration;
+
+        fn guidance_app() -> App {
+            let mut app = App::new();
+            app.add_plugins(bevy::MinimalPlugins)
+                .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(
+                    200,
+                )))
+                .init_resource::<FirstSessionGuidance>()
+                .insert_resource(ButtonInput::<KeyCode>::default())
+                .init_resource::<SoftPresence>()
+                .add_systems(Update, track_simple_progress_signals);
+            app
+        }
+
+        let mut still = guidance_app();
+        for _ in 0..6 {
+            still.update();
+        }
+        let still_guide = still.world().resource::<FirstSessionGuidance>();
+        assert_eq!(still_guide.objective, GuidanceObjective::MoveAround);
+        assert!(still_guide.moved_distance.abs() < 1e-6);
+
+        let mut walking = guidance_app();
+        walking.update();
+        for _ in 0..5 {
+            walking
+                .world_mut()
+                .resource_mut::<SoftPresence>()
+                .position
+                .x += 1.0;
+            walking.update();
+        }
+        let walked = walking.world().resource::<FirstSessionGuidance>();
+        assert!((walked.moved_distance - 5.0).abs() < 1e-4);
+        assert_eq!(walked.objective, GuidanceObjective::ApproachGlowingNode);
     }
 }
