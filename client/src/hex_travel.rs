@@ -475,13 +475,13 @@ GlobalZIndex(PLACES_PLATE_Z),
         .with_children(|p| {
             p.spawn((
 Text::new(PLACES_TITLE),
-TextFont { font_size: 18.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(18.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ));
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 13.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(13.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ),
                 PlacesCueText,
@@ -516,7 +516,7 @@ fn spawn_places_btn<C: Component>(p: &mut ChildSpawnerCommands, label: &str, mar
     .with_children(|b| {
         b.spawn((
 Text::new(label),
-TextFont { font_size: 15.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(15.0 / 1.2), ..default() },
 TextColor(TITLE_BTN_FG),
 ));
     });
@@ -829,22 +829,21 @@ mod tests {
     }
 
     fn single_thread_schedules(app: &mut App) {
-        use bevy::ecs::schedule::ExecutorKind;
-        let kind = ExecutorKind::SingleThreaded;
+        use bevy::ecs::schedule::SingleThreadedExecutor;
         app.edit_schedule(bevy::prelude::Startup, |schedule| {
-            schedule.set_executor_kind(kind);
+            schedule.set_executor(SingleThreadedExecutor::new());
         });
         app.edit_schedule(bevy::prelude::PreUpdate, |schedule| {
-            schedule.set_executor_kind(kind);
+            schedule.set_executor(SingleThreadedExecutor::new());
         });
         app.edit_schedule(bevy::prelude::Update, |schedule| {
-            schedule.set_executor_kind(kind);
+            schedule.set_executor(SingleThreadedExecutor::new());
         });
         app.edit_schedule(bevy::prelude::PostUpdate, |schedule| {
-            schedule.set_executor_kind(kind);
+            schedule.set_executor(SingleThreadedExecutor::new());
         });
         app.edit_schedule(bevy::prelude::Last, |schedule| {
-            schedule.set_executor_kind(kind);
+            schedule.set_executor(SingleThreadedExecutor::new());
         });
     }
 

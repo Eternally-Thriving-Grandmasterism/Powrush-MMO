@@ -103,7 +103,7 @@ fn paint_body(
     }
     let tint = lineage.current.tint();
     for handle in &q {
-        if let Some(mat) = materials.get_mut(handle) {
+        if let Some(mut mat) = materials.get_mut(handle) {
             mat.base_color = tint;
         }
     }

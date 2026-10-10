@@ -449,7 +449,7 @@ fn sing_or_silence_spires(
         LinearRgba::new(0.25, 0.45, 0.70, 1.0)
     };
     for glow in &q {
-        if let Some(mat) = materials.get_mut(&glow.handle) {
+        if let Some(mut mat) = materials.get_mut(&glow.handle) {
             mat.emissive = e;
         }
     }
@@ -475,7 +475,7 @@ fn pulse_mycelium(
         LinearRgba::new(0.05 + s * 0.12, 0.18 + s * 0.40, 0.14 + s * 0.28, 1.0)
     };
     for glow in &q {
-        if let Some(mat) = materials.get_mut(&glow.handle) {
+        if let Some(mut mat) = materials.get_mut(&glow.handle) {
             mat.emissive = e;
         }
     }

@@ -245,7 +245,7 @@ fn spawn_allocate_panel(mut commands: Commands) {
             p.spawn((
                 (
 Text::new("Allocate credit · Flow or Reserve"),
-TextFont { font_size: 15.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(15.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 AllocateBodyText,
@@ -275,7 +275,7 @@ TextColor(TITLE_TEXT_PRIMARY),
                 .with_children(|b| {
                     b.spawn((
 Text::new("Flow · field restore"),
-TextFont { font_size: 14.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(14.0 / 1.2), ..default() },
 TextColor(TITLE_BTN_FG),
 ));
                 });
@@ -296,7 +296,7 @@ TextColor(TITLE_BTN_FG),
                 .with_children(|b| {
                     b.spawn((
 Text::new("Reserve · repair-rights"),
-TextFont { font_size: 14.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(14.0 / 1.2), ..default() },
 TextColor(TITLE_BTN_FG),
 ));
                 });
@@ -304,7 +304,7 @@ TextColor(TITLE_BTN_FG),
 
             p.spawn((
 Text::new("1 Flow · 2 Reserve · R close · credit logistics"),
-TextFont { font_size: 12.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(12.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
         });
@@ -774,6 +774,6 @@ mod tests {
         let mut text = app
             .world_mut()
             .query_filtered::<&TextFont, With<AllocateBodyText>>();
-        assert_eq!(text.single(app.world()).unwrap().font_size, 15.0 / 1.2);
+        assert_eq!(text.single(app.world()).unwrap().font_size, FontSize::Px(15.0 / 1.2));
     }
 }

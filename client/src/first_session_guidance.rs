@@ -817,7 +817,7 @@ fn spawn_guidance_strip(mut commands: Commands) {
             parent.spawn((
                 (
 Text::new(card_line(GuidanceObjective::MoveAround.prompt())),
-TextFont { font_size: 17.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(17.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 FirstSessionGuidanceText,
@@ -975,15 +975,19 @@ fn update_guidance_text(
         .unwrap_or(false);
     let font_differs = query
         .iter()
-        .any(|(_, font)| (font.font_size - card_px / 1.2).abs() > 0.01);
+        .any(|(_, font)| match font.font_size {
+            FontSize::Px(current) => (current - card_px / 1.2).abs() > 0.01,
+            _ => true,
+        });
     if !guidance.is_changed() && !place_changed && !settings_changed && !font_differs {
         return;
     }
     *last_place = place;
     let prompt = lived_card_line(&guidance, place);
     for (mut text, mut font) in &mut query {
-        if (font.font_size - card_px / 1.2).abs() > 0.01 {
-            font.font_size = card_px / 1.2;
+        match font.font_size {
+            FontSize::Px(current) if (current - card_px / 1.2).abs() <= 0.01 => {}
+            _ => font.font_size = FontSize::Px(card_px / 1.2),
         }
         if text.as_str() != prompt {
             **text = prompt.clone();
@@ -1220,7 +1224,10 @@ mod tests {
             .world_mut()
             .query_filtered::<(&Text, &TextFont), With<FirstSessionGuidanceText>>();
         for (text, font) in fonts.iter(app.world()) {
-            return (font.font_size, text.as_str().to_string());
+            let FontSize::Px(size) = font.font_size else {
+                panic!("guidance font size is {:?}", font.font_size);
+            };
+            return (size, text.as_str().to_string());
         }
         panic!("guidance card text missing");
     }
@@ -3029,7 +3036,7 @@ mod tests {
         let mut text = app
             .world_mut()
             .query_filtered::<&TextFont, With<FirstSessionGuidanceText>>();
-        assert_eq!(text.single(app.world()).unwrap().font_size, 17.0 / 1.2);
+        assert_eq!(text.single(app.world()).unwrap().font_size, FontSize::Px(17.0 / 1.2));
     }
 
     /// CARD GUIDANCE-WALK-BODY-1 — no previous sample is not travel.
@@ -3192,7 +3199,7 @@ mod tests {
     /// That update only starts the manual clock. `free_since` is set after it,
     /// so the caller's `app.update()` is the one that moves the timer.
     fn hour_card_end_app(free_since: f32) -> App {
-        use bevy::ecs::schedule::ExecutorKind;
+        use bevy::ecs::schedule::SingleThreadedExecutor;
         use bevy::time::TimeUpdateStrategy;
         use std::time::Duration;
 
@@ -3206,7 +3213,7 @@ mod tests {
             .insert_resource(l5_demo_bind())
             .add_systems(Update, track_simple_progress_signals);
         app.edit_schedule(Update, |schedule| {
-            schedule.set_executor_kind(ExecutorKind::SingleThreaded);
+            schedule.set_executor(SingleThreadedExecutor::new());
         });
         app.update();
         {
@@ -3258,7 +3265,7 @@ mod tests {
     /// CARD HOUR-CARD-END-1 — H hush dismisses and hides. It does not persist.
     #[test]
     fn hour_card_end_h_hush_writes_nothing() {
-        use bevy::ecs::schedule::ExecutorKind;
+        use bevy::ecs::schedule::SingleThreadedExecutor;
 
         let _user_dir = crate::test_env::lock();
         let (dir, _restore) = hour_card_end_scratch("hush");
@@ -3269,7 +3276,7 @@ mod tests {
             .insert_resource(l5_demo_bind())
             .add_systems(Update, handle_guidance_dismiss_input);
         app.edit_schedule(Update, |schedule| {
-            schedule.set_executor_kind(ExecutorKind::SingleThreaded);
+            schedule.set_executor(SingleThreadedExecutor::new());
         });
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()

@@ -369,7 +369,7 @@ fn spawn_mercy_nodes(
                         color,
                         intensity: 420.0,
                         range: 6.5,
-                        shadows_enabled: false,
+                        shadow_maps_enabled: false,
                         ..default()
                     });
             });
@@ -405,7 +405,7 @@ fn spawn_care_cycle_strip(mut commands: Commands) {
             parent.spawn((
                 (
 Text::new(care_cycle_card_line(false)),
-TextFont { font_size: 16.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(16.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 CareCycleStripText,
@@ -1225,6 +1225,6 @@ mod tests {
         let mut text = app
             .world_mut()
             .query_filtered::<&TextFont, With<CareCycleStripText>>();
-        assert_eq!(text.single(app.world()).unwrap().font_size, 16.0 / 1.2);
+        assert_eq!(text.single(app.world()).unwrap().font_size, FontSize::Px(16.0 / 1.2));
     }
 }

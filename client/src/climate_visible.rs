@@ -201,7 +201,7 @@ fn paint_nodes_from_hour(
         let state = well_state_in_hour(&bind.hour.nodes, node.climate_id);
         let mul = state.glow_mul();
         let (emissive_mul, intensity, range) = well_glow(place, mul, node.pulse);
-        if let Some(mat) = materials.get_mut(handle) {
+        if let Some(mut mat) = materials.get_mut(handle) {
             mat.emissive = LinearRgba::from(mat.base_color) * emissive_mul;
         }
         if let Some(children) = children {
@@ -309,7 +309,7 @@ fn spawn_climate_state_slab(mut commands: Commands) {
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 14.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(14.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 ClimateStateText,
@@ -461,8 +461,9 @@ fn update_climate_state_slab(
         .map(|state| climate_slab_font_px(state.inner.text_scale))
         .unwrap_or(14.0);
     for (mut text, mut font) in &mut text_q {
-        if (font.font_size - slab_px / 1.2).abs() > 0.01 {
-            font.font_size = slab_px / 1.2;
+        match font.font_size {
+            FontSize::Px(current) if (current - slab_px / 1.2).abs() <= 0.01 => {}
+            _ => font.font_size = FontSize::Px(slab_px / 1.2),
         }
         if text.as_str() != line {
             **text = line.clone();

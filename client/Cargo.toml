@@ -14,26 +14,29 @@ default = []
 steam = ["dep:steamworks"]
 
 [dependencies]
-# 0.18.1 `default` is the collections `2d` + `3d` + `ui`. Each pulls
-# `default_platform`, and that collection includes `wayland`. Listing the
-# collections would enable `wayland`. These are the collection members with
-# `default_platform` expanded and `wayland` left out. Transitive closure
-# matches the published default feature closure minus `wayland` (and minus
-# the empty collection names that cannot be enabled without it).
-bevy = { version = "0.18", default-features = false, features = [
+# 0.19.1 `default` is the collections `2d` + `3d` + `ui` + `audio`
+# (74 facade features). `2d`, `3d`, and `ui` pull `default_platform`, and
+# that collection includes `wayland`. Listing a collection name
+# (`2d` / `3d` / `ui` / `audio` / `default_platform`) is avoided: those
+# names are not on this line. These are the collection members, with
+# `default_platform` expanded and `wayland` left out. Nothing beyond the
+# published default set. `x11` stays.
+bevy = { version = "0.19", default-features = false, features = [
     "default_app",
     "2d_bevy_render",
     "3d_bevy_render",
     "ui_api",
     "ui_bevy_render",
+    "bevy_ui_widgets",
     "scene",
-    "audio",
     "picking",
+    "bevy_audio",
+    "vorbis",
     "std",
-    "android-game-activity",
-    "android_shared_stdcxx",
+    "bevy_clipboard",
     "bevy_gilrs",
     "bevy_winit",
+    "custom_cursor",
     "default_font",
     "multi_threaded",
     "webgl2",

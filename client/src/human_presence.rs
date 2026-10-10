@@ -907,7 +907,7 @@ fn pose_person(
 
     let glow = accent_glow(a, attend.near_glow, kick);
     for handle in &accents {
-        if let Some(mat) = materials.get_mut(handle) {
+        if let Some(mut mat) = materials.get_mut(handle) {
             mat.emissive = LinearRgba::from(SANCTUARY_GOLD) * glow;
         }
     }

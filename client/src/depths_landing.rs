@@ -224,7 +224,7 @@ mod tests {
         app.add_systems(Update, use_depths_peace_node);
         // Persist runs on this thread so it can reenter the user-dir lock.
         app.edit_schedule(bevy::prelude::Update, |schedule| {
-            schedule.set_executor_kind(bevy::ecs::schedule::ExecutorKind::SingleThreaded);
+            schedule.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new());
         });
 
         app.update();

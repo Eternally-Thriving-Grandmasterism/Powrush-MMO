@@ -137,7 +137,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: WATCH_STRIP_FONT_BASE / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(WATCH_STRIP_FONT_BASE / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 WatchStripText,
@@ -172,7 +172,7 @@ GlobalZIndex(LIVED_UI_Z_LEDGER),
             p.spawn((
                 (
 Text::new("SATCHEL"),
-TextFont { font_size: 14.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(14.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ),
                 SatchelFontBase(14.0),
@@ -180,7 +180,7 @@ TextColor(TITLE_TEXT_SECONDARY),
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 13.5 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(13.5 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 SatchelBody,
@@ -189,7 +189,7 @@ TextColor(TITLE_TEXT_PRIMARY),
             p.spawn((
                 (
 Text::new("I close · 1–3 highlight · R allocate surplus"),
-TextFont { font_size: 11.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(11.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ),
                 SatchelFontBase(11.0),
@@ -221,7 +221,7 @@ TextColor(TITLE_TEXT_SECONDARY),
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: PICKUP_FLASH_FONT_BASE / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(PICKUP_FLASH_FONT_BASE / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 PickupFlashText,
@@ -402,8 +402,9 @@ fn scale_strip_and_flash_fonts(
     };
     for (base, mut font) in &mut q {
         let px = satchel_font_px(base.0, scale);
-        if (font.font_size - px / 1.2).abs() > 0.01 {
-            font.font_size = px / 1.2;
+        match font.font_size {
+            FontSize::Px(current) if (current - px / 1.2).abs() <= 0.01 => {}
+            _ => font.font_size = FontSize::Px(px / 1.2),
         }
     }
 }
@@ -418,8 +419,9 @@ fn scale_satchel_fonts(
     };
     for (base, mut font) in &mut q {
         let px = satchel_font_px(base.0, scale);
-        if (font.font_size - px / 1.2).abs() > 0.01 {
-            font.font_size = px / 1.2;
+        match font.font_size {
+            FontSize::Px(current) if (current - px / 1.2).abs() <= 0.01 => {}
+            _ => font.font_size = FontSize::Px(px / 1.2),
         }
     }
 }
@@ -768,7 +770,10 @@ mod tests {
             .world_mut()
             .query::<(&SatchelFontBase, &Text, &TextFont)>();
         for (base, text, font) in fonts.iter(app.world()) {
-            rows.push((base.0, font.font_size, text.as_str().to_string()));
+            let FontSize::Px(size) = font.font_size else {
+                panic!("satchel font size is {:?}", font.font_size);
+            };
+            rows.push((base.0, size, text.as_str().to_string()));
         }
         rows.sort_by(|a, b| a.0.partial_cmp(&b.0).expect("satchel font base"));
         rows
@@ -910,7 +915,10 @@ mod tests {
             } else {
                 panic!("StripFlashFontBase without strip or flash text");
             };
-            rows.push((base.0, font.font_size, text.as_str().to_string(), kind));
+            let FontSize::Px(size) = font.font_size else {
+                panic!("strip font size is {:?}", font.font_size);
+            };
+            rows.push((base.0, size, text.as_str().to_string(), kind));
         }
         rows.sort_by(|a, b| a.0.partial_cmp(&b.0).expect("strip flash font base"));
         rows

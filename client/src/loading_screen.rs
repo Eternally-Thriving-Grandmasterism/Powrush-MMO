@@ -181,6 +181,13 @@ fn boot_snapshot(server: Option<&AssetServer>, ids: &[UntypedAssetId]) -> BootSn
     }
 }
 
+fn observed_font_id(font: &TextFont) -> Option<AssetId<Font>> {
+    match &font.font {
+        FontSource::Handle(handle) => Some(handle.id()),
+        _ => None,
+    }
+}
+
 fn push_observed(
     ids: &mut Vec<UntypedAssetId>,
     fonts: Option<&Assets<Font>>,
@@ -241,7 +248,7 @@ fn spawn_loading_overlay(
     push_observed(
         &mut ids,
         fonts.as_deref(),
-        texts.iter().map(|font| font.font.id()),
+        texts.iter().filter_map(observed_font_id),
         images.iter().map(|node| node.image.id()),
         audio.iter().map(|player| player.0.id()),
     );
@@ -316,9 +323,9 @@ GlobalZIndex(LOADING_Z),
                 panel.spawn((
                     (
 Text::new(percent),
-TextFont { font_size: 18.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(18.0 / 1.2), ..default() },
 TextColor(TEXT_CREAM),
-TextLayout::new_with_justify(Justify::Center),
+TextLayout::justify(Justify::Center),
 Node {
                             width: Val::Percent(100.0),
                             ..default()
@@ -329,9 +336,9 @@ Node {
                 panel.spawn((
                     (
 Text::new(flavour),
-TextFont { font_size: 16.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(16.0 / 1.2), ..default() },
 TextColor(TEXT_ROSE),
-TextLayout::new_with_justify(Justify::Center),
+TextLayout::justify(Justify::Center),
 Node {
                             width: Val::Percent(100.0),
                             ..default()
@@ -361,7 +368,7 @@ fn refresh_loading_overlay(
     push_observed(
         &mut ids,
         fonts.as_deref(),
-        texts.iter().map(|font| font.font.id()),
+        texts.iter().filter_map(observed_font_id),
         images.iter().map(|node| node.image.id()),
         audio.iter().map(|player| player.0.id()),
     );
