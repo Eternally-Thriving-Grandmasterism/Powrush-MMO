@@ -100,6 +100,10 @@ impl Plugin for InputPlugin {
                 Update,
                 apply_script_timeline
                     .after(handle_player_input)
+                    // After the close system, so this frame's reader misses the message.
+                    // Next frame the yard save (`.before(close_when_requested)`) reads it,
+                    // then close runs. `scripted_title_play` stays `.after` this system.
+                    .after(bevy::window::close_when_requested)
                     .in_set(InputMapSet)
                     .run_if(resource_exists::<ScriptTimeline>),
             );
@@ -1366,6 +1370,65 @@ mod tests {
         assert!(saw_past, "kept stepping past the end");
         assert_eq!(total, 1, "one close, then the latch holds");
         assert!(app.world().resource::<ScriptTimeline>().close_sent);
+    }
+
+    /// `apply_script_timeline` is `.after(close_when_requested)`.
+    /// `scripted_title_play` is `.after(apply_script_timeline)` in this same
+    /// Update graph. Building Update and Last must not cycle, and the close
+    /// system stays ahead of the script system.
+    #[test]
+    fn script_timeline_runs_after_close_when_requested() {
+        use bevy::ecs::schedule::Schedules;
+        use bevy::ecs::system::{IntoSystem, System};
+        use std::any::TypeId;
+
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_plugins(InputPlugin)
+            .add_plugins(crate::title_screen::TitleScreenPlugin)
+            .add_plugins(bevy::window::WindowPlugin::default())
+            // WindowPlugin schedules the close system in `Last`. The `.after`
+            // edge orders systems that share a schedule, so this test also
+            // places that system in Update, where the script system runs.
+            .add_systems(Update, bevy::window::close_when_requested);
+        let mut schedules = app.world_mut().remove_resource::<Schedules>().unwrap();
+        let update = schedules.get_mut(Update).unwrap();
+        update
+            .initialize(app.world_mut())
+            .expect("Update builds; scripted_title_play after the script system does not cycle");
+        let ids: Vec<TypeId> = update
+            .systems()
+            .unwrap()
+            .map(|(_, system)| System::system_type(&**system))
+            .collect();
+        let pos = |id: TypeId, label: &str| {
+            ids.iter()
+                .position(|found| *found == id)
+                .unwrap_or_else(|| panic!("{label} missing from Update"))
+        };
+        let close = pos(
+            IntoSystem::system_type_id(&bevy::window::close_when_requested),
+            "close_when_requested",
+        );
+        let script = pos(
+            IntoSystem::system_type_id(&apply_script_timeline),
+            "apply_script_timeline",
+        );
+        assert!(
+            close < script,
+            "close_when_requested {close} runs before apply_script_timeline {script}"
+        );
+        let last = schedules.get_mut(bevy::prelude::Last).unwrap();
+        last.initialize(app.world_mut())
+            .expect("Last builds with WindowPlugin's close_when_requested");
+        let last_has_close = last.systems().unwrap().any(|(_, system)| {
+            System::system_type(&**system)
+                == IntoSystem::system_type_id(&bevy::window::close_when_requested)
+        });
+        assert!(
+            last_has_close,
+            "WindowPlugin still schedules close_when_requested in Last"
+        );
     }
 
     #[test]
