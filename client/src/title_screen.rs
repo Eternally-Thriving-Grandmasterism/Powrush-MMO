@@ -149,7 +149,7 @@ use crate::hour_sacred::{
     HourSacred, PeopleLanding, HOUSE_PEOPLES, HOUR_TWO_PATH, L2_ASSET_BUDGET_CITE, L2_MESH_BUDGET,
 };
 use crate::human_presence::SoftPresence;
-use crate::input::{InputMapSet, PlayerInput};
+use crate::input::{InputMapSet, PlayerInput, ScriptTimeline};
 use crate::lived_hour_bind::LivedHourBind;
 use crate::lived_hour_bind::{SHARD_CLIMATE_PATH, SHARD_STANDING_PATH};
 use crate::local_settings::LocalSettingsState;
@@ -1343,6 +1343,12 @@ impl Plugin for TitleScreenPlugin {
                 refresh_peace_rebind_labels.after(capture_peace_rebind),
             )
             .add_systems(Update, esc_yard_pause.after(InputMapSet))
+            .add_systems(
+                Update,
+                scripted_title_play
+                    .in_set(InputMapSet)
+                    .after(crate::input::apply_script_timeline),
+            )
             // Idempotent if WindowPlugin already registered it. Tests that add
             // this plugin without a window still have the event resource.
             .add_message::<bevy::window::WindowCloseRequested>()
@@ -2227,6 +2233,21 @@ fn enter_yard(door: &mut LaunchDoor, label: &mut HouseLabel) {
     label.settings_open = false;
 }
 
+/// Play button, Digit1/Enter, and scripted Use share this boot.
+fn play_and_enter_yard(
+    door: &mut LaunchDoor,
+    label: &mut HouseLabel,
+    travel: Option<&mut HexTravelState>,
+    bind: Option<&mut LivedHourBind>,
+    hour: Option<&HourSacred>,
+    embassy: Option<&mut EmbassyYard>,
+) {
+    if let (Some(travel), Some(bind), Some(hour)) = (travel, bind, hour) {
+        let _ = s3_play_boot(travel, bind, hour, embassy);
+    }
+    enter_yard(door, label);
+}
+
 fn title_button_clicks(
     mut door: ResMut<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
@@ -2248,12 +2269,14 @@ fn title_button_clicks(
     }
     for i in &play {
         if *i == Interaction::Pressed {
-            if let (Some(travel), Some(bind), Some(hour)) =
-                (travel.as_mut(), bind.as_mut(), hour.as_ref())
-            {
-                let _ = s3_play_boot(travel, bind, hour, embassy.as_deref_mut());
-            }
-            enter_yard(&mut door, &mut label);
+            play_and_enter_yard(
+                &mut door,
+                &mut label,
+                travel.as_deref_mut(),
+                bind.as_deref_mut(),
+                hour.as_deref(),
+                embassy.as_deref_mut(),
+            );
             return;
         }
     }
@@ -2314,12 +2337,14 @@ fn title_keyboard_shortcuts(
     match *door {
         LaunchDoor::Title => {
             if keyboard.just_pressed(KeyCode::Digit1) || keyboard.just_pressed(KeyCode::Enter) {
-                if let (Some(travel), Some(bind), Some(hour)) =
-                    (travel.as_mut(), bind.as_mut(), hour.as_ref())
-                {
-                    let _ = s3_play_boot(travel, bind, hour, embassy.as_deref_mut());
-                }
-                enter_yard(&mut door, &mut label);
+                play_and_enter_yard(
+                    &mut door,
+                    &mut label,
+                    travel.as_deref_mut(),
+                    bind.as_deref_mut(),
+                    hour.as_deref(),
+                    embassy.as_deref_mut(),
+                );
             } else if keyboard.just_pressed(KeyCode::Digit2) {
                 if label.persist_present {
                     if let (Some(travel), Some(bind), Some(hour)) =
@@ -2353,6 +2378,56 @@ fn title_keyboard_shortcuts(
         }
         LaunchDoor::NameHouse | LaunchDoor::HouseDress => {}
     }
+}
+
+/// `--script` Use edge on Title runs the same Play boot as Digit1/Enter.
+/// From that frame, both Use flags stay clear until the press reads released.
+fn scripted_title_play(
+    mut player_input: ResMut<PlayerInput>,
+    script: Option<Res<ScriptTimeline>>,
+    rebind: Res<PeaceRebindState>,
+    mut door: ResMut<LaunchDoor>,
+    mut label: ResMut<HouseLabel>,
+    persona: Res<PersonaCreatorState>,
+    mut travel: Option<ResMut<HexTravelState>>,
+    mut bind: Option<ResMut<LivedHourBind>>,
+    hour: Option<Res<HourSacred>>,
+    mut embassy: Option<ResMut<EmbassyYard>>,
+    mut latched: Local<bool>,
+) {
+    if *latched {
+        if player_input.interact || player_input.interact_held {
+            player_input.interact = false;
+            player_input.interact_held = false;
+            return;
+        }
+        *latched = false;
+        return;
+    }
+    let scripted_play = script.is_some() && player_input.interact;
+    if !scripted_play {
+        return;
+    }
+    if rebind.waiting.is_some() || rebind.suppress_shortcuts {
+        return;
+    }
+    if persona.open {
+        return;
+    }
+    if *door != LaunchDoor::Title {
+        return;
+    }
+    play_and_enter_yard(
+        &mut door,
+        &mut label,
+        travel.as_deref_mut(),
+        bind.as_deref_mut(),
+        hour.as_deref(),
+        embassy.as_deref_mut(),
+    );
+    player_input.interact = false;
+    player_input.interact_held = false;
+    *latched = true;
 }
 
 fn sync_title_visibility(
@@ -7908,5 +7983,424 @@ mod tests {
         });
         paused.update();
         assert!(paused.world().resource::<HouseLabel>().settings_open);
+    }
+
+    // --- CARD TITLE-SCRIPT-PLAY-1 — scripted Use on Title ------------------
+
+    fn title_script_door_app(with_script: bool) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .configure_sets(Update, crate::input::InputMapSet)
+            .insert_resource(LaunchDoor::Title)
+            .init_resource::<HouseLabel>()
+            .init_resource::<PersonaCreatorState>()
+            .init_resource::<PeaceRebindState>()
+            .insert_resource(PlayerInput::default())
+            .add_systems(
+                Update,
+                super::scripted_title_play
+                    .in_set(crate::input::InputMapSet)
+                    .after(crate::input::apply_script_timeline),
+            );
+        if with_script {
+            app.insert_resource(ScriptTimeline::from_path("title-script-play.txt"));
+        }
+        app
+    }
+
+    fn press_title_use(app: &mut App) {
+        let mut input = app.world_mut().resource_mut::<PlayerInput>();
+        input.interact = true;
+        input.interact_held = true;
+    }
+
+    /// Script resource plus a Use edge on Title takes the Play door.
+    #[test]
+    fn title_script_play_use_reaches_inyard() {
+        let mut app = title_script_door_app(true);
+        press_title_use(&mut app);
+        app.update();
+        assert_eq!(*app.world().resource::<LaunchDoor>(), LaunchDoor::InYard);
+        let (edge, held) = {
+            let input = app.world().resource::<PlayerInput>();
+            (input.interact, input.interact_held)
+        };
+        assert!(!edge && !held, "the play frame clears both Use flags");
+    }
+
+    /// The same edge with no script resource leaves the door on Title.
+    #[test]
+    fn title_script_play_without_script_stays_title() {
+        let mut app = title_script_door_app(false);
+        press_title_use(&mut app);
+        app.update();
+        assert_eq!(*app.world().resource::<LaunchDoor>(), LaunchDoor::Title);
+        assert!(
+            app.world().resource::<PlayerInput>().interact,
+            "no script leaves the human Use edge alone"
+        );
+    }
+
+    /// Digit1 still enters the yard when no script resource exists.
+    #[test]
+    fn title_script_play_digit1_still_enters_yard() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(LaunchDoor::Title)
+            .init_resource::<HouseLabel>()
+            .init_resource::<PersonaCreatorState>()
+            .init_resource::<PeaceRebindState>()
+            .insert_resource(ButtonInput::<KeyCode>::default())
+            .add_systems(Update, super::title_keyboard_shortcuts);
+        let mut keys = ButtonInput::<KeyCode>::default();
+        keys.press(KeyCode::Digit1);
+        app.insert_resource(keys);
+        app.update();
+        assert_eq!(*app.world().resource::<LaunchDoor>(), LaunchDoor::InYard);
+    }
+
+    /// Persona open, rebind wait, and rebind suppress block scripted Play.
+    /// A blocked frame does not clear the Use edge.
+    #[test]
+    fn title_script_play_gates_block_and_keep_edge() {
+        let blocked = |setup: fn(&mut App)| {
+            let mut app = title_script_door_app(true);
+            setup(&mut app);
+            press_title_use(&mut app);
+            app.update();
+            assert_eq!(*app.world().resource::<LaunchDoor>(), LaunchDoor::Title);
+            assert!(app.world().resource::<PlayerInput>().interact);
+        };
+        blocked(|app| app.world_mut().resource_mut::<PersonaCreatorState>().open = true);
+        blocked(|app| {
+            app.world_mut()
+                .resource_mut::<PeaceRebindState>()
+                .suppress_shortcuts = true;
+        });
+        blocked(|app| {
+            app.world_mut().resource_mut::<PeaceRebindState>().waiting = Some(PeaceAction::Use);
+        });
+    }
+
+    /// In the yard the scripted edge is a world Use, not another Play.
+    #[test]
+    fn title_script_play_yard_keeps_interact() {
+        let mut app = title_script_door_app(true);
+        *app.world_mut().resource_mut::<LaunchDoor>() = LaunchDoor::InYard;
+        press_title_use(&mut app);
+        app.update();
+        assert_eq!(*app.world().resource::<LaunchDoor>(), LaunchDoor::InYard);
+        let (edge, held) = {
+            let input = app.world().resource::<PlayerInput>();
+            (input.interact, input.interact_held)
+        };
+        assert!(edge && held, "yard Use stays on the device path");
+    }
+
+    fn title_script_harvest_app(in_range: bool) -> App {
+        use crate::abundance_journey_echo::AbundanceJourneyEcho;
+        use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+        use crate::first_session_guidance::FirstSessionGuidance;
+        use crate::harvest_feel::SoftRbePool;
+        use crate::mercy_harvest_nodes::NearbyMercyNode;
+        use crate::thriving_moments::ThrivingMoments;
+        use crate::world_answer::WorldAnswer;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .configure_sets(Update, crate::input::InputMapSet)
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+                std::time::Duration::ZERO,
+            ))
+            .insert_resource(LaunchDoor::Title)
+            .init_resource::<HouseLabel>()
+            .init_resource::<PersonaCreatorState>()
+            .init_resource::<PeaceRebindState>()
+            .init_resource::<PlayerInput>()
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<FirstSessionGuidance>()
+            .init_resource::<ThrivingMoments>()
+            .init_resource::<AbundanceJourneyEcho>()
+            .init_resource::<NearbyMercyNode>()
+            .init_resource::<SoftRbePool>()
+            .init_resource::<WorldAnswer>()
+            .insert_resource(HourSacred::default())
+            .insert_resource(ScriptTimeline::from_path("title-script-play.txt"))
+            .add_message::<bevy::input::gamepad::GamepadRumbleRequest>()
+            .add_plugins(crate::first_harvest_epiphany::FirstHarvestEpiphanyPlugin)
+            .add_systems(
+                Update,
+                super::scripted_title_play
+                    .in_set(crate::input::InputMapSet)
+                    .after(crate::input::apply_script_timeline),
+            );
+        app.world_mut()
+            .resource_mut::<Time<bevy::time::Virtual>>()
+            .set_max_delta(std::time::Duration::from_secs(2));
+        {
+            let mut nearby = app.world_mut().resource_mut::<NearbyMercyNode>();
+            nearby.nodes_exist = true;
+            nearby.in_range = in_range;
+            nearby.name = Some("Sanctuary ember");
+        }
+        app
+    }
+
+    fn set_script_use(app: &mut App, edge: bool, held: bool) {
+        let mut input = app.world_mut().resource_mut::<PlayerInput>();
+        input.interact = edge;
+        input.interact_held = held;
+    }
+
+    fn advance_script_secs(app: &mut App, secs: f64) {
+        *app.world_mut()
+            .resource_mut::<bevy::time::TimeUpdateStrategy>() =
+            bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(
+                secs,
+            ));
+        app.update();
+    }
+
+    struct PlayFrameSnap {
+        harvests: u32,
+        pulse: String,
+        interact: bool,
+        interact_held: bool,
+        door: LaunchDoor,
+    }
+
+    fn scripted_press_frame(in_range: bool) -> PlayFrameSnap {
+        let mut app = title_script_harvest_app(in_range);
+        set_script_use(&mut app, true, true);
+        advance_script_secs(&mut app, 0.0);
+        let (harvests, pulse) = {
+            let state = app
+                .world()
+                .resource::<crate::first_harvest_epiphany::FirstHarvestEpiphany>();
+            (state.harvests_this_session, state.pulse_line.clone())
+        };
+        let (interact, interact_held) = {
+            let input = app.world().resource::<PlayerInput>();
+            (input.interact, input.interact_held)
+        };
+        PlayFrameSnap {
+            harvests,
+            pulse,
+            interact,
+            interact_held,
+            door: *app.world().resource::<LaunchDoor>(),
+        }
+    }
+
+    /// The play frame clears the edge before harvest: no take, no Step closer.
+    #[test]
+    fn title_script_play_frame_has_no_take_or_step_closer() {
+        let in_range = scripted_press_frame(true);
+        let out_of_range = scripted_press_frame(false);
+        assert_eq!(in_range.door, LaunchDoor::InYard);
+        assert_eq!(out_of_range.door, LaunchDoor::InYard);
+        assert!(!in_range.interact && !in_range.interact_held);
+        assert!(!out_of_range.interact && !out_of_range.interact_held);
+        let mut problems = Vec::new();
+        if in_range.harvests != 0 {
+            problems.push(format!("in-range takes {}", in_range.harvests));
+        }
+        if in_range.pulse.contains("Step closer") {
+            problems.push(format!("in-range pulse {}", in_range.pulse));
+        }
+        if out_of_range.harvests != 0 {
+            problems.push(format!("out-of-range takes {}", out_of_range.harvests));
+        }
+        if out_of_range.pulse.contains("Step closer") {
+            problems.push(format!("out-of-range pulse {}", out_of_range.pulse));
+        }
+        assert!(problems.is_empty(), "{}", problems.join("; "));
+    }
+
+    /// Scripted Play, hold Use for a few frames under the tend window, then release.
+    /// Counts harvest takes. A release take is the falling-edge path Enter never arms.
+    #[test]
+    fn title_script_play_release_counts_takes() {
+        use crate::first_harvest_epiphany::{FirstHarvestEpiphany, TEND_HOLD};
+        use crate::world_answer::WorldAnswer;
+
+        let mut app = title_script_harvest_app(true);
+        advance_script_secs(&mut app, 0.0);
+        advance_script_secs(&mut app, 1.0);
+        assert_eq!(*app.world().resource::<LaunchDoor>(), LaunchDoor::Title);
+
+        set_script_use(&mut app, true, true);
+        advance_script_secs(&mut app, 0.0);
+        let started = app.world().resource::<Time>().elapsed_secs_f64();
+        let (press, press_pulse) = {
+            let state = app.world().resource::<FirstHarvestEpiphany>();
+            (state.harvests_this_session, state.pulse_line.clone())
+        };
+        assert_eq!(*app.world().resource::<LaunchDoor>(), LaunchDoor::InYard);
+        assert!(
+            !press_pulse.contains("Step closer"),
+            "play frame pulse {press_pulse}"
+        );
+
+        set_script_use(&mut app, false, true);
+        advance_script_secs(&mut app, 0.05);
+        set_script_use(&mut app, false, true);
+        advance_script_secs(&mut app, 0.05);
+        set_script_use(&mut app, false, true);
+        advance_script_secs(&mut app, 0.05);
+        let held_for = app.world().resource::<Time>().elapsed_secs_f64() - started;
+        assert!(
+            held_for < TEND_HOLD,
+            "held {held_for}s must stay under the tend window"
+        );
+        let before_release = app.world().resource::<FirstHarvestEpiphany>().harvests_this_session;
+
+        set_script_use(&mut app, false, false);
+        advance_script_secs(&mut app, 0.0);
+        let (takes, tends, pulse) = {
+            let end = app.world().resource::<FirstHarvestEpiphany>();
+            (
+                end.harvests_this_session,
+                end.tends_this_session,
+                end.pulse_line.clone(),
+            )
+        };
+        let (kind, line) = {
+            let answer = app.world().resource::<WorldAnswer>();
+            (answer.kind, answer.last_line.clone())
+        };
+        assert_eq!(
+            (press, before_release, takes, tends),
+            (0, 0, 0, 0),
+            "release take count pulse={pulse} answer={kind:?} {line}"
+        );
+    }
+
+    /// Device fill, script fill, scripted Play, then systems after InputMapSet.
+    /// Harvest uses that same post-set slot (`.after(InputMapSet)` since #720).
+    #[test]
+    fn title_script_play_orders_fill_then_play_then_harvest() {
+        use bevy::ecs::schedule::Schedules;
+        use bevy::ecs::system::{IntoSystem, System};
+        use std::any::TypeId;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(crate::input::InputPlugin)
+            .add_plugins(crate::first_session_guidance::FirstSessionGuidancePlugin)
+            .add_plugins(TitleScreenPlugin)
+            .add_plugins(crate::first_harvest_epiphany::FirstHarvestEpiphanyPlugin);
+        let mut schedules = app.world_mut().remove_resource::<Schedules>().unwrap();
+        let schedule = schedules.get_mut(Update).unwrap();
+        schedule.initialize(app.world_mut()).unwrap();
+        let ids: Vec<TypeId> = schedule
+            .systems()
+            .unwrap()
+            .map(|(_, system)| System::system_type(&**system))
+            .collect();
+        let pos = |id: TypeId, label: &str| {
+            ids.iter()
+                .position(|found| *found == id)
+                .unwrap_or_else(|| panic!("{label} missing from schedule"))
+        };
+        let device = pos(
+            IntoSystem::system_type_id(&crate::input::handle_player_input),
+            "handle_player_input",
+        );
+        let fill = pos(
+            IntoSystem::system_type_id(&crate::input::apply_script_timeline),
+            "apply_script_timeline",
+        );
+        let play = pos(
+            IntoSystem::system_type_id(&super::scripted_title_play),
+            "scripted_title_play",
+        );
+        let after_set = pos(
+            IntoSystem::system_type_id(&super::esc_yard_pause),
+            "esc_yard_pause",
+        );
+        assert!(
+            device < fill && fill < play,
+            "device {device}, script fill {fill}, scripted play {play}"
+        );
+        assert!(
+            play < after_set,
+            "scripted play {play} is inside InputMapSet, before the post-set slot harvest shares ({after_set})"
+        );
+    }
+
+    fn play_hold_release(app: &mut App) -> (u32, u32, u32, u32, String) {
+        use crate::first_harvest_epiphany::{FirstHarvestEpiphany, TEND_HOLD};
+
+        advance_script_secs(app, 0.0);
+        advance_script_secs(app, 1.0);
+        set_script_use(app, true, true);
+        advance_script_secs(app, 0.0);
+        let started = app.world().resource::<Time>().elapsed_secs_f64();
+        let (press, pulse) = {
+            let state = app.world().resource::<FirstHarvestEpiphany>();
+            (state.harvests_this_session, state.pulse_line.clone())
+        };
+        set_script_use(app, false, true);
+        advance_script_secs(app, 0.05);
+        set_script_use(app, false, true);
+        advance_script_secs(app, 0.05);
+        set_script_use(app, false, true);
+        advance_script_secs(app, 0.05);
+        let held_for = app.world().resource::<Time>().elapsed_secs_f64() - started;
+        assert!(held_for < TEND_HOLD, "held {held_for}s stays under tend");
+        let held = app
+            .world()
+            .resource::<FirstHarvestEpiphany>()
+            .harvests_this_session;
+        set_script_use(app, false, false);
+        advance_script_secs(app, 0.0);
+        let (release, tends) = {
+            let state = app.world().resource::<FirstHarvestEpiphany>();
+            (state.harvests_this_session, state.tends_this_session)
+        };
+        (press, held, release, tends, pulse)
+    }
+
+    /// After the latched press is released, a new Use rise takes or tends.
+    #[test]
+    fn title_script_play_fresh_rise_takes_and_tends() {
+        use crate::first_harvest_epiphany::{FirstHarvestEpiphany, TEND_HOLD};
+
+        let mut tap = title_script_harvest_app(true);
+        let (press, held, release, tends, pulse) = play_hold_release(&mut tap);
+        assert_eq!((press, held, release, tends), (0, 0, 0, 0));
+        assert!(!pulse.contains("Step closer"), "play frame pulse {pulse}");
+        set_script_use(&mut tap, true, true);
+        advance_script_secs(&mut tap, 0.0);
+        set_script_use(&mut tap, false, false);
+        advance_script_secs(&mut tap, 0.2);
+        let (takes, tap_tends) = {
+            let state = tap.world().resource::<FirstHarvestEpiphany>();
+            (state.harvests_this_session, state.tends_this_session)
+        };
+        assert_eq!((takes, tap_tends), (1, 0), "short tap takes once");
+
+        let mut hold = title_script_harvest_app(true);
+        let cleared = play_hold_release(&mut hold);
+        assert_eq!((cleared.0, cleared.1, cleared.2, cleared.3), (0, 0, 0, 0));
+        // Press frame is the take. The hold clock starts on the next held frame,
+        // then a later frame past TEND_HOLD is the tend (same shape as harvest).
+        set_script_use(&mut hold, true, true);
+        advance_script_secs(&mut hold, 0.0);
+        set_script_use(&mut hold, false, true);
+        advance_script_secs(&mut hold, 0.0);
+        set_script_use(&mut hold, false, true);
+        advance_script_secs(&mut hold, 0.5);
+        assert!(0.5 >= TEND_HOLD);
+        let (takes, hold_tends) = {
+            let state = hold.world().resource::<FirstHarvestEpiphany>();
+            (state.harvests_this_session, state.tends_this_session)
+        };
+        assert_eq!(
+            (takes, hold_tends),
+            (1, 1),
+            "fresh rise held past 0.42s takes once and tends once"
+        );
     }
 }
