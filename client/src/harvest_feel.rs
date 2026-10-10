@@ -129,7 +129,7 @@ pub fn rumble_harvest(
         (0.12, 0.28, 90)
     };
     for gamepad in gamepads {
-        rumble.send(GamepadRumbleRequest::Add {
+        rumble.write(GamepadRumbleRequest::Add {
             gamepad,
             intensity: GamepadRumbleIntensity {
                 strong_motor: strong,

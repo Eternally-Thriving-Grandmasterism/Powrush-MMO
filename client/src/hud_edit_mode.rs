@@ -130,7 +130,7 @@ impl Plugin for HudEditModePlugin {
         app.init_resource::<HudEditMode>()
             .init_resource::<HudSessionLayout>()
             .init_resource::<ActiveHudPreset>()
-            .configure_sets(PreUpdate, PeaceRemapSet.after(bevy::input::InputSystem))
+            .configure_sets(PreUpdate, PeaceRemapSet.after(bevy::input::InputSystems))
             .configure_sets(Update, InputMapSet)
             .add_systems(Startup, boot_load_hud_layout)
             .add_systems(PreUpdate, guard_edit_mode_keys.after(PeaceRemapSet))
@@ -423,7 +423,7 @@ fn sync_edit_chrome(
 ) {
     if !edit.active {
         for entity in &roots {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
         return;
     }
@@ -431,7 +431,7 @@ fn sync_edit_chrome(
     let frame_count = frames.iter().count();
     if roots.iter().count() != 1 || frame_count != edit.staged.len() {
         for entity in &roots {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
         spawn_chrome(&mut commands, &edit, view_w, view_h);
         return;
@@ -462,8 +462,13 @@ fn sync_edit_chrome(
         } else {
             FRAME_BORDER
         };
-        if border.0 != color {
-            border.0 = color;
+        let next = BorderColor::all(color);
+        if border.top != color
+            || border.bottom != color
+            || border.left != color
+            || border.right != color
+        {
+            *border = next;
         }
     }
     let save_color = if edit.save_enabled {
@@ -547,7 +552,7 @@ fn spawn_frame(
                     ..default()
                 },
                 FocusPolicy::Block,
-                BorderColor(border),
+                BorderColor::all(border),
                 BackgroundColor(Color::srgba(0.07, 0.05, 0.09, 0.28)),
             ),
 GlobalZIndex(FRAME_Z),
@@ -702,7 +707,7 @@ Node {
         return;
     }
     for entity in &existing {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
 }
 
@@ -1550,7 +1555,7 @@ mod tests {
     fn spawn_proof_window(mut commands: Commands) {
         commands.spawn((
             Window {
-                resolution: WindowResolution::new(1024.0, 640.0),
+                resolution: WindowResolution::new(1024, 640),
                 ..default()
             },
             PrimaryWindow,

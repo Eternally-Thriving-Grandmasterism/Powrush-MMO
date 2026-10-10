@@ -75,7 +75,7 @@ fn spawn_soft_panels(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG),
-                BorderColor(TITLE_BORDER),
+                BorderColor::all(TITLE_BORDER),
                 Visibility::Hidden,
             ),
             MercySoftRoot,
@@ -117,7 +117,7 @@ TextColor(TITLE_TEXT_SECONDARY),
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG),
-                BorderColor(TITLE_BORDER),
+                BorderColor::all(TITLE_BORDER),
                 Visibility::Hidden,
             ),
             RealmSoftRoot,

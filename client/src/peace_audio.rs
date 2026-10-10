@@ -146,7 +146,7 @@ fn sync_peace_bed(
                 sink.set_volume(Volume::Linear(0.0));
                 sink.pause();
             }
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
         return;
     }

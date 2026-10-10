@@ -282,7 +282,7 @@ GlobalZIndex(LOADING_Z),
                     ..default()
                 },
                 BackgroundColor(PANEL),
-                BorderColor(FRAME),
+                BorderColor::all(FRAME),
                 BorderRadius::all(Val::Px(8.0)),
             ))
             .with_children(|panel| {
@@ -297,7 +297,7 @@ GlobalZIndex(LOADING_Z),
                             ..default()
                         },
                         BackgroundColor(TRACK),
-                        BorderColor(FRAME),
+                        BorderColor::all(FRAME),
                     ))
                     .with_children(|track| {
                         track.spawn((
@@ -317,7 +317,7 @@ GlobalZIndex(LOADING_Z),
 Text::new(percent),
 TextFont { font_size: 18.0 / 1.2, ..default() },
 TextColor(TEXT_CREAM),
-TextLayout::new_with_justify(JustifyText::Center),
+TextLayout::new_with_justify(Justify::Center),
 Node {
                             width: Val::Percent(100.0),
                             ..default()
@@ -330,7 +330,7 @@ Node {
 Text::new(flavour),
 TextFont { font_size: 16.0 / 1.2, ..default() },
 TextColor(TEXT_ROSE),
-TextLayout::new_with_justify(JustifyText::Center),
+TextLayout::new_with_justify(Justify::Center),
 Node {
                             width: Val::Percent(100.0),
                             ..default()
@@ -383,7 +383,7 @@ fn refresh_loading_overlay(
             **text = flavour.to_string();
         }
         if overlay_ready(fraction, elapsed) {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
             info!(
                 target: "powrush::loading",
                 fraction,

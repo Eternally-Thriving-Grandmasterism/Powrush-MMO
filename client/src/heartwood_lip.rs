@@ -96,7 +96,7 @@ fn sync_heartwood_lip(
     }
 
     for entity in &existing {
-        commands.entity(entity).despawn_recursive();
+        commands.entity(entity).despawn();
     }
     state.active = heartwood;
     threshold.shelf = ThresholdShelfState::default();

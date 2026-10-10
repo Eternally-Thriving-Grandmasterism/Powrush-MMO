@@ -116,7 +116,7 @@ fn spawn_well_slab(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
-                BorderColor(TITLE_BORDER.with_alpha(1.0)),
+                BorderColor::all(TITLE_BORDER.with_alpha(1.0)),
                 Visibility::Hidden,
             ),
             WellSlabRoot,
@@ -513,7 +513,12 @@ mod tests {
             .world_mut()
             .query_filtered::<(&BorderColor, &BackgroundColor, &Visibility), With<WellSlabRoot>>();
         let (border, bg, vis) = q.single(app.world()).unwrap();
-        let (border, bg, vis) = (border.0, bg.0, *vis);
+        let (border, bg, vis) = (({
+            assert_eq!(border.top, border.right, "border edges");
+            assert_eq!(border.top, border.bottom, "border edges");
+            assert_eq!(border.top, border.left, "border edges");
+            border.top
+        }), bg.0, *vis);
         let mut t = app
             .world_mut()
             .query_filtered::<&TextColor, With<WellSlabText>>();

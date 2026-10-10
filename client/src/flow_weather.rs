@@ -338,7 +338,7 @@ fn fade_beads(
     for (entity, bead) in &q {
         let age = now - bead.born;
         if age > BEAD_LIFE {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
             continue;
         }
         let t = (1.0 - age / BEAD_LIFE).clamp(0.04, 1.0);

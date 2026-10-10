@@ -242,7 +242,7 @@ fn sync_scatter(
     if !door.is_light() {
         if spawned.seed.is_some() || spawned.pending_seed.is_some() || !existing.is_empty() {
             for e in &existing {
-                commands.entity(e).despawn_recursive();
+                commands.entity(e).despawn();
             }
             spawned.seed = None;
             spawned.pending_seed = None;
@@ -321,7 +321,7 @@ fn sync_scatter(
     }
 
     for e in &existing {
-        commands.entity(e).despawn_recursive();
+        commands.entity(e).despawn();
     }
 
     let spots = scatter_from_seed(seed);

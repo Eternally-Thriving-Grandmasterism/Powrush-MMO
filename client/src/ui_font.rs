@@ -35,7 +35,11 @@ fn install_default_ui_font(fonts: Option<ResMut<Assets<Font>>>) {
         return;
     };
     match Font::try_from_bytes(UI_FONT_REGULAR.to_vec()) {
-        Ok(font) => fonts.insert(AssetId::<Font>::default(), font),
+        Ok(font) => {
+            fonts
+                .insert(AssetId::<Font>::default(), font)
+                .expect("ui_font");
+        }
         Err(_) => warn!(target: "powrush::ui_font", "embedded UI font did not parse; keeping Bevy default"),
     }
 }

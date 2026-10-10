@@ -807,7 +807,7 @@ fn spawn_guidance_strip(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
-                BorderColor(TITLE_BORDER.with_alpha(0.82)),
+                BorderColor::all(TITLE_BORDER.with_alpha(0.82)),
                 Visibility::Visible,
             ),
             FirstSessionGuidanceStrip,
@@ -2939,7 +2939,12 @@ mod tests {
             .world_mut()
             .query_filtered::<(&BorderColor, &BackgroundColor), With<FirstSessionGuidanceStrip>>();
         let (border, bg) = q.single(app.world()).unwrap();
-        let (border, bg) = (border.0, bg.0);
+        let (border, bg) = (({
+            assert_eq!(border.top, border.right, "border edges");
+            assert_eq!(border.top, border.bottom, "border edges");
+            assert_eq!(border.top, border.left, "border edges");
+            border.top
+        }), bg.0);
         let mut t = app
             .world_mut()
             .query_filtered::<&TextColor, With<FirstSessionGuidanceText>>();

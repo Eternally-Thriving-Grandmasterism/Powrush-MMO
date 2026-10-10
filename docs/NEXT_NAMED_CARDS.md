@@ -7,7 +7,7 @@ Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, th
 Peak memory locked: walked · tended · week was the bill · yard remembered.
 Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb · Hour 4 · Market · gold · five-gate Title · playtest minutes stay banked (steward only).
 Online grey. No OFFER NEXT. Do not invent PATHS. Standing Next is [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). Do not copy a second queue.
-Bevy pin 0.16. BEVY-CLIMB climbing one minor per card (Sherif GO 2026-10-09).
+Bevy pin 0.17. BEVY-CLIMB climbing one minor per card (Sherif GO 2026-10-09).
 
 Fetch `origin/main`. Grok Hands cook Grok 4.7 Extra High (non-fast); fallback 4.7 High. One CARD then stop. Never Fast / Codex / GPT / Claude / Auto / Composer. No direct push to `main`. No `client/**` outside a named CARD. Do not invent PATHS. Do not invent playtest minutes. Do not invent the next unlock.
 
@@ -686,10 +686,10 @@ Gaps @ tip 2c084e71: listed, not queued, in [`GROK_BOT_TODO.md`](GROK_BOT_TODO.m
 
 ## DO-NOT-FREESTYLE (parked)
 
-`war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.16. Playable-preview tag `11c577e`. No OFFER NEXT.
+`war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.17. Playable-preview tag `11c577e`. No OFFER NEXT.
 
 ## BANK (cite only · do not cook)
 
-Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb · Hour 4 · Market · gold · five-gate Title · playtest minutes = steward only. Five-gate Drive = AFTER House. Never Title lobby. No Hands mesh. No invent PATHS. Online grey. No OFFER NEXT. Bevy pin 0.16 climbing one minor per card (Sherif GO 2026-10-09).
+Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb · Hour 4 · Market · gold · five-gate Title · playtest minutes = steward only. Five-gate Drive = AFTER House. Never Title lobby. No Hands mesh. No invent PATHS. Online grey. No OFFER NEXT. Bevy pin 0.17 climbing one minor per card (Sherif GO 2026-10-09).
 
 NEVER: race lobby · five-gate Title · gold · XP HUD · Market · Unreal.

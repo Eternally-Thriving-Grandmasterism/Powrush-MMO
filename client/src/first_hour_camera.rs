@@ -45,7 +45,7 @@ impl Plugin for FirstHourCameraPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FirstHourGlance>().add_systems(
             PostUpdate,
-            glance_toward_nearest_node.before(TransformSystem::TransformPropagate),
+            glance_toward_nearest_node.before(TransformSystems::Propagate),
         );
     }
 }

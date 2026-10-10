@@ -18,8 +18,8 @@
 use std::f32::consts::TAU;
 
 use bevy::prelude::*;
-use bevy::render::mesh::{Indices, PrimitiveTopology};
-use bevy::render::render_asset::RenderAssetUsages;
+use bevy::asset::RenderAssetUsages;
+use bevy::mesh::{Indices, PrimitiveTopology};
 
 use shared::local_settings::GraphicsPreset;
 
@@ -358,8 +358,8 @@ fn spawn_sky_backdrop(
         ),
         SkyBackdropPart::Dome,
         Name::new("VP-SKY-1 backdrop"),
-        bevy::pbr::NotShadowCaster,
-        bevy::pbr::NotShadowReceiver,
+        bevy::light::NotShadowCaster,
+        bevy::light::NotShadowReceiver,
     ));
     let mut spawn = |mesh: Mesh, mat: StandardMaterial, part: SkyBackdropPart, t: Transform| {
         commands.spawn((
@@ -507,6 +507,9 @@ mod tests {
         app.add_plugins((MinimalPlugins, AssetPlugin::default()))
             .init_asset::<Mesh>()
             .init_asset::<StandardMaterial>()
+            // bevy_render reorganization: Mesh3d no longer `#[require(Visibility)]`.
+            // VisibilityPlugin registers that requirement (and the visibility-class hook).
+            .add_plugins(bevy::camera::visibility::VisibilityPlugin)
             .insert_resource(SoftPlayerRealm { current: Some(0) });
         let mut inner = LocalSettings::default();
         inner.set_graphics_preset(preset);
@@ -605,12 +608,15 @@ mod tests {
     /// `NotShadowCaster` + `NotShadowReceiver`; no other part does.
     #[test]
     fn vp_grade_medium_dome_casts_and_receives_no_shadow() {
-        use bevy::pbr::{NotShadowCaster, NotShadowReceiver};
+        use bevy::light::{NotShadowCaster, NotShadowReceiver};
         use shared::local_settings::LocalSettings;
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()))
             .init_asset::<Mesh>()
             .init_asset::<StandardMaterial>()
+            // bevy_render reorganization: Mesh3d no longer `#[require(Visibility)]`.
+            // VisibilityPlugin registers that requirement (and the visibility-class hook).
+            .add_plugins(bevy::camera::visibility::VisibilityPlugin)
             .insert_resource(SoftPlayerRealm { current: Some(0) });
         let mut inner = LocalSettings::default();
         inner.set_graphics_preset(GraphicsPreset::Medium);

@@ -42,7 +42,7 @@ fn sync_heartwood_wards(
     let heartwood = travel.current == PlaceId::Heartwood;
     if !heartwood {
         for entity in &existing {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
         session.dress = WardDress::default();
         session.last_line.clear();

@@ -462,7 +462,7 @@ fn spawn_places_plate(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG),
-                BorderColor(TITLE_BORDER),
+                BorderColor::all(TITLE_BORDER),
                 // Above pause Comfort (130) and Comfort graphics banner (131).
                 bevy::ui::FocusPolicy::Block,
                 Visibility::Hidden,
@@ -508,7 +508,7 @@ fn spawn_places_btn<C: Component>(p: &mut ChildSpawnerCommands, label: &str, mar
                 border: UiRect::all(Val::Px(1.0)),
                 ..default()
             },
-            BorderColor(TITLE_BORDER),
+            BorderColor::all(TITLE_BORDER),
             BackgroundColor(TITLE_BTN_BG),
         ),
         marker,
