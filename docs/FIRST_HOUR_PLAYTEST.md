@@ -88,6 +88,33 @@ No screenshot or tape capture on tip. Headless Q1 script-run (`./scripts/play-of
 
 MACHINE QA GREEN
 
+## Scripted run
+
+CARD SCRIPT-RUN-DOC-1 (PG-08). Checked against `4dcbb50e`.
+
+A `--script` timeline is plain text. Blank lines are skipped. A `#` comment is a line whose first character after trim is `#`. Every other line is `seconds move_x move_y use_held`, split on whitespace, commas, or both, empty pieces dropped, exactly four fields. `seconds`, `move_x`, and `move_y` are finite numbers. `use_held` is the token `0` or `1`. Each line holds until the next one. Before the first timestamp the three columns are 0. Equal timestamps: the later line wins. The last row is the greatest timestamp (`client/src/input.rs:509-514`, `:579-614`, `:627-642`).
+
+```
+# Title Use rise
+0.5 0 0 1
+# release before the first yard hold
+1.0 0 0 0
+# short walk
+2.0 1 0 0
+# tend hold (stays down until the end row)
+3.0 0 0 1
+# end
+4.0 0 0 0
+```
+
+A Use rise on Title starts Play (PR #723, `client/src/title_screen.rs:2383-2429`). That frame clears `interact` and `interact_held`, and both stay clear until Use reads released (`client/src/title_screen.rs:2398-2405`, `:2428-2430`), so the `use_held` 0 row comes before the first yard hold. The 3.0 row stays held until 4.0, longer than the 0.42s tend (`client/src/first_harvest_epiphany.rs:49`, `:162`).
+
+`scripts/play-offline.sh --script-walk <timeline>` keeps `POWRUSH_NET=off` (`scripts/play-offline.sh:12-13`, `:105-117`). The script `cd`s to the repo root, then a relative timeline is prefixed with `$OLDPWD`, the caller's directory (`scripts/play-offline.sh:8-9`, `:108-110`).
+
+`.cursor/run-client-headless.sh --script <timeline>` `exec`s `cargo run -p powrush-client -- --script`, so the script returns the client's exit code, and it does not read `POWRUSH_Q2_FRAME` (`.cursor/run-client-headless.sh:60-72`).
+
+When the clock passes the last row, one window close is sent. In the yard that close saves the house file and the lived hour, then the game exits on its own (PR #724, `client/src/input.rs:516-518`, `:651-653`, `:668-669`, `:693-705`; `client/src/title_screen.rs:1355-1357`, `:2680-2700`). With no `--script`, no timeline resource is inserted, those systems do not run, and nothing changes for players (`client/src/main.rs:35-36`, `:100-101`; `client/src/input.rs:96`, `:99-111`).
+
 ## Hour 1 verbs (keys only)
 
 One card. World sentences, not a wiki.
