@@ -102,6 +102,21 @@ if [[ "$MODE" == "q1" || "$MODE" == "--script-run" ]]; then
   q1_script_run
 fi
 
+if [[ "$MODE" == "--script-walk" ]]; then
+  timeline="${2:-}"
+  if [[ -n "$timeline" ]]; then
+    case "$timeline" in
+      /*) ;;
+      *) timeline="${OLDPWD}/${timeline}" ;;
+    esac
+  fi
+  if [[ -z "$timeline" || ! -f "$timeline" ]]; then
+    echo "usage: ./scripts/play-offline.sh --script-walk <timeline>" >&2
+    exit 1
+  fi
+  exec cargo run -p powrush-client -- --script "$timeline"
+fi
+
 echo "powrush: Offline door → cargo run -p powrush-client (POWRUSH_NET=off)"
 echo "powrush: Title Online stays grey. No public bind."
 exec cargo run -p powrush-client "$@"
