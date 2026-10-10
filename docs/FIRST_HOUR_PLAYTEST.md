@@ -94,6 +94,7 @@ CARD SCRIPT-RUN-DOC-1 (PG-08). Checked against `4dcbb50e`.
 
 A `--script` timeline is plain text. Blank lines are skipped. A `#` comment is a line whose first character after trim is `#`. Every other line is `seconds move_x move_y use_held`, split on whitespace, commas, or both, empty pieces dropped, exactly four fields. `seconds`, `move_x`, and `move_y` are finite numbers. `use_held` is the token `0` or `1`. Each line holds until the next one. Before the first timestamp the three columns are 0. Equal timestamps: the later line wins. The last row is the greatest timestamp (`client/src/input.rs:509-514`, `:579-614`, `:627-642`).
 
+The timeline clock starts at app launch, not when the Title screen appears, so the first row's seconds must allow for boot/loading time before Title (`Time::elapsed_secs_f64` at `client/src/input.rs:663`).
 ```
 # Title Use rise
 0.5 0 0 1
