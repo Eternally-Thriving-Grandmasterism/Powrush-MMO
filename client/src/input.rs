@@ -16,6 +16,7 @@ use bevy::input::touch::TouchInput;
 use bevy::input::{ButtonState, InputSystems};
 use bevy::prelude::*;
 use std::collections::HashSet;
+use std::path::{Path, PathBuf};
 
 use crate::local_settings::LocalSettingsState;
 use crate::soft_play_bindings;
@@ -91,6 +92,14 @@ impl Plugin for InputPlugin {
                 (track_last_pointer_kind, handle_player_input)
                     .chain()
                     .in_set(InputMapSet),
+            )
+            // No resource → this system does not run. No `--script` stays on the device path.
+            .add_systems(
+                Update,
+                apply_script_timeline
+                    .after(handle_player_input)
+                    .in_set(InputMapSet)
+                    .run_if(resource_exists::<ScriptTimeline>),
             );
     }
 }
@@ -474,6 +483,172 @@ pub fn overlay_sticks_visible(settings: &LocalSettings, last: LastPointerKind) -
     settings.resolve_on_screen_sticks(last == LastPointerKind::Touch)
 }
 
+/// One row of a `--script` timeline.
+///
+/// `seconds` is [`Time::elapsed_secs_f64`]. From that time on, `move_x` /
+/// `move_y` are [`PlayerInput::movement`] and `use_held` is the Use level.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct ScriptSample {
+    pub seconds: f64,
+    pub move_x: f32,
+    pub move_y: f32,
+    pub use_held: bool,
+}
+
+/// `--script <path>` timeline. `main` inserts this only when that argument is present.
+///
+/// Plain text. Blank lines and `#` comments are skipped. Every other line is
+/// `seconds move_x move_y use_held`, split on whitespace, commas, or both.
+/// `use_held` is the token `0` or `1`. Each line holds until the next one.
+/// Before the first timestamp the three columns are 0.
+///
+/// A missing file or a bad line logs one warning and leaves device input.
+#[derive(Resource, Debug)]
+pub struct ScriptTimeline {
+    path: PathBuf,
+    phase: ScriptPhase,
+    /// Previous frame's `use_held` column. The Use edge is the 0→1 step.
+    prev_held: bool,
+}
+
+#[derive(Debug)]
+enum ScriptPhase {
+    Pending,
+    Live(Vec<ScriptSample>),
+    Fallback,
+}
+
+impl ScriptTimeline {
+    pub fn from_path(path: impl Into<PathBuf>) -> Self {
+        Self {
+            path: path.into(),
+            phase: ScriptPhase::Pending,
+            prev_held: false,
+        }
+    }
+
+    /// `Ok(true)` once a timeline is live. `Ok(false)` after the one warning.
+    fn ensure_loaded(&mut self) -> bool {
+        match self.phase {
+            ScriptPhase::Live(_) => true,
+            ScriptPhase::Fallback => false,
+            ScriptPhase::Pending => {
+                let path = self.path.clone();
+                match read_script_file(&path) {
+                    Ok(samples) => {
+                        self.phase = ScriptPhase::Live(samples);
+                        true
+                    }
+                    Err(err) => {
+                        warn!("--script {}: {err}", path.display());
+                        self.phase = ScriptPhase::Fallback;
+                        false
+                    }
+                }
+            }
+        }
+    }
+}
+
+fn read_script_file(path: &Path) -> Result<Vec<ScriptSample>, String> {
+    let text = std::fs::read_to_string(path).map_err(|err| err.to_string())?;
+    parse_script_timeline(&text)
+}
+
+/// Parse a timeline. Bad lines are `Err`; this does not panic.
+pub fn parse_script_timeline(text: &str) -> Result<Vec<ScriptSample>, String> {
+    let mut samples = Vec::new();
+    for (idx, line) in text.lines().enumerate() {
+        let line_no = idx + 1;
+        let trimmed = line.trim();
+        if trimmed.is_empty() || trimmed.starts_with('#') {
+            continue;
+        }
+        let fields: Vec<&str> = trimmed
+            .split(|c: char| c.is_whitespace() || c == ',')
+            .filter(|part| !part.is_empty())
+            .collect();
+        if fields.len() != 4 {
+            return Err(format!(
+                "line {line_no}: expected seconds, move_x, move_y, use_held (0/1)"
+            ));
+        }
+        let seconds = parse_finite_f64(fields[0])
+            .ok_or_else(|| format!("line {line_no}: seconds is not a finite number"))?;
+        let move_x = parse_finite_f32(fields[1])
+            .ok_or_else(|| format!("line {line_no}: move_x is not a finite number"))?;
+        let move_y = parse_finite_f32(fields[2])
+            .ok_or_else(|| format!("line {line_no}: move_y is not a finite number"))?;
+        let use_held = match fields[3] {
+            "0" => false,
+            "1" => true,
+            _ => return Err(format!("line {line_no}: use_held must be 0 or 1")),
+        };
+        samples.push(ScriptSample {
+            seconds,
+            move_x,
+            move_y,
+            use_held,
+        });
+    }
+    Ok(samples)
+}
+
+fn parse_finite_f64(text: &str) -> Option<f64> {
+    let value: f64 = text.parse().ok()?;
+    value.is_finite().then_some(value)
+}
+
+fn parse_finite_f32(text: &str) -> Option<f32> {
+    let value: f32 = text.parse().ok()?;
+    value.is_finite().then_some(value)
+}
+
+/// Latest line with `seconds <= now`. Equal timestamps: the later line wins.
+fn sample_at(samples: &[ScriptSample], now: f64) -> Option<&ScriptSample> {
+    let mut best: Option<&ScriptSample> = None;
+    for sample in samples {
+        if sample.seconds <= now {
+            let replace = best.is_none_or(|prev| sample.seconds >= prev.seconds);
+            if replace {
+                best = Some(sample);
+            }
+        }
+    }
+    best
+}
+
+/// Device reads run first. This writes movement and Use for the loaded timeline.
+///
+/// `interact` is the 0→1 rise of `use_held`, one frame per rise.
+/// Edit mode clears `interact` and `interact_held` the same way device Use does.
+fn apply_script_timeline(
+    time: Res<Time>,
+    edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
+    mut script: ResMut<ScriptTimeline>,
+    mut player_input: ResMut<PlayerInput>,
+) {
+    if !script.ensure_loaded() {
+        return;
+    }
+    let now = time.elapsed_secs_f64();
+    let (move_x, move_y, held) = {
+        let ScriptPhase::Live(samples) = &script.phase else {
+            return;
+        };
+        match sample_at(samples, now) {
+            Some(sample) => (sample.move_x, sample.move_y, sample.use_held),
+            None => (0.0, 0.0, false),
+        }
+    };
+    let edge = !script.prev_held && held;
+    script.prev_held = held;
+    player_input.movement = Vec2::new(move_x, move_y);
+    let editing = edit.as_ref().is_some_and(|mode| mode.active);
+    player_input.interact = if editing { false } else { edge };
+    player_input.interact_held = if editing { false } else { held };
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -796,5 +971,456 @@ mod tests {
             !input.interact_held,
             "South is not Use when gamepad_south_use is off"
         );
+    }
+
+    #[test]
+    fn script_timeline_parse_reads_inline_steps() {
+        let text = "\
+# east, then a tie at 1.5
+\n\
+0, 1, 0, 0\n\
+\n\
+1.5  -0.25\t0.5, 1\n\
+1.5, 0.5, 0, 0\n";
+        let samples = parse_script_timeline(text).expect("inline timeline");
+        assert_eq!(
+            samples,
+            vec![
+                ScriptSample {
+                    seconds: 0.0,
+                    move_x: 1.0,
+                    move_y: 0.0,
+                    use_held: false,
+                },
+                ScriptSample {
+                    seconds: 1.5,
+                    move_x: -0.25,
+                    move_y: 0.5,
+                    use_held: true,
+                },
+                ScriptSample {
+                    seconds: 1.5,
+                    move_x: 0.5,
+                    move_y: 0.0,
+                    use_held: false,
+                },
+            ]
+        );
+        assert!(sample_at(&samples, -0.1).is_none());
+        assert_eq!(sample_at(&samples, 1.0).unwrap().move_x, 1.0);
+        let tied = sample_at(&samples, 1.5).unwrap();
+        assert_eq!(tied.move_x, 0.5);
+        assert!(!tied.use_held);
+        assert!(parse_script_timeline("").unwrap().is_empty());
+        assert!(parse_script_timeline("# only\n\n").unwrap().is_empty());
+    }
+
+    #[test]
+    fn script_timeline_parse_bad_line_is_err() {
+        for bad in [
+            "0 0 0",
+            "0 0 0 2",
+            "0 0 0 1 extra",
+            "nope",
+            "0 0 NaN 0",
+            "0 0 0 1.0",
+        ] {
+            let text = format!("0 0 0 0\n{bad}\n");
+            let parsed = parse_script_timeline(&text);
+            assert!(parsed.is_err(), "{bad} should be Err, got {parsed:?}");
+        }
+        let err = parse_script_timeline("0 0 0 0\nbad").unwrap_err();
+        assert!(err.contains("line 2"), "{err}");
+    }
+
+    fn write_timeline(name: &str, body: &str) -> PathBuf {
+        let dir =
+            std::env::temp_dir().join(format!("powrush-script-hour-drive-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        std::fs::write(&path, body).unwrap();
+        path
+    }
+
+    fn widen_clock(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<Time<bevy::time::Virtual>>()
+            .set_max_delta(std::time::Duration::from_secs(2));
+    }
+
+    fn set_dt(app: &mut App, secs: f64) {
+        *app.world_mut()
+            .resource_mut::<bevy::time::TimeUpdateStrategy>() =
+            bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(
+                secs,
+            ));
+    }
+
+    fn device_app(script: Option<PathBuf>) -> App {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+                std::time::Duration::ZERO,
+            ))
+            .insert_resource(LocalSettingsState {
+                inner: LocalSettings::peace_defaults(),
+                dirty: false,
+            })
+            .add_message::<KeyboardInput>()
+            .add_message::<MouseButtonInput>()
+            .add_message::<TouchInput>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .add_plugins(InputPlugin);
+        if let Some(path) = script {
+            app.insert_resource(ScriptTimeline::from_path(path));
+        }
+        widen_clock(&mut app);
+        app
+    }
+
+    fn predicted_elapsed(dts: &[f64]) -> Vec<f64> {
+        let mut t = 0.0;
+        dts.iter()
+            .enumerate()
+            .map(|(i, dt)| {
+                if i > 0 {
+                    t += *dt;
+                }
+                t
+            })
+            .collect()
+    }
+
+    #[derive(Clone, Copy, Debug)]
+    struct UseSnap {
+        elapsed: f64,
+        interact: bool,
+        interact_held: bool,
+    }
+
+    fn use_snap(app: &App) -> UseSnap {
+        let input = app.world().resource::<PlayerInput>();
+        UseSnap {
+            elapsed: app.world().resource::<Time>().elapsed_secs_f64(),
+            interact: input.interact,
+            interact_held: input.interact_held,
+        }
+    }
+
+    /// Keyboard Use for one frame. `edge` is the just-pressed frame.
+    fn set_use_key(app: &mut App, held: bool, edge: bool) {
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        if held && edge {
+            keys.release(KeyCode::KeyE);
+            keys.clear();
+            keys.press(KeyCode::KeyE);
+        } else if held {
+            keys.press(KeyCode::KeyE);
+            keys.clear();
+        } else {
+            keys.release(KeyCode::KeyE);
+            keys.clear();
+        }
+    }
+
+    fn run_script_use(body: &str, name: &str, dts: &[f64]) -> Vec<UseSnap> {
+        let path = write_timeline(name, body);
+        let mut app = device_app(Some(path));
+        let mut snaps = Vec::new();
+        for (i, dt) in dts.iter().enumerate() {
+            set_dt(&mut app, *dt);
+            app.update();
+            let snap = use_snap(&app);
+            let want = predicted_elapsed(dts)[i];
+            assert!(
+                (snap.elapsed - want).abs() < 1e-6,
+                "script clock {snap:?} wanted {want}"
+            );
+            assert_eq!(
+                app.world().resource::<PlayerInput>().movement,
+                Vec2::ZERO,
+                "use rows in this timeline do not move"
+            );
+            snaps.push(snap);
+        }
+        snaps
+    }
+
+    fn run_keyboard_use(body: &str, dts: &[f64]) -> Vec<UseSnap> {
+        let samples = parse_script_timeline(body).unwrap();
+        let mut app = device_app(None);
+        let mut prev = false;
+        let mut snaps = Vec::new();
+        let elapsed = predicted_elapsed(dts);
+        for (i, dt) in dts.iter().enumerate() {
+            let held = sample_at(&samples, elapsed[i]).is_some_and(|sample| sample.use_held);
+            set_dt(&mut app, *dt);
+            set_use_key(&mut app, held, held && !prev);
+            prev = held;
+            app.update();
+            let snap = use_snap(&app);
+            assert!(
+                (snap.elapsed - elapsed[i]).abs() < 1e-6,
+                "keyboard clock {snap:?} wanted {}",
+                elapsed[i]
+            );
+            snaps.push(snap);
+        }
+        snaps
+    }
+
+    fn assert_script_matches_keyboard(body: &str, name: &str, dts: &[f64]) {
+        let scripted = run_script_use(body, name, dts);
+        let keyboard = run_keyboard_use(body, dts);
+        assert_eq!(scripted.len(), keyboard.len());
+        for (index, (scripted, keyboard)) in scripted.iter().zip(keyboard.iter()).enumerate() {
+            assert!(
+                (scripted.elapsed - keyboard.elapsed).abs() < 1e-6,
+                "frame {index} clock"
+            );
+            assert_eq!(
+                scripted.interact, keyboard.interact,
+                "frame {index} interact at t={}",
+                scripted.elapsed
+            );
+            assert_eq!(
+                scripted.interact_held, keyboard.interact_held,
+                "frame {index} interact_held at t={}",
+                scripted.elapsed
+            );
+        }
+    }
+
+    /// CARD SCRIPT-HOLD-TEND-1's harness is private in `first_harvest_epiphany`.
+    /// The keyboard path there maps this Use sequence to take+tend `(1, 1)` when
+    /// the hold lasts `TEND_HOLD` (0.42) or more, and to take `(1, 0)` when the
+    /// release lands sooner. This locks the same `PlayerInput` sequence.
+    #[test]
+    fn script_timeline_use_matches_keyboard_hold_and_release() {
+        let tend = crate::first_harvest_epiphany::TEND_HOLD;
+        assert!((tend - 0.42).abs() < 1e-9);
+
+        let hold = "\
+0 0 0 0
+1.0 0 0 1
+";
+        let hold_dts = [0.0, 1.0, 0.5];
+        assert_script_matches_keyboard(hold, "hold.txt", &hold_dts);
+        let hold_snaps = run_script_use(hold, "hold-read.txt", &hold_dts);
+        let edges: Vec<_> = hold_snaps.iter().filter(|snap| snap.interact).collect();
+        assert_eq!(edges.len(), 1, "one rise, one interact edge");
+        assert!((edges[0].elapsed - 1.0).abs() < 1e-6);
+        let span = hold_snaps.last().unwrap().elapsed - edges[0].elapsed;
+        assert!(span >= tend, "hold span {span} must reach TEND_HOLD");
+        assert!(hold_snaps.last().unwrap().interact_held);
+        assert!(!hold_snaps.last().unwrap().interact);
+
+        let short = "\
+0 0 0 0
+1.0 0 0 1
+1.2 0 0 0
+";
+        let short_dts = [0.0, 1.0, 0.2];
+        assert_script_matches_keyboard(short, "short.txt", &short_dts);
+        let short_snaps = run_script_use(short, "short-read.txt", &short_dts);
+        let short_edges: Vec<_> = short_snaps.iter().filter(|snap| snap.interact).collect();
+        assert_eq!(short_edges.len(), 1, "short hold still has one press edge");
+        let short_span = short_snaps.last().unwrap().elapsed - short_edges[0].elapsed;
+        assert!(
+            short_span < tend,
+            "short span {short_span} stays under TEND_HOLD"
+        );
+        assert!(!short_snaps.last().unwrap().interact_held);
+        assert!(!short_snaps.last().unwrap().interact);
+
+        let again = "\
+0 0 0 0
+1 0 0 1
+2 0 0 0
+3 0 0 1
+3.5 0 0 1
+";
+        let again_dts = [0.0, 1.0, 1.0, 1.0, 0.5];
+        assert_script_matches_keyboard(again, "again.txt", &again_dts);
+        let again_snaps = run_script_use(again, "again-read.txt", &again_dts);
+        let again_edges: Vec<_> = again_snaps
+            .iter()
+            .filter(|snap| snap.interact)
+            .map(|snap| snap.elapsed)
+            .collect();
+        assert_eq!(again_edges.len(), 2, "each 0→1 rise is one edge");
+        assert!((again_edges[0] - 1.0).abs() < 1e-6);
+        assert!((again_edges[1] - 3.0).abs() < 1e-6);
+    }
+
+    #[test]
+    fn script_timeline_walk_overrides_movement() {
+        let path = write_timeline("walk.txt", "# east then north\n1.0, 1, 0, 0\n2.0 0, 1, 0\n");
+        let mut app = device_app(Some(path));
+        {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.press(KeyCode::KeyW);
+            keys.press(KeyCode::Space);
+            keys.press(KeyCode::ShiftLeft);
+        }
+        let steps = [
+            (0.0, 0.0, Vec2::ZERO),
+            (1.0, 1.0, Vec2::new(1.0, 0.0)),
+            (1.0, 2.0, Vec2::new(0.0, 1.0)),
+        ];
+        for (dt, want_t, want_move) in steps {
+            set_dt(&mut app, dt);
+            app.update();
+            let now = app.world().resource::<Time>().elapsed_secs_f64();
+            let input = app.world().resource::<PlayerInput>();
+            assert!((now - want_t).abs() < 1e-6, "t={now}");
+            assert_eq!(input.movement, want_move, "script replaces WASD at t={now}");
+            assert!(input.jump, "script leaves jump");
+            assert!(input.sprint, "script leaves sprint");
+            assert!(!input.interact);
+            assert!(!input.interact_held);
+        }
+    }
+
+    #[test]
+    fn script_timeline_use_edit_gate_matches_keyboard() {
+        let body = "0, 1, 0, 1\n";
+        let mut scripted = device_app(Some(write_timeline("edit.txt", body)));
+        let mut keyboard = device_app(None);
+        let mut edit = crate::hud_edit_mode::HudEditMode::default();
+        edit.active = true;
+        scripted.insert_resource(edit.clone());
+        keyboard.insert_resource(edit);
+        set_dt(&mut scripted, 0.0);
+        set_dt(&mut keyboard, 0.0);
+        set_use_key(&mut keyboard, true, true);
+        scripted.update();
+        keyboard.update();
+        for app in [&scripted, &keyboard] {
+            let input = app.world().resource::<PlayerInput>();
+            assert!(!input.interact, "edit mode kills the Use edge");
+            assert!(!input.interact_held, "edit mode kills the held level");
+        }
+        assert_eq!(
+            scripted.world().resource::<PlayerInput>().movement,
+            Vec2::new(1.0, 0.0),
+            "edit mode does not clear scripted move"
+        );
+
+        scripted
+            .world_mut()
+            .resource_mut::<crate::hud_edit_mode::HudEditMode>()
+            .active = false;
+        keyboard
+            .world_mut()
+            .resource_mut::<crate::hud_edit_mode::HudEditMode>()
+            .active = false;
+        set_dt(&mut scripted, 0.0);
+        set_dt(&mut keyboard, 0.0);
+        set_use_key(&mut keyboard, true, false);
+        scripted.update();
+        keyboard.update();
+        for app in [&scripted, &keyboard] {
+            let input = app.world().resource::<PlayerInput>();
+            assert!(
+                !input.interact,
+                "the rise already happened; leaving edit does not re-fire it"
+            );
+            assert!(input.interact_held);
+        }
+
+        let mut open = device_app(Some(write_timeline("edit-open.txt", body)));
+        set_dt(&mut open, 0.0);
+        open.update();
+        let input = open.world().resource::<PlayerInput>();
+        assert!(input.interact, "without edit, the rise is the Use edge");
+        assert!(input.interact_held);
+        assert_eq!(input.movement, Vec2::new(1.0, 0.0));
+    }
+
+    #[test]
+    fn script_timeline_absent_leaves_device_input() {
+        let mut app = device_app(None);
+        {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.press(KeyCode::KeyW);
+            keys.press(KeyCode::KeyE);
+        }
+        set_dt(&mut app, 0.0);
+        app.update();
+        let input = app.world().resource::<PlayerInput>();
+        assert_eq!(input.movement, Vec2::new(0.0, 1.0));
+        assert!(input.interact);
+        assert!(input.interact_held);
+        assert!(app.world().get_resource::<ScriptTimeline>().is_none());
+    }
+
+    #[test]
+    fn script_timeline_bad_file_warns_once_and_keeps_human_input() {
+        assert_fallback_keeps_wasd(PathBuf::from(
+            "/tmp/powrush-script-hour-drive-missing-no-such-file",
+        ));
+        let bad = write_timeline("bad.txt", "0 0 0 0\nnot-a-row\n");
+        assert_fallback_keeps_wasd(bad);
+    }
+
+    fn assert_fallback_keeps_wasd(path: PathBuf) {
+        let count = std::sync::Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let counter = ScriptWarnCounter(std::sync::Arc::clone(&count));
+        let mut app = device_app(Some(path));
+        // The log subscriber is thread-local. The multi-thread executor would
+        // emit the warning on a worker, where this subscriber is not installed.
+        app.edit_schedule(Update, |schedule| {
+            schedule.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new());
+        });
+        {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.press(KeyCode::KeyW);
+        }
+        tracing::subscriber::with_default(counter, || {
+            set_dt(&mut app, 0.0);
+            app.update();
+            set_dt(&mut app, 0.0);
+            app.update();
+        });
+        assert_eq!(
+            count.load(std::sync::atomic::Ordering::Relaxed),
+            1,
+            "a bad or missing script logs one warning"
+        );
+        let input = app.world().resource::<PlayerInput>();
+        assert_eq!(input.movement, Vec2::new(0.0, 1.0));
+        assert!(!input.interact);
+        assert!(matches!(
+            app.world().resource::<ScriptTimeline>().phase,
+            ScriptPhase::Fallback
+        ));
+    }
+
+    struct ScriptWarnCounter(std::sync::Arc<std::sync::atomic::AtomicUsize>);
+
+    impl tracing::Subscriber for ScriptWarnCounter {
+        fn enabled(&self, metadata: &tracing::Metadata<'_>) -> bool {
+            *metadata.level() == tracing::Level::WARN && metadata.target().ends_with("::input")
+        }
+
+        fn new_span(&self, _span: &tracing::span::Attributes<'_>) -> tracing::span::Id {
+            tracing::span::Id::from_u64(1)
+        }
+
+        fn record(&self, _span: &tracing::span::Id, _values: &tracing::span::Record<'_>) {}
+
+        fn record_follows_from(&self, _span: &tracing::span::Id, _follows: &tracing::span::Id) {}
+
+        fn event(&self, event: &tracing::Event<'_>) {
+            let meta = event.metadata();
+            if *meta.level() == tracing::Level::WARN && meta.target().ends_with("::input") {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            }
+        }
+
+        fn enter(&self, _span: &tracing::span::Id) {}
+
+        fn exit(&self, _span: &tracing::span::Id) {}
     }
 }
