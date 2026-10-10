@@ -622,7 +622,7 @@ fn sample_at(samples: &[ScriptSample], now: f64) -> Option<&ScriptSample> {
 ///
 /// `interact` is the 0→1 rise of `use_held`, one frame per rise.
 /// Edit mode clears `interact` and `interact_held` the same way device Use does.
-fn apply_script_timeline(
+pub(crate) fn apply_script_timeline(
     time: Res<Time>,
     edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
     mut script: ResMut<ScriptTimeline>,
