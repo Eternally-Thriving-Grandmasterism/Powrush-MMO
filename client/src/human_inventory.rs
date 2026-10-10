@@ -116,8 +116,8 @@ impl Plugin for HumanInventoryPlugin {
 fn spawn_inventory_surfaces(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     bottom: WATCH.bottom(),
                     left: WATCH.left(),
@@ -126,11 +126,10 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                Visibility::Hidden,
+            ),
             WatchStripRoot,
             HudSlab(WATCH.id),
         ))
@@ -148,8 +147,8 @@ TextColor(TITLE_TEXT_PRIMARY),
 
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     bottom: Val::Percent(22.0),
                     left: Val::Px(16.0),
@@ -161,11 +160,10 @@ TextColor(TITLE_TEXT_PRIMARY),
                     ..default()
                 },
                 // Opaque I/Ledger face — Title contrast law on soft GPU.
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                Visibility::Hidden,
+            ),
 GlobalZIndex(LIVED_UI_Z_LEDGER),
             SatchelRoot,
             LivedUiPlate,
@@ -200,8 +198,8 @@ TextColor(TITLE_TEXT_SECONDARY),
 
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: PICKUP.top(),
                     left: PICKUP.left(),
@@ -212,11 +210,10 @@ TextColor(TITLE_TEXT_SECONDARY),
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                Visibility::Hidden,
+            ),
             PickupFlashRoot,
             HudSlab(PICKUP.id),
         ))
@@ -534,7 +531,7 @@ mod tests {
         let mut watch_q = app
             .world_mut()
             .query_filtered::<&Node, With<WatchStripRoot>>();
-        let watch = watch_q.single(app.world()).clone();
+        let watch = watch_q.single(app.world()).unwrap().clone();
         let watch_coded = Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(16.0),
@@ -553,7 +550,7 @@ mod tests {
         let mut satchel_q = app
             .world_mut()
             .query_filtered::<&Node, With<SatchelRoot>>();
-        let satchel = satchel_q.single(app.world()).clone();
+        let satchel = satchel_q.single(app.world()).unwrap().clone();
         let satchel_coded = Node {
             position_type: PositionType::Absolute,
             bottom: Val::Percent(22.0),
@@ -573,7 +570,7 @@ mod tests {
         let mut pickup_q = app
             .world_mut()
             .query_filtered::<&Node, With<PickupFlashRoot>>();
-        let pickup = pickup_q.single(app.world()).clone();
+        let pickup = pickup_q.single(app.world()).unwrap().clone();
         let pickup_coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Percent(38.0),

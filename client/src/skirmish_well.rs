@@ -104,8 +104,8 @@ impl Plugin for SkirmishWellPlugin {
 fn spawn_well_slab(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     bottom: WELL.bottom(),
                     left: WELL.left(),
@@ -115,11 +115,10 @@ fn spawn_well_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
-                border_color: TITLE_BORDER.with_alpha(1.0).into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
+                BorderColor(TITLE_BORDER.with_alpha(1.0)),
+                Visibility::Hidden,
+            ),
             WellSlabRoot,
             HudSlab(WELL.id),
         ))
@@ -330,7 +329,7 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<&Node, With<WellSlabRoot>>();
-        let style = q.single(app.world()).clone();
+        let style = q.single(app.world()).unwrap().clone();
         let coded = Node {
             position_type: PositionType::Absolute,
             bottom: Val::Px(132.0),
@@ -513,12 +512,12 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<(&BorderColor, &BackgroundColor, &Visibility), With<WellSlabRoot>>();
-        let (border, bg, vis) = q.single(app.world());
+        let (border, bg, vis) = q.single(app.world()).unwrap();
         let (border, bg, vis) = (border.0, bg.0, *vis);
         let mut t = app
             .world_mut()
             .query_filtered::<&TextColor, With<WellSlabText>>();
-        let text = t.single(app.world()).0;
+        let text = t.single(app.world()).unwrap().0;
         (border, bg, text, vis)
     }
 

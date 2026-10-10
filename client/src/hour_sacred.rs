@@ -1211,6 +1211,7 @@ mod tests {
             logical_key: Key::Tab,
             state: ButtonState::Pressed,
             repeat: false,
+            text: None,
             window,
         });
         app.update();
@@ -1258,6 +1259,7 @@ mod tests {
             logical_key: Key::Tab,
             state: ButtonState::Pressed,
             repeat: false,
+            text: None,
             window,
         });
         app.update();

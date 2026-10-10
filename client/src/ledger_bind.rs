@@ -93,8 +93,8 @@ fn spawn_ledger_slab(mut commands: Commands) {
     // Opaque plate + Global z — Title contrast law; soft GPU must not alpha into fog.
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     bottom: Val::Px(16.0),
                     left: Val::Px(16.0),
@@ -104,11 +104,10 @@ fn spawn_ledger_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.with_alpha(1.0).into(),
-                visibility: Visibility::Hidden,
-                                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER.with_alpha(1.0)),
+                Visibility::Hidden,
+            ),
 GlobalZIndex(LIVED_UI_Z_LEDGER),
             LedgerSlabRoot,
             LivedUiPlate,
@@ -401,12 +400,12 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<(&BorderColor, &BackgroundColor), With<LedgerSlabRoot>>();
-        let (border, bg) = q.single(app.world());
+        let (border, bg) = q.single(app.world()).unwrap();
         let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
         let mut t = app
             .world_mut()
             .query_filtered::<&TextColor, With<LedgerSlabText>>();
-        let txt = t.single(app.world()).0.to_srgba();
+        let txt = t.single(app.world()).unwrap().0.to_srgba();
         for (got, want, what) in [
             (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
             (border, TITLE_BORDER.to_srgba(), "rim"),
@@ -579,6 +578,7 @@ mod tests {
             logical_key: Key::Character("l".into()),
             state: ButtonState::Pressed,
             repeat: false,
+            text: None,
             window,
         });
         app.update();

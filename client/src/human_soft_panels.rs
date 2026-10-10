@@ -59,8 +59,8 @@ impl Plugin for HumanSoftPanelsPlugin {
 fn spawn_soft_panels(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: MERCY.top(),
                     right: MERCY.right(),
@@ -74,11 +74,10 @@ fn spawn_soft_panels(mut commands: Commands) {
                     overflow_clip_margin: OverflowClipMargin::border_box(),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                Visibility::Hidden,
+            ),
             MercySoftRoot,
             HudSlab(MERCY.id),
         ))
@@ -105,8 +104,8 @@ TextColor(TITLE_TEXT_SECONDARY),
 
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: REALM.top(),
                     left: REALM.left(),
@@ -117,11 +116,10 @@ TextColor(TITLE_TEXT_SECONDARY),
                     border: UiRect::all(Val::Px(1.5)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                Visibility::Hidden,
+            ),
             RealmSoftRoot,
             HudSlab(REALM.id),
         ))
@@ -281,7 +279,7 @@ mod tests {
         let mut mercy_q = app
             .world_mut()
             .query_filtered::<&Node, With<MercySoftRoot>>();
-        let mercy = mercy_q.single(app.world()).clone();
+        let mercy = mercy_q.single(app.world()).unwrap().clone();
         let mercy_coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Percent(10.0),
@@ -305,7 +303,7 @@ mod tests {
         let mut realm_q = app
             .world_mut()
             .query_filtered::<&Node, With<RealmSoftRoot>>();
-        let realm = realm_q.single(app.world()).clone();
+        let realm = realm_q.single(app.world()).unwrap().clone();
         let realm_coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Percent(18.0),

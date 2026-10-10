@@ -195,13 +195,12 @@ fn seed_nectar(
         let t = i as f32 / 8.0;
         let pos = NECTAR_FROM + delta * t;
         commands.spawn((
-            PbrBundle {
-                mesh: Mesh3d(mesh.clone()),
-                material: MeshMaterial3d(mat.clone()),
-                transform: Transform::from_translation(pos),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+            (
+                Mesh3d(mesh.clone()),
+                MeshMaterial3d(mat.clone()),
+                Transform::from_translation(pos),
+                Visibility::Hidden,
+            ),
             NectarBead,
         ));
     }
@@ -315,13 +314,12 @@ fn drop_beads(
     });
     let scale = bead_scale_for(weather.band, inhaling, fidelity);
     commands.spawn((
-        PbrBundle {
-            mesh: Mesh3d(kit.mesh.clone()),
-            material: MeshMaterial3d(handle.clone()),
-            transform: Transform::from_translation(presence.position - Vec3::Y * 0.55)
+        (
+            Mesh3d(kit.mesh.clone()),
+            MeshMaterial3d(handle.clone()),
+            Transform::from_translation(presence.position - Vec3::Y * 0.55)
                 .with_scale(Vec3::splat(scale)),
-            ..default()
-        },
+        ),
         RibbonBead {
             born: now,
             handle,

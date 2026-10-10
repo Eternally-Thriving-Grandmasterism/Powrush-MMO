@@ -102,16 +102,16 @@ fn spawn_lived_ui_camera(mut commands: Commands) {
 
 fn spawn_ui_camera_entity(commands: &mut Commands) {
     commands.spawn((
-        Camera2dBundle {
-            camera: Camera {
+        (
+            Camera2d,
+            Camera {
                 order: UI_CAMERA_ORDER,
                 // Keep the 3D yard; only composite Bevy UI on top.
                 clear_color: ClearColorConfig::None,
                 ..default()
             },
-            msaa: Msaa::Off,
-            ..default()
-        },
+            Msaa::Off,
+        ),
         IsDefaultUiCamera,
         LivedUiCamera,
         Name::new("LivedUiCamera"),
@@ -213,14 +213,14 @@ fn copy_lived_ui_hdr_from_world(
 /// Parent lived plates to the UI camera so Settled HUD chips cannot retarget them.
 fn bind_lived_ui_plates(
     ui_cam: Query<Entity, With<LivedUiCamera>>,
-    roots: Query<Entity, (With<LivedUiPlate>, Without<TargetCamera>)>,
+    roots: Query<Entity, (With<LivedUiPlate>, Without<UiTargetCamera>)>,
     mut commands: Commands,
 ) {
     let Ok(cam) = ui_cam.get_single() else {
         return;
     };
     for entity in &roots {
-        commands.entity(entity).insert(TargetCamera(cam));
+        commands.entity(entity).insert(UiTargetCamera(cam));
     }
 }
 
@@ -258,7 +258,7 @@ mod tests {
             .add_plugins(UiAboveWorldPlugin);
         app.update();
         let mut msaa = app.world_mut().query_filtered::<&Msaa, With<LivedUiCamera>>();
-        assert!(soft_gpu_msaa_is_off(*msaa.single(app.world())));
+        assert!(soft_gpu_msaa_is_off(*msaa.single(app.world()).unwrap()));
         assert!(ui_camera_draws_above_world());
     }
 
@@ -288,13 +288,14 @@ mod tests {
             .add_plugins((UiAboveWorldPlugin, ClimatePlanePlugin));
         let world_cam = app
             .world_mut()
-            .spawn(Camera3dBundle {
-                camera: Camera {
+            .spawn((
+                Camera3d::default(),
+                Camera {
                     order: WORLD_CAMERA_ORDER,
                     ..default()
                 },
-                ..default()
-            })
+                Msaa::Off,
+            ))
             .id();
 
         app.update();
@@ -340,15 +341,16 @@ mod tests {
             .add_plugins((UiAboveWorldPlugin, ClimatePlanePlugin));
         let world_cam = app
             .world_mut()
-            .spawn(Camera3dBundle {
-                camera: Camera {
+            .spawn((
+                Camera3d::default(),
+                Camera {
                     order: WORLD_CAMERA_ORDER,
                     ..default()
                 },
-                tonemapping: WORLD_TONEMAPPING,
-                color_grading: world_color_grading(),
-                ..default()
-            })
+                WORLD_TONEMAPPING,
+                world_color_grading(),
+                Msaa::Off,
+            ))
             .id();
 
         for preset in GraphicsPreset::ALL {
@@ -393,7 +395,7 @@ mod tests {
     }
 
     fn assert_hdr_pair(app: &App, world_cam: Entity, expect_hdr: bool, label: &str) {
-        use bevy::core_pipeline::bloom::BloomSettings;
+        use bevy::core_pipeline::bloom::Bloom;
         use bevy::render::camera::ClearColorConfig;
 
         let world_ref = app.world();
@@ -409,7 +411,7 @@ mod tests {
                 ui_hdr = Some(cam.hdr);
                 ui_order = Some(cam.order);
                 ui_clear_none = matches!(cam.clear_color, ClearColorConfig::None);
-                bloom_on_ui = entity.contains::<BloomSettings>();
+                bloom_on_ui = entity.contains::<Bloom>();
             }
         }
         assert_eq!(ui_hdr.expect("ui camera"), world_hdr, "{label} ui hdr");
@@ -424,7 +426,7 @@ mod tests {
         }
         assert!(saw_camera, "{label} msaa");
         assert!(!bloom_on_ui, "{label} bloom on ui");
-        let world_bloom = world_ref.get::<BloomSettings>(world_cam).is_some();
+        let world_bloom = world_ref.get::<Bloom>(world_cam).is_some();
         assert_eq!(world_bloom, expect_hdr, "{label} world bloom");
     }
 }

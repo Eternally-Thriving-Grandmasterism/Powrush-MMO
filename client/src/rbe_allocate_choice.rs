@@ -222,8 +222,8 @@ impl Plugin for RbeAllocateChoicePlugin {
 fn spawn_allocate_panel(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     bottom: ALLOCATE_DOCK.bottom(),
                     right: ALLOCATE_DOCK.right(),
@@ -234,11 +234,10 @@ fn spawn_allocate_panel(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.5)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                Visibility::Hidden,
+            ),
             AllocatePanelRoot,
             HudSlab(ID_ALLOCATE),
         ))
@@ -252,28 +251,25 @@ TextColor(TITLE_TEXT_PRIMARY),
                 AllocateBodyText,
             ));
 
-            p.spawn(NodeBundle {
-                node: Node {
+            p.spawn(Node {
                     flex_direction: FlexDirection::Row,
                     column_gap: Val::Px(10.0),
                     justify_content: JustifyContent::Center,
                     width: Val::Percent(100.0),
                     ..default()
-                },
-                ..default()
-            })
+                })
             .with_children(|row| {
                 row.spawn((
-                    ButtonBundle {
-                        node: Node {
+                    (
+                        Button,
+                        Node {
                             padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                             border: UiRect::all(Val::Px(1.0)),
                             ..default()
                         },
-                        background_color: TITLE_BTN_BG.into(),
-                        border_color: TITLE_BORDER.into(),
-                        ..default()
-                    },
+                        BorderColor(TITLE_BORDER),
+                        BackgroundColor(TITLE_BTN_BG),
+                    ),
                     AllocateFlowButton,
                 ))
                 .with_children(|b| {
@@ -285,16 +281,16 @@ TextColor(TITLE_BTN_FG),
                 });
 
                 row.spawn((
-                    ButtonBundle {
-                        node: Node {
+                    (
+                        Button,
+                        Node {
                             padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                             border: UiRect::all(Val::Px(1.0)),
                             ..default()
                         },
-                        background_color: TITLE_BTN_BG.into(),
-                        border_color: TITLE_BORDER.into(),
-                        ..default()
-                    },
+                        BorderColor(TITLE_BORDER),
+                        BackgroundColor(TITLE_BTN_BG),
+                    ),
                     AllocateReserveButton,
                 ))
                 .with_children(|b| {
@@ -767,7 +763,7 @@ mod tests {
         let mut query = app
             .world_mut()
             .query_filtered::<&Node, With<AllocatePanelRoot>>();
-        let style = query.single(app.world()).clone();
+        let style = query.single(app.world()).unwrap().clone();
         assert_eq!(style.bottom, ALLOCATE_DOCK.bottom());
         assert_eq!(style.right, ALLOCATE_DOCK.right());
         assert_eq!(style.left, Val::Auto);
@@ -778,6 +774,6 @@ mod tests {
         let mut text = app
             .world_mut()
             .query_filtered::<&TextFont, With<AllocateBodyText>>();
-        assert_eq!(text.single(app.world()).font_size, 15.0 / 1.2);
+        assert_eq!(text.single(app.world()).unwrap().font_size, 15.0 / 1.2);
     }
 }

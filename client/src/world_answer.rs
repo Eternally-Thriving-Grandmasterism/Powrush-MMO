@@ -9,7 +9,7 @@
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
-use bevy::pbr::FogSettings;
+use bevy::pbr::DistanceFog;
 use bevy::prelude::*;
 
 use crate::climate_plane::{configure_fog_write_sets, FogWriteSet};
@@ -181,7 +181,7 @@ fn paint_world_answer(
     answer: Res<WorldAnswer>,
     time: Res<Time>,
     mut ambient: ResMut<AmbientLight>,
-    mut fogs: Query<&mut FogSettings>,
+    mut fogs: Query<&mut DistanceFog>,
     mut nodes: Query<&mut MercyHarvestNode>,
     mut last_kind: Local<AnswerKind>,
 ) {

@@ -3235,12 +3235,11 @@ mod tests {
             let root = app
                 .world_mut()
                 .spawn((
-                    NodeBundle {
-                        node: sentinel_style(),
-                                                focus_policy: FocusPolicy::Pass,
-                        visibility: Visibility::Visible,
-                        ..default()
-                    },
+                    (
+                        sentinel_style(),
+                        FocusPolicy::Pass,
+                        Visibility::Visible,
+                    ),
 GlobalZIndex(77),
                     HudSlab(metrics.id),
                 ))
@@ -3348,32 +3347,29 @@ child_style.clone(),
         let pulse = app
             .world_mut()
             .spawn((
-                NodeBundle {
-                    node: sentinel.clone(),
-                    visibility: Visibility::Visible,
-                    ..default()
-                },
+                (
+                    sentinel.clone(),
+                    Visibility::Visible,
+                ),
                 HudSlab(ID_PULSE),
             ))
             .id();
         let welcome = app
             .world_mut()
             .spawn((
-                NodeBundle {
-                    node: sentinel.clone(),
-                    visibility: Visibility::Visible,
-                    ..default()
-                },
+                (
+                    sentinel.clone(),
+                    Visibility::Visible,
+                ),
                 HudSlab(ID_WELCOME),
             ))
             .id();
         let plain = app
             .world_mut()
-            .spawn(NodeBundle {
-                node: sentinel.clone(),
-                visibility: Visibility::Visible,
-                ..default()
-            })
+            .spawn((
+                sentinel.clone(),
+                Visibility::Visible,
+            ))
             .id();
         app.update();
         app.update();
@@ -3460,11 +3456,10 @@ child_style.clone(),
             let entity = app
                 .world_mut()
                 .spawn((
-                    NodeBundle {
-                        node: sentinel_style(),
-                        visibility: Visibility::Visible,
-                        ..default()
-                    },
+                    (
+                        sentinel_style(),
+                        Visibility::Visible,
+                    ),
                     HudSlab(metrics.id),
                     OwnStamp(index as u32),
                 ))
@@ -3687,13 +3682,10 @@ child_style.clone(),
         let mover = app
             .world_mut()
             .spawn((
-                NodeBundle {
-                    node: Node {
+                Node {
                         top: Val::Px(1.0),
                         ..default()
                     },
-                    ..default()
-                },
                 HudSlab(ID_FACTORY),
             ))
             .id();
@@ -3770,19 +3762,19 @@ child_style.clone(),
         let slab = app
             .world_mut()
             .spawn((
-                NodeBundle {
-                    visibility: Visibility::Visible,
-                    ..default()
-                },
+                (
+                    Node::default(),
+                    Visibility::Visible,
+                ),
                 HudSlab(ID_FACTORY),
             ))
             .id();
         let plain = app
             .world_mut()
-            .spawn(NodeBundle {
-                visibility: Visibility::Visible,
-                ..default()
-            })
+            .spawn((
+                Node::default(),
+                Visibility::Visible,
+            ))
             .id();
         let vis = |app: &App, entity: Entity| *app.world().get::<Visibility>(entity).expect("vis");
         app.world_mut()
@@ -3846,10 +3838,10 @@ child_style.clone(),
         let slab = app
             .world_mut()
             .spawn((
-                NodeBundle {
-                    visibility: Visibility::Visible,
-                    ..default()
-                },
+                (
+                    Node::default(),
+                    Visibility::Visible,
+                ),
                 HudSlab(ID_FACTORY),
             ))
             .id();

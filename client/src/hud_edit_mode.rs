@@ -493,17 +493,16 @@ fn spawn_chrome(commands: &mut Commands, edit: &HudEditMode, view_w: f32, view_h
     let save_enabled = edit.save_enabled;
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
                     ..default()
                 },
-                focus_policy: FocusPolicy::Pass,
-                                background_color: Color::NONE.into(),
-                ..default()
-            },
+                BackgroundColor(Color::NONE),
+                FocusPolicy::Pass,
+            ),
 GlobalZIndex(FRAME_Z),
             HudEditRoot,
         ))
@@ -522,7 +521,7 @@ GlobalZIndex(FRAME_Z),
 }
 
 fn spawn_frame(
-    parent: &mut ChildBuilder,
+    parent: &mut ChildSpawnerCommands,
     anchor: &HudAnchor,
     view_w: f32,
     view_h: f32,
@@ -536,8 +535,9 @@ fn spawn_frame(
     };
     parent
         .spawn((
-            ButtonBundle {
-                node: Node {
+            (
+                Button,
+                Node {
                     position_type: PositionType::Absolute,
                     left: Val::Px(rect.x0 as f32),
                     top: Val::Px(rect.y0 as f32),
@@ -546,11 +546,10 @@ fn spawn_frame(
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.07, 0.05, 0.09, 0.28).into(),
-                border_color: border.into(),
-                focus_policy: FocusPolicy::Block,
-                                ..default()
-            },
+                FocusPolicy::Block,
+                BorderColor(border),
+                BackgroundColor(Color::srgba(0.07, 0.05, 0.09, 0.28)),
+            ),
 GlobalZIndex(FRAME_Z),
             HudEditFrame { id: anchor.id },
         ))
@@ -568,8 +567,9 @@ GlobalZIndex(FRAME_Z),
                 FocusPolicy::Pass,
             ));
             frame.spawn((
-                ButtonBundle {
-                    node: Node {
+                (
+                    Button,
+                    Node {
                         position_type: PositionType::Absolute,
                         right: Val::Px(0.0),
                         top: Val::Px(0.0),
@@ -577,18 +577,18 @@ GlobalZIndex(FRAME_Z),
                         height: Val::Px(44.0),
                         ..default()
                     },
-                    background_color: TITLE_BTN_BG.into(),
-                    focus_policy: FocusPolicy::Block,
-                    ..default()
-                },
+                    FocusPolicy::Block,
+                    BackgroundColor(TITLE_BTN_BG),
+                ),
                 HudEditGrip { id: anchor.id },
             ));
             if may_hide(anchor) {
                 let face = if anchor.hidden { "Show" } else { "Hide" };
                 frame
                     .spawn((
-                        ButtonBundle {
-                            node: Node {
+                        (
+                            Button,
+                            Node {
                                 position_type: PositionType::Absolute,
                                 left: Val::Px(0.0),
                                 bottom: Val::Px(0.0),
@@ -598,10 +598,9 @@ GlobalZIndex(FRAME_Z),
                                 align_items: AlignItems::Center,
                                 ..default()
                             },
-                            background_color: TITLE_BTN_BG.into(),
-                            focus_policy: FocusPolicy::Block,
-                            ..default()
-                        },
+                            FocusPolicy::Block,
+                            BackgroundColor(TITLE_BTN_BG),
+                        ),
                         HudEditHide { id: anchor.id },
                     ))
                     .with_children(|hide| {
@@ -618,7 +617,7 @@ TextColor(TITLE_BTN_FG),
         });
 }
 
-fn spawn_toolbar(parent: &mut ChildBuilder, save_enabled: bool) {
+fn spawn_toolbar(parent: &mut ChildSpawnerCommands, save_enabled: bool) {
     let save_bg = if save_enabled {
         TITLE_BTN_BG
     } else {
@@ -626,8 +625,8 @@ fn spawn_toolbar(parent: &mut ChildBuilder, save_enabled: bool) {
     };
     parent
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: Val::Px(16.0),
                     left: Val::Px(16.0),
@@ -635,10 +634,9 @@ fn spawn_toolbar(parent: &mut ChildBuilder, save_enabled: bool) {
                     column_gap: Val::Px(8.0),
                     ..default()
                 },
-                focus_policy: FocusPolicy::Block,
-                                background_color: Color::NONE.into(),
-                ..default()
-            },
+                BackgroundColor(Color::NONE),
+                FocusPolicy::Block,
+            ),
 GlobalZIndex(TOOLBAR_Z),
             Name::new("HudEditToolbar"),
         ))
@@ -649,11 +647,12 @@ GlobalZIndex(TOOLBAR_Z),
         });
 }
 
-fn tool_button(parent: &mut ChildBuilder, label: &str, fill: Color, marker: impl Component) {
+fn tool_button(parent: &mut ChildSpawnerCommands, label: &str, fill: Color, marker: impl Component) {
     parent
         .spawn((
-            ButtonBundle {
-                node: Node {
+            (
+                Button,
+                Node {
                     min_width: Val::Px(44.0),
                     min_height: Val::Px(44.0),
                     padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
@@ -661,10 +660,9 @@ fn tool_button(parent: &mut ChildBuilder, label: &str, fill: Color, marker: impl
                     align_items: AlignItems::Center,
                     ..default()
                 },
-                background_color: fill.into(),
-                focus_policy: FocusPolicy::Block,
-                ..default()
-            },
+                FocusPolicy::Block,
+                BackgroundColor(fill),
+            ),
             marker,
         ))
         .with_children(|button| {
@@ -1541,7 +1539,7 @@ mod tests {
             let mut windows = app
                 .world_mut()
                 .query_filtered::<&mut Window, With<PrimaryWindow>>();
-            let mut window = windows.single_mut(app.world_mut());
+            let mut window = windows.single_mut(app.world_mut()).unwrap();
             window.resolution.set(200.0, 200.0);
         }
         app.update();
@@ -1597,10 +1595,11 @@ mod tests {
         let (_dir, mut app) = plug_app();
         app.insert_resource(quiet_house(true));
         app.world_mut().spawn((
-            ButtonBundle {
-                interaction: Interaction::Pressed,
-                ..default()
-            },
+            (
+                Button,
+                Node::default(),
+                Interaction::Pressed,
+            ),
             SettingsHudEditBtn,
         ));
         app.update();
@@ -1631,7 +1630,7 @@ mod tests {
         let mut saves = app
             .world_mut()
             .query_filtered::<&mut Interaction, With<HudEditSaveBtn>>();
-        *saves.single_mut(app.world_mut()) = Interaction::Pressed;
+        *saves.single_mut(app.world_mut()).unwrap() = Interaction::Pressed;
         app.update();
         assert!(!dir.layout_file().exists());
     }
@@ -1657,8 +1656,7 @@ mod tests {
         let root = app
             .world_mut()
             .spawn((
-                NodeBundle {
-                    node: Node {
+                Node {
                         padding: UiRect::all(Val::Px(7.0)),
                         border: UiRect::all(Val::Px(8.0)),
                         margin: UiRect {
@@ -1668,12 +1666,10 @@ mod tests {
                         },
                         ..default()
                     },
-                    ..default()
-                },
                 HudSlab(ID_ALLOCATE),
             ))
             .with_children(|parent| {
-                parent.spawn((ButtonBundle::default(), AllocateFlowButton));
+                parent.spawn((Button, AllocateFlowButton));
             })
             .id();
         app.insert_resource(PressTape(0));
@@ -1706,7 +1702,7 @@ mod tests {
             let mut buttons = app
                 .world_mut()
                 .query_filtered::<&mut Interaction, With<AllocateFlowButton>>();
-            *buttons.single_mut(app.world_mut()) = Interaction::Pressed;
+            *buttons.single_mut(app.world_mut()).unwrap() = Interaction::Pressed;
         }
         app.update();
         assert_eq!(app.world().resource::<PressTape>().0, 1);
@@ -1714,7 +1710,7 @@ mod tests {
             let mut buttons = app
                 .world_mut()
                 .query_filtered::<&mut Interaction, With<AllocateFlowButton>>();
-            *buttons.single_mut(app.world_mut()) = Interaction::None;
+            *buttons.single_mut(app.world_mut()).unwrap() = Interaction::None;
         }
         app.update();
         let before = app.world().resource::<PressTape>().0;
@@ -1722,7 +1718,7 @@ mod tests {
             let mut buttons = app
                 .world_mut()
                 .query_filtered::<&mut Interaction, With<AllocateFlowButton>>();
-            *buttons.single_mut(app.world_mut()) = Interaction::Pressed;
+            *buttons.single_mut(app.world_mut()).unwrap() = Interaction::Pressed;
         }
         app.update();
         assert_eq!(app.world().resource::<PressTape>().0, before);
@@ -1762,10 +1758,10 @@ mod tests {
         let peer = app
             .world_mut()
             .spawn((
-                NodeBundle {
-                    visibility: Visibility::Visible,
-                    ..default()
-                },
+                (
+                    Node::default(),
+                    Visibility::Visible,
+                ),
                 HudSlab(ID_PEER),
             ))
             .id();
@@ -1852,6 +1848,7 @@ mod tests {
             logical_key,
             state: ButtonState::Pressed,
             repeat: false,
+            text: None,
             window: Entity::PLACEHOLDER,
         });
     }

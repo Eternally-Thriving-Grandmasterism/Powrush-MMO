@@ -252,8 +252,8 @@ fn spawn_loading_overlay(
 
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     width: Val::Percent(100.0),
                     height: Val::Percent(100.0),
@@ -262,17 +262,16 @@ fn spawn_loading_overlay(
                     padding: UiRect::all(Val::Px(24.0)),
                     ..default()
                 },
-                background_color: VEIL.into(),
-                                focus_policy: FocusPolicy::Block,
-                ..default()
-            },
+                BackgroundColor(VEIL),
+                FocusPolicy::Block,
+            ),
 GlobalZIndex(LOADING_Z),
             LoadingRoot { spawned_at },
             LivedUiPlate,
         ))
         .with_children(|root| {
-            root.spawn(NodeBundle {
-                node: Node {
+            root.spawn((
+                Node {
                     width: Val::Px(520.0),
                     max_width: Val::Percent(100.0),
                     flex_direction: FlexDirection::Column,
@@ -282,15 +281,14 @@ GlobalZIndex(LOADING_Z),
                     border: UiRect::all(Val::Px(2.0)),
                     ..default()
                 },
-                background_color: PANEL.into(),
-                border_color: FRAME.into(),
-                border_radius: BorderRadius::all(Val::Px(8.0)),
-                ..default()
-            })
+                BackgroundColor(PANEL),
+                BorderColor(FRAME),
+                BorderRadius::all(Val::Px(8.0)),
+            ))
             .with_children(|panel| {
                 panel
-                    .spawn(NodeBundle {
-                        node: Node {
+                    .spawn((
+                        Node {
                             width: Val::Percent(100.0),
                             height: Val::Px(14.0),
                             border: UiRect::all(Val::Px(1.0)),
@@ -298,21 +296,19 @@ GlobalZIndex(LOADING_Z),
                             align_items: AlignItems::Stretch,
                             ..default()
                         },
-                        background_color: TRACK.into(),
-                        border_color: FRAME.into(),
-                        ..default()
-                    })
+                        BackgroundColor(TRACK),
+                        BorderColor(FRAME),
+                    ))
                     .with_children(|track| {
                         track.spawn((
-                            NodeBundle {
-                                node: Node {
+                            (
+                                Node {
                                     width: Val::Percent((fraction * 100.0).clamp(0.0, 100.0)),
                                     height: Val::Percent(100.0),
                                     ..default()
                                 },
-                                background_color: FILL.into(),
-                                ..default()
-                            },
+                                BackgroundColor(FILL),
+                            ),
                             LoadingBarFill,
                         ));
                     });

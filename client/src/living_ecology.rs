@@ -232,21 +232,19 @@ fn spawn_ecology(
     ];
     for pos in tree_spots {
         commands.spawn((
-            PbrBundle {
-                mesh: Mesh3d(trunk.clone()),
-                material: MeshMaterial3d(wood.clone()),
-                transform: Transform::from_translation(pos),
-                ..default()
-            },
+            (
+                Mesh3d(trunk.clone()),
+                MeshMaterial3d(wood.clone()),
+                Transform::from_translation(pos),
+            ),
             EcologyProp { kind: PropKind::Tree },
         ));
         commands.spawn((
-            PbrBundle {
-                mesh: Mesh3d(canopy.clone()),
-                material: MeshMaterial3d(leaf.clone()),
-                transform: Transform::from_translation(pos + Vec3::Y * 1.35),
-                ..default()
-            },
+            (
+                Mesh3d(canopy.clone()),
+                MeshMaterial3d(leaf.clone()),
+                Transform::from_translation(pos + Vec3::Y * 1.35),
+            ),
             EcologyProp { kind: PropKind::Tree },
         ));
     }
@@ -263,12 +261,11 @@ fn spawn_ecology(
         Vec3::new(7.0, 0.22, 0.4),
     ] {
         commands.spawn((
-            PbrBundle {
-                mesh: Mesh3d(rock.clone()),
-                material: MeshMaterial3d(stone.clone()),
-                transform: Transform::from_translation(pos).with_scale(Vec3::new(1.4, 0.6, 1.1)),
-                ..default()
-            },
+            (
+                Mesh3d(rock.clone()),
+                MeshMaterial3d(stone.clone()),
+                Transform::from_translation(pos).with_scale(Vec3::new(1.4, 0.6, 1.1)),
+            ),
             EcologyProp {
                 kind: PropKind::Stone,
             },
@@ -282,12 +279,11 @@ fn spawn_ecology(
         ..default()
     });
     commands.spawn((
-        PbrBundle {
-            mesh: Mesh3d(deer_mesh),
-            material: MeshMaterial3d(deer_mat),
-            transform: Transform::from_translation(DEER_FAR),
-            ..default()
-        },
+        (
+            Mesh3d(deer_mesh),
+            MeshMaterial3d(deer_mat),
+            Transform::from_translation(DEER_FAR),
+        ),
         EcologyProp { kind: PropKind::Deer },
         ResonantDeer,
         Name::new("ResonantDeer"),
@@ -309,12 +305,11 @@ fn spawn_ecology(
             ..default()
         });
         commands.spawn((
-            PbrBundle {
-                mesh: Mesh3d(spire.clone()),
-                material: MeshMaterial3d(handle.clone()),
-                transform: Transform::from_translation(pos),
-                ..default()
-            },
+            (
+                Mesh3d(spire.clone()),
+                MeshMaterial3d(handle.clone()),
+                Transform::from_translation(pos),
+            ),
             EcologyProp {
                 kind: PropKind::Crystal,
             },
@@ -344,16 +339,15 @@ fn spawn_ecology(
             ..default()
         });
         commands.spawn((
-            PbrBundle {
-                mesh: Mesh3d(thread_mesh.clone()),
-                material: MeshMaterial3d(handle.clone()),
-                transform: Transform {
+            (
+                Mesh3d(thread_mesh.clone()),
+                MeshMaterial3d(handle.clone()),
+                Transform {
                     translation: mid,
                     rotation: rot,
                     scale: Vec3::new(1.0, len, 1.0),
                 },
-                ..default()
-            },
+            ),
             EcologyProp {
                 kind: PropKind::Mycelium,
             },
@@ -559,7 +553,7 @@ mod tests {
         while let Some(e) = stack.pop() {
             rigs.insert(e);
             if let Some(children) = world.get::<Children>(e) {
-                stack.extend(children.iter().copied());
+                stack.extend(children.iter());
             }
         }
         let travelers = ["Mira", "Ko", "Ren"];

@@ -6,7 +6,7 @@
 //! spoken breathe/harmony (prompt still tap vs hold).
 //! Contact: info@Rathor.ai
 
-use bevy::pbr::FogSettings;
+use bevy::pbr::DistanceFog;
 use bevy::prelude::*;
 
 use crate::climate_plane::{configure_fog_write_sets, FogWriteSet};
@@ -98,7 +98,7 @@ fn paint_climate_feel(
     time: Res<Time>,
     nearby: Res<NearbyMercyNode>,
     mut ambient: ResMut<AmbientLight>,
-    mut fogs: Query<&mut FogSettings>,
+    mut fogs: Query<&mut DistanceFog>,
     mut nodes: Query<(Entity, &mut MercyHarvestNode)>,
     mut mem: ResMut<ClimateFeelMemory>,
 ) {
@@ -195,7 +195,7 @@ fn place_fog_color(
 fn lean_fog_toward_place(
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
     settings: Option<Res<crate::local_settings::LocalSettingsState>>,
-    mut fogs: Query<&mut FogSettings>,
+    mut fogs: Query<&mut DistanceFog>,
 ) {
     let Some(travel) = travel else {
         return;

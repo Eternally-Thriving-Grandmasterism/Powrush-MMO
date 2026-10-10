@@ -73,12 +73,11 @@ fn seed_travelers(
         });
         let pos = WELLS[well] + Vec3::new(1.4, 0.7, 0.6);
         commands.spawn((
-            PbrBundle {
-                mesh: Mesh3d(mesh.clone()),
-                material: MeshMaterial3d(mat),
-                transform: Transform::from_translation(pos),
-                ..default()
-            },
+            (
+                Mesh3d(mesh.clone()),
+                MeshMaterial3d(mat),
+                Transform::from_translation(pos),
+            ),
             PracticeTraveler {
                 well,
                 phase: well as f32 * 0.33,

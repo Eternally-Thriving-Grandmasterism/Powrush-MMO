@@ -115,8 +115,8 @@
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
-use bevy::core_pipeline::bloom::BloomSettings;
-use bevy::pbr::{FogFalloff, FogSettings, FogVolume, VolumetricFogSettings, VolumetricLight};
+use bevy::core_pipeline::bloom::Bloom;
+use bevy::pbr::{FogFalloff, DistanceFog, FogVolume, VolumetricFog, VolumetricLight};
 use bevy::prelude::*;
 
 use shared::local_settings::{GraphicsPreset, WeatherFidelity};
@@ -747,7 +747,7 @@ const MEDIUM_BLOOM_INTENSITY: f32 = 0.06;
 
 /// Camera fog plus the localized volume that replaced `max_depth` in Bevy 0.15.
 pub struct UltraVolumetric {
-    pub camera: VolumetricFogSettings,
+    pub camera: VolumetricFog,
     pub volume: FogVolume,
     /// Full edge of the fog box. Half of this is the old `max_depth` radius.
     pub volume_scale: Vec3,
@@ -763,7 +763,7 @@ pub fn ultra_volumetric_for(preset: GraphicsPreset) -> Option<UltraVolumetric> {
         return None;
     }
     Some(UltraVolumetric {
-        camera: VolumetricFogSettings {
+        camera: VolumetricFog {
             ambient_color: ULTRA_VOLUMETRIC_AMBIENT_COLOR,
             ambient_intensity: ULTRA_VOLUMETRIC_AMBIENT_INTENSITY,
             // 0.14 had no ray-origin jitter. Bevy's 0.15 default is also 0.0.
@@ -792,19 +792,19 @@ pub fn ultra_volumetric_for(preset: GraphicsPreset) -> Option<UltraVolumetric> {
 /// [`LIGHT_BLOOM_INTENSITY`]. Mobile and Low return [`None`].
 /// Cite [`docs/VISUAL_TARGET.md`] L224 (Medium gentle glow), L225 (High
 /// `BloomSettings`) and L226 (Ultra sun bloom).
-pub fn bloom_for(preset: GraphicsPreset) -> Option<BloomSettings> {
+pub fn bloom_for(preset: GraphicsPreset) -> Option<Bloom> {
     if preset == GraphicsPreset::Medium {
-        return Some(BloomSettings {
+        return Some(Bloom {
             intensity: MEDIUM_BLOOM_INTENSITY,
-            ..BloomSettings::NATURAL
+            ..Bloom::NATURAL
         });
     }
     if preset != GraphicsPreset::High && preset != GraphicsPreset::Ultra {
         return None;
     }
-    Some(BloomSettings {
+    Some(Bloom {
         intensity: LIGHT_BLOOM_INTENSITY,
-        ..BloomSettings::NATURAL
+        ..Bloom::NATURAL
     })
 }
 
@@ -851,12 +851,11 @@ impl SanctuarySun {
     }
 
     /// The full light bundle.
-    pub fn bundle(&self) -> DirectionalLightBundle {
-        DirectionalLightBundle {
-            directional_light: self.directional_light(),
-            transform: self.transform(),
-            ..default()
-        }
+    pub fn bundle(&self) -> impl Bundle {
+        (
+            self.directional_light(),
+            self.transform(),
+        )
     }
 }
 
@@ -1037,6 +1036,7 @@ impl Plugin for ClimatePlanePlugin {
             .insert_resource(AmbientLight {
                 color: look_for(Some(0)).ambient,
                 brightness: look_for(Some(0)).ambient_bright,
+                affects_lightmapped_meshes: true,
             })
             .add_systems(Startup, (ensure_sanctuary, spawn_climate_place, spawn_climate_chip))
             .add_systems(
@@ -1079,17 +1079,16 @@ fn spawn_climate_place(
     let _no_dump = mesh_lod::place_dress_uses_authored_glb(&plan);
     let ground = meshes.add(Plane3d::default().mesh().size(56.0, 56.0));
     commands.spawn((
-        PbrBundle {
-            mesh: Mesh3d(ground),
-            material: MeshMaterial3d(materials.add(StandardMaterial {
+        (
+            Mesh3d(ground),
+            MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: look.ground,
                 perceptual_roughness: SANCTUARY_YARD_ROUGHNESS,
                 metallic: 0.0,
                 ..default()
             })),
-            transform: Transform::from_xyz(0.0, 0.0, 0.0),
-            ..default()
-        },
+            Transform::from_xyz(0.0, 0.0, 0.0),
+        ),
         ClimateGround,
         Name::new("ClimateGround"),
     ));
@@ -1109,12 +1108,11 @@ fn spawn_climate_place(
             let t = i as f32 / (steps as f32 + 0.35);
             let p = dir * t;
             commands.spawn((
-                PbrBundle {
-                    mesh: Mesh3d(stone_mesh.clone()),
-                    material: MeshMaterial3d(stone_mat.clone()),
-                    transform: lod_stone_tf(p.x, 0.04, p.z, scale),
-                    ..default()
-                },
+                (
+                    Mesh3d(stone_mesh.clone()),
+                    MeshMaterial3d(stone_mat.clone()),
+                    lod_stone_tf(p.x, 0.04, p.z, scale),
+                ),
                 ClimateStone,
                 PlaceLodMesh,
             ));
@@ -1131,7 +1129,7 @@ fn spawn_climate_place(
         );
     } else {
         for entity in &cameras {
-            commands.entity(entity).insert(FogSettings {
+            commands.entity(entity).insert(DistanceFog {
                 color: look.fog,
                 falloff: FogFalloff::Linear {
                     start: look.fog_start,
@@ -1156,8 +1154,8 @@ fn spawn_climate_chip(mut commands: Commands) {
     // so the boot yard reads warm-gold before any climate slab.
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: PLACE_NAME.top(),
                     left: PLACE_NAME.left(),
@@ -1168,10 +1166,9 @@ fn spawn_climate_chip(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.with_alpha(1.0).into(),
-                border_color: TITLE_BORDER.with_alpha(1.0).into(),
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
+                BorderColor(TITLE_BORDER.with_alpha(1.0)),
+            ),
             ClimateNameRoot,
             HudSlab(PLACE_NAME.id),
         ))
@@ -1214,7 +1211,7 @@ fn sync_place_dress_from_travel(
 fn sync_ultra_volumetric(
     mut commands: Commands,
     settings: Option<Res<LocalSettingsState>>,
-    cameras: Query<(Entity, Option<&VolumetricFogSettings>), With<Camera3d>>,
+    cameras: Query<(Entity, Option<&VolumetricFog>), With<Camera3d>>,
     lights: Query<(Entity, &DirectionalLight, Option<&VolumetricLight>)>,
     volumes: Query<Entity, With<FogVolume>>,
 ) {
@@ -1246,7 +1243,7 @@ fn sync_ultra_volumetric(
     } else {
         for (entity, existing) in &cameras {
             if existing.is_some() {
-                commands.entity(entity).remove::<VolumetricFogSettings>();
+                commands.entity(entity).remove::<VolumetricFog>();
             }
         }
         for entity in &volumes {
@@ -1271,7 +1268,7 @@ fn sync_ultra_volumetric(
 fn sync_tier_bloom(
     mut commands: Commands,
     settings: Option<Res<LocalSettingsState>>,
-    mut cameras: Query<(Entity, &mut Camera, Option<&BloomSettings>), With<Camera3d>>,
+    mut cameras: Query<(Entity, &mut Camera, Option<&Bloom>), With<Camera3d>>,
 ) {
     let preset = settings
         .as_ref()
@@ -1292,7 +1289,7 @@ fn sync_tier_bloom(
                 camera.hdr = false;
             }
             if existing.is_some() {
-                commands.entity(entity).remove::<BloomSettings>();
+                commands.entity(entity).remove::<Bloom>();
             }
         }
     }
@@ -1300,7 +1297,7 @@ fn sync_tier_bloom(
 
 fn attach_fog_when_world_camera_arrives(
     mut commands: Commands,
-    cameras: Query<Entity, (With<Camera3d>, Without<FogSettings>)>,
+    cameras: Query<Entity, (With<Camera3d>, Without<DistanceFog>)>,
     realm: Res<SoftPlayerRealm>,
 ) {
     if cameras.is_empty() {
@@ -1308,7 +1305,7 @@ fn attach_fog_when_world_camera_arrives(
     }
     let look = look_for(realm.current.or(Some(0)));
     for entity in &cameras {
-        commands.entity(entity).insert(FogSettings {
+        commands.entity(entity).insert(DistanceFog {
             color: look.fog,
             falloff: FogFalloff::Linear {
                 start: look.fog_start,
@@ -1329,7 +1326,7 @@ fn apply_climate_look(
     grounds: Query<&MeshMaterial3d<StandardMaterial>, With<ClimateGround>>,
     stones: Query<&MeshMaterial3d<StandardMaterial>, With<ClimateStone>>,
     nodes: Query<&MeshMaterial3d<StandardMaterial>, With<MercyHarvestNode>>,
-    mut fogs: Query<&mut FogSettings>,
+    mut fogs: Query<&mut DistanceFog>,
 ) {
     let id = realm.current.unwrap_or(0);
     // Missing settings (headless) stay Medium. Plain Res would panic there.
@@ -1394,7 +1391,7 @@ fn apply_arrival_beat_fog(
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
     presence: Option<Res<crate::human_presence::SoftPresence>>,
     settings: Option<Res<LocalSettingsState>>,
-    mut fogs: Query<&mut FogSettings>,
+    mut fogs: Query<&mut DistanceFog>,
 ) {
     let Some(presence) = presence else {
         return;
@@ -1464,7 +1461,7 @@ fn breathe_weather_bed(
     coupling: Res<WeatherBandCoupling>,
     time: Res<Time>,
     mut ambient: ResMut<AmbientLight>,
-    mut fogs: Query<&mut FogSettings>,
+    mut fogs: Query<&mut DistanceFog>,
 ) {
     // Missing settings (headless) stay Medium. Same fallback as apply_climate_look.
     let preset = settings
@@ -1683,7 +1680,7 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<&Node, With<ClimateNameRoot>>();
-        let style = q.single(app.world()).clone();
+        let style = q.single(app.world()).unwrap().clone();
         let coded = Node {
             position_type: PositionType::Absolute,
             top: Val::Px(18.0),
@@ -1713,10 +1710,10 @@ mod tests {
         let mut q = app
             .world_mut()
             .query_filtered::<(&BorderColor, &BackgroundColor), With<ClimateNameRoot>>();
-        let (border, bg) = q.single(app.world());
+        let (border, bg) = q.single(app.world()).unwrap();
         let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
         let mut t = app.world_mut().query_filtered::<&TextColor, With<ClimateNameText>>();
-        let txt = t.single(app.world()).0.to_srgba();
+        let txt = t.single(app.world()).unwrap().0.to_srgba();
         for (got, want, what) in [
             (bg, TITLE_PLATE_BG.to_srgba(), "plate"),
             (border, TITLE_BORDER.to_srgba(), "rim"),
@@ -3191,6 +3188,7 @@ mod tests {
         app.insert_resource(AmbientLight {
             color: look_for(Some(0)).ambient,
             brightness: look_for(Some(0)).ambient_bright,
+            affects_lightmapped_meshes: true,
         });
         app.init_resource::<Assets<StandardMaterial>>();
         app.insert_resource(SoftPlayerRealm { current: Some(0) });
@@ -3438,8 +3436,8 @@ mod tests {
                     .hierarchy()
                     .graph()
                     .all_edges()
-                    .filter(|(_, child, _)| *child == node)
-                    .map(|(parent, _, _)| parent)
+                    .filter(|(_, child)| *child == node)
+                    .map(|(parent, _)| parent)
                     .collect();
                 let labels: Vec<String> = parents
                     .iter()
@@ -3514,29 +3512,25 @@ mod tests {
         });
         app.add_systems(Update, sync_ultra_volumetric);
 
-        let camera = app.world_mut().spawn(Camera3dBundle::default()).id();
+        let camera = app.world_mut().spawn((Camera3d::default(), Msaa::Off)).id();
         let sun = app
             .world_mut()
-            .spawn(DirectionalLightBundle {
-                directional_light: DirectionalLight {
+            .spawn(DirectionalLight {
                     shadows_enabled: true,
                     ..default()
-                },
-                ..default()
-            })
+                })
             .id();
         let fallback = app
             .world_mut()
-            .spawn(DirectionalLightBundle {
-                directional_light: DirectionalLight {
+            .spawn((
+                DirectionalLight {
                     illuminance: 8_500.0,
                     shadows_enabled: false,
                     color: Color::srgb(1.0, 0.96, 0.88),
                     ..default()
                 },
-                transform: Transform::from_xyz(8.0, 18.0, 6.0).looking_at(Vec3::ZERO, Vec3::Y),
-                ..default()
-            })
+                Transform::from_xyz(8.0, 18.0, 6.0).looking_at(Vec3::ZERO, Vec3::Y),
+            ))
             .id();
 
         app.world_mut()
@@ -3545,20 +3539,20 @@ mod tests {
             .set_graphics_preset(GraphicsPreset::Ultra);
         app.update();
 
-        assert!(app.world().get::<VolumetricFogSettings>(camera).is_some());
-        assert!(app.world().get::<FogSettings>(camera).is_none());
+        assert!(app.world().get::<VolumetricFog>(camera).is_some());
+        assert!(app.world().get::<DistanceFog>(camera).is_none());
         assert!(app.world().get::<VolumetricLight>(sun).is_some());
         assert!(app.world().get::<VolumetricLight>(fallback).is_none());
         let mut volumes = app.world_mut().query::<(&FogVolume, &Transform)>();
-        let (volume, transform) = volumes.single(app.world());
+        let (volume, transform) = volumes.single(app.world()).unwrap();
         assert_eq!(volume.density_factor, ULTRA_VOLUMETRIC_DENSITY);
         assert_eq!(transform.scale, Vec3::splat(ULTRA_VOLUMETRIC_MAX_DEPTH * 2.0));
 
         app.update();
-        assert!(app.world().get::<VolumetricFogSettings>(camera).is_some());
+        assert!(app.world().get::<VolumetricFog>(camera).is_some());
         assert!(app.world().get::<VolumetricLight>(sun).is_some());
         assert!(app.world().get::<VolumetricLight>(fallback).is_none());
-        assert!(app.world().get::<FogSettings>(camera).is_none());
+        assert!(app.world().get::<DistanceFog>(camera).is_none());
 
         app.world_mut()
             .resource_mut::<LocalSettingsState>()
@@ -3566,7 +3560,7 @@ mod tests {
             .set_graphics_preset(GraphicsPreset::High);
         app.update();
 
-        assert!(app.world().get::<VolumetricFogSettings>(camera).is_none());
+        assert!(app.world().get::<VolumetricFog>(camera).is_none());
         assert!(app.world().get::<VolumetricLight>(sun).is_none());
         assert!(app.world().get::<VolumetricLight>(fallback).is_none());
         let mut volumes = app.world_mut().query::<&FogVolume>();
@@ -3590,8 +3584,8 @@ mod tests {
                 .hierarchy()
                 .graph()
                 .all_edges()
-                .filter(|(_, child, _)| *child == node)
-                .map(|(parent, _, _)| parent)
+                .filter(|(_, child)| *child == node)
+                .map(|(parent, _)| parent)
                 .collect();
             for parent in parents {
                 if let Some(set) = graph.get_set_at(parent) {
@@ -3615,7 +3609,7 @@ mod tests {
     #[test]
     fn bloom_for_some_on_medium_high_and_ultra() {
         assert_eq!(GraphicsPreset::ALL.len(), 5);
-        let natural = BloomSettings::NATURAL;
+        let natural = Bloom::NATURAL;
         for preset in GraphicsPreset::ALL {
             let got = bloom_for(preset);
             if preset == GraphicsPreset::Medium
@@ -3666,8 +3660,8 @@ mod tests {
         });
         app.add_systems(Update, sync_tier_bloom);
 
-        let world_cam = app.world_mut().spawn(Camera3dBundle::default()).id();
-        let ui_cam = app.world_mut().spawn(Camera2dBundle::default()).id();
+        let world_cam = app.world_mut().spawn((Camera3d::default(), Msaa::Off)).id();
+        let ui_cam = app.world_mut().spawn((Camera2d, Msaa::Off)).id();
 
         app.world_mut()
             .resource_mut::<LocalSettingsState>()
@@ -3677,16 +3671,16 @@ mod tests {
 
         let world = app.world().entity(world_cam);
         assert!(world.get::<Camera>().unwrap().hdr);
-        let bloom = world.get::<BloomSettings>().expect("bloom");
+        let bloom = world.get::<Bloom>().expect("bloom");
         assert_eq!(bloom.intensity, LIGHT_BLOOM_INTENSITY);
         let ui = app.world().entity(ui_cam);
         assert!(!ui.get::<Camera>().unwrap().hdr);
-        assert!(ui.get::<BloomSettings>().is_none());
+        assert!(ui.get::<Bloom>().is_none());
 
         app.update();
         let world = app.world().entity(world_cam);
         assert!(world.get::<Camera>().unwrap().hdr);
-        assert!(!world.get_ref::<BloomSettings>().unwrap().is_added());
+        assert!(!world.get_ref::<Bloom>().unwrap().is_added());
         assert!(ui_cam_hdr_still_false(&app, ui_cam));
 
         app.world_mut()
@@ -3696,7 +3690,7 @@ mod tests {
         app.update();
         let world = app.world().entity(world_cam);
         assert!(!world.get::<Camera>().unwrap().hdr);
-        assert!(world.get::<BloomSettings>().is_none());
+        assert!(world.get::<Bloom>().is_none());
         assert!(ui_cam_hdr_still_false(&app, ui_cam));
 
         app.world_mut()
@@ -3707,7 +3701,7 @@ mod tests {
         let world = app.world().entity(world_cam);
         assert!(world.get::<Camera>().unwrap().hdr);
         assert_eq!(
-            world.get::<BloomSettings>().unwrap().intensity,
+            world.get::<Bloom>().unwrap().intensity,
             LIGHT_BLOOM_INTENSITY
         );
         assert!(ui_cam_hdr_still_false(&app, ui_cam));
@@ -3715,11 +3709,11 @@ mod tests {
         let mut bare = App::new();
         bare.add_plugins(MinimalPlugins);
         bare.add_systems(Update, sync_tier_bloom);
-        let cam = bare.world_mut().spawn(Camera3dBundle::default()).id();
+        let cam = bare.world_mut().spawn((Camera3d::default(), Msaa::Off)).id();
         bare.update();
         assert!(bare.world().get::<Camera>(cam).unwrap().hdr);
         assert_eq!(
-            bare.world().get::<BloomSettings>(cam).unwrap().intensity,
+            bare.world().get::<Bloom>(cam).unwrap().intensity,
             MEDIUM_BLOOM_INTENSITY
         );
     }
@@ -3745,7 +3739,7 @@ mod tests {
             dirty: false,
         });
         app.add_systems(Update, sync_tier_bloom);
-        let cam = app.world_mut().spawn(Camera3dBundle::default()).id();
+        let cam = app.world_mut().spawn((Camera3d::default(), Msaa::Off)).id();
 
         let set = |app: &mut App, preset: GraphicsPreset| {
             app.world_mut()
@@ -3758,14 +3752,14 @@ mod tests {
         set(&mut app, GraphicsPreset::High);
         assert!(app.world().get::<Camera>(cam).unwrap().hdr);
         assert_eq!(
-            app.world().get::<BloomSettings>(cam).unwrap().intensity,
+            app.world().get::<Bloom>(cam).unwrap().intensity,
             LIGHT_BLOOM_INTENSITY
         );
 
         set(&mut app, GraphicsPreset::Medium);
         assert!(app.world().get::<Camera>(cam).unwrap().hdr);
         assert_eq!(
-            app.world().get::<BloomSettings>(cam).unwrap().intensity,
+            app.world().get::<Bloom>(cam).unwrap().intensity,
             MEDIUM_BLOOM_INTENSITY
         );
 
@@ -3774,13 +3768,13 @@ mod tests {
         assert!(!app
             .world()
             .entity(cam)
-            .get_ref::<BloomSettings>()
+            .get_ref::<Bloom>()
             .unwrap()
             .is_added());
 
         set(&mut app, GraphicsPreset::Low);
         assert!(!app.world().get::<Camera>(cam).unwrap().hdr);
-        assert!(app.world().get::<BloomSettings>(cam).is_none());
+        assert!(app.world().get::<Bloom>(cam).is_none());
     }
 
     /// CARD LIGHT-BLOOM-1 — registered in TierBloomSet, not FogWriteSet, and
@@ -3824,8 +3818,8 @@ mod tests {
                         .hierarchy()
                         .graph()
                         .all_edges()
-                        .filter(|(_, child, _)| *child == node)
-                        .map(|(parent, _, _)| parent)
+                        .filter(|(_, child)| *child == node)
+                        .map(|(parent, _)| parent)
                         .collect();
                     let mut in_tier = false;
                     for parent in parents {
@@ -3969,10 +3963,10 @@ mod tests {
                 assert!(!body.contains(literal), "{label} has its own {literal}");
             }
         }
-        assert!(main_fn.contains("tonemapping: WORLD_TONEMAPPING"));
-        assert!(main_fn.contains("color_grading: world_color_grading()"));
-        assert_eq!(main_fn.matches("Camera3dBundle").count(), 1);
-        assert!(!fallback_fn.contains("Camera3dBundle"));
+        assert!(main_fn.contains("WORLD_TONEMAPPING"));
+        assert!(main_fn.contains("world_color_grading()"));
+        assert_eq!(main_fn.matches("Camera3d").count(), 1);
+        assert!(!fallback_fn.contains("Camera3d::default()"));
     }
 
     /// CARD VP-GRADE-1 — AgX on the world camera; the grade is subtle.
@@ -4024,7 +4018,7 @@ mod tests {
             dirty: false,
         });
         app.add_systems(Startup, main_like_sun);
-        app.world_mut().spawn(Camera3dBundle::default());
+        app.world_mut().spawn((Camera3d::default(), Msaa::Off));
         app.update();
         app.update();
         let world = app.world_mut();
@@ -4042,7 +4036,7 @@ mod tests {
         assert_eq!(q.iter(world).count(), 0, "High removes VolumetricLight");
     }
 
-    fn tier_after_one_frame(preset: GraphicsPreset) -> (bool, Option<BloomSettings>) {
+    fn tier_after_one_frame(preset: GraphicsPreset) -> (bool, Option<Bloom>) {
         use shared::local_settings::LocalSettings;
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
@@ -4053,12 +4047,12 @@ mod tests {
             dirty: false,
         });
         app.add_systems(Update, sync_tier_bloom);
-        let cam = app.world_mut().spawn(Camera3dBundle::default()).id();
+        let cam = app.world_mut().spawn((Camera3d::default(), Msaa::Off)).id();
         app.update();
         let world = app.world();
         (
             world.get::<Camera>(cam).unwrap().hdr,
-            world.get::<BloomSettings>(cam).cloned(),
+            world.get::<Bloom>(cam).cloned(),
         )
     }
 
@@ -4164,32 +4158,31 @@ mod tests {
                 ..default()
             })
         };
-        app.world_mut().spawn(Camera3dBundle {
-            camera: Camera {
+        app.world_mut().spawn((
+            Camera3d::default(),
+            Camera {
                 order: crate::ui_above_world::WORLD_CAMERA_ORDER,
                 ..default()
             },
-            transform: Transform::from_xyz(0.0, 2.2, 6.0)
+            Transform::from_xyz(0.0, 2.2, 6.0)
                 .looking_at(Vec3::new(0.0, 0.4, 0.0), Vec3::Y),
-            ..default()
-        });
-        app.world_mut().spawn(DirectionalLightBundle {
-            directional_light: DirectionalLight {
+            Msaa::Off,
+        ));
+        app.world_mut().spawn((
+            DirectionalLight {
                 illuminance: 12_000.0,
                 shadows_enabled: true,
                 ..default()
             },
-            transform: Transform::from_xyz(4.0, 8.0, 3.0).looking_at(Vec3::ZERO, Vec3::Y),
-            ..default()
-        });
-        app.world_mut().spawn(PbrBundle {
-            mesh: Mesh3d(mesh),
-            material: MeshMaterial3d(material),
-            transform: Transform::from_xyz(0.0, 0.7, 0.0),
-            ..default()
-        });
-        app.world_mut().spawn(NodeBundle {
-            node: Node {
+            Transform::from_xyz(4.0, 8.0, 3.0).looking_at(Vec3::ZERO, Vec3::Y),
+        ));
+        app.world_mut().spawn((
+            Mesh3d(mesh),
+            MeshMaterial3d(material),
+            Transform::from_xyz(0.0, 0.7, 0.0),
+        ));
+        app.world_mut().spawn((
+            Node {
                 position_type: PositionType::Absolute,
                 top: Val::Px(8.0),
                 left: Val::Px(8.0),
@@ -4197,9 +4190,8 @@ mod tests {
                 height: Val::Px(36.0),
                 ..default()
             },
-            background_color: Color::srgb(0.1, 0.85, 0.25).into(),
-            ..default()
-        });
+            BackgroundColor(Color::srgb(0.1, 0.85, 0.25)),
+        ));
 
         let slots = app.world().resource::<ProbeRun>().slots.clone();
         app.run();
@@ -4223,7 +4215,7 @@ mod tests {
 #[cfg(test)]
 fn ui_cam_hdr_still_false(app: &App, ui_cam: Entity) -> bool {
     let ui = app.world().entity(ui_cam);
-    !ui.get::<Camera>().unwrap().hdr && ui.get::<BloomSettings>().is_none()
+    !ui.get::<Camera>().unwrap().hdr && ui.get::<Bloom>().is_none()
 }
 
 #[cfg(test)]
@@ -4285,13 +4277,13 @@ fn drive_bloom_probe(
     world_cams: Query<
         (
             &Camera,
-            Option<&BloomSettings>,
-            Option<&VolumetricFogSettings>,
+            Option<&Bloom>,
+            Option<&VolumetricFog>,
         ),
         With<Camera3d>,
     >,
     ui_cams: Query<&Camera, With<crate::ui_above_world::LivedUiCamera>>,
-    ui_bloom_cams: Query<(), (With<crate::ui_above_world::LivedUiCamera>, With<BloomSettings>)>,
+    ui_bloom_cams: Query<(), (With<crate::ui_above_world::LivedUiCamera>, With<Bloom>)>,
     lights: Query<(), With<VolumetricLight>>,
     msaa: Query<&bevy::render::view::Msaa>,
     mut exit: EventWriter<AppExit>,
@@ -4359,7 +4351,11 @@ fn assert_plate_over_world(image: &bevy::image::Image, label: &str) {
     };
     let mut plate = 0u32;
     let mut world = 0u32;
-    for px in image.data.chunks_exact(bpp) {
+    let pixels = image
+        .data
+        .as_deref()
+        .unwrap_or_else(|| panic!("{label} screenshot has no pixel data"));
+    for px in pixels.chunks_exact(bpp) {
         let (r, g, b) = (px[0], px[1], px[2]);
         let green = g > 140 && g > r.saturating_add(30) && g > b.saturating_add(30);
         if green {

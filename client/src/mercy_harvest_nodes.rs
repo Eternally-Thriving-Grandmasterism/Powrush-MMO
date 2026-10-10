@@ -344,18 +344,17 @@ fn spawn_mercy_nodes(
         let emissive = LinearRgba::from(color).with_alpha(1.0) * 2.4;
         commands
             .spawn((
-                PbrBundle {
-                    mesh: Mesh3d(mesh.clone()),
-                    material: MeshMaterial3d(materials.add(StandardMaterial {
+                (
+                    Mesh3d(mesh.clone()),
+                    MeshMaterial3d(materials.add(StandardMaterial {
                         base_color: color,
                         emissive,
                         perceptual_roughness: 0.35,
                         metallic: 0.05,
                         ..default()
                     })),
-                    transform: Transform::from_translation(pos),
-                    ..default()
-                },
+                    Transform::from_translation(pos),
+                ),
                 MercyHarvestNode {
                     name,
                     climate_id,
@@ -366,16 +365,13 @@ fn spawn_mercy_nodes(
                 Name::new(format!("MercyNode:{name}")),
             ))
             .with_children(|c| {
-                c.spawn(PointLightBundle {
-                    point_light: PointLight {
+                c.spawn(PointLight {
                         color,
                         intensity: 420.0,
                         range: 6.5,
                         shadows_enabled: false,
                         ..default()
-                    },
-                    ..default()
-                });
+                    });
             });
     }
     nearby.nodes_exist = true;
@@ -386,8 +382,8 @@ fn spawn_care_cycle_strip(mut commands: Commands) {
     // Transient one-card strip (not a second permanent HUD). Hidden until Idle-after-tend.
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     bottom: ACTION_BAR.bottom(),
                     right: ACTION_BAR.right(),
@@ -398,11 +394,10 @@ fn spawn_care_cycle_strip(mut commands: Commands) {
                     border: UiRect::all(Val::Px(2.0)),
                     ..default()
                 },
-                background_color: TITLE_PLATE_BG.into(),
-                border_color: TITLE_BORDER.into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(TITLE_PLATE_BG),
+                BorderColor(TITLE_BORDER),
+                Visibility::Hidden,
+            ),
             CareCycleStrip,
             HudSlab(ID_CARE_STRIP),
         ))
@@ -759,11 +754,10 @@ fn try_soft_harvest_sting(
     }
     *last = Some(node.harvests);
     let path = sting_path_for_realm(realm.and_then(|r| r.current));
-    commands.spawn(AudioBundle {
-        source: AudioPlayer(asset_server.load(path)),
-        settings: PlaybackSettings::DESPAWN,
-        ..default()
-    });
+    commands.spawn((
+        AudioPlayer::<AudioSource>(asset_server.load(path)),
+        PlaybackSettings::DESPAWN,
+    ));
 }
 
 #[cfg(test)]
@@ -791,14 +785,11 @@ mod tests {
             });
         let light = app
             .world_mut()
-            .spawn(PointLightBundle {
-                point_light: PointLight {
+            .spawn(PointLight {
                     intensity: 123.0,
                     range: 4.5,
                     ..default()
-                },
-                ..default()
-            })
+                })
             .id();
         let node = app
             .world_mut()
@@ -1223,7 +1214,7 @@ mod tests {
         let mut query = app
             .world_mut()
             .query_filtered::<&Node, With<CareCycleStrip>>();
-        let style = query.single(app.world()).clone();
+        let style = query.single(app.world()).unwrap().clone();
         assert_eq!(style.bottom, ACTION_BAR.bottom());
         assert_eq!(style.right, ACTION_BAR.right());
         assert_eq!(style.left, Val::Auto);
@@ -1234,6 +1225,6 @@ mod tests {
         let mut text = app
             .world_mut()
             .query_filtered::<&TextFont, With<CareCycleStripText>>();
-        assert_eq!(text.single(app.world()).font_size, 16.0 / 1.2);
+        assert_eq!(text.single(app.world()).unwrap().font_size, 16.0 / 1.2);
     }
 }

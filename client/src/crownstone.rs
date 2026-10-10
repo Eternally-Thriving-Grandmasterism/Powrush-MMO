@@ -39,8 +39,8 @@ impl Plugin for CrownstonePlugin {
 fn spawn_crownstone_slab(mut commands: Commands) {
     commands
         .spawn((
-            NodeBundle {
-                node: Node {
+            (
+                Node {
                     position_type: PositionType::Absolute,
                     top: Val::Px(164.0),
                     right: Val::Px(16.0),
@@ -50,11 +50,10 @@ fn spawn_crownstone_slab(mut commands: Commands) {
                     border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                background_color: Color::srgba(0.10, 0.06, 0.14, 0.92).into(),
-                border_color: Color::srgba(0.78, 0.52, 0.95, 0.55).into(),
-                visibility: Visibility::Hidden,
-                ..default()
-            },
+                BackgroundColor(Color::srgba(0.10, 0.06, 0.14, 0.92)),
+                BorderColor(Color::srgba(0.78, 0.52, 0.95, 0.55)),
+                Visibility::Hidden,
+            ),
             CrownstoneSlabRoot,
         ))
         .with_children(|p| {
