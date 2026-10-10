@@ -22,8 +22,8 @@
 //! `IsDefaultUiCamera`, and `Msaa::Off` stay. Contact: info@Rathor.ai
 
 use bevy::prelude::*;
-use bevy::render::camera::ClearColorConfig;
-use bevy::render::view::Msaa;
+use bevy::camera::ClearColorConfig;
+use bevy::render::view::{Hdr, Msaa};
 
 use crate::climate_plane::TierBloomSet;
 
@@ -196,16 +196,18 @@ fn strip_world_default_ui_camera(
 /// No graphics preset. Order, clear, and `IsDefaultUiCamera` stay on the
 /// stamp systems.
 fn copy_lived_ui_hdr_from_world(
-    world_cams: Query<&Camera, (With<Camera3d>, Without<LivedUiCamera>)>,
-    mut ui_cams: Query<&mut Camera, With<LivedUiCamera>>,
+    mut commands: Commands,
+    world_cams: Query<Has<Hdr>, (With<Camera3d>, Without<LivedUiCamera>)>,
+    ui_cams: Query<(Entity, Has<Hdr>), With<LivedUiCamera>>,
 ) {
-    let Ok(world_cam) = world_cams.get_single() else {
+    let Ok(world_hdr) = world_cams.single() else {
         return;
     };
-    let hdr = world_cam.hdr;
-    for mut cam in &mut ui_cams {
-        if cam.hdr != hdr {
-            cam.hdr = hdr;
+    for (entity, ui_hdr) in &ui_cams {
+        if world_hdr && !ui_hdr {
+            commands.entity(entity).insert(Hdr);
+        } else if !world_hdr && ui_hdr {
+            commands.entity(entity).remove::<Hdr>();
         }
     }
 }
@@ -216,7 +218,7 @@ fn bind_lived_ui_plates(
     roots: Query<Entity, (With<LivedUiPlate>, Without<UiTargetCamera>)>,
     mut commands: Commands,
 ) {
-    let Ok(cam) = ui_cam.get_single() else {
+    let Ok(cam) = ui_cam.single() else {
         return;
     };
     for entity in &roots {
@@ -395,11 +397,12 @@ mod tests {
     }
 
     fn assert_hdr_pair(app: &App, world_cam: Entity, expect_hdr: bool, label: &str) {
-        use bevy::core_pipeline::bloom::Bloom;
-        use bevy::render::camera::ClearColorConfig;
+        use bevy::post_process::bloom::Bloom;
+        use bevy::camera::ClearColorConfig;
 
         let world_ref = app.world();
-        let world_hdr = world_ref.get::<Camera>(world_cam).unwrap().hdr;
+        assert!(world_ref.get::<Camera>(world_cam).is_some(), "{label} world camera");
+        let world_hdr = world_ref.get::<Hdr>(world_cam).is_some();
         assert_eq!(world_hdr, expect_hdr, "{label} world hdr");
         let mut ui_hdr = None;
         let mut ui_order = None;
@@ -408,7 +411,7 @@ mod tests {
         for entity in world_ref.iter_entities() {
             if entity.contains::<LivedUiCamera>() {
                 let cam = entity.get::<Camera>().unwrap();
-                ui_hdr = Some(cam.hdr);
+                ui_hdr = Some(entity.contains::<Hdr>());
                 ui_order = Some(cam.order);
                 ui_clear_none = matches!(cam.clear_color, ClearColorConfig::None);
                 bloom_on_ui = entity.contains::<Bloom>();

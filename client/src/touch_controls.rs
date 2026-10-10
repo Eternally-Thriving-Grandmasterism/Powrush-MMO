@@ -97,7 +97,7 @@ GlobalZIndex(LIVED_UI_Z_LEDGER - 1),
                     },
                     // state: overlay stays see-through over play
                     BackgroundColor(TITLE_PLATE_BG.with_alpha(0.45)),
-                    BorderColor(TITLE_BORDER.with_alpha(0.55)),
+                    BorderColor::all(TITLE_BORDER.with_alpha(0.55)),
                 ),
                 TouchStickZone,
                 Interaction::default(),
@@ -190,7 +190,7 @@ fn spawn_overlay_btn<B: Component>(
                 ..default()
             },
             // state: overlay stays see-through over play
-            BorderColor(TITLE_BORDER.with_alpha(0.65)),
+            BorderColor::all(TITLE_BORDER.with_alpha(0.65)),
             BackgroundColor(bg),
         ),
         marker,
@@ -317,7 +317,7 @@ fn touch_stick_drag(
         return;
     }
 
-    let Ok(window) = windows.get_single() else {
+    let Ok(window) = windows.single() else {
         return;
     };
     let cursor = window.cursor_position();

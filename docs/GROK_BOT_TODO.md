@@ -294,9 +294,9 @@ Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/s
 
 **Effective order (verified):** TODO-SYNC-703 → HEARTBEAT → Gap 7 (pending Sherif's word for .github/**). No other card named.
 
-**DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.16. Playable-preview tag `11c577e`. No OFFER NEXT.
+**DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.17. Playable-preview tag `11c577e`. No OFFER NEXT.
 
-**BANK (cite only · do not cook):** Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb · Hour 4 · Market · gold · five-gate Title · playtest minutes = steward only. Five-gate Drive = AFTER House. Never Title lobby. No Hands mesh. No invent PATHS. Online grey. No OFFER NEXT. Bevy pin 0.16 climbing one minor per card (Sherif GO 2026-10-09).
+**BANK (cite only · do not cook):** Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb · Hour 4 · Market · gold · five-gate Title · playtest minutes = steward only. Five-gate Drive = AFTER House. Never Title lobby. No Hands mesh. No invent PATHS. Online grey. No OFFER NEXT. Bevy pin 0.17 climbing one minor per card (Sherif GO 2026-10-09).
 
 NEVER: race lobby · five-gate Title · gold · XP HUD · Market · Unreal.
 

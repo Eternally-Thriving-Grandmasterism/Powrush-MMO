@@ -295,14 +295,14 @@ fn hud_preset_row_clicks(
     for interaction in &layout {
         if *interaction == Interaction::Pressed {
             settings.inner.cycle_hud_preset();
-            commands.send(HudLayoutCommand::Apply(hud_preset_id(&settings.inner)));
+            commands.write(HudLayoutCommand::Apply(hud_preset_id(&settings.inner)));
             changed = true;
         }
     }
     for interaction in &reset {
         if *interaction == Interaction::Pressed {
             settings.inner.reset_hud_preset();
-            commands.send(HudLayoutCommand::Reset);
+            commands.write(HudLayoutCommand::Reset);
             changed = true;
         }
     }

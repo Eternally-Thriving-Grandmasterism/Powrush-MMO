@@ -9,6 +9,7 @@ use std::path::Path;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
+use bevy::platform::collections::HashSet;
 use bevy::prelude::*;
 use powrush_client::PowrushClientBundle;
 use shared::peace_audio::audio_output_safe;
@@ -23,10 +24,10 @@ const CRASH_LOG_PERSIST_NAME: &str = "data/crash.log";
 /// Console log of FPS and frame time. Bevy defaults stay, including the log interval.
 fn frame_time_log_plugin() -> LogDiagnosticsPlugin {
     LogDiagnosticsPlugin {
-        filter: Some(vec![
+        filter: Some(HashSet::from([
             FrameTimeDiagnosticsPlugin::FPS,
             FrameTimeDiagnosticsPlugin::FRAME_TIME,
-        ]),
+        ])),
         ..default()
     }
 }
@@ -49,8 +50,8 @@ fn main() {
             title: "Powrush-MMO — first hour".into(),
             // U5: make the default window match the Steam Deck title proof.
             resolution: (
-                powrush_client::title_screen::DECK_TITLE_WIDTH,
-                powrush_client::title_screen::DECK_TITLE_HEIGHT,
+                powrush_client::title_screen::DECK_TITLE_WIDTH as u32,
+                powrush_client::title_screen::DECK_TITLE_HEIGHT as u32,
             )
                 .into(),
             ..default()
@@ -187,6 +188,7 @@ mod crash_log_hook_tests {
 #[cfg(test)]
 mod frame_time_log_tests {
     use super::frame_time_log_plugin;
+    use bevy::platform::collections::HashSet;
     use bevy::diagnostic::{
         DiagnosticsPlugin, DiagnosticsStore, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin,
     };
@@ -198,10 +200,10 @@ mod frame_time_log_tests {
         let filter = plugin.filter.expect("frame time log filter");
         assert_eq!(
             filter,
-            vec![
+            HashSet::from([
                 FrameTimeDiagnosticsPlugin::FPS,
                 FrameTimeDiagnosticsPlugin::FRAME_TIME,
-            ]
+            ])
         );
         assert!(!filter.contains(&FrameTimeDiagnosticsPlugin::FRAME_COUNT));
     }

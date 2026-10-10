@@ -1396,7 +1396,7 @@ GlobalZIndex(LIVED_UI_Z_TITLE),
                         ..default()
                     },
                     BackgroundColor(TITLE_PLATE_BG),
-                    BorderColor(TITLE_BORDER),
+                    BorderColor::all(TITLE_BORDER),
                 ),
                 TitlePlate,
             ))
@@ -1474,7 +1474,7 @@ fn spawn_comfort_graphics_banner(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG),
-                BorderColor(TITLE_BORDER),
+                BorderColor::all(TITLE_BORDER),
                 FocusPolicy::Block,
                 Visibility::Hidden,
             ),
@@ -1497,7 +1497,7 @@ TextColor(TITLE_TEXT_SECONDARY),
                         border: UiRect::all(Val::Px(1.0)),
                         ..default()
                     },
-                    BorderColor(TITLE_BORDER),
+                    BorderColor::all(TITLE_BORDER),
                     BackgroundColor(TITLE_BTN_BG),
                 ),
                 ComfortGraphicsBannerDismissBtn,
@@ -1589,7 +1589,7 @@ fn spawn_menu_btn<C: Component>(p: &mut ChildSpawnerCommands, label: &str, marke
                 border: UiRect::all(Val::Px(1.0)),
                 ..default()
             },
-            BorderColor(TITLE_BORDER),
+            BorderColor::all(TITLE_BORDER),
             BackgroundColor(bg),
         ),
         marker,
@@ -1627,7 +1627,7 @@ fn spawn_settings_stub(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG),
-                BorderColor(TITLE_BORDER),
+                BorderColor::all(TITLE_BORDER),
                 // Keep pause chrome hits on this plate (Places door + tabs + Resume).
                 FocusPolicy::Block,
                 Visibility::Hidden,
@@ -1794,7 +1794,7 @@ TextColor(TITLE_TEXT_PRIMARY),
 Text::new(PAUSE_GUIDE_LINE),
 TextFont { font_size: 14.0 / 1.2, ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
-TextLayout::new_with_justify(JustifyText::Center),
+TextLayout::new_with_justify(Justify::Center),
 Node {
                         width: Val::Percent(100.0),
                         ..default()
@@ -1843,7 +1843,7 @@ GlobalZIndex(140),
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG),
-                BorderColor(TITLE_BORDER),
+                BorderColor::all(TITLE_BORDER),
             ))
             .with_children(|p| {
                 p.spawn((
@@ -1903,7 +1903,7 @@ GlobalZIndex(141),
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG),
-                BorderColor(TITLE_BORDER),
+                BorderColor::all(TITLE_BORDER),
             ))
             .with_children(|p| {
                 p.spawn((
@@ -1929,7 +1929,7 @@ TextColor(TITLE_TEXT_SECONDARY),
                             width: Val::Percent(100.0),
                             ..default()
                         },
-                        BorderColor(TITLE_BORDER),
+                        BorderColor::all(TITLE_BORDER),
                         BackgroundColor(TITLE_BTN_BG),
                     ),
                     DressHeritageBtn,
@@ -1967,7 +1967,7 @@ fn spawn_dress_seal_row<B: Component, L: Component>(
                 width: Val::Percent(100.0),
                 ..default()
             },
-            BorderColor(TITLE_BORDER),
+            BorderColor::all(TITLE_BORDER),
             BackgroundColor(TITLE_BTN_BG),
         ),
         btn,
@@ -2000,7 +2000,7 @@ fn spawn_persona_cycle_btn<B: Component, L: Component>(
                 width: Val::Percent(100.0),
                 ..default()
             },
-            BorderColor(TITLE_BORDER),
+            BorderColor::all(TITLE_BORDER),
             BackgroundColor(TITLE_BTN_BG),
         ),
         btn,
@@ -2049,7 +2049,7 @@ GlobalZIndex(142),
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG),
-                BorderColor(TITLE_BORDER),
+                BorderColor::all(TITLE_BORDER),
             ))
             .with_children(|p| {
                 p.spawn((
@@ -2595,7 +2595,7 @@ fn pause_plate_clicks(
                 places.close_door();
             }
             persist_in_yard_hour(*door, &mut label, bind.as_deref());
-            exit.send(AppExit::Success);
+            exit.write(AppExit::Success);
             return;
         }
     }
@@ -2677,7 +2677,7 @@ fn spawn_pause_places_door(p: &mut ChildSpawnerCommands) {
                 display: Display::None,
                 ..default()
             },
-            BorderColor(TITLE_BORDER),
+            BorderColor::all(TITLE_BORDER),
             BackgroundColor(TITLE_BTN_BG),
             Visibility::Hidden,
         ),
@@ -2704,7 +2704,7 @@ fn spawn_pause_tab_btn(p: &mut ChildSpawnerCommands, tab: PauseTab) {
                 flex_grow: 1.0,
                 ..default()
             },
-            BorderColor(TITLE_BORDER),
+            BorderColor::all(TITLE_BORDER),
             BackgroundColor(TITLE_BTN_BG),
         ),
         PauseTabBtn(tab),
@@ -2832,7 +2832,7 @@ fn spawn_settings_row<B: Component, L: Component>(
                 width: Val::Percent(100.0),
                 ..default()
             },
-            BorderColor(TITLE_BORDER),
+            BorderColor::all(TITLE_BORDER),
             BackgroundColor(TITLE_BTN_BG),
         ),
         btn,

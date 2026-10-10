@@ -54,7 +54,7 @@ fn sync_depths_landing(
     let here = travel.current == PlaceId::Depths;
     if !here {
         for entity in &existing {
-            commands.entity(entity).despawn_recursive();
+            commands.entity(entity).despawn();
         }
         tend.near = false;
         tend.tends = 0;

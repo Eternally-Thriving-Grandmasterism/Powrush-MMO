@@ -13,7 +13,7 @@
 use bevy::input::keyboard::KeyboardInput;
 use bevy::input::mouse::MouseButtonInput;
 use bevy::input::touch::TouchInput;
-use bevy::input::{ButtonState, InputSystem};
+use bevy::input::{ButtonState, InputSystems};
 use bevy::prelude::*;
 use std::collections::HashSet;
 
@@ -75,7 +75,7 @@ impl Plugin for InputPlugin {
             .insert_resource(LastPointerKind::default())
             .init_resource::<PhysicalKeyboard>()
             .configure_sets(Update, InputMapSet)
-            .configure_sets(PreUpdate, PeaceRemapSet.after(InputSystem))
+            .configure_sets(PreUpdate, PeaceRemapSet.after(InputSystems))
             .add_systems(
                 PreUpdate,
                 (capture_physical_keyboard, remap_peace_keyboard)

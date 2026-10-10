@@ -65,7 +65,7 @@ fn spawn_whisper(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG),
-                BorderColor(TITLE_BORDER),
+                BorderColor::all(TITLE_BORDER),
                 Visibility::Hidden,
             ),
             WhisperRoot,

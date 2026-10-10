@@ -71,7 +71,7 @@ fn spawn_lattice_panel(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
-                BorderColor(TITLE_BORDER.with_alpha(1.0)),
+                BorderColor::all(TITLE_BORDER.with_alpha(1.0)),
                 Visibility::Hidden,
             ),
             FoundationLatticeRoot,
@@ -312,7 +312,12 @@ mod tests {
             &Children,
         ), With<FoundationLatticeRoot>>();
         let (border, bg, children) = q.single(app.world()).unwrap();
-        let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
+        let (border, bg) = (({
+            assert_eq!(border.top, border.right, "border edges");
+            assert_eq!(border.top, border.bottom, "border edges");
+            assert_eq!(border.top, border.left, "border edges");
+            border.top
+        }).to_srgba(), bg.0.to_srgba());
         let kids: Vec<Entity> = children.iter().collect();
         assert_eq!(kids.len(), 3, "heading, body, legend");
         let colour = |e: Entity| {

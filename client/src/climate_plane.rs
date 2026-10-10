@@ -115,8 +115,9 @@
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
-use bevy::core_pipeline::bloom::Bloom;
-use bevy::pbr::{FogFalloff, DistanceFog, FogVolume, VolumetricFog, VolumetricLight};
+use bevy::post_process::bloom::Bloom;
+use bevy::light::{FogVolume, VolumetricFog, VolumetricLight};
+use bevy::pbr::{DistanceFog, FogFalloff};
 use bevy::prelude::*;
 
 use shared::local_settings::{GraphicsPreset, WeatherFidelity};
@@ -1167,7 +1168,7 @@ fn spawn_climate_chip(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
-                BorderColor(TITLE_BORDER.with_alpha(1.0)),
+                BorderColor::all(TITLE_BORDER.with_alpha(1.0)),
             ),
             ClimateNameRoot,
             HudSlab(PLACE_NAME.id),
@@ -1268,25 +1269,25 @@ fn sync_ultra_volumetric(
 fn sync_tier_bloom(
     mut commands: Commands,
     settings: Option<Res<LocalSettingsState>>,
-    mut cameras: Query<(Entity, &mut Camera, Option<&Bloom>), With<Camera3d>>,
+    mut cameras: Query<(Entity, Has<bevy::render::view::Hdr>, Option<&Bloom>), With<Camera3d>>,
 ) {
     let preset = settings
         .as_ref()
         .map(|state| state.inner.graphics_preset)
         .unwrap_or(GraphicsPreset::Medium);
     if let Some(bloom) = bloom_for(preset) {
-        for (entity, mut camera, existing) in &mut cameras {
-            if !camera.hdr {
-                camera.hdr = true;
+        for (entity, has_hdr, existing) in &mut cameras {
+            if !has_hdr {
+                commands.entity(entity).insert(bevy::render::view::Hdr);
             }
             if existing.map_or(true, |have| have.intensity != bloom.intensity) {
                 commands.entity(entity).insert(bloom.clone());
             }
         }
     } else {
-        for (entity, mut camera, existing) in &mut cameras {
-            if camera.hdr {
-                camera.hdr = false;
+        for (entity, has_hdr, existing) in &mut cameras {
+            if has_hdr {
+                commands.entity(entity).remove::<bevy::render::view::Hdr>();
             }
             if existing.is_some() {
                 commands.entity(entity).remove::<Bloom>();
@@ -1711,7 +1712,12 @@ mod tests {
             .world_mut()
             .query_filtered::<(&BorderColor, &BackgroundColor), With<ClimateNameRoot>>();
         let (border, bg) = q.single(app.world()).unwrap();
-        let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
+        let (border, bg) = (({
+            assert_eq!(border.top, border.right, "border edges");
+            assert_eq!(border.top, border.bottom, "border edges");
+            assert_eq!(border.top, border.left, "border edges");
+            border.top
+        }).to_srgba(), bg.0.to_srgba());
         let mut t = app.world_mut().query_filtered::<&TextColor, With<ClimateNameText>>();
         let txt = t.single(app.world()).unwrap().0.to_srgba();
         for (got, want, what) in [
@@ -3398,9 +3404,37 @@ mod tests {
         }
     }
 
-    fn fog_set_label_is(set: &dyn SystemSet, variant: &str) -> bool {
-        let label = format!("{set:?}");
+    fn fog_label_matches(label: &str, variant: &str) -> bool {
         label == variant || label.ends_with(&format!("::{variant}"))
+    }
+
+    /// Schedule API cleanup (#19352): systems and sets are keyed, and
+    /// `get_set_at` is gone. Parent set labels for one system.
+    fn system_parent_labels(
+        graph: &bevy::ecs::schedule::ScheduleGraph,
+        key: bevy::ecs::schedule::SystemKey,
+    ) -> Vec<String> {
+        use bevy::ecs::schedule::NodeId;
+        let node = NodeId::System(key);
+        graph
+            .hierarchy()
+            .graph()
+            .all_edges()
+            .filter(|(_, child)| *child == node)
+            .filter_map(|(parent, _)| parent.as_set())
+            .filter_map(|set_key| graph.system_sets.get(set_key))
+            .map(|set| format!("{set:?}"))
+            .collect()
+    }
+
+    fn named_systems(
+        graph: &bevy::ecs::schedule::ScheduleGraph,
+    ) -> Vec<(bevy::ecs::schedule::SystemKey, String)> {
+        graph
+            .systems
+            .iter()
+            .map(|(key, system, _)| (key, format!("{}", system.name())))
+            .collect()
     }
 
     /// CARD FOG-TIER-1 — ClimatePlanePlugin keeps the three climate_plane
@@ -3408,8 +3442,6 @@ mod tests {
     /// does not run.
     #[test]
     fn climate_plane_writers_sit_in_fog_write_sets() {
-        use bevy::ecs::schedule::NodeId;
-
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         app.add_plugins(ClimatePlanePlugin);
@@ -3426,30 +3458,16 @@ mod tests {
             ("apply_arrival_beat_fog", "ArrivalBeat"),
         ];
         let mut seen = [false; 3];
-        for (node, system, _) in graph.systems() {
-            let name = system.name();
+        for (key, name) in named_systems(graph) {
             for (i, (fn_name, set_name)) in expect.iter().enumerate() {
                 if !name.contains(fn_name) {
                     continue;
                 }
-                let parents: Vec<NodeId> = graph
-                    .hierarchy()
-                    .graph()
-                    .all_edges()
-                    .filter(|(_, child)| *child == node)
-                    .map(|(parent, _)| parent)
-                    .collect();
-                let labels: Vec<String> = parents
-                    .iter()
-                    .filter_map(|parent| graph.get_set_at(*parent))
-                    .map(|set| format!("{set:?}"))
-                    .collect();
+                let labels = system_parent_labels(graph, key);
                 assert!(
-                    parents.iter().any(|parent| {
-                        graph
-                            .get_set_at(*parent)
-                            .is_some_and(|set| fog_set_label_is(set, set_name))
-                    }),
+                    labels
+                        .iter()
+                        .any(|label| fog_label_matches(label, set_name)),
                     "{name} missing FogWriteSet::{set_name}; parent sets: {labels:?}"
                 );
                 seen[i] = true;
@@ -3501,7 +3519,6 @@ mod tests {
     /// High removes both. This system writes no FogSettings.
     #[test]
     fn ultra_volumetric_inserts_on_ultra_and_removes_on_high() {
-        use bevy::ecs::schedule::NodeId;
         use shared::local_settings::LocalSettings;
 
         let mut app = App::new();
@@ -3575,26 +3592,16 @@ mod tests {
             .expect("Update schedule");
         let graph = schedule.graph();
         let mut found = false;
-        for (node, system, _) in graph.systems() {
-            if !system.name().contains("sync_ultra_volumetric") {
+        for (key, name) in named_systems(graph) {
+            if !name.contains("sync_ultra_volumetric") {
                 continue;
             }
             found = true;
-            let parents: Vec<NodeId> = graph
-                .hierarchy()
-                .graph()
-                .all_edges()
-                .filter(|(_, child)| *child == node)
-                .map(|(parent, _)| parent)
-                .collect();
-            for parent in parents {
-                if let Some(set) = graph.get_set_at(parent) {
-                    let label = format!("{set:?}");
-                    assert!(
-                        !label.contains("FogWriteSet"),
-                        "sync_ultra_volumetric landed in {label}"
-                    );
-                }
+            for label in system_parent_labels(graph, key) {
+                assert!(
+                    !label.contains("FogWriteSet"),
+                    "sync_ultra_volumetric landed in {label}"
+                );
             }
         }
         assert!(
@@ -3670,16 +3677,16 @@ mod tests {
         app.update();
 
         let world = app.world().entity(world_cam);
-        assert!(world.get::<Camera>().unwrap().hdr);
+        assert!(world.get::<bevy::render::view::Hdr>().is_some());
         let bloom = world.get::<Bloom>().expect("bloom");
         assert_eq!(bloom.intensity, LIGHT_BLOOM_INTENSITY);
         let ui = app.world().entity(ui_cam);
-        assert!(!ui.get::<Camera>().unwrap().hdr);
+        assert!(ui.get::<Camera>().is_some() && ui.get::<bevy::render::view::Hdr>().is_none());
         assert!(ui.get::<Bloom>().is_none());
 
         app.update();
         let world = app.world().entity(world_cam);
-        assert!(world.get::<Camera>().unwrap().hdr);
+        assert!(world.get::<bevy::render::view::Hdr>().is_some());
         assert!(!world.get_ref::<Bloom>().unwrap().is_added());
         assert!(ui_cam_hdr_still_false(&app, ui_cam));
 
@@ -3689,7 +3696,7 @@ mod tests {
             .set_graphics_preset(GraphicsPreset::Low);
         app.update();
         let world = app.world().entity(world_cam);
-        assert!(!world.get::<Camera>().unwrap().hdr);
+        assert!(world.get::<Camera>().is_some() && world.get::<bevy::render::view::Hdr>().is_none());
         assert!(world.get::<Bloom>().is_none());
         assert!(ui_cam_hdr_still_false(&app, ui_cam));
 
@@ -3699,7 +3706,7 @@ mod tests {
             .set_graphics_preset(GraphicsPreset::High);
         app.update();
         let world = app.world().entity(world_cam);
-        assert!(world.get::<Camera>().unwrap().hdr);
+        assert!(world.get::<bevy::render::view::Hdr>().is_some());
         assert_eq!(
             world.get::<Bloom>().unwrap().intensity,
             LIGHT_BLOOM_INTENSITY
@@ -3711,7 +3718,7 @@ mod tests {
         bare.add_systems(Update, sync_tier_bloom);
         let cam = bare.world_mut().spawn((Camera3d::default(), Msaa::Off)).id();
         bare.update();
-        assert!(bare.world().get::<Camera>(cam).unwrap().hdr);
+        assert!(bare.world().get::<bevy::render::view::Hdr>(cam).is_some());
         assert_eq!(
             bare.world().get::<Bloom>(cam).unwrap().intensity,
             MEDIUM_BLOOM_INTENSITY
@@ -3750,14 +3757,14 @@ mod tests {
         };
 
         set(&mut app, GraphicsPreset::High);
-        assert!(app.world().get::<Camera>(cam).unwrap().hdr);
+        assert!(app.world().get::<bevy::render::view::Hdr>(cam).is_some());
         assert_eq!(
             app.world().get::<Bloom>(cam).unwrap().intensity,
             LIGHT_BLOOM_INTENSITY
         );
 
         set(&mut app, GraphicsPreset::Medium);
-        assert!(app.world().get::<Camera>(cam).unwrap().hdr);
+        assert!(app.world().get::<bevy::render::view::Hdr>(cam).is_some());
         assert_eq!(
             app.world().get::<Bloom>(cam).unwrap().intensity,
             MEDIUM_BLOOM_INTENSITY
@@ -3773,7 +3780,7 @@ mod tests {
             .is_added());
 
         set(&mut app, GraphicsPreset::Low);
-        assert!(!app.world().get::<Camera>(cam).unwrap().hdr);
+        assert!(!app.world().get::<bevy::render::view::Hdr>(cam).is_some());
         assert!(app.world().get::<Bloom>(cam).is_none());
     }
 
@@ -3781,8 +3788,6 @@ mod tests {
     /// the initialized system access does not write AmbientLight.
     #[test]
     fn sync_tier_bloom_set_excludes_fog_and_ambient_write() {
-        use bevy::ecs::schedule::NodeId;
-
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, ClimatePlanePlugin));
         app.world_mut()
@@ -3798,40 +3803,57 @@ mod tests {
                     .component_id::<Camera>()
                     .expect("Camera registered");
                 let graph = schedule.graph();
+                let bloom_id = world
+                    .components()
+                    .component_id::<Bloom>()
+                    .expect("Bloom registered");
+                let hdr_id = world
+                    .components()
+                    .component_id::<bevy::render::view::Hdr>()
+                    .expect("Hdr registered");
                 let mut found = false;
-                for (node, system, _) in graph.systems() {
-                    if !system.name().contains("sync_tier_bloom") {
+                for (key, name) in named_systems(graph) {
+                    if !name.contains("sync_tier_bloom") {
                         continue;
                     }
                     found = true;
-                    let access = system.component_access();
+                    // Stop storing access in systems (#19496): the schedule
+                    // holds the FilteredAccessSet from System::initialize.
+                    // `With<Camera3d>` is a filter, not a component read.
+                    // `Has<Hdr>` is archetypal. `Option<&Bloom>` is a read.
+                    let access = graph
+                        .systems
+                        .get(key)
+                        .expect("sync_tier_bloom")
+                        .access
+                        .combined_access();
                     assert!(
-                        access.has_component_write(camera),
-                        "Camera write missing; access was not initialized"
+                        access.has_component_read(bloom_id),
+                        "Bloom read missing; access was not initialized"
+                    );
+                    assert!(
+                        access.has_archetypal(hdr_id),
+                        "Hdr presence check missing after Camera.hdr split (#18873)"
+                    );
+                    // Split Hdr from Camera (#18873). The bloom system inserts
+                    // `Hdr`; it must not write the Camera component.
+                    assert!(
+                        !access.has_component_write(camera),
+                        "sync_tier_bloom writes Camera after hdr left that component"
                     );
                     assert!(
                         !access.has_resource_write(ambient),
                         "sync_tier_bloom writes AmbientLight"
                     );
                     assert!(!access.has_write_all());
-                    let parents: Vec<NodeId> = graph
-                        .hierarchy()
-                        .graph()
-                        .all_edges()
-                        .filter(|(_, child)| *child == node)
-                        .map(|(parent, _)| parent)
-                        .collect();
                     let mut in_tier = false;
-                    for parent in parents {
-                        if let Some(set) = graph.get_set_at(parent) {
-                            let label = format!("{set:?}");
-                            assert!(
-                                !label.contains("FogWriteSet"),
-                                "sync_tier_bloom landed in {label}"
-                            );
-                            if label.contains("TierBloomSet") {
-                                in_tier = true;
-                            }
+                    for label in system_parent_labels(graph, key) {
+                        assert!(
+                            !label.contains("FogWriteSet"),
+                            "sync_tier_bloom landed in {label}"
+                        );
+                        if label.contains("TierBloomSet") {
+                            in_tier = true;
                         }
                     }
                     assert!(in_tier, "sync_tier_bloom is not in TierBloomSet");
@@ -4051,7 +4073,7 @@ mod tests {
         app.update();
         let world = app.world();
         (
-            world.get::<Camera>(cam).unwrap().hdr,
+            world.get::<bevy::render::view::Hdr>(cam).is_some(),
             world.get::<Bloom>(cam).cloned(),
         )
     }
@@ -4123,7 +4145,7 @@ mod tests {
             DefaultPlugins
                 .set(WindowPlugin {
                     primary_window: Some(Window {
-                        resolution: (320.0_f32, 180.0_f32).into(),
+                        resolution: (320u32, 180u32).into(),
                         title: "light-bloom-1".into(),
                         ..default()
                     }),
@@ -4215,7 +4237,9 @@ mod tests {
 #[cfg(test)]
 fn ui_cam_hdr_still_false(app: &App, ui_cam: Entity) -> bool {
     let ui = app.world().entity(ui_cam);
-    !ui.get::<Camera>().unwrap().hdr && ui.get::<Bloom>().is_none()
+    ui.get::<Camera>().is_some()
+        && ui.get::<bevy::render::view::Hdr>().is_none()
+        && ui.get::<Bloom>().is_none()
 }
 
 #[cfg(test)]
@@ -4277,42 +4301,43 @@ fn drive_bloom_probe(
     world_cams: Query<
         (
             &Camera,
+            Has<bevy::render::view::Hdr>,
             Option<&Bloom>,
             Option<&VolumetricFog>,
         ),
         With<Camera3d>,
     >,
-    ui_cams: Query<&Camera, With<crate::ui_above_world::LivedUiCamera>>,
+    ui_cams: Query<(&Camera, Has<bevy::render::view::Hdr>), With<crate::ui_above_world::LivedUiCamera>>,
     ui_bloom_cams: Query<(), (With<crate::ui_above_world::LivedUiCamera>, With<Bloom>)>,
     lights: Query<(), With<VolumetricLight>>,
     msaa: Query<&bevy::render::view::Msaa>,
     mut exit: EventWriter<AppExit>,
 ) {
     use crate::ui_above_world::UI_CAMERA_ORDER;
-    use bevy::render::camera::ClearColorConfig;
+    use bevy::camera::ClearColorConfig;
 
     probe.frames += 1;
     if probe.frames >= 36 && !probe.requested {
-        if let Ok(window) = windows.get_single() {
+        if let Ok(window) = windows.single() {
             probe.requested = true;
             let tx = probe.tx.clone();
             commands
                 .spawn(bevy::render::view::screenshot::Screenshot::window(window))
                 .observe(
                     move |trigger: Trigger<bevy::render::view::screenshot::ScreenshotCaptured>| {
-                        let _ = tx.send(trigger.event().0.clone());
+                        let _ = tx.send(trigger.event().image.clone());
                     },
                 );
         }
     }
     let received = probe.rx.lock().expect("shot inbox").try_recv().ok();
     if let Some(image) = received {
-        let (world_cam, bloom, fog) = world_cams.get_single().expect("world camera");
-        let ui = ui_cams.get_single().expect("ui camera");
+        let (world_cam, world_hdr, bloom, fog) = world_cams.single().expect("world camera");
+        let (ui, ui_hdr) = ui_cams.single().expect("ui camera");
         let shot = ProbeShot {
             image,
-            world_hdr: world_cam.hdr,
-            ui_hdr: ui.hdr,
+            world_hdr,
+            ui_hdr,
             world_bloom: bloom.is_some(),
             ui_bloom: !ui_bloom_cams.is_empty(),
             ui_clear_none: matches!(ui.clear_color, ClearColorConfig::None),
@@ -4335,7 +4360,7 @@ fn drive_bloom_probe(
         } else {
             slots.ultra = Some(shot);
             drop(slots);
-            exit.send(AppExit::Success);
+            exit.write(AppExit::Success);
         }
     } else if probe.frames > 240 {
         panic!("screenshot did not arrive in phase {}", probe.phase);

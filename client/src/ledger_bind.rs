@@ -105,7 +105,7 @@ fn spawn_ledger_slab(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG),
-                BorderColor(TITLE_BORDER.with_alpha(1.0)),
+                BorderColor::all(TITLE_BORDER.with_alpha(1.0)),
                 Visibility::Hidden,
             ),
 GlobalZIndex(LIVED_UI_Z_LEDGER),
@@ -401,7 +401,12 @@ mod tests {
             .world_mut()
             .query_filtered::<(&BorderColor, &BackgroundColor), With<LedgerSlabRoot>>();
         let (border, bg) = q.single(app.world()).unwrap();
-        let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
+        let (border, bg) = (({
+            assert_eq!(border.top, border.right, "border edges");
+            assert_eq!(border.top, border.bottom, "border edges");
+            assert_eq!(border.top, border.left, "border edges");
+            border.top
+        }).to_srgba(), bg.0.to_srgba());
         let mut t = app
             .world_mut()
             .query_filtered::<&TextColor, With<LedgerSlabText>>();

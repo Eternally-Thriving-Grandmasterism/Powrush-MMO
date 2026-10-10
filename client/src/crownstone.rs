@@ -51,7 +51,7 @@ fn spawn_crownstone_slab(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(Color::srgba(0.10, 0.06, 0.14, 0.92)),
-                BorderColor(Color::srgba(0.78, 0.52, 0.95, 0.55)),
+                BorderColor::all(Color::srgba(0.78, 0.52, 0.95, 0.55)),
                 Visibility::Hidden,
             ),
             CrownstoneSlabRoot,

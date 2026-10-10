@@ -27,8 +27,8 @@
 use std::collections::{HashMap, HashSet};
 
 use bevy::prelude::*;
-use bevy::render::view::VisibilitySystems;
-use bevy::ui::UiSystem;
+use bevy::camera::visibility::VisibilitySystems;
+use bevy::ui::UiSystems;
 use bevy::window::PrimaryWindow;
 
 use crate::abundance_journey_echo::AbundanceJourneyEcho;
@@ -1634,7 +1634,7 @@ impl Default for ActiveHudPreset {
 
 /// Sets [`ActiveHudPreset`]. Reset always targets [`RESET_PRESET`].
 /// There is no command that returns the preset to `None`.
-#[derive(Event, Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Message, Clone, Copy, Debug, PartialEq, Eq)]
 pub enum HudLayoutCommand {
     Reset,
     Apply(HudPresetId),
@@ -1682,7 +1682,7 @@ impl Plugin for HudLayoutPlugin {
             .add_systems(
                 PostUpdate,
                 apply_active_preset
-                    .before(UiSystem::Layout)
+                    .before(UiSystems::Layout)
                     .before(VisibilitySystems::VisibilityPropagate),
             );
     }

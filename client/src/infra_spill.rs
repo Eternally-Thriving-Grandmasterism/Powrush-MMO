@@ -77,7 +77,7 @@ fn spawn_spill_slab(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
-                BorderColor(TITLE_BORDER.with_alpha(1.0)),
+                BorderColor::all(TITLE_BORDER.with_alpha(1.0)),
                 Visibility::Hidden,
             ),
             SpillSlabRoot,
@@ -196,7 +196,12 @@ mod tests {
             .world_mut()
             .query_filtered::<(&BorderColor, &BackgroundColor), With<SpillSlabRoot>>();
         let (border, bg) = q.single(app.world()).unwrap();
-        let (border, bg) = (border.0.to_srgba(), bg.0.to_srgba());
+        let (border, bg) = (({
+            assert_eq!(border.top, border.right, "border edges");
+            assert_eq!(border.top, border.bottom, "border edges");
+            assert_eq!(border.top, border.left, "border edges");
+            border.top
+        }).to_srgba(), bg.0.to_srgba());
         let mut t = app.world_mut().query_filtered::<&TextColor, With<SpillSlabText>>();
         let txt = t.single(app.world()).unwrap().0.to_srgba();
         for (got, want, what) in [
