@@ -14,14 +14,16 @@ default = []
 steam = ["dep:steamworks"]
 
 [dependencies]
-# 0.19.1 `default` is the collections `2d` + `3d` + `ui` + `audio`
-# (74 facade features). `2d`, `3d`, and `ui` pull `default_platform`, and
-# that collection includes `wayland`. Listing a collection name
-# (`2d` / `3d` / `ui` / `audio` / `default_platform`) is avoided: those
-# names are not on this line. These are the collection members, with
-# `default_platform` expanded and `wayland` left out. Nothing beyond the
-# published default set. `x11` stays.
-bevy = { version = "0.19", default-features = false, features = [
+# 0.20.0 `default` is the collections `2d` + `3d` + `ui` + `audio`
+# (75 facade features). The only addition since 0.19.1 is `bevy_curve`,
+# pulled through `common_api` (a member of `2d_api` / `3d_api` / `ui_api`,
+# not a direct member of `2d` / `3d` / `ui` / `audio`). `default_platform`
+# is unchanged and still includes `wayland`. `2d`, `3d`, and `ui` pull
+# that collection. Listing a collection name (`2d` / `3d` / `ui` / `audio`
+# / `default_platform`) is avoided: those names are not on this line.
+# These are the collection members, with `default_platform` expanded and
+# `wayland` left out. Nothing beyond the published default set. `x11` stays.
+bevy = { version = "0.20", default-features = false, features = [
     "default_app",
     "2d_bevy_render",
     "3d_bevy_render",

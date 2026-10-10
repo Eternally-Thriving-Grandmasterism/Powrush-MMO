@@ -1490,7 +1490,7 @@ TextColor(TITLE_TEXT_SECONDARY),
 ));
             row.spawn((
                 (
-                    Button,
+                    bevy::ui_widgets::Button, Interaction::default(),
                     Node {
                         padding: UiRect::axes(Val::Px(10.0), Val::Px(6.0)),
                         justify_content: JustifyContent::Center,
@@ -1582,7 +1582,7 @@ fn spawn_menu_btn<C: Component>(p: &mut ChildSpawnerCommands, label: &str, marke
     };
     p.spawn((
         (
-            Button,
+            bevy::ui_widgets::Button, Interaction::default(),
             Node {
                 padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
                 justify_content: JustifyContent::Center,
@@ -1921,7 +1921,7 @@ TextColor(TITLE_TEXT_SECONDARY),
                 spawn_dress_seal_row(p, "Ember", DressSealEmberBtn, DressSealEmberLabel);
                 p.spawn((
                     (
-                        Button,
+                        bevy::ui_widgets::Button, Interaction::default(),
                         Node {
                             padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
                             justify_content: JustifyContent::Center,
@@ -1959,7 +1959,7 @@ fn spawn_dress_seal_row<B: Component, L: Component>(
 ) {
     p.spawn((
         (
-            Button,
+            bevy::ui_widgets::Button, Interaction::default(),
             Node {
                 padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
                 justify_content: JustifyContent::Center,
@@ -1992,7 +1992,7 @@ fn spawn_persona_cycle_btn<B: Component, L: Component>(
 ) {
     p.spawn((
         (
-            Button,
+            bevy::ui_widgets::Button, Interaction::default(),
             Node {
                 padding: UiRect::axes(Val::Px(12.0), Val::Px(8.0)),
                 justify_content: JustifyContent::Center,
@@ -2668,7 +2668,7 @@ fn settings_tab_panel_bundle(visible: bool) -> impl Bundle {
 fn spawn_pause_places_door(p: &mut ChildSpawnerCommands) {
     p.spawn((
         (
-            Button,
+            bevy::ui_widgets::Button, Interaction::default(),
             Node {
                 width: Val::Percent(100.0),
                 padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
@@ -2697,7 +2697,7 @@ TextColor(TITLE_BTN_FG),
 fn spawn_pause_tab_btn(p: &mut ChildSpawnerCommands, tab: PauseTab) {
     p.spawn((
         (
-            Button,
+            bevy::ui_widgets::Button, Interaction::default(),
             Node {
                 padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
                 justify_content: JustifyContent::Center,
@@ -2825,7 +2825,7 @@ fn spawn_settings_row<B: Component, L: Component>(
 ) {
     p.spawn((
         (
-            Button,
+            bevy::ui_widgets::Button, Interaction::default(),
             Node {
                 padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
                 justify_content: JustifyContent::Center,

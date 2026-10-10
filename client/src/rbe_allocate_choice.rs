@@ -261,7 +261,7 @@ TextColor(TITLE_TEXT_PRIMARY),
             .with_children(|row| {
                 row.spawn((
                     (
-                        Button,
+                        bevy::ui_widgets::Button, Interaction::default(),
                         Node {
                             padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                             border: UiRect::all(Val::Px(1.0)),
@@ -282,7 +282,7 @@ TextColor(TITLE_BTN_FG),
 
                 row.spawn((
                     (
-                        Button,
+                        bevy::ui_widgets::Button, Interaction::default(),
                         Node {
                             padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
                             border: UiRect::all(Val::Px(1.0)),
