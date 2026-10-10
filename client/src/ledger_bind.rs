@@ -578,7 +578,7 @@ mod tests {
         app.update();
 
         let window = Entity::PLACEHOLDER;
-        app.world_mut().send_event(KeyboardInput {
+        app.world_mut().write_message(KeyboardInput {
             key_code: soft_play_bindings::LEDGER,
             logical_key: Key::Character("l".into()),
             state: ButtonState::Pressed,

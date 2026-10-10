@@ -501,7 +501,7 @@ fn handle_interact_harvest(
     mut nodes: Query<&mut MercyHarvestNode>,
     mut pool: ResMut<SoftRbePool>,
     mut global: Option<ResMut<RbeGlobalState>>,
-    mut rumble: EventWriter<GamepadRumbleRequest>,
+    mut rumble: MessageWriter<GamepadRumbleRequest>,
     gamepads: Query<Entity, With<Gamepad>>,
     mut rbe_ui: Option<ResMut<RbeUiSync>>,
     mut answer: ResMut<WorldAnswer>,
@@ -607,7 +607,7 @@ fn resolve_take(
     nodes: &mut Query<&mut MercyHarvestNode>,
     pool: &mut SoftRbePool,
     global: Option<&mut RbeGlobalState>,
-    rumble: &mut EventWriter<GamepadRumbleRequest>,
+    rumble: &mut MessageWriter<GamepadRumbleRequest>,
     gamepads: impl IntoIterator<Item = Entity>,
     rbe_ui: Option<&mut RbeUiSync>,
     answer: &mut WorldAnswer,
@@ -674,7 +674,7 @@ fn resolve_tend(
     nearby: &mut NearbyMercyNode,
     nodes: &mut Query<&mut MercyHarvestNode>,
     pool: &mut SoftRbePool,
-    rumble: &mut EventWriter<GamepadRumbleRequest>,
+    rumble: &mut MessageWriter<GamepadRumbleRequest>,
     gamepads: impl IntoIterator<Item = Entity>,
     answer: &mut WorldAnswer,
     place: Option<&str>,
@@ -1081,7 +1081,7 @@ mod tests {
             .init_resource::<ThrivingMoments>()
             .init_resource::<SoftRbePool>()
             .init_resource::<ButtonInput<KeyCode>>()
-            .add_event::<GamepadRumbleRequest>()
+            .add_message::<GamepadRumbleRequest>()
             .add_systems(PreUpdate, mark_well_near)
             .add_systems(Update, handle_well);
 

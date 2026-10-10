@@ -1665,7 +1665,7 @@ impl Plugin for HudLayoutPlugin {
         app.init_resource::<ActiveHudPreset>()
             .init_resource::<HudSessionLayout>()
             .init_resource::<HudYieldMemory>()
-            .add_event::<HudLayoutCommand>()
+            .add_message::<HudLayoutCommand>()
             .add_systems(PreUpdate, restore_yielded_visibility)
             .add_systems(
                 Update,
@@ -1689,7 +1689,7 @@ impl Plugin for HudLayoutPlugin {
 }
 
 pub(crate) fn apply_hud_layout_commands(
-    mut commands: EventReader<HudLayoutCommand>,
+    mut commands: MessageReader<HudLayoutCommand>,
     mut active: ResMut<ActiveHudPreset>,
     mut session: ResMut<HudSessionLayout>,
     edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
@@ -3259,7 +3259,7 @@ child_style.clone(),
         }
         app.update();
         app.world_mut()
-            .send_event(HudLayoutCommand::Apply(HudPresetId::Minimal));
+            .write_message(HudLayoutCommand::Apply(HudPresetId::Minimal));
         app.update();
         {
             let factory = roots
@@ -3276,7 +3276,7 @@ child_style.clone(),
             assert_eq!(style.width, Val::Px(520.0));
             assert_ne!(style.top, Val::Px(93.0));
         }
-        app.world_mut().send_event(HudLayoutCommand::Reset);
+        app.world_mut().write_message(HudLayoutCommand::Reset);
         app.update();
         for (id, root, child) in &roots {
             let style = app.world().get::<Node>(*root).expect(id);
@@ -3309,7 +3309,7 @@ child_style.clone(),
             .iter()
             .map(|(_, root, _)| app.world().get::<Node>(*root).expect("style").clone())
             .collect();
-        app.world_mut().send_event(HudLayoutCommand::Reset);
+        app.world_mut().write_message(HudLayoutCommand::Reset);
         app.update();
         for ((_, root, _), previous) in roots.iter().zip(before) {
             assert_eq!(
@@ -3469,7 +3469,7 @@ child_style.clone(),
 
         for layout in PRESETS {
             app.world_mut()
-                .send_event(HudLayoutCommand::Apply(layout.id));
+                .write_message(HudLayoutCommand::Apply(layout.id));
             for anchor in layout.anchors {
                 if anchor.share != HudShare::Yield || anchor.occupants.len() < 2 {
                     continue;
@@ -3740,7 +3740,7 @@ child_style.clone(),
         allocate.choices_made = 2;
         app.insert_resource(allocate);
         app.world_mut()
-            .send_event(HudLayoutCommand::Apply(HudPresetId::Classic));
+            .write_message(HudLayoutCommand::Apply(HudPresetId::Classic));
         app.update();
         assert!(app.world().resource::<HumanSoftPanels>().mercy_open);
         assert!(!app.world().resource::<HumanSoftPanels>().realm_open);
@@ -3778,7 +3778,7 @@ child_style.clone(),
             .id();
         let vis = |app: &App, entity: Entity| *app.world().get::<Visibility>(entity).expect("vis");
         app.world_mut()
-            .send_event(HudLayoutCommand::Apply(HudPresetId::Classic));
+            .write_message(HudLayoutCommand::Apply(HudPresetId::Classic));
         app.update();
         assert_eq!(vis(&app, slab), Visibility::Visible);
         assert_eq!(vis(&app, plain), Visibility::Visible);
@@ -3847,7 +3847,7 @@ child_style.clone(),
             .id();
         app.insert_resource(LaunchDoor::Title);
         app.world_mut()
-            .send_event(HudLayoutCommand::Apply(HudPresetId::Classic));
+            .write_message(HudLayoutCommand::Apply(HudPresetId::Classic));
         app.update();
         assert_eq!(
             *app.world().get::<Visibility>(slab).expect("vis"),

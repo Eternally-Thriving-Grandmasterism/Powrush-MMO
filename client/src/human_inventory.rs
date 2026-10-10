@@ -733,7 +733,7 @@ mod tests {
             .add_systems(Update, scale_satchel_fonts);
 
         app.update();
-        let spawned = satchel_font_rows(&app);
+        let spawned = satchel_font_rows(&mut app);
         assert_eq!(spawned.len(), 3);
         let bases: Vec<f32> = spawned.iter().map(|(base, _, _)| *base).collect();
         assert_eq!(bases, vec![11.0, 13.5, 14.0]);
@@ -752,7 +752,7 @@ mod tests {
             .text_scale;
         app.update();
 
-        let after = satchel_font_rows(&app);
+        let after = satchel_font_rows(&mut app);
         assert_eq!(after.len(), 3);
         for (before, (base, px, value)) in spawned.iter().zip(after.iter()) {
             assert_eq!(before.0, *base);
@@ -761,14 +761,13 @@ mod tests {
         }
     }
 
-    fn satchel_font_rows(app: &App) -> Vec<(f32, f32, String)> {
+    // compiler-forced: removed World::iter_entities (deprecated since 0.17.0; the 0.17→0.18 guide does not name it).
+    fn satchel_font_rows(app: &mut App) -> Vec<(f32, f32, String)> {
         let mut rows = Vec::new();
-        for entity in app.world().iter_entities() {
-            let Some(base) = entity.get::<SatchelFontBase>() else {
-                continue;
-            };
-            let text = entity.get::<Text>().expect("satchel font text");
-            let font = entity.get::<TextFont>().expect("satchel font");
+        let mut fonts = app
+            .world_mut()
+            .query::<(&SatchelFontBase, &Text, &TextFont)>();
+        for (base, text, font) in fonts.iter(app.world()) {
             rows.push((base.0, font.font_size, text.as_str().to_string()));
         }
         rows.sort_by(|a, b| a.0.partial_cmp(&b.0).expect("satchel font base"));
@@ -810,7 +809,7 @@ mod tests {
             .add_systems(Update, (scale_satchel_fonts, scale_strip_and_flash_fonts));
 
         app.update();
-        let strip = strip_flash_font_rows(&app);
+        let strip = strip_flash_font_rows(&mut app);
         assert_eq!(strip.len(), 2);
         assert_eq!(
             strip
@@ -822,7 +821,7 @@ mod tests {
                 (PICKUP_FLASH_FONT_BASE, PICKUP_FLASH_FONT_BASE / 1.2, "", "flash"),
             ]
         );
-        let plate = satchel_font_rows(&app);
+        let plate = satchel_font_rows(&mut app);
         assert_eq!(plate.len(), 3);
         for (base, px, _) in &plate {
             assert_eq!(*px, *base / 1.2);
@@ -839,7 +838,7 @@ mod tests {
             .text_scale;
         app.update();
 
-        let after = strip_flash_font_rows(&app);
+        let after = strip_flash_font_rows(&mut app);
         assert_eq!(after.len(), 2);
         for (before, (base, px, value, kind)) in strip.iter().zip(after.iter()) {
             assert_eq!(before.0, *base);
@@ -848,7 +847,7 @@ mod tests {
             assert_eq!(value, &before.2);
             assert!(*px > *base / 1.2);
         }
-        let plate_after = satchel_font_rows(&app);
+        let plate_after = satchel_font_rows(&mut app);
         assert_eq!(plate_after.len(), 3);
         for (before, (base, px, value)) in plate.iter().zip(plate_after.iter()) {
             assert_eq!(before.0, *base);
@@ -862,10 +861,10 @@ mod tests {
                 .inner
                 .text_scale = extreme;
             app.update();
-            for (base, px, _, _) in strip_flash_font_rows(&app) {
+            for (base, px, _, _) in strip_flash_font_rows(&mut app) {
                 assert_eq!(px, satchel_font_px(base, extreme) / 1.2);
             }
-            for (base, px, _) in satchel_font_rows(&app) {
+            for (base, px, _) in satchel_font_rows(&mut app) {
                 assert_eq!(px, satchel_font_px(base, extreme) / 1.2);
             }
         }
@@ -881,7 +880,7 @@ mod tests {
             .add_systems(Startup, spawn_inventory_surfaces)
             .add_systems(Update, scale_strip_and_flash_fonts);
         app.update();
-        let rows = strip_flash_font_rows(&app);
+        let rows = strip_flash_font_rows(&mut app);
         assert_eq!(
             rows.iter()
                 .map(|(base, px, _, kind)| (*base, *px, *kind))
@@ -893,21 +892,24 @@ mod tests {
         );
     }
 
-    fn strip_flash_font_rows(app: &App) -> Vec<(f32, f32, String, &'static str)> {
+    // compiler-forced: removed World::iter_entities (deprecated since 0.17.0; the 0.17→0.18 guide does not name it).
+    fn strip_flash_font_rows(app: &mut App) -> Vec<(f32, f32, String, &'static str)> {
         let mut rows = Vec::new();
-        for entity in app.world().iter_entities() {
-            let Some(base) = entity.get::<StripFlashFontBase>() else {
-                continue;
-            };
-            let kind = if entity.get::<WatchStripText>().is_some() {
+        let mut fonts = app.world_mut().query::<(
+            &StripFlashFontBase,
+            Option<&WatchStripText>,
+            Option<&PickupFlashText>,
+            &Text,
+            &TextFont,
+        )>();
+        for (base, watch, pickup, text, font) in fonts.iter(app.world()) {
+            let kind = if watch.is_some() {
                 "strip"
-            } else if entity.get::<PickupFlashText>().is_some() {
+            } else if pickup.is_some() {
                 "flash"
             } else {
                 panic!("StripFlashFontBase without strip or flash text");
             };
-            let text = entity.get::<Text>().expect("strip flash font text");
-            let font = entity.get::<TextFont>().expect("strip flash font");
             rows.push((base.0, font.font_size, text.as_str().to_string(), kind));
         }
         rows.sort_by(|a, b| a.0.partial_cmp(&b.0).expect("strip flash font base"));

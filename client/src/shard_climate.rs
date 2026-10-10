@@ -97,7 +97,8 @@ fn paint_climate_feel(
     bind: Res<LivedHourBind>,
     time: Res<Time>,
     nearby: Res<NearbyMercyNode>,
-    mut ambient: ResMut<AmbientLight>,
+    // 0.17→0.18: "AmbientLight split into a component and a resource".
+    mut ambient: ResMut<GlobalAmbientLight>,
     mut fogs: Query<&mut DistanceFog>,
     mut nodes: Query<(Entity, &mut MercyHarvestNode)>,
     mut mem: ResMut<ClimateFeelMemory>,

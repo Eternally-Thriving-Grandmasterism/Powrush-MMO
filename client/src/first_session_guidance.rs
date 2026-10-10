@@ -1195,7 +1195,7 @@ mod tests {
             .add_systems(Update, update_guidance_text);
 
         app.update();
-        let (spawned_px, prompt) = guidance_card_section(&app);
+        let (spawned_px, prompt) = guidance_card_section(&mut app);
         assert_eq!(spawned_px, 17.0 / 1.2);
 
         app.world_mut()
@@ -1209,19 +1209,17 @@ mod tests {
             .text_scale;
         app.update();
 
-        let (font_px, after) = guidance_card_section(&app);
+        let (font_px, after) = guidance_card_section(&mut app);
         assert_eq!(font_px, guidance_card_font_px(new_scale) / 1.2);
         assert_eq!(after, prompt);
     }
 
-    fn guidance_card_section(app: &App) -> (f32, String) {
-        let world = app.world();
-        for entity in world.iter_entities() {
-            if !entity.contains::<FirstSessionGuidanceText>() {
-                continue;
-            }
-            let text = entity.get::<Text>().expect("guidance text");
-            let font = entity.get::<TextFont>().expect("guidance font");
+    // compiler-forced: removed World::iter_entities (deprecated since 0.17.0; the 0.17→0.18 guide does not name it).
+    fn guidance_card_section(app: &mut App) -> (f32, String) {
+        let mut fonts = app
+            .world_mut()
+            .query_filtered::<(&Text, &TextFont), With<FirstSessionGuidanceText>>();
+        for (text, font) in fonts.iter(app.world()) {
             return (font.font_size, text.as_str().to_string());
         }
         panic!("guidance card text missing");
@@ -2875,7 +2873,7 @@ mod tests {
             .add_systems(Startup, spawn_guidance_strip)
             .add_systems(Update, update_guidance_text);
         app.update();
-        let (_, before) = guidance_card_section(&app);
+        let (_, before) = guidance_card_section(&mut app);
         assert!(!before.contains("Human Sanctuary yard"));
         {
             let mut guidance = app.world_mut().resource_mut::<FirstSessionGuidance>();
@@ -2886,7 +2884,7 @@ mod tests {
             credit_harvest(&mut guidance);
         }
         app.update();
-        let (_, skipped_paint) = guidance_card_section(&app);
+        let (_, skipped_paint) = guidance_card_section(&mut app);
         assert!(!skipped_paint.contains("Human Sanctuary yard"));
         assert!(skipped_paint.contains("I satchel · House after allocate"));
         {
@@ -2894,7 +2892,7 @@ mod tests {
             guidance.house_live = true;
         }
         app.update();
-        let (_, after) = guidance_card_section(&app);
+        let (_, after) = guidance_card_section(&mut app);
         assert!(!names_key(&after, e));
         assert!(!names_key(&after, q));
         assert!(!after.contains("E · Q"));
@@ -2909,7 +2907,7 @@ mod tests {
             guidance.people_landing = Some(PeopleLanding::SanctuaryYard);
         }
         app.update();
-        let (_, crossed_paint) = guidance_card_section(&app);
+        let (_, crossed_paint) = guidance_card_section(&mut app);
         assert!(!crossed_paint.contains("Human Sanctuary yard"));
         assert!(!names_key(&crossed_paint, e));
         assert!(!names_key(&crossed_paint, q));

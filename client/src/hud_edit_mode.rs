@@ -1848,7 +1848,7 @@ mod tests {
     }
 
     fn press(app: &mut App, key_code: KeyCode, logical_key: Key) {
-        app.world_mut().send_event(KeyboardInput {
+        app.world_mut().write_message(KeyboardInput {
             key_code,
             logical_key,
             state: ButtonState::Pressed,
@@ -1914,7 +1914,7 @@ mod tests {
         app.add_systems(PostUpdate, door_probe);
         app.update();
         let pad = app.world_mut().spawn_empty().id();
-        app.world_mut().send_event(GamepadConnectionEvent::new(
+        app.world_mut().write_message(GamepadConnectionEvent::new(
             pad,
             GamepadConnection::Connected {
                 name: "test pad".into(),
@@ -1924,7 +1924,7 @@ mod tests {
         ));
         app.update();
         for button in [GamepadButton::South, GamepadButton::West, GamepadButton::Start] {
-            app.world_mut().send_event(RawGamepadEvent::Button(
+            app.world_mut().write_message(RawGamepadEvent::Button(
                 RawGamepadButtonChangedEvent::new(pad, button, 1.0),
             ));
         }

@@ -1206,7 +1206,7 @@ mod tests {
         assert_eq!(app.world().resource::<HourSacred>().hex(), HexFlag::Peace);
 
         let window = Entity::PLACEHOLDER;
-        app.world_mut().send_event(KeyboardInput {
+        app.world_mut().write_message(KeyboardInput {
             key_code: soft_play_bindings::CHART,
             logical_key: Key::Tab,
             state: ButtonState::Pressed,
@@ -1254,7 +1254,7 @@ mod tests {
         app.update();
 
         let window = Entity::PLACEHOLDER;
-        app.world_mut().send_event(KeyboardInput {
+        app.world_mut().write_message(KeyboardInput {
             key_code: soft_play_bindings::CHART,
             logical_key: Key::Tab,
             state: ButtonState::Pressed,

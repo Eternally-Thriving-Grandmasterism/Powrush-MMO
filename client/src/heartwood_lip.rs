@@ -341,7 +341,7 @@ mod tests {
         app.init_resource::<WorldAnswer>();
         app.init_resource::<RbeUiSync>();
         app.init_resource::<SoftPlayerRealm>();
-        app.add_event::<GamepadRumbleRequest>();
+        app.add_message::<GamepadRumbleRequest>();
 
         let node = app
             .world_mut()

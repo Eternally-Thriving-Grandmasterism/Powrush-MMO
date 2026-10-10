@@ -227,7 +227,7 @@ impl Plugin for LocalSettingsPlugin {
             .init_resource::<LocalFeedbackFeel>()
             .init_resource::<LocalColorblindWells>()
             .init_resource::<LocalMeshLodFeel>()
-            .add_event::<HudLayoutCommand>()
+            .add_message::<HudLayoutCommand>()
             .add_systems(Startup, seed_runtime_from_settings)
             .add_systems(Update, (apply_local_settings_runtime, persist_dirty_settings))
             .add_systems(
@@ -277,7 +277,7 @@ pub(crate) fn hud_preset_id(settings: &LocalSettings) -> HudPresetId {
 fn hud_preset_row_clicks(
     label: Res<HouseLabel>,
     mut settings: ResMut<LocalSettingsState>,
-    mut commands: EventWriter<HudLayoutCommand>,
+    mut commands: MessageWriter<HudLayoutCommand>,
     layout: Query<&Interaction, (Changed<Interaction>, With<SettingsHudLayoutBtn>)>,
     reset: Query<
         &Interaction,
@@ -342,7 +342,7 @@ fn persist_dirty_settings(mut settings: ResMut<LocalSettingsState>) {
 fn suppress_disabled_rumble(
     feedback: Res<LocalFeedbackFeel>,
     gamepads: Query<Entity, With<Gamepad>>,
-    mut requests: ResMut<Events<GamepadRumbleRequest>>,
+    mut requests: ResMut<Messages<GamepadRumbleRequest>>,
     mut was_enabled: Local<Option<bool>>,
 ) {
     let previously_enabled = was_enabled.replace(feedback.rumble_enabled) == Some(true);
@@ -353,7 +353,7 @@ fn suppress_disabled_rumble(
     requests.clear();
     if previously_enabled {
         for gamepad in &gamepads {
-            requests.send(GamepadRumbleRequest::Stop { gamepad });
+            requests.write(GamepadRumbleRequest::Stop { gamepad });
         }
     }
 }
@@ -511,7 +511,7 @@ mod tests {
     #[derive(Resource, Default)]
     struct HudCmdTape(Vec<HudLayoutCommand>);
 
-    fn tape_hud_cmds(mut reader: EventReader<HudLayoutCommand>, mut tape: ResMut<HudCmdTape>) {
+    fn tape_hud_cmds(mut reader: MessageReader<HudLayoutCommand>, mut tape: ResMut<HudCmdTape>) {
         for command in reader.read() {
             tape.0.push(*command);
         }
@@ -581,7 +581,7 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .insert_resource(crate::lived_hour_bind::LivedHourBind::default())
             .insert_resource(open_label())
-            .add_event::<bevy::input::gamepad::GamepadRumbleRequest>()
+            .add_message::<bevy::input::gamepad::GamepadRumbleRequest>()
             .add_plugins(LocalSettingsPlugin)
             .add_plugins(crate::hud_presets::HudLayoutPlugin)
             .init_resource::<HudCmdTape>()
