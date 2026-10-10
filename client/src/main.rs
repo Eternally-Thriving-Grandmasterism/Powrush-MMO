@@ -5,7 +5,7 @@
 use std::fs::OpenOptions;
 use std::io::Write;
 use std::panic::PanicHookInfo;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use bevy::diagnostic::{FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin};
@@ -32,7 +32,31 @@ fn frame_time_log_plugin() -> LogDiagnosticsPlugin {
     }
 }
 
+/// `--script <path>` only. Any other argument is ignored. A bare `--script`
+/// with no path is ignored. `input` does not read `std::env::args`.
+fn script_timeline_from_args<I, S>(args: I) -> Option<PathBuf>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    let mut args = args.into_iter();
+    let _argv0 = args.next();
+    while let Some(arg) = args.next() {
+        if arg.as_ref() != "--script" {
+            continue;
+        }
+        let path = args.next()?;
+        let path = path.as_ref();
+        if path.is_empty() {
+            return None;
+        }
+        return Some(PathBuf::from(path));
+    }
+    None
+}
+
 fn main() {
+    let script_timeline = script_timeline_from_args(std::env::args());
     // Resolve once, before `App::new()`. `persist_path("data/crash.log")`
     // creates the directory and may adopt cwd `data/`. Do not call it
     // from the hook. `CRASH_LOG_PERSIST_NAME` is that name.
@@ -65,12 +89,18 @@ fn main() {
             .set(window)
             .disable::<bevy::audio::AudioPlugin>()
     };
-    App::new()
-        .add_plugins(default_plugins)
+    let mut app = App::new();
+    app.add_plugins(default_plugins)
         .add_plugins(PowrushClientBundle)
-        .add_plugins((FrameTimeDiagnosticsPlugin::default(), frame_time_log_plugin()))
-        .add_systems(Startup, spawn_sun_and_camera)
-        .run();
+        .add_plugins((
+            FrameTimeDiagnosticsPlugin::default(),
+            frame_time_log_plugin(),
+        ))
+        .add_systems(Startup, spawn_sun_and_camera);
+    if let Some(path) = script_timeline {
+        app.insert_resource(powrush_client::input::ScriptTimeline::from_path(path));
+    }
+    app.run();
 }
 
 fn spawn_sun_and_camera(mut commands: Commands) {
@@ -120,8 +150,7 @@ fn panic_payload_message(info: &PanicHookInfo<'_>) -> String {
 /// rename. A `powrush_*` file name is a live save, so that rename writes
 /// nothing. The previous hook is called by the caller after this returns.
 fn append_crash_log(path: &Path, info: &PanicHookInfo<'_>) {
-    if CRASH_LOG_FILE.starts_with("powrush_") || !CRASH_LOG_PERSIST_NAME.ends_with(CRASH_LOG_FILE)
-    {
+    if CRASH_LOG_FILE.starts_with("powrush_") || !CRASH_LOG_PERSIST_NAME.ends_with(CRASH_LOG_FILE) {
         return;
     }
     let epoch_secs = SystemTime::now()
@@ -188,10 +217,10 @@ mod crash_log_hook_tests {
 #[cfg(test)]
 mod frame_time_log_tests {
     use super::frame_time_log_plugin;
-    use bevy::platform::collections::HashSet;
     use bevy::diagnostic::{
         DiagnosticsPlugin, DiagnosticsStore, FrameTimeDiagnosticsPlugin, LogDiagnosticsPlugin,
     };
+    use bevy::platform::collections::HashSet;
     use bevy::prelude::*;
 
     #[test]
@@ -236,5 +265,34 @@ mod frame_time_log_tests {
         let store = app.world().resource::<DiagnosticsStore>();
         assert!(store.get(&FrameTimeDiagnosticsPlugin::FPS).is_some());
         assert!(store.get(&FrameTimeDiagnosticsPlugin::FRAME_TIME).is_some());
+    }
+}
+
+#[cfg(test)]
+mod script_arg_tests {
+    use super::script_timeline_from_args;
+    use std::path::PathBuf;
+
+    #[test]
+    fn script_arg_reads_one_path_and_ignores_unknown() {
+        let path = script_timeline_from_args([
+            "powrush-client",
+            "--nope",
+            "--script",
+            "hour.txt",
+            "--extra",
+        ]);
+        assert_eq!(path.unwrap(), PathBuf::from("hour.txt"));
+        let first =
+            script_timeline_from_args(["powrush-client", "--script", "a.txt", "--script", "b.txt"]);
+        assert_eq!(first.unwrap(), PathBuf::from("a.txt"));
+    }
+
+    #[test]
+    fn script_arg_missing_or_bare_is_none() {
+        assert!(script_timeline_from_args(["powrush-client"]).is_none());
+        assert!(script_timeline_from_args(["powrush-client", "--foo", "bar"]).is_none());
+        assert!(script_timeline_from_args(["powrush-client", "--script"]).is_none());
+        assert!(script_timeline_from_args(["powrush-client", "--script", ""]).is_none());
     }
 }
