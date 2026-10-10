@@ -29,7 +29,11 @@ pub struct PlayerInput {
     pub movement: Vec2,
     pub ability_slot: Option<u32>,
     /// World Use / interact / soft harvest (E or gamepad South when enabled).
+    /// Just-pressed edge. The 0.120 s feel-move buffer still folds into this flag.
     pub interact: bool,
+    /// Same Use sources, held this frame: canonical E (after the remap path)
+    /// or the first gamepad's Use button. Edit mode clears this with `interact`.
+    pub interact_held: bool,
     /// Jump (Space; gamepad LeftTrigger/LeftBumper when South is Use).
     pub jump: bool,
     /// Sprint held (Shift; gamepad per sprint_mode).
@@ -311,7 +315,7 @@ fn track_last_pointer_kind(
     }
 }
 
-fn handle_player_input(
+pub(crate) fn handle_player_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     gamepads: Query<&Gamepad>,
     settings: Res<LocalSettingsState>,
@@ -372,14 +376,20 @@ fn handle_player_input(
     let pad_use = pad
         .map(|g| pad_use_just_pressed(g, cfg.gamepad_south_use))
         .unwrap_or(false);
+    let kb_held = keyboard.pressed(soft_play_bindings::INTERACT);
+    let pad_held = pad
+        .map(|g| pad_use_held(g, cfg.gamepad_south_use))
+        .unwrap_or(false);
     // One Use edge — keyboard E and South alias must not double-fire same frame.
     // Q17: edit mode kills Use. WASD, jump, and sprint above stay live.
+    // The held level uses that same gate and the same two sources.
     let editing = edit.as_ref().is_some_and(|mode| mode.active);
     player_input.interact = if editing {
         false
     } else {
         use_edge(kb_use, pad_use)
     };
+    player_input.interact_held = if editing { false } else { kb_held || pad_held };
 
     let kb_jump = keyboard.just_pressed(soft_play_bindings::JUMP);
     let pad_jump = pad
@@ -421,6 +431,14 @@ pub fn pad_use_just_pressed(gamepad: &Gamepad, gamepad_south_use: bool) -> bool 
         return false;
     }
     gamepad.just_pressed(GamepadButton::South)
+}
+
+/// Pure: pad Use held when South maps to Use. Same button as [`pad_use_just_pressed`].
+fn pad_use_held(gamepad: &Gamepad, gamepad_south_use: bool) -> bool {
+    if !gamepad_south_use {
+        return false;
+    }
+    gamepad.pressed(GamepadButton::South)
 }
 
 /// Pure helper for unit tests — South maps to Use iff enabled.
@@ -633,5 +651,150 @@ mod tests {
         assert!(keyboard.pressed(KeyCode::KeyW));
         assert!(!keyboard.just_pressed(KeyCode::KeyW));
         assert!(!keyboard.pressed(KeyCode::ArrowUp));
+    }
+
+    fn input_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .insert_resource(LocalSettingsState {
+                inner: LocalSettings::peace_defaults(),
+                dirty: false,
+            })
+            .insert_resource(PlayerInput::default())
+            .init_resource::<ButtonInput<KeyCode>>()
+            .add_systems(Update, handle_player_input);
+        app
+    }
+
+    /// CARD SCRIPT-HOLD-TEND-1 — E fills the held level beside the just-pressed edge.
+    /// Q17 edit mode clears both.
+    #[test]
+    fn interact_held_tracks_use_key_and_edit_mode_clears_it() {
+        let mut app = input_app();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyE);
+        app.update();
+        {
+            let input = app.world().resource::<PlayerInput>();
+            assert!(input.interact, "press frame is the Use edge");
+            assert!(input.interact_held, "press frame is also held");
+        }
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .clear();
+        app.update();
+        {
+            let input = app.world().resource::<PlayerInput>();
+            assert!(!input.interact, "held frame drops the edge");
+            assert!(input.interact_held, "key still down");
+        }
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .release(KeyCode::KeyE);
+        app.update();
+        {
+            let input = app.world().resource::<PlayerInput>();
+            assert!(!input.interact);
+            assert!(!input.interact_held);
+        }
+
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyE);
+        let mut edit = crate::hud_edit_mode::HudEditMode::default();
+        edit.active = true;
+        app.insert_resource(edit);
+        app.update();
+        let input = app.world().resource::<PlayerInput>();
+        assert!(!input.interact, "edit mode kills the Use edge");
+        assert!(!input.interact_held, "edit mode kills the held level");
+    }
+
+    /// Remap writes the physical Use key onto canonical E before this system reads it.
+    #[test]
+    fn remapped_use_hold_sets_interact_held() {
+        let mut settings = LocalSettings::peace_defaults();
+        settings.key_use = PeaceKey::F;
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .insert_resource(LocalSettingsState {
+                inner: settings,
+                dirty: false,
+            })
+            .insert_resource(PlayerInput::default())
+            .init_resource::<ButtonInput<KeyCode>>()
+            .insert_resource(PhysicalKeyboard {
+                pressed: [KeyCode::KeyF].into_iter().collect(),
+                just_pressed: [KeyCode::KeyF].into_iter().collect(),
+                just_released: HashSet::new(),
+            })
+            .add_systems(Update, (remap_peace_keyboard, handle_player_input).chain());
+
+        app.update();
+        {
+            let input = app.world().resource::<PlayerInput>();
+            assert!(input.interact);
+            assert!(input.interact_held);
+        }
+        assert!(app
+            .world()
+            .resource::<ButtonInput<KeyCode>>()
+            .pressed(KeyCode::KeyE));
+
+        app.world_mut()
+            .resource_mut::<PhysicalKeyboard>()
+            .just_pressed
+            .clear();
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .clear();
+        app.update();
+        let input = app.world().resource::<PlayerInput>();
+        assert!(!input.interact, "remap hold is not a new edge");
+        assert!(input.interact_held, "remapped Use stays held");
+    }
+
+    /// First connected pad's existing South Use button. No new pad source.
+    #[test]
+    fn first_gamepad_use_hold_sets_interact_held() {
+        let mut app = input_app();
+        let mut pad = Gamepad::default();
+        pad.digital_mut().press(GamepadButton::South);
+        app.world_mut().spawn(pad);
+        app.update();
+        {
+            let input = app.world().resource::<PlayerInput>();
+            assert!(input.interact);
+            assert!(input.interact_held);
+        }
+
+        {
+            let mut pads = app.world_mut().query::<&mut Gamepad>();
+            pads.single_mut(app.world_mut())
+                .unwrap()
+                .digital_mut()
+                .clear();
+        }
+        app.update();
+        {
+            let input = app.world().resource::<PlayerInput>();
+            assert!(!input.interact, "pad hold drops the edge");
+            assert!(input.interact_held, "South still down");
+        }
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .gamepad_south_use = false;
+        app.update();
+        let input = app.world().resource::<PlayerInput>();
+        assert!(!input.interact);
+        assert!(
+            !input.interact_held,
+            "South is not Use when gamepad_south_use is off"
+        );
     }
 }

@@ -268,6 +268,8 @@ struct InteractHold {
     holding: bool,
     started: f64,
     tended: bool,
+    /// Previous frame's Use held level. Release is the falling edge.
+    was_down: bool,
 }
 
 #[derive(Component)]
@@ -296,7 +298,8 @@ impl Plugin for FirstHarvestEpiphanyPlugin {
                     maybe_welcome_back,
                     mark_epiphany_place,
                     handle_interact_harvest
-                        .after(crate::first_session_guidance::track_simple_progress_signals),
+                        .after(crate::first_session_guidance::track_simple_progress_signals)
+                        .after(crate::input::InputMapSet),
                     update_world_care_prompt,
                     update_harvest_pulse,
                     update_welcome_back,
@@ -490,7 +493,7 @@ fn mark_epiphany_place(
 }
 
 fn handle_interact_harvest(
-    keyboard: Res<ButtonInput<KeyCode>>,
+    keyboard: Option<Res<ButtonInput<KeyCode>>>,
     player_input: Res<PlayerInput>,
     mut hold: Local<InteractHold>,
     mut state: ResMut<FirstHarvestEpiphany>,
@@ -508,12 +511,19 @@ fn handle_interact_harvest(
     time: Res<Time>,
 ) {
     let now = time.elapsed_secs_f64();
-    let e_down = keyboard.pressed(soft_play_bindings::INTERACT);
-    let e_up = keyboard.just_released(soft_play_bindings::INTERACT);
+    // Hold and release read PlayerInput. `e_down` is the held level.
+    // `e_up` is the falling edge (held last frame, not this frame).
+    // Record it before any return so a press-frame take still arms the edge.
+    let e_down = player_input.interact_held;
+    let e_up = hold.was_down && !e_down;
+    hold.was_down = e_down;
     let pad_tap = player_input.interact;
 
     if state.peace_visitor {
-        if pad_tap || keyboard.just_pressed(soft_play_bindings::INTERACT) || e_up {
+        let key_edge = keyboard
+            .as_ref()
+            .is_some_and(|keys| keys.just_pressed(soft_play_bindings::INTERACT));
+        if pad_tap || key_edge || e_up {
             state.pulse_until = now + 2.4;
             state.pulse_line = "Not your charter / Peace visitor".into();
         }
@@ -1547,5 +1557,267 @@ mod tests {
             .world_mut()
             .query_filtered::<&TextFont, With<WelcomeBackText>>();
         assert_eq!(welcome_text.single(app.world()).unwrap().font_size, FontSize::Px(13.5 / 1.2));
+    }
+
+    /// InputMapSet fills PlayerInput before hold-to-tend reads it.
+    #[test]
+    fn hold_tend_is_ordered_after_input_map() {
+        use bevy::ecs::system::{IntoSystem, System};
+        use std::any::TypeId;
+
+        fn update_order(with_feel: bool) -> Vec<TypeId> {
+            let mut app = App::new();
+            app.add_plugins(bevy::MinimalPlugins);
+            app.add_plugins(crate::input::InputPlugin);
+            app.add_plugins(crate::first_session_guidance::FirstSessionGuidancePlugin);
+            if with_feel {
+                app.add_plugins(crate::feel_move::FeelMovePlugin);
+            }
+            app.add_plugins(FirstHarvestEpiphanyPlugin);
+            let mut schedules = app
+                .world_mut()
+                .remove_resource::<bevy::ecs::schedule::Schedules>()
+                .unwrap();
+            let schedule = schedules.get_mut(Update).unwrap();
+            schedule.initialize(app.world_mut()).unwrap();
+            schedule
+                .systems()
+                .unwrap()
+                .map(|(_, system)| System::system_type(&**system))
+                .collect()
+        }
+
+        let with_feel = update_order(true);
+        let without_feel = update_order(false);
+        let feel_ids: Vec<TypeId> = with_feel
+            .iter()
+            .copied()
+            .filter(|id| !without_feel.contains(id))
+            .collect();
+        let want_input = IntoSystem::system_type_id(&crate::input::handle_player_input);
+        let want_tend = IntoSystem::system_type_id(&handle_interact_harvest);
+        let input_at = with_feel.iter().position(|id| *id == want_input).unwrap();
+        let tend_at = with_feel.iter().position(|id| *id == want_tend).unwrap();
+        assert!(
+            !feel_ids.is_empty(),
+            "FeelMovePlugin stays registered; this card does not reorder it"
+        );
+        assert!(
+            input_at < tend_at,
+            "input fill {input_at} runs before tend {tend_at}"
+        );
+    }
+
+    /// CARD SCRIPT-HOLD-TEND-1 — held level alone, for TEND_HOLD or longer, tends.
+    /// No keyboard and no gamepad on this path.
+    #[test]
+    fn player_input_held_for_tend_hold_tends() {
+        assert!((TEND_HOLD - 0.42).abs() < 1e-9);
+        let mut app = player_input_tend_app();
+        set_use_level(&mut app, false, true);
+        advance_secs(&mut app, 0.0);
+        let started = app.world().resource::<Time>().elapsed_secs_f64();
+        assert_eq!(session_counts(&app), (0, 0), "hold starts before 0.42");
+
+        set_use_level(&mut app, false, true);
+        advance_secs(&mut app, 0.5);
+        let now = app.world().resource::<Time>().elapsed_secs_f64();
+        assert!(
+            now - started >= TEND_HOLD,
+            "held span {started} -> {now} must reach TEND_HOLD"
+        );
+        assert_eq!(
+            session_counts(&app),
+            (0, 1),
+            "held level tends without a take"
+        );
+        assert_eq!(app.world().resource::<WorldAnswer>().kind, AnswerKind::Tend);
+    }
+
+    /// CARD SCRIPT-HOLD-TEND-1 — falling edge before 0.42 takes.
+    /// No keyboard and no gamepad on this path.
+    #[test]
+    fn player_input_release_before_tend_hold_takes() {
+        let mut app = player_input_tend_app();
+        set_use_level(&mut app, false, true);
+        advance_secs(&mut app, 0.0);
+        let started = app.world().resource::<Time>().elapsed_secs_f64();
+
+        set_use_level(&mut app, false, true);
+        advance_secs(&mut app, 0.2);
+        let now = app.world().resource::<Time>().elapsed_secs_f64();
+        assert!(now - started < TEND_HOLD, "0.2s is still a take");
+        assert_eq!(session_counts(&app), (0, 0));
+
+        set_use_level(&mut app, false, false);
+        advance_secs(&mut app, 0.0);
+        assert_eq!(session_counts(&app), (1, 0), "release before 0.42 takes");
+        assert_eq!(app.world().resource::<WorldAnswer>().kind, AnswerKind::Take);
+    }
+
+    /// Same press timing through the keyboard fill and through PlayerInput directly.
+    /// The press frame is a take (`pad_tap`); a later hold of 0.5s tends; a release
+    /// at 0.2s does not tend. Counts include that press-frame take.
+    #[test]
+    fn player_input_hold_counts_match_keyboard_path() {
+        let direct_hold = run_use_script(UseDrive::PlayerInput, UseScript::Hold);
+        let keyboard_hold = run_use_script(UseDrive::Keyboard, UseScript::Hold);
+        assert_eq!(
+            direct_hold, keyboard_hold,
+            "hold counts must match the keyboard path"
+        );
+        assert_eq!(
+            direct_hold,
+            (1, 1),
+            "press-frame take plus a hold of 0.42s or more tends"
+        );
+
+        let direct_release = run_use_script(UseDrive::PlayerInput, UseScript::Release);
+        let keyboard_release = run_use_script(UseDrive::Keyboard, UseScript::Release);
+        assert_eq!(
+            direct_release, keyboard_release,
+            "release counts must match the keyboard path"
+        );
+        assert_eq!(
+            direct_release,
+            (1, 0),
+            "press-frame take, release at about 0.2s does not tend"
+        );
+    }
+
+    fn session_counts(app: &App) -> (u32, u32) {
+        let state = app.world().resource::<FirstHarvestEpiphany>();
+        (state.harvests_this_session, state.tends_this_session)
+    }
+
+    fn advance_secs(app: &mut App, secs: f64) {
+        *app.world_mut()
+            .resource_mut::<bevy::time::TimeUpdateStrategy>() =
+            bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(
+                secs,
+            ));
+        app.update();
+    }
+
+    fn set_use_level(app: &mut App, edge: bool, held: bool) {
+        let mut input = app.world_mut().resource_mut::<PlayerInput>();
+        input.interact = edge;
+        input.interact_held = held;
+    }
+
+    fn player_input_tend_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+                std::time::Duration::ZERO,
+            ))
+            .init_resource::<PlayerInput>()
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<FirstSessionGuidance>()
+            .init_resource::<ThrivingMoments>()
+            .init_resource::<AbundanceJourneyEcho>()
+            .init_resource::<NearbyMercyNode>()
+            .init_resource::<SoftRbePool>()
+            .init_resource::<WorldAnswer>()
+            .add_message::<bevy::input::gamepad::GamepadRumbleRequest>()
+            .add_systems(Update, handle_interact_harvest);
+        widen_virtual_clock(&mut app);
+        {
+            let mut nearby = app.world_mut().resource_mut::<NearbyMercyNode>();
+            nearby.in_range = true;
+            nearby.nodes_exist = true;
+            nearby.name = Some("Sanctuary ember");
+        }
+        app
+    }
+
+    fn widen_virtual_clock(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<Time<bevy::time::Virtual>>()
+            .set_max_delta(std::time::Duration::from_secs(2));
+    }
+
+    #[derive(Clone, Copy)]
+    enum UseDrive {
+        PlayerInput,
+        Keyboard,
+    }
+
+    #[derive(Clone, Copy)]
+    enum UseScript {
+        Hold,
+        Release,
+    }
+
+    #[derive(Clone, Copy)]
+    enum UsePhase {
+        Press,
+        Hold,
+        Release,
+    }
+
+    fn run_use_script(drive: UseDrive, script: UseScript) -> (u32, u32) {
+        let mut app = match drive {
+            UseDrive::PlayerInput => player_input_tend_app(),
+            UseDrive::Keyboard => keyboard_tend_app(),
+        };
+        // Bevy's first clock update records the instant and does not advance.
+        // Land at t = 1.0 before the press so the take arms the existing cooldown.
+        advance_secs(&mut app, 0.0);
+        advance_secs(&mut app, 1.0);
+        apply_phase(&mut app, drive, UsePhase::Press);
+        advance_secs(&mut app, 0.0);
+        apply_phase(&mut app, drive, UsePhase::Hold);
+        advance_secs(&mut app, 0.0);
+        match script {
+            UseScript::Hold => {
+                apply_phase(&mut app, drive, UsePhase::Hold);
+                advance_secs(&mut app, 0.5);
+            }
+            UseScript::Release => {
+                apply_phase(&mut app, drive, UsePhase::Release);
+                advance_secs(&mut app, 0.2);
+            }
+        }
+        session_counts(&app)
+    }
+
+    fn apply_phase(app: &mut App, drive: UseDrive, phase: UsePhase) {
+        match drive {
+            UseDrive::PlayerInput => match phase {
+                UsePhase::Press => set_use_level(app, true, true),
+                UsePhase::Hold => set_use_level(app, false, true),
+                UsePhase::Release => set_use_level(app, false, false),
+            },
+            UseDrive::Keyboard => {
+                let mut keys = app
+                    .world_mut()
+                    .resource_mut::<ButtonInput<bevy::input::keyboard::KeyCode>>();
+                match phase {
+                    UsePhase::Press => keys.press(bevy::input::keyboard::KeyCode::KeyE),
+                    UsePhase::Hold => {
+                        keys.press(bevy::input::keyboard::KeyCode::KeyE);
+                        keys.clear();
+                    }
+                    UsePhase::Release => keys.release(bevy::input::keyboard::KeyCode::KeyE),
+                }
+            }
+        }
+    }
+
+    fn keyboard_tend_app() -> App {
+        let mut app = player_input_tend_app();
+        app.init_resource::<ButtonInput<bevy::input::keyboard::KeyCode>>()
+            .insert_resource(crate::local_settings::LocalSettingsState {
+                inner: shared::local_settings::LocalSettings::peace_defaults(),
+                dirty: false,
+            })
+            .add_systems(
+                Update,
+                crate::input::handle_player_input
+                    .in_set(crate::input::InputMapSet)
+                    .before(handle_interact_harvest),
+            );
+        app
     }
 }
