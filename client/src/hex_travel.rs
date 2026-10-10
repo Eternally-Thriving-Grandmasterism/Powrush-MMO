@@ -498,7 +498,7 @@ TextColor(TITLE_TEXT_SECONDARY),
 fn spawn_places_btn<C: Component>(p: &mut ChildSpawnerCommands, label: &str, marker: C) {
     p.spawn((
         (
-            Button,
+            bevy::ui_widgets::Button, Interaction::default(),
             Node {
                 // Fat-tap ≥44dp (lavapipe click-clean); Peace tone, stretch width.
                 min_height: Val::Px(PLACES_HIT_MIN),

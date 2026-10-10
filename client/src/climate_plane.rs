@@ -3439,7 +3439,9 @@ mod tests {
     ) -> Option<bevy::ecs::schedule::SystemKey> {
         let want = system.system_type_id();
         graph.systems.iter().find_map(|(key, scheduled, _)| {
-            (System::type_id(&**scheduled) == want).then_some(key)
+            // `System::type_id` was removed. `System::system_type` is the
+            // same id (0.19 guide, PR #23326). No 0.19→0.20 guide entry.
+            (System::system_type(&**scheduled) == want).then_some(key)
         })
     }
 
@@ -3798,7 +3800,7 @@ mod tests {
                 schedule.graph_mut().initialize(world);
                 let ambient = world
                     .components()
-                    .resource_id::<GlobalAmbientLight>()
+                    .component_id::<GlobalAmbientLight>()
                     .expect("GlobalAmbientLight registered");
                 let camera = world
                     .components()
@@ -3814,23 +3816,28 @@ mod tests {
                     .expect("Hdr registered");
                 let key = system_key_matching(schedule.graph(), sync_tier_bloom)
                     .expect("ClimatePlanePlugin did not register sync_tier_bloom");
-                // Stop storing access in systems (#19496): the schedule
-                // holds the FilteredAccessSet from System::initialize.
-                // `With<Camera3d>` is a filter, not a component read.
+                // Stop storing access in systems (#19496). 0.19→0.20 guide
+                // item "Exclusive function systems have been unified with
+                // regular function systems": `System::initialize` returns
+                // `SystemAccess`, not `FilteredAccessSet`.
+                // `to_filtered_access_set` is the read conversion on that
+                // value. `With<Camera3d>` is a filter, not a component read.
                 // `Has<Hdr>` is archetypal. `Option<&Bloom>` is a read.
-                // Compiler-forced, no 0.18→0.19 guide entry: PR #23443 made
-                // `SystemWithAccess::access` pub(crate). `System::initialize`
-                // still returns that same FilteredAccessSet.
-                let access_set = schedule
+                // Compiler-forced, no guide entry: `Components::resource_id`
+                // is gone (`Resource: Component`, so `component_id`), and
+                // `Access::has_component_read` / `has_resource_write` are
+                // `has_read` / `has_write`.
+                let system_access = schedule
                     .graph_mut()
                     .systems
                     .get_mut(key)
                     .expect("sync_tier_bloom")
                     .initialize(world);
+                let access_set = system_access.to_filtered_access_set();
                 let access = access_set.combined_access();
                 let graph = schedule.graph();
                 assert!(
-                    access.has_component_read(bloom_id),
+                    access.has_read(bloom_id),
                     "Bloom read missing; access was not initialized"
                 );
                 assert!(
@@ -3840,11 +3847,11 @@ mod tests {
                 // Split Hdr from Camera (#18873). The bloom system inserts
                 // `Hdr`; it must not write the Camera component.
                 assert!(
-                    !access.has_component_write(camera),
+                    !access.has_write(camera),
                     "sync_tier_bloom writes Camera after hdr left that component"
                 );
                 assert!(
-                    !access.has_resource_write(ambient),
+                    !access.has_write(ambient),
                     "sync_tier_bloom writes GlobalAmbientLight"
                 );
                 assert!(!access.has_write_all());

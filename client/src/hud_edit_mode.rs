@@ -541,7 +541,7 @@ fn spawn_frame(
     parent
         .spawn((
             (
-                Button,
+                bevy::ui_widgets::Button, Interaction::default(),
                 Node {
                     position_type: PositionType::Absolute,
                     left: Val::Px(rect.x0 as f32),
@@ -573,7 +573,7 @@ GlobalZIndex(FRAME_Z),
             ));
             frame.spawn((
                 (
-                    Button,
+                    bevy::ui_widgets::Button, Interaction::default(),
                     Node {
                         position_type: PositionType::Absolute,
                         right: Val::Px(0.0),
@@ -592,7 +592,7 @@ GlobalZIndex(FRAME_Z),
                 frame
                     .spawn((
                         (
-                            Button,
+                            bevy::ui_widgets::Button, Interaction::default(),
                             Node {
                                 position_type: PositionType::Absolute,
                                 left: Val::Px(0.0),
@@ -656,7 +656,7 @@ fn tool_button(parent: &mut ChildSpawnerCommands, label: &str, fill: Color, mark
     parent
         .spawn((
             (
-                Button,
+                bevy::ui_widgets::Button, Interaction::default(),
                 Node {
                     min_width: Val::Px(44.0),
                     min_height: Val::Px(44.0),
@@ -1601,7 +1601,7 @@ mod tests {
         app.insert_resource(quiet_house(true));
         app.world_mut().spawn((
             (
-                Button,
+                bevy::ui_widgets::Button,
                 Node::default(),
                 Interaction::Pressed,
             ),
@@ -1674,7 +1674,13 @@ mod tests {
                 HudSlab(ID_ALLOCATE),
             ))
             .with_children(|parent| {
-                parent.spawn((Button, AllocateFlowButton));
+                parent.spawn((
+                    bevy::ui_widgets::Button,
+                    Node::default(),
+                    FocusPolicy::Block,
+                    Interaction::default(),
+                    AllocateFlowButton,
+                ));
             })
             .id();
         app.insert_resource(PressTape(0));

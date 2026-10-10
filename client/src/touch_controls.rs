@@ -173,7 +173,7 @@ fn spawn_overlay_btn<B: Component>(
 ) {
     p.spawn((
         (
-            Button,
+            bevy::ui_widgets::Button, Interaction::default(),
             Node {
                 position_type: PositionType::Absolute,
                 left: inset.left,
