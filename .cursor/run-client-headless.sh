@@ -6,6 +6,7 @@
 # Usage:
 #   .cursor/run-client-headless.sh            # boots the game on DISPLAY :99
 #   POWRUSH_GEN=light .cursor/run-client-headless.sh   # G0 light gen on
+#   .cursor/run-client-headless.sh --script timeline.txt
 #
 # Q2 / CI one-frame (timeout-friendly):
 #   POWRUSH_NET=off POWRUSH_Q2_FRAME=/tmp/powrush-q2.png \
@@ -55,6 +56,21 @@ export WGPU_BACKEND="${WGPU_BACKEND:-vulkan}"
 
 echo "Launching powrush-client (software Vulkan / lavapipe) on $DISPLAY ..."
 echo "POWRUSH_NET=$POWRUSH_NET (Title Online grey; no listen)."
+
+# Optional first argument. This script does not cd, so a relative timeline
+# already resolves from the caller's directory. One usage line on a missing
+# or bad path. With --script set, POWRUSH_Q2_FRAME below is not read.
+if [[ "${1:-}" == "--script" ]]; then
+  t="${2:-}"
+  if [[ -z "$t" || ! -f "$t" ]]; then
+    echo "usage: .cursor/run-client-headless.sh --script <timeline>" >&2
+    exit 1
+  fi
+  if [[ "$t" != /* ]]; then
+    t="$(pwd)/$t"
+  fi
+  exec cargo run -p powrush-client -- --script "$t"
+fi
 
 Q2_FRAME="${POWRUSH_Q2_FRAME:-}"
 if [[ -z "$Q2_FRAME" ]]; then

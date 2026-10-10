@@ -94,6 +94,8 @@ impl Plugin for InputPlugin {
                     .in_set(InputMapSet),
             )
             // No resource → this system does not run. No `--script` stays on the device path.
+            // Idempotent: WindowPlugin already registers this message in the full client.
+            .add_message::<bevy::window::WindowCloseRequested>()
             .add_systems(
                 Update,
                 apply_script_timeline
@@ -503,12 +505,18 @@ pub struct ScriptSample {
 /// Before the first timestamp the three columns are 0.
 ///
 /// A missing file or a bad line logs one warning and leaves device input.
+///
+/// Once [`Time::elapsed_secs_f64`] passes the last row's timestamp, one
+/// [`bevy::window::WindowCloseRequested`] is written for the primary window.
+/// Further frames do not write another.
 #[derive(Resource, Debug)]
 pub struct ScriptTimeline {
     path: PathBuf,
     phase: ScriptPhase,
     /// Previous frame's `use_held` column. The Use edge is the 0→1 step.
     prev_held: bool,
+    /// Latched after the one close past the last row.
+    close_sent: bool,
 }
 
 #[derive(Debug)]
@@ -524,6 +532,7 @@ impl ScriptTimeline {
             path: path.into(),
             phase: ScriptPhase::Pending,
             prev_held: false,
+            close_sent: false,
         }
     }
 
@@ -604,6 +613,11 @@ fn parse_finite_f32(text: &str) -> Option<f32> {
     value.is_finite().then_some(value)
 }
 
+/// Greatest timestamp. That row is the end of the timeline.
+fn last_row_secs(samples: &[ScriptSample]) -> Option<f64> {
+    samples.iter().map(|sample| sample.seconds).reduce(f64::max)
+}
+
 /// Latest line with `seconds <= now`. Equal timestamps: the later line wins.
 fn sample_at(samples: &[ScriptSample], now: f64) -> Option<&ScriptSample> {
     let mut best: Option<&ScriptSample> = None;
@@ -622,24 +636,33 @@ fn sample_at(samples: &[ScriptSample], now: f64) -> Option<&ScriptSample> {
 ///
 /// `interact` is the 0→1 rise of `use_held`, one frame per rise.
 /// Edit mode clears `interact` and `interact_held` the same way device Use does.
+///
+/// When the clock passes the last row, write one [`bevy::window::WindowCloseRequested`]
+/// for the [`bevy::window::PrimaryWindow`] entity — the same message winit sends
+/// on the close button — then latch. No `AppExit` here. A missing primary window
+/// waits; it does not latch.
 pub(crate) fn apply_script_timeline(
     time: Res<Time>,
     edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
     mut script: ResMut<ScriptTimeline>,
     mut player_input: ResMut<PlayerInput>,
+    primary: Query<Entity, With<bevy::window::PrimaryWindow>>,
+    mut close: MessageWriter<bevy::window::WindowCloseRequested>,
 ) {
     if !script.ensure_loaded() {
         return;
     }
     let now = time.elapsed_secs_f64();
-    let (move_x, move_y, held) = {
+    let (move_x, move_y, held, past_last) = {
         let ScriptPhase::Live(samples) = &script.phase else {
             return;
         };
-        match sample_at(samples, now) {
+        let past_last = !script.close_sent && last_row_secs(samples).is_some_and(|end| now > end);
+        let (move_x, move_y, held) = match sample_at(samples, now) {
             Some(sample) => (sample.move_x, sample.move_y, sample.use_held),
             None => (0.0, 0.0, false),
-        }
+        };
+        (move_x, move_y, held, past_last)
     };
     let edge = !script.prev_held && held;
     script.prev_held = held;
@@ -647,6 +670,12 @@ pub(crate) fn apply_script_timeline(
     let editing = edit.as_ref().is_some_and(|mode| mode.active);
     player_input.interact = if editing { false } else { edge };
     player_input.interact_held = if editing { false } else { held };
+    if past_last {
+        if let Ok(window) = primary.single() {
+            close.write(bevy::window::WindowCloseRequested { window });
+            script.close_sent = true;
+        }
+    }
 }
 
 #[cfg(test)]
@@ -1280,6 +1309,63 @@ mod tests {
             assert!(!input.interact);
             assert!(!input.interact_held);
         }
+    }
+
+    /// Past the last row: one `WindowCloseRequested` for the primary window.
+    /// On that row, and before it, the count stays 0. Further steps stay at 1.
+    #[test]
+    fn script_timeline_end_sends_one_window_close() {
+        let path = write_timeline("end-close.txt", "0 0 0 0\n1.0 1 0 0\n2.0 0 1 0\n");
+        let mut app = device_app(Some(path));
+        let window = app.world_mut().spawn(bevy::window::PrimaryWindow).id();
+        let mut cursor =
+            bevy::ecs::message::MessageCursor::<bevy::window::WindowCloseRequested>::default();
+        let mut total = 0usize;
+        let mut saw_before = false;
+        let mut saw_on_row = false;
+        let mut saw_past = false;
+        let end = 2.0;
+        for dt in [0.0, 1.0, 1.0, 0.25, 0.25, 0.5, 1.0] {
+            set_dt(&mut app, dt);
+            app.update();
+            let now = app.world().resource::<Time>().elapsed_secs_f64();
+            let frames: Vec<_> = {
+                let messages = app
+                    .world()
+                    .resource::<bevy::ecs::message::Messages<bevy::window::WindowCloseRequested>>();
+                cursor.read(messages).map(|msg| msg.window).collect()
+            };
+            if now < end - 1e-6 {
+                assert!(
+                    frames.is_empty(),
+                    "no close before the end at t={now}, got {frames:?}"
+                );
+                saw_before = true;
+            } else if (now - end).abs() < 1e-6 {
+                assert!(
+                    frames.is_empty(),
+                    "on the last row is not past it (t={now})"
+                );
+                assert_eq!(
+                    app.world().resource::<PlayerInput>().movement,
+                    Vec2::new(0.0, 1.0),
+                    "the last row still drives movement"
+                );
+                saw_on_row = true;
+            } else {
+                assert!(now > end, "t={now}");
+                saw_past = true;
+            }
+            total += frames.len();
+            for entity in &frames {
+                assert_eq!(*entity, window, "close targets the primary window");
+            }
+        }
+        assert!(saw_before, "stepped frames before the last row");
+        assert!(saw_on_row, "landed on the last row");
+        assert!(saw_past, "kept stepping past the end");
+        assert_eq!(total, 1, "one close, then the latch holds");
+        assert!(app.world().resource::<ScriptTimeline>().close_sent);
     }
 
     #[test]
