@@ -301,7 +301,7 @@ mod tests {
             .id();
 
         app.update();
-        assert_hdr_pair(&app, world_cam, true, "High first frame");
+        assert_hdr_pair(&mut app, world_cam, true, "High first frame");
 
         for preset in GraphicsPreset::ALL {
             app.world_mut()
@@ -314,7 +314,7 @@ mod tests {
             let expect = preset == GraphicsPreset::Medium
                 || preset == GraphicsPreset::High
                 || preset == GraphicsPreset::Ultra;
-            assert_hdr_pair(&app, world_cam, expect, preset.label());
+            assert_hdr_pair(&mut app, world_cam, expect, preset.label());
         }
     }
 
@@ -361,26 +361,24 @@ mod tests {
                 .inner
                 .set_graphics_preset(preset);
             app.update();
+            // compiler-forced: removed World::iter_entities (deprecated since 0.17.0; the 0.17→0.18 guide does not name it).
+            let mut ui_cams = app.world_mut().query_filtered::<
+                (Option<&Tonemapping>, Has<ColorGrading>),
+                With<LivedUiCamera>,
+            >();
+            let ui_rows: Vec<(Option<Tonemapping>, bool)> = ui_cams
+                .iter(app.world())
+                .map(|(tonemapping, has_grade)| (tonemapping.copied(), has_grade))
+                .collect();
+            assert_eq!(ui_rows.len(), 1, "{} one lived UI camera", preset.label());
+            let (tonemapping, has_grade) = ui_rows[0];
+            assert!(
+                matches!(tonemapping, None | Some(Tonemapping::None)),
+                "{} ui tonemapping {tonemapping:?}",
+                preset.label()
+            );
+            assert!(!has_grade, "{} ui has ColorGrading", preset.label());
             let world_ref = app.world();
-            let mut ui_seen = 0;
-            for entity in world_ref.iter_entities() {
-                if !entity.contains::<LivedUiCamera>() {
-                    continue;
-                }
-                ui_seen += 1;
-                let tonemapping = entity.get::<Tonemapping>().copied();
-                assert!(
-                    matches!(tonemapping, None | Some(Tonemapping::None)),
-                    "{} ui tonemapping {tonemapping:?}",
-                    preset.label()
-                );
-                assert!(
-                    !entity.contains::<ColorGrading>(),
-                    "{} ui has ColorGrading",
-                    preset.label()
-                );
-            }
-            assert_eq!(ui_seen, 1, "{} one lived UI camera", preset.label());
             assert_eq!(
                 world_ref.get::<Tonemapping>(world_cam).copied(),
                 Some(Tonemapping::AgX),
@@ -396,40 +394,43 @@ mod tests {
         }
     }
 
-    fn assert_hdr_pair(app: &App, world_cam: Entity, expect_hdr: bool, label: &str) {
+    fn assert_hdr_pair(app: &mut App, world_cam: Entity, expect_hdr: bool, label: &str) {
         use bevy::post_process::bloom::Bloom;
         use bevy::camera::ClearColorConfig;
 
-        let world_ref = app.world();
-        assert!(world_ref.get::<Camera>(world_cam).is_some(), "{label} world camera");
-        let world_hdr = world_ref.get::<Hdr>(world_cam).is_some();
+        // compiler-forced: removed World::iter_entities (deprecated since 0.17.0; the 0.17→0.18 guide does not name it).
+        let world_hdr = {
+            let world_ref = app.world();
+            assert!(world_ref.get::<Camera>(world_cam).is_some(), "{label} world camera");
+            world_ref.get::<Hdr>(world_cam).is_some()
+        };
         assert_eq!(world_hdr, expect_hdr, "{label} world hdr");
-        let mut ui_hdr = None;
-        let mut ui_order = None;
-        let mut ui_clear_none = false;
-        let mut bloom_on_ui = false;
-        for entity in world_ref.iter_entities() {
-            if entity.contains::<LivedUiCamera>() {
-                let cam = entity.get::<Camera>().unwrap();
-                ui_hdr = Some(entity.contains::<Hdr>());
-                ui_order = Some(cam.order);
-                ui_clear_none = matches!(cam.clear_color, ClearColorConfig::None);
-                bloom_on_ui = entity.contains::<Bloom>();
-            }
-        }
-        assert_eq!(ui_hdr.expect("ui camera"), world_hdr, "{label} ui hdr");
-        assert_eq!(ui_order.unwrap(), UI_CAMERA_ORDER, "{label}");
+        let mut ui_cams = app
+            .world_mut()
+            .query_filtered::<(&Camera, Has<Hdr>, Has<Bloom>), With<LivedUiCamera>>();
+        let ui_rows: Vec<_> = ui_cams
+            .iter(app.world())
+            .map(|(cam, hdr, bloom)| {
+                (
+                    hdr,
+                    cam.order,
+                    matches!(cam.clear_color, ClearColorConfig::None),
+                    bloom,
+                )
+            })
+            .collect();
+        let (ui_hdr, ui_order, ui_clear_none, bloom_on_ui) = ui_rows.first().copied().expect("ui camera");
+        assert_eq!(ui_hdr, world_hdr, "{label} ui hdr");
+        assert_eq!(ui_order, UI_CAMERA_ORDER, "{label}");
         assert!(ui_clear_none, "{label} clear");
-        let mut saw_camera = false;
-        for entity in world_ref.iter_entities() {
-            if let Some(msaa) = entity.get::<Msaa>() {
-                saw_camera = true;
-                assert!(soft_gpu_msaa_is_off(*msaa), "{label}");
-            }
+        let mut msaa = app.world_mut().query::<&Msaa>();
+        let samples: Vec<Msaa> = msaa.iter(app.world()).copied().collect();
+        assert!(!samples.is_empty(), "{label} msaa");
+        for sample in samples {
+            assert!(soft_gpu_msaa_is_off(sample), "{label}");
         }
-        assert!(saw_camera, "{label} msaa");
         assert!(!bloom_on_ui, "{label} bloom on ui");
-        let world_bloom = world_ref.get::<Bloom>(world_cam).is_some();
+        let world_bloom = app.world().get::<Bloom>(world_cam).is_some();
         assert_eq!(world_bloom, expect_hdr, "{label} world bloom");
     }
 }

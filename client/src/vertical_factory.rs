@@ -290,7 +290,7 @@ mod tests {
         app.update();
 
         let window = Entity::PLACEHOLDER;
-        app.world_mut().send_event(KeyboardInput {
+        app.world_mut().write_message(KeyboardInput {
             key_code: soft_play_bindings::BUILD_WHEEL,
             logical_key: Key::Character("q".into()),
             state: ButtonState::Pressed,
@@ -335,7 +335,7 @@ mod tests {
         app.update();
 
         let window = Entity::PLACEHOLDER;
-        app.world_mut().send_event(KeyboardInput {
+        app.world_mut().write_message(KeyboardInput {
             key_code: soft_play_bindings::BUILD_WHEEL,
             logical_key: Key::Character("q".into()),
             state: ButtonState::Pressed,

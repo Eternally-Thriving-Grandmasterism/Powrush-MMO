@@ -1345,7 +1345,7 @@ impl Plugin for TitleScreenPlugin {
             .add_systems(Update, esc_yard_pause.after(InputMapSet))
             // Idempotent if WindowPlugin already registered it. Tests that add
             // this plugin without a window still have the event resource.
-            .add_event::<bevy::window::WindowCloseRequested>()
+            .add_message::<bevy::window::WindowCloseRequested>()
             .add_systems(
                 Update,
                 persist_in_yard_on_window_close.before(bevy::window::close_when_requested),
@@ -2561,7 +2561,7 @@ fn pause_plate_clicks(
     mut rite: ResMut<NameRiteLine>,
     bind: Option<Res<LivedHourBind>>,
     mut places: Option<ResMut<PlacesPlate>>,
-    mut exit: EventWriter<AppExit>,
+    mut exit: MessageWriter<AppExit>,
     resume: Query<&Interaction, (Changed<Interaction>, With<PauseResumeBtn>)>,
     title: Query<&Interaction, (Changed<Interaction>, With<PauseTitleBtn>)>,
     quit: Query<&Interaction, (Changed<Interaction>, With<PauseQuitBtn>)>,
@@ -2614,7 +2614,7 @@ fn persist_in_yard_hour(door: LaunchDoor, label: &mut HouseLabel, bind: Option<&
 /// Window close (X / Alt-F4): the same InYard saves, once per frame.
 /// Leaves the door, the pause plate, and `close_when_requested` alone.
 fn persist_in_yard_on_window_close(
-    mut close: EventReader<bevy::window::WindowCloseRequested>,
+    mut close: MessageReader<bevy::window::WindowCloseRequested>,
     door: Res<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
     bind: Option<Res<LivedHourBind>>,
@@ -3122,7 +3122,7 @@ fn capture_peace_rebind(
     label: Res<HouseLabel>,
     mut state: ResMut<PeaceRebindState>,
     mut settings: ResMut<LocalSettingsState>,
-    mut keys: EventReader<KeyboardInput>,
+    mut keys: MessageReader<KeyboardInput>,
 ) {
     state.suppress_shortcuts = false;
     if !label.settings_open || state.waiting.is_none() {
@@ -3825,7 +3825,7 @@ fn name_house_text_input(
     mut label: ResMut<HouseLabel>,
     persona: Res<PersonaCreatorState>,
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut chars: EventReader<KeyboardInput>,
+    mut chars: MessageReader<KeyboardInput>,
     mut draft_q: Query<&mut Text, With<NameDraftText>>,
 ) {
     if *door != LaunchDoor::NameHouse {
@@ -4209,7 +4209,7 @@ fn refresh_persona_creator_labels(
 fn persona_creator_text_input(
     mut persona: ResMut<PersonaCreatorState>,
     keyboard: Res<ButtonInput<KeyCode>>,
-    mut chars: EventReader<KeyboardInput>,
+    mut chars: MessageReader<KeyboardInput>,
 ) {
     if !persona.open || !PERSONA_CREATOR_ENABLED {
         return;
@@ -6766,7 +6766,7 @@ mod tests {
         let (dir, _restore) = quit_hour_scratch("close-yard");
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
-            .add_event::<bevy::window::WindowCloseRequested>()
+            .add_message::<bevy::window::WindowCloseRequested>()
             .insert_resource(LaunchDoor::InYard)
             .insert_resource(unresolved_pause_label())
             .insert_resource(l5_demo_bind())
@@ -6776,7 +6776,7 @@ mod tests {
             schedule.set_executor_kind(bevy::ecs::schedule::ExecutorKind::SingleThreaded);
         });
         app.world_mut()
-            .send_event(bevy::window::WindowCloseRequested {
+            .write_message(bevy::window::WindowCloseRequested {
                 window: Entity::PLACEHOLDER,
             });
         app.update();
@@ -6792,7 +6792,7 @@ mod tests {
         let (dir, _restore) = quit_hour_scratch("close-title");
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
-            .add_event::<bevy::window::WindowCloseRequested>()
+            .add_message::<bevy::window::WindowCloseRequested>()
             .insert_resource(LaunchDoor::Title)
             .insert_resource(unresolved_pause_label())
             .insert_resource(l5_demo_bind())
@@ -6802,7 +6802,7 @@ mod tests {
             schedule.set_executor_kind(bevy::ecs::schedule::ExecutorKind::SingleThreaded);
         });
         app.world_mut()
-            .send_event(bevy::window::WindowCloseRequested {
+            .write_message(bevy::window::WindowCloseRequested {
                 window: Entity::PLACEHOLDER,
             });
         app.update();
@@ -7861,7 +7861,7 @@ mod tests {
             edit.opened_base = crate::hud_presets::HudPresetId::Classic;
         }
         editing.update();
-        editing.world_mut().send_event(KeyboardInput {
+        editing.world_mut().write_message(KeyboardInput {
             key_code: KeyCode::Escape,
             logical_key: Key::Escape,
             state: ButtonState::Pressed,
@@ -7896,7 +7896,7 @@ mod tests {
             .init_resource::<PeaceRebindState>()
             .add_systems(Update, esc_yard_pause);
         paused.update();
-        paused.world_mut().send_event(KeyboardInput {
+        paused.world_mut().write_message(KeyboardInput {
             key_code: KeyCode::Escape,
             logical_key: Key::Escape,
             state: ButtonState::Pressed,

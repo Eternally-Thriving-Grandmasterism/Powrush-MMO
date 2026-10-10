@@ -245,7 +245,7 @@ fn force_flush_key(
 }
 
 fn flush_on_exit_hint(
-    mut exit: EventReader<AppExit>,
+    mut exit: MessageReader<AppExit>,
     mut mirror: ResMut<SteamAbundanceMirror>,
 ) {
     if exit.is_empty() {

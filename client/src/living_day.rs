@@ -74,7 +74,8 @@ fn turn_the_clock(
     time: Res<Time>,
     realm: Res<SoftPlayerRealm>,
     mut day: ResMut<LivingDay>,
-    mut ambient: ResMut<AmbientLight>,
+    // 0.17→0.18: "AmbientLight split into a component and a resource".
+    mut ambient: ResMut<GlobalAmbientLight>,
     mut echo: Option<ResMut<crate::abundance_journey_echo::AbundanceJourneyEcho>>,
     mut period_notes: Local<DayPeriodNoteMemory>,
 ) {
@@ -480,7 +481,7 @@ mod tests {
         app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
         app.init_resource::<LivingDay>();
         app.init_resource::<SoftPlayerRealm>();
-        app.init_resource::<AmbientLight>();
+        app.init_resource::<GlobalAmbientLight>();
         if with_echo {
             app.init_resource::<AbundanceJourneyEcho>();
         }
@@ -511,7 +512,7 @@ mod tests {
         assert_eq!(day.period(), DayPeriod::Day);
         assert!(!day.night);
         let light = ambient_light_factor(day.phase, false);
-        let brightness = app.world().resource::<AmbientLight>().brightness;
+        let brightness = app.world().resource::<GlobalAmbientLight>().brightness;
         assert!((brightness - (90.0 + 200.0 * light)).abs() < f32::EPSILON);
     }
 
@@ -535,7 +536,7 @@ mod tests {
         let day = app.world().resource::<LivingDay>();
         assert_eq!(day.period(), DayPeriod::Dusk);
         let light = ambient_light_factor(0.45, false);
-        let brightness = app.world().resource::<AmbientLight>().brightness;
+        let brightness = app.world().resource::<GlobalAmbientLight>().brightness;
         assert!((brightness - (90.0 + 200.0 * light)).abs() < f32::EPSILON);
         assert!(!day.night);
     }
@@ -591,7 +592,7 @@ mod tests {
         assert!(note_texts(&app).is_empty());
         let day = app.world().resource::<LivingDay>();
         assert!(day.night);
-        assert!((app.world().resource::<AmbientLight>().brightness - 90.0).abs() < f32::EPSILON);
+        assert!((app.world().resource::<GlobalAmbientLight>().brightness - 90.0).abs() < f32::EPSILON);
     }
 
     #[test]

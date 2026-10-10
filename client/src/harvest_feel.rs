@@ -112,14 +112,14 @@ pub fn credit_soft_and_global(
 }
 
 pub fn rumble_mercy_harvest(
-    rumble: &mut EventWriter<GamepadRumbleRequest>,
+    rumble: &mut MessageWriter<GamepadRumbleRequest>,
     gamepads: impl IntoIterator<Item = Entity>,
 ) {
     rumble_harvest(rumble, gamepads, false);
 }
 
 pub fn rumble_harvest(
-    rumble: &mut EventWriter<GamepadRumbleRequest>,
+    rumble: &mut MessageWriter<GamepadRumbleRequest>,
     gamepads: impl IntoIterator<Item = Entity>,
     first: bool,
 ) {

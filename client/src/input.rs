@@ -92,7 +92,7 @@ impl Plugin for InputPlugin {
 }
 
 fn capture_physical_keyboard(
-    mut events: EventReader<KeyboardInput>,
+    mut events: MessageReader<KeyboardInput>,
     mut physical: ResMut<PhysicalKeyboard>,
 ) {
     physical.just_pressed.clear();
@@ -269,8 +269,8 @@ fn apply_peace_keyboard(
 
 fn track_last_pointer_kind(
     mut last: ResMut<LastPointerKind>,
-    mut mouse: EventReader<MouseButtonInput>,
-    mut touch: EventReader<TouchInput>,
+    mut mouse: MessageReader<MouseButtonInput>,
+    mut touch: MessageReader<TouchInput>,
     gamepads: Query<&Gamepad>,
 ) {
     if touch.read().next().is_some() {

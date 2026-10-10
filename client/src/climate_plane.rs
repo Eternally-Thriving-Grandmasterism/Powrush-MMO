@@ -110,7 +110,7 @@
  * Mobile / Low remove both. High / Ultra intensity is [`LIGHT_BLOOM_INTENSITY`].
  * A tier change replaces a camera's bloom whose intensity differs. [`TierBloomSet`] is
  * Update, not [`FogWriteSet`]. The lived UI camera copies that `hdr` in the
- * same Update, after this set. No `FogSettings` write. No `AmbientLight` write.
+ * same Update, after this set. No `FogSettings` write. No `GlobalAmbientLight` write.
  *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -1034,7 +1034,8 @@ impl Plugin for ClimatePlanePlugin {
         app.init_resource::<ClimatePlane>()
             .init_resource::<WeatherBandCoupling>()
             .insert_resource(ClearColor(look_for(Some(0)).sky))
-            .insert_resource(AmbientLight {
+            // 0.17→0.18: "AmbientLight split into a component and a resource".
+            .insert_resource(GlobalAmbientLight {
                 color: look_for(Some(0)).ambient,
                 brightness: look_for(Some(0)).ambient_bright,
                 affects_lightmapped_meshes: true,
@@ -1264,7 +1265,7 @@ fn sync_ultra_volumetric(
 /// [`bloom_for`] gets it replaced (High → Medium drops to
 /// [`MEDIUM_BLOOM_INTENSITY`]). A flag or component that is already in the
 /// right state is left alone. Writes no [`FogSettings`] and no
-/// [`AmbientLight`]. Not in [`FogWriteSet`]. Missing settings stay Medium
+/// [`GlobalAmbientLight`]. Not in [`FogWriteSet`]. Missing settings stay Medium
 /// (gentle bloom on). The lived UI camera copies `hdr` after [`TierBloomSet`].
 fn sync_tier_bloom(
     mut commands: Commands,
@@ -1322,7 +1323,7 @@ fn apply_climate_look(
     settings: Option<Res<LocalSettingsState>>,
     mut plane: ResMut<ClimatePlane>,
     mut clear: ResMut<ClearColor>,
-    mut ambient: ResMut<AmbientLight>,
+    mut ambient: ResMut<GlobalAmbientLight>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     grounds: Query<&MeshMaterial3d<StandardMaterial>, With<ClimateGround>>,
     stones: Query<&MeshMaterial3d<StandardMaterial>, With<ClimateStone>>,
@@ -1450,7 +1451,7 @@ fn lod_stone_tf(x: f32, y: f32, z: f32, scale: f32) -> Transform {
 }
 
 /// Soft fog / ambient breath from Place weather bed + FlowWeather band coupling.
-/// Uses existing FogSettings / AmbientLight only — no second HUD, no sockets.
+/// Uses existing FogSettings / GlobalAmbientLight only — no second HUD, no sockets.
 /// Comfort Low beds are already capped in [`weather_bed_for`] (gentler fog,
 /// slower breath, thinner mist density). Medium and High keep the dressed ramp.
 /// CARD FOG-TIER-1 reads [`GraphicsPreset`] and calls [`fog_bed_for`]. Mobile
@@ -1461,7 +1462,7 @@ fn breathe_weather_bed(
     settings: Option<Res<LocalSettingsState>>,
     coupling: Res<WeatherBandCoupling>,
     time: Res<Time>,
-    mut ambient: ResMut<AmbientLight>,
+    mut ambient: ResMut<GlobalAmbientLight>,
     mut fogs: Query<&mut DistanceFog>,
 ) {
     // Missing settings (headless) stay Medium. Same fallback as apply_climate_look.
@@ -3191,7 +3192,7 @@ mod tests {
         let mut app = App::new();
         let boot = look_for(Some(0)).sky;
         app.insert_resource(ClearColor(boot));
-        app.insert_resource(AmbientLight {
+        app.insert_resource(GlobalAmbientLight {
             color: look_for(Some(0)).ambient,
             brightness: look_for(Some(0)).ambient_bright,
             affects_lightmapped_meshes: true,
@@ -3427,14 +3428,19 @@ mod tests {
             .collect()
     }
 
-    fn named_systems(
+    /// compiler-forced: `System::name` is a `DebugName`, which displays
+    /// `<Enable the debug feature to see the name>` unless feature `debug`
+    /// is on (`bevy_utils` debug_info). `debug` is not in the published
+    /// 0.18.1 default set, so it stays off. The schedule still stores the
+    /// function's `IntoSystem::system_type_id`.
+    fn system_key_matching<Marker>(
         graph: &bevy::ecs::schedule::ScheduleGraph,
-    ) -> Vec<(bevy::ecs::schedule::SystemKey, String)> {
-        graph
-            .systems
-            .iter()
-            .map(|(key, system, _)| (key, format!("{}", system.name())))
-            .collect()
+        system: impl IntoSystem<(), (), Marker> + Copy,
+    ) -> Option<bevy::ecs::schedule::SystemKey> {
+        let want = system.system_type_id();
+        graph.systems.iter().find_map(|(key, scheduled, _)| {
+            (System::type_id(&**scheduled) == want).then_some(key)
+        })
     }
 
     /// CARD FOG-TIER-1 — ClimatePlanePlugin keeps the three climate_plane
@@ -3453,30 +3459,34 @@ mod tests {
             .expect("Update schedule");
         let graph = schedule.graph();
         let expect = [
-            ("apply_climate_look", "ClimateLook"),
-            ("breathe_weather_bed", "PlaceBed"),
-            ("apply_arrival_beat_fog", "ArrivalBeat"),
+            (
+                system_key_matching(graph, apply_climate_look),
+                "apply_climate_look",
+                "ClimateLook",
+            ),
+            (
+                system_key_matching(graph, breathe_weather_bed),
+                "breathe_weather_bed",
+                "PlaceBed",
+            ),
+            (
+                system_key_matching(graph, apply_arrival_beat_fog),
+                "apply_arrival_beat_fog",
+                "ArrivalBeat",
+            ),
         ];
-        let mut seen = [false; 3];
-        for (key, name) in named_systems(graph) {
-            for (i, (fn_name, set_name)) in expect.iter().enumerate() {
-                if !name.contains(fn_name) {
-                    continue;
-                }
-                let labels = system_parent_labels(graph, key);
-                assert!(
-                    labels
-                        .iter()
-                        .any(|label| fog_label_matches(label, set_name)),
-                    "{name} missing FogWriteSet::{set_name}; parent sets: {labels:?}"
-                );
-                seen[i] = true;
-            }
+        for (key, fn_name, set_name) in expect {
+            let Some(key) = key else {
+                panic!("Update graph missing a climate_plane fog writer: {fn_name}");
+            };
+            let labels = system_parent_labels(graph, key);
+            assert!(
+                labels
+                    .iter()
+                    .any(|label| fog_label_matches(label, set_name)),
+                "{fn_name} missing FogWriteSet::{set_name}; parent sets: {labels:?}"
+            );
         }
-        assert!(
-            seen.iter().all(|found| *found),
-            "Update graph missing a climate_plane fog writer: {seen:?}"
-        );
     }
 
     /// CARD FOG-ULTRA-VOLUMETRIC-1 — Some only on Ultra. All five presets.
@@ -3591,23 +3601,15 @@ mod tests {
             .get(Update)
             .expect("Update schedule");
         let graph = schedule.graph();
-        let mut found = false;
-        for (key, name) in named_systems(graph) {
-            if !name.contains("sync_ultra_volumetric") {
-                continue;
-            }
-            found = true;
-            for label in system_parent_labels(graph, key) {
-                assert!(
-                    !label.contains("FogWriteSet"),
-                    "sync_ultra_volumetric landed in {label}"
-                );
-            }
-        }
-        assert!(
-            found,
-            "ClimatePlanePlugin did not register sync_ultra_volumetric"
+        let key = system_key_matching(graph, sync_ultra_volumetric).expect(
+            "ClimatePlanePlugin did not register sync_ultra_volumetric",
         );
+        for label in system_parent_labels(graph, key) {
+            assert!(
+                !label.contains("FogWriteSet"),
+                "sync_ultra_volumetric landed in {label}"
+            );
+        }
     }
 
     /// CARD LIGHT-BLOOM-1 + VP-BLOOM-MED-1 — Some on Medium, High and Ultra.
@@ -3785,7 +3787,7 @@ mod tests {
     }
 
     /// CARD LIGHT-BLOOM-1 — registered in TierBloomSet, not FogWriteSet, and
-    /// the initialized system access does not write AmbientLight.
+    /// the initialized system access does not write GlobalAmbientLight.
     #[test]
     fn sync_tier_bloom_set_excludes_fog_and_ambient_write() {
         let mut app = App::new();
@@ -3796,8 +3798,8 @@ mod tests {
                 schedule.graph_mut().initialize(world);
                 let ambient = world
                     .components()
-                    .resource_id::<AmbientLight>()
-                    .expect("AmbientLight registered");
+                    .resource_id::<GlobalAmbientLight>()
+                    .expect("GlobalAmbientLight registered");
                 let camera = world
                     .components()
                     .component_id::<Camera>()
@@ -3811,54 +3813,48 @@ mod tests {
                     .components()
                     .component_id::<bevy::render::view::Hdr>()
                     .expect("Hdr registered");
-                let mut found = false;
-                for (key, name) in named_systems(graph) {
-                    if !name.contains("sync_tier_bloom") {
-                        continue;
+                let key = system_key_matching(graph, sync_tier_bloom)
+                    .expect("ClimatePlanePlugin did not register sync_tier_bloom");
+                // Stop storing access in systems (#19496): the schedule
+                // holds the FilteredAccessSet from System::initialize.
+                // `With<Camera3d>` is a filter, not a component read.
+                // `Has<Hdr>` is archetypal. `Option<&Bloom>` is a read.
+                let access = graph
+                    .systems
+                    .get(key)
+                    .expect("sync_tier_bloom")
+                    .access
+                    .combined_access();
+                assert!(
+                    access.has_component_read(bloom_id),
+                    "Bloom read missing; access was not initialized"
+                );
+                assert!(
+                    access.has_archetypal(hdr_id),
+                    "Hdr presence check missing after Camera.hdr split (#18873)"
+                );
+                // Split Hdr from Camera (#18873). The bloom system inserts
+                // `Hdr`; it must not write the Camera component.
+                assert!(
+                    !access.has_component_write(camera),
+                    "sync_tier_bloom writes Camera after hdr left that component"
+                );
+                assert!(
+                    !access.has_resource_write(ambient),
+                    "sync_tier_bloom writes GlobalAmbientLight"
+                );
+                assert!(!access.has_write_all());
+                let mut in_tier = false;
+                for label in system_parent_labels(graph, key) {
+                    assert!(
+                        !label.contains("FogWriteSet"),
+                        "sync_tier_bloom landed in {label}"
+                    );
+                    if label.contains("TierBloomSet") {
+                        in_tier = true;
                     }
-                    found = true;
-                    // Stop storing access in systems (#19496): the schedule
-                    // holds the FilteredAccessSet from System::initialize.
-                    // `With<Camera3d>` is a filter, not a component read.
-                    // `Has<Hdr>` is archetypal. `Option<&Bloom>` is a read.
-                    let access = graph
-                        .systems
-                        .get(key)
-                        .expect("sync_tier_bloom")
-                        .access
-                        .combined_access();
-                    assert!(
-                        access.has_component_read(bloom_id),
-                        "Bloom read missing; access was not initialized"
-                    );
-                    assert!(
-                        access.has_archetypal(hdr_id),
-                        "Hdr presence check missing after Camera.hdr split (#18873)"
-                    );
-                    // Split Hdr from Camera (#18873). The bloom system inserts
-                    // `Hdr`; it must not write the Camera component.
-                    assert!(
-                        !access.has_component_write(camera),
-                        "sync_tier_bloom writes Camera after hdr left that component"
-                    );
-                    assert!(
-                        !access.has_resource_write(ambient),
-                        "sync_tier_bloom writes AmbientLight"
-                    );
-                    assert!(!access.has_write_all());
-                    let mut in_tier = false;
-                    for label in system_parent_labels(graph, key) {
-                        assert!(
-                            !label.contains("FogWriteSet"),
-                            "sync_tier_bloom landed in {label}"
-                        );
-                        if label.contains("TierBloomSet") {
-                            in_tier = true;
-                        }
-                    }
-                    assert!(in_tier, "sync_tier_bloom is not in TierBloomSet");
                 }
-                assert!(found, "ClimatePlanePlugin did not register sync_tier_bloom");
+                assert!(in_tier, "sync_tier_bloom is not in TierBloomSet");
             });
     }
 
@@ -4155,7 +4151,8 @@ mod tests {
                 .disable::<bevy::winit::WinitPlugin>(),
         )
         .add_plugins({
-            let mut winit = bevy::winit::WinitPlugin::<bevy::winit::WakeUp>::default();
+            // 0.17→0.18: "Winit user events removed". `WinitPlugin` is no longer generic.
+            let mut winit = bevy::winit::WinitPlugin::default();
             winit.run_on_any_thread = true;
             winit
         })
@@ -4311,7 +4308,7 @@ fn drive_bloom_probe(
     ui_bloom_cams: Query<(), (With<crate::ui_above_world::LivedUiCamera>, With<Bloom>)>,
     lights: Query<(), With<VolumetricLight>>,
     msaa: Query<&bevy::render::view::Msaa>,
-    mut exit: EventWriter<AppExit>,
+    mut exit: MessageWriter<AppExit>,
 ) {
     use crate::ui_above_world::UI_CAMERA_ORDER;
     use bevy::camera::ClearColorConfig;
@@ -4324,7 +4321,7 @@ fn drive_bloom_probe(
             commands
                 .spawn(bevy::render::view::screenshot::Screenshot::window(window))
                 .observe(
-                    move |trigger: Trigger<bevy::render::view::screenshot::ScreenshotCaptured>| {
+                    move |trigger: On<bevy::render::view::screenshot::ScreenshotCaptured>| {
                         let _ = tx.send(trigger.event().image.clone());
                     },
                 );

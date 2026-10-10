@@ -851,7 +851,7 @@ mod tests {
     /// One real key edge: winit press event, frame, release event, frame.
     fn tap_key(app: &mut App, code: KeyCode, key: Key) {
         let window = Entity::PLACEHOLDER;
-        app.world_mut().send_event(KeyboardInput {
+        app.world_mut().write_message(KeyboardInput {
             key_code: code,
             logical_key: key.clone(),
             state: ButtonState::Pressed,
@@ -860,7 +860,7 @@ mod tests {
             window,
         });
         app.update();
-        app.world_mut().send_event(KeyboardInput {
+        app.world_mut().write_message(KeyboardInput {
             key_code: code,
             logical_key: key,
             state: ButtonState::Released,

@@ -264,7 +264,8 @@ fn maybe_awe(
 fn apply_awe_light(
     weather: Res<FlowWeather>,
     time: Res<Time>,
-    mut ambient: ResMut<AmbientLight>,
+    // 0.17→0.18: "AmbientLight split into a component and a resource".
+    mut ambient: ResMut<GlobalAmbientLight>,
 ) {
     if weather.inhaling(time.elapsed_secs_f64()) {
         ambient.brightness = (ambient.brightness + 90.0).min(420.0);

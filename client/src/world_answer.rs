@@ -180,7 +180,8 @@ fn note_place_answers(
 fn paint_world_answer(
     answer: Res<WorldAnswer>,
     time: Res<Time>,
-    mut ambient: ResMut<AmbientLight>,
+    // 0.17→0.18: "AmbientLight split into a component and a resource".
+    mut ambient: ResMut<GlobalAmbientLight>,
     mut fogs: Query<&mut DistanceFog>,
     mut nodes: Query<&mut MercyHarvestNode>,
     mut last_kind: Local<AnswerKind>,

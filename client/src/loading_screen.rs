@@ -279,11 +279,12 @@ GlobalZIndex(LOADING_Z),
                     row_gap: Val::Px(12.0),
                     padding: UiRect::all(Val::Px(22.0)),
                     border: UiRect::all(Val::Px(2.0)),
+                    // 0.17→0.18: "BorderRadius has been added to Node and is no longer a component".
+                    border_radius: BorderRadius::all(Val::Px(8.0)),
                     ..default()
                 },
                 BackgroundColor(PANEL),
                 BorderColor::all(FRAME),
-                BorderRadius::all(Val::Px(8.0)),
             ))
             .with_children(|panel| {
                 panel

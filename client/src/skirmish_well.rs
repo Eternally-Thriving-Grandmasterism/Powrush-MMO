@@ -161,7 +161,7 @@ fn pressure_hold(
     mut yard: ResMut<WellYard>,
     mut pool: ResMut<SoftRbePool>,
     gamepads: Query<Entity, With<Gamepad>>,
-    mut rumble: EventWriter<GamepadRumbleRequest>,
+    mut rumble: MessageWriter<GamepadRumbleRequest>,
 ) {
     if yard.well.hold != WellHold::Human {
         return;
@@ -186,7 +186,7 @@ pub(crate) fn handle_well(
     mut moments: ResMut<ThrivingMoments>,
     mut pool: ResMut<SoftRbePool>,
     gamepads: Query<Entity, With<Gamepad>>,
-    mut rumble: EventWriter<GamepadRumbleRequest>,
+    mut rumble: MessageWriter<GamepadRumbleRequest>,
     time: Res<Time>,
 ) {
     if !near_first_well(&presence) {
