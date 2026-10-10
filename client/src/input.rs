@@ -100,12 +100,15 @@ impl Plugin for InputPlugin {
                 Update,
                 apply_script_timeline
                     .after(handle_player_input)
-                    // After the close system, so this frame's reader misses the message.
-                    // Next frame the yard save (`.before(close_when_requested)`) reads it,
-                    // then close runs. `scripted_title_play` stays `.after` this system.
-                    .after(bevy::window::close_when_requested)
                     .in_set(InputMapSet)
                     .run_if(resource_exists::<ScriptTimeline>),
+            )
+            // `First`, before Update and Last. A winit close is written before
+            // `app.update()`, so the yard save and `close_when_requested` (Last)
+            // both see it this frame. This system is that write.
+            .add_systems(
+                First,
+                send_scripted_window_close.run_if(resource_exists::<ScriptTimeline>),
             );
     }
 }
@@ -510,8 +513,9 @@ pub struct ScriptSample {
 ///
 /// A missing file or a bad line logs one warning and leaves device input.
 ///
-/// Once [`Time::elapsed_secs_f64`] passes the last row's timestamp, one
-/// [`bevy::window::WindowCloseRequested`] is written for the primary window.
+/// Once [`Time::elapsed_secs_f64`] passes the last row's timestamp, a close is
+/// marked pending (once). [`send_scripted_window_close`] in [`First`] then
+/// writes one [`bevy::window::WindowCloseRequested`] for the primary window.
 /// Further frames do not write another.
 #[derive(Resource, Debug)]
 pub struct ScriptTimeline {
@@ -519,7 +523,9 @@ pub struct ScriptTimeline {
     phase: ScriptPhase,
     /// Previous frame's `use_held` column. The Use edge is the 0→1 step.
     prev_held: bool,
-    /// Latched after the one close past the last row.
+    /// Latched the first frame the clock is past the last row.
+    close_pending: bool,
+    /// Latched after the one close message is written.
     close_sent: bool,
 }
 
@@ -536,6 +542,7 @@ impl ScriptTimeline {
             path: path.into(),
             phase: ScriptPhase::Pending,
             prev_held: false,
+            close_pending: false,
             close_sent: false,
         }
     }
@@ -641,32 +648,30 @@ fn sample_at(samples: &[ScriptSample], now: f64) -> Option<&ScriptSample> {
 /// `interact` is the 0→1 rise of `use_held`, one frame per rise.
 /// Edit mode clears `interact` and `interact_held` the same way device Use does.
 ///
-/// When the clock passes the last row, write one [`bevy::window::WindowCloseRequested`]
-/// for the [`bevy::window::PrimaryWindow`] entity — the same message winit sends
-/// on the close button — then latch. No `AppExit` here. A missing primary window
-/// waits; it does not latch.
+/// When the clock passes the last row, mark one close pending. The message
+/// itself is [`send_scripted_window_close`] in [`First`] on a later frame.
+/// No `AppExit` here.
 pub(crate) fn apply_script_timeline(
     time: Res<Time>,
     edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
     mut script: ResMut<ScriptTimeline>,
     mut player_input: ResMut<PlayerInput>,
-    primary: Query<Entity, With<bevy::window::PrimaryWindow>>,
-    mut close: MessageWriter<bevy::window::WindowCloseRequested>,
 ) {
     if !script.ensure_loaded() {
         return;
     }
     let now = time.elapsed_secs_f64();
-    let (move_x, move_y, held, past_last) = {
+    let (move_x, move_y, held, mark_pending) = {
         let ScriptPhase::Live(samples) = &script.phase else {
             return;
         };
-        let past_last = !script.close_sent && last_row_secs(samples).is_some_and(|end| now > end);
+        let mark_pending =
+            !script.close_pending && last_row_secs(samples).is_some_and(|end| now > end);
         let (move_x, move_y, held) = match sample_at(samples, now) {
             Some(sample) => (sample.move_x, sample.move_y, sample.use_held),
             None => (0.0, 0.0, false),
         };
-        (move_x, move_y, held, past_last)
+        (move_x, move_y, held, mark_pending)
     };
     let edge = !script.prev_held && held;
     script.prev_held = held;
@@ -674,12 +679,30 @@ pub(crate) fn apply_script_timeline(
     let editing = edit.as_ref().is_some_and(|mode| mode.active);
     player_input.interact = if editing { false } else { edge };
     player_input.interact_held = if editing { false } else { held };
-    if past_last {
-        if let Ok(window) = primary.single() {
-            close.write(bevy::window::WindowCloseRequested { window });
-            script.close_sent = true;
-        }
+    if mark_pending {
+        script.close_pending = true;
     }
+}
+
+/// One [`bevy::window::WindowCloseRequested`] for the primary window.
+///
+/// Runs in [`First`]. Winit writes that message before `app.update()`, so
+/// `persist_in_yard_on_window_close` (Update) and `close_when_requested`
+/// (Last) both see a human close on that frame. This is the same slot.
+/// A missing primary window waits and does not latch.
+fn send_scripted_window_close(
+    mut script: ResMut<ScriptTimeline>,
+    primary: Query<Entity, With<bevy::window::PrimaryWindow>>,
+    mut close: MessageWriter<bevy::window::WindowCloseRequested>,
+) {
+    if !script.close_pending || script.close_sent {
+        return;
+    }
+    let Ok(window) = primary.single() else {
+        return;
+    };
+    close.write(bevy::window::WindowCloseRequested { window });
+    script.close_sent = true;
 }
 
 #[cfg(test)]
@@ -1075,6 +1098,62 @@ mod tests {
         path
     }
 
+    /// Restores `POWRUSH_USER_DIR` on drop, including a failed assert.
+    struct RestoreUserDir(Option<String>);
+
+    impl Drop for RestoreUserDir {
+        fn drop(&mut self) {
+            match &self.0 {
+                Some(value) => {
+                    std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value)
+                }
+                None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
+            }
+        }
+    }
+
+    fn user_dir_scratch(tag: &str) -> (PathBuf, RestoreUserDir) {
+        let dir = std::env::temp_dir().join(format!(
+            "powrush-script-close-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("temp user dir");
+        let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+        (dir, RestoreUserDir(prev))
+    }
+
+    fn demo_lived_hour_bind() -> crate::lived_hour_bind::LivedHourBind {
+        crate::lived_hour_bind::LivedHourBind {
+            hour: shared::climate_node::LivedHour::new_demo(),
+            climate: Default::default(),
+            standing: Default::default(),
+            week: Default::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        }
+    }
+
+    /// Persist takes the user-dir lock. The test thread already holds it.
+    fn single_thread_schedules(app: &mut App) {
+        use bevy::ecs::schedule::{Schedule, SingleThreadedExecutor};
+        fn use_single_thread(schedule: &mut Schedule) {
+            schedule.set_executor(SingleThreadedExecutor::new());
+        }
+        app.edit_schedule(Startup, use_single_thread);
+        app.edit_schedule(First, use_single_thread);
+        app.edit_schedule(PreUpdate, use_single_thread);
+        app.edit_schedule(Update, use_single_thread);
+        app.edit_schedule(PostUpdate, use_single_thread);
+        app.edit_schedule(Last, use_single_thread);
+    }
+
     fn widen_clock(app: &mut App) {
         app.world_mut()
             .resource_mut::<Time<bevy::time::Virtual>>()
@@ -1316,7 +1395,8 @@ mod tests {
     }
 
     /// Past the last row: one `WindowCloseRequested` for the primary window.
-    /// On that row, and before it, the count stays 0. Further steps stay at 1.
+    /// On that row, and before it, the count stays 0. The message is the next
+    /// frame's `First` system. Further steps stay at 1.
     #[test]
     fn script_timeline_end_sends_one_window_close() {
         let path = write_timeline("end-close.txt", "0 0 0 0\n1.0 1 0 0\n2.0 0 1 0\n");
@@ -1372,63 +1452,80 @@ mod tests {
         assert!(app.world().resource::<ScriptTimeline>().close_sent);
     }
 
-    /// `apply_script_timeline` is `.after(close_when_requested)`.
-    /// `scripted_title_play` is `.after(apply_script_timeline)` in this same
-    /// Update graph. Building Update and Last must not cycle, and the close
-    /// system stays ahead of the script system.
+    /// Real `First` / `Update` / `Last`. Title's window-close save is the one
+    /// `TitleScreenPlugin` registers. WindowPlugin's `close_when_requested`
+    /// stays in `Last` (no second copy in Update). The yard house file and
+    /// lived-hour bind land while the app is still running, then the real
+    /// exit condition fires. Exactly one close message is sent.
     #[test]
-    fn script_timeline_runs_after_close_when_requested() {
-        use bevy::ecs::schedule::Schedules;
-        use bevy::ecs::system::{IntoSystem, System};
-        use std::any::TypeId;
+    fn script_timeline_end_saves_yard_before_exit() {
+        let _user_dir = crate::test_env::lock();
+        let (dir, _restore) = user_dir_scratch("script-close");
+        let house = dir.join("powrush_house.json");
+        let tick = dir.join("powrush_lived_tick.json");
+        assert!(!house.exists(), "house missing before the run");
+        assert!(!tick.exists(), "lived hour missing before the run");
 
-        let mut app = App::new();
-        app.add_plugins(bevy::MinimalPlugins)
-            .add_plugins(InputPlugin)
-            .add_plugins(crate::title_screen::TitleScreenPlugin)
+        let path = write_timeline("yard-close.txt", "0 0 0 0\n");
+        let mut app = device_app(Some(path));
+        app.add_plugins(crate::title_screen::TitleScreenPlugin)
             .add_plugins(bevy::window::WindowPlugin::default())
-            // WindowPlugin schedules the close system in `Last`. The `.after`
-            // edge orders systems that share a schedule, so this test also
-            // places that system in Update, where the script system runs.
-            .add_systems(Update, bevy::window::close_when_requested);
-        let mut schedules = app.world_mut().remove_resource::<Schedules>().unwrap();
-        let update = schedules.get_mut(Update).unwrap();
-        update
-            .initialize(app.world_mut())
-            .expect("Update builds; scripted_title_play after the script system does not cycle");
-        let ids: Vec<TypeId> = update
-            .systems()
-            .unwrap()
-            .map(|(_, system)| System::system_type(&**system))
-            .collect();
-        let pos = |id: TypeId, label: &str| {
-            ids.iter()
-                .position(|found| *found == id)
-                .unwrap_or_else(|| panic!("{label} missing from Update"))
-        };
-        let close = pos(
-            IntoSystem::system_type_id(&bevy::window::close_when_requested),
-            "close_when_requested",
-        );
-        let script = pos(
-            IntoSystem::system_type_id(&apply_script_timeline),
-            "apply_script_timeline",
+            .insert_resource(crate::net_mode::SessionNetMode::default())
+            .insert_resource(crate::title_screen::LaunchDoor::InYard)
+            .insert_resource(demo_lived_hour_bind());
+        single_thread_schedules(&mut app);
+        let mut windows = app
+            .world_mut()
+            .query_filtered::<Entity, bevy::prelude::With<bevy::window::PrimaryWindow>>();
+        let window = windows
+            .single(app.world())
+            .expect("WindowPlugin primary window");
+        let mut cursor =
+            bevy::ecs::message::MessageCursor::<bevy::window::WindowCloseRequested>::default();
+        let mut closes = 0usize;
+        let mut saved_while_running = false;
+        let mut exited = false;
+        for dt in [0.0, 0.5, 0.5, 0.5, 0.5, 0.5, 0.5] {
+            set_dt(&mut app, dt);
+            app.update();
+            let frames: Vec<_> = {
+                let messages = app
+                    .world()
+                    .resource::<bevy::ecs::message::Messages<bevy::window::WindowCloseRequested>>();
+                cursor.read(messages).map(|msg| msg.window).collect()
+            };
+            closes += frames.len();
+            for entity in &frames {
+                assert_eq!(*entity, window, "close targets the primary window");
+            }
+            let saved = house.is_file() && tick.is_file();
+            let exit = app.should_exit();
+            if saved && exit.is_none() {
+                saved_while_running = true;
+            }
+            if exit.is_some() {
+                exited = true;
+                break;
+            }
+        }
+        assert!(
+            saved_while_running,
+            "house and lived hour are written before AppExit"
         );
         assert!(
-            close < script,
-            "close_when_requested {close} runs before apply_script_timeline {script}"
+            exited,
+            "WindowPlugin exit_on_all_closed fires after the close"
         );
-        let last = schedules.get_mut(bevy::prelude::Last).unwrap();
-        last.initialize(app.world_mut())
-            .expect("Last builds with WindowPlugin's close_when_requested");
-        let last_has_close = last.systems().unwrap().any(|(_, system)| {
-            System::system_type(&**system)
-                == IntoSystem::system_type_id(&bevy::window::close_when_requested)
-        });
-        assert!(
-            last_has_close,
-            "WindowPlugin still schedules close_when_requested in Last"
-        );
+        assert_eq!(closes, 1, "one WindowCloseRequested, then the latch holds");
+        assert!(app.world().resource::<ScriptTimeline>().close_pending);
+        assert!(app.world().resource::<ScriptTimeline>().close_sent);
+        let house_json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&house).unwrap()).unwrap();
+        assert_eq!(house_json["schema"], "powrush_house_v1");
+        let tick_json: serde_json::Value =
+            serde_json::from_str(&std::fs::read_to_string(&tick).unwrap()).unwrap();
+        assert!(tick_json.is_object());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
