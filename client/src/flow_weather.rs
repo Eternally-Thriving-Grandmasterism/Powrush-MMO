@@ -343,7 +343,7 @@ fn fade_beads(
             continue;
         }
         let t = (1.0 - age / BEAD_LIFE).clamp(0.04, 1.0);
-        if let Some(mat) = materials.get_mut(&bead.handle) {
+        if let Some(mut mat) = materials.get_mut(&bead.handle) {
             mat.emissive = LinearRgba::new(
                 bead.glow.red * t,
                 bead.glow.green * t,

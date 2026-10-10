@@ -84,20 +84,20 @@ fn spawn_soft_panels(mut commands: Commands) {
         .with_children(|p| {
             p.spawn((
 Text::new("MY MERCY JOURNEY"),
-TextFont { font_size: 15.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(15.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
             p.spawn((
                 (
 Text::new("Acts of thriving will gather here"),
-TextFont { font_size: 13.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(13.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 MercySoftBody,
             ));
             p.spawn((
 Text::new("M toggle · J also opens the echo"),
-TextFont { font_size: 11.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(11.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
         });
@@ -126,20 +126,20 @@ TextColor(TITLE_TEXT_SECONDARY),
         .with_children(|p| {
             p.spawn((
 Text::new("REALM TRAVEL"),
-TextFont { font_size: 15.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(15.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 13.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(13.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 RealmSoftBody,
             ));
             p.spawn((
 Text::new("Z toggle · 1–5 choose climate"),
-TextFont { font_size: 11.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(11.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
         });

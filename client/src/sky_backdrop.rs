@@ -509,6 +509,10 @@ mod tests {
             .init_asset::<StandardMaterial>()
             // bevy_render reorganization: Mesh3d no longer `#[require(Visibility)]`.
             // VisibilityPlugin registers that requirement (and the visibility-class hook).
+            // SystemParam validation now errors inside the system instead of
+            // skipping it (0.18→0.19 guide, PR #23225). VisibilityPlugin's
+            // update_skinned_mesh_bounds requires this asset.
+            .init_asset::<bevy::mesh::skinning::SkinnedMeshInverseBindposes>()
             .add_plugins(bevy::camera::visibility::VisibilityPlugin)
             .insert_resource(SoftPlayerRealm { current: Some(0) });
         let mut inner = LocalSettings::default();
@@ -616,6 +620,10 @@ mod tests {
             .init_asset::<StandardMaterial>()
             // bevy_render reorganization: Mesh3d no longer `#[require(Visibility)]`.
             // VisibilityPlugin registers that requirement (and the visibility-class hook).
+            // SystemParam validation now errors inside the system instead of
+            // skipping it (0.18→0.19 guide, PR #23225). VisibilityPlugin's
+            // update_skinned_mesh_bounds requires this asset.
+            .init_asset::<bevy::mesh::skinning::SkinnedMeshInverseBindposes>()
             .add_plugins(bevy::camera::visibility::VisibilityPlugin)
             .insert_resource(SoftPlayerRealm { current: Some(0) });
         let mut inner = LocalSettings::default();

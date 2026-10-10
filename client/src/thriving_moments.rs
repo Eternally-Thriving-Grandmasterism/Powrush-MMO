@@ -171,7 +171,7 @@ fn spawn_toast(mut commands: Commands) {
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 15.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(15.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 ThrivingToastText,

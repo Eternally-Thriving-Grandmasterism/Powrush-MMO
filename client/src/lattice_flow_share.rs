@@ -110,7 +110,7 @@ fn spawn_peer_presence_chip(mut commands: Commands) {
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 12.5 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(12.5 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 PeerPresenceText,

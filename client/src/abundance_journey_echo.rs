@@ -241,20 +241,20 @@ fn spawn_echo_panel(mut commands: Commands) {
         .with_children(|p| {
             p.spawn((
 Text::new("ABUNDANCE JOURNEY"),
-TextFont { font_size: 15.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(15.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
             p.spawn((
                 (
 Text::new("• Acts of thriving will echo here"),
-TextFont { font_size: 12.5 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(12.5 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 JourneyEchoBody,
             ));
             p.spawn((
 Text::new(JOURNEY_ECHO_FOOTER),
-TextFont { font_size: 11.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(11.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
 ));
         });

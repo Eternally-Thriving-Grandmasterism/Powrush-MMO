@@ -331,7 +331,7 @@ fn spawn_lived_surfaces(mut commands: Commands) {
             p.spawn((
                 (
 Text::new("Walk toward a glowing node"),
-TextFont { font_size: 16.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(16.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 WorldCarePromptText,
@@ -364,7 +364,7 @@ TextColor(TITLE_TEXT_PRIMARY),
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 16.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(16.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 HarvestPulseText,
@@ -395,7 +395,7 @@ TextColor(TITLE_TEXT_PRIMARY),
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: 13.5 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(13.5 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 WelcomeBackText,
@@ -1538,14 +1538,14 @@ mod tests {
         let mut prompt_text = app
             .world_mut()
             .query_filtered::<&TextFont, With<WorldCarePromptText>>();
-        assert_eq!(prompt_text.single(app.world()).unwrap().font_size, 16.0 / 1.2);
+        assert_eq!(prompt_text.single(app.world()).unwrap().font_size, FontSize::Px(16.0 / 1.2));
         let mut pulse_text = app
             .world_mut()
             .query_filtered::<&TextFont, With<HarvestPulseText>>();
-        assert_eq!(pulse_text.single(app.world()).unwrap().font_size, 16.0 / 1.2);
+        assert_eq!(pulse_text.single(app.world()).unwrap().font_size, FontSize::Px(16.0 / 1.2));
         let mut welcome_text = app
             .world_mut()
             .query_filtered::<&TextFont, With<WelcomeBackText>>();
-        assert_eq!(welcome_text.single(app.world()).unwrap().font_size, 13.5 / 1.2);
+        assert_eq!(welcome_text.single(app.world()).unwrap().font_size, FontSize::Px(13.5 / 1.2));
     }
 }

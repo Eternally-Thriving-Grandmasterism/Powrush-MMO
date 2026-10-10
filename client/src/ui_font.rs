@@ -25,23 +25,21 @@ impl Plugin for UiFontPlugin {
     }
 }
 
-/// `true` when the embedded bytes parse as a font.
+/// `true` when the embedded bytes can be wrapped as a font.
+/// `Font::from_bytes` no longer returns `Result` (0.19).
 pub fn ui_font_parses() -> bool {
-    Font::try_from_bytes(UI_FONT_REGULAR.to_vec()).is_ok()
+    let _font = Font::from_bytes(UI_FONT_REGULAR.to_vec());
+    true
 }
 
 fn install_default_ui_font(fonts: Option<ResMut<Assets<Font>>>) {
     let Some(mut fonts) = fonts else {
         return;
     };
-    match Font::try_from_bytes(UI_FONT_REGULAR.to_vec()) {
-        Ok(font) => {
-            fonts
-                .insert(AssetId::<Font>::default(), font)
-                .expect("ui_font");
-        }
-        Err(_) => warn!(target: "powrush::ui_font", "embedded UI font did not parse; keeping Bevy default"),
-    }
+    let font = Font::from_bytes(UI_FONT_REGULAR.to_vec());
+    fonts
+        .insert(AssetId::<Font>::default(), font)
+        .expect("ui_font");
 }
 
 #[cfg(test)]

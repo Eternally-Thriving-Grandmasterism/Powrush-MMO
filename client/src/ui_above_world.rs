@@ -23,7 +23,8 @@
 
 use bevy::prelude::*;
 use bevy::camera::ClearColorConfig;
-use bevy::render::view::{Hdr, Msaa};
+use bevy::camera::Hdr;
+use bevy::render::view::Msaa;
 
 use crate::climate_plane::TierBloomSet;
 

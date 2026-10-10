@@ -841,7 +841,7 @@ impl SanctuarySun {
         DirectionalLight {
             color: self.color,
             illuminance: self.illuminance,
-            shadows_enabled: self.shadows_enabled,
+            shadow_maps_enabled: self.shadows_enabled,
             ..default()
         }
     }
@@ -1178,7 +1178,7 @@ fn spawn_climate_chip(mut commands: Commands) {
             p.spawn((
                 (
 Text::new("Sanctuary Prime"),
-TextFont { font_size: 14.0 / 1.2, ..default() },
+TextFont { font_size: FontSize::Px(14.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 ClimateNameText,
@@ -1234,7 +1234,7 @@ fn sync_ultra_volumetric(
             ));
         }
         for (entity, light, existing) in &lights {
-            if light.shadows_enabled {
+            if light.shadow_maps_enabled {
                 if existing.is_none() {
                     commands.entity(entity).insert(VolumetricLight);
                 }
@@ -1270,7 +1270,7 @@ fn sync_ultra_volumetric(
 fn sync_tier_bloom(
     mut commands: Commands,
     settings: Option<Res<LocalSettingsState>>,
-    mut cameras: Query<(Entity, Has<bevy::render::view::Hdr>, Option<&Bloom>), With<Camera3d>>,
+    mut cameras: Query<(Entity, Has<bevy::camera::Hdr>, Option<&Bloom>), With<Camera3d>>,
 ) {
     let preset = settings
         .as_ref()
@@ -1279,7 +1279,7 @@ fn sync_tier_bloom(
     if let Some(bloom) = bloom_for(preset) {
         for (entity, has_hdr, existing) in &mut cameras {
             if !has_hdr {
-                commands.entity(entity).insert(bevy::render::view::Hdr);
+                commands.entity(entity).insert(bevy::camera::Hdr);
             }
             if existing.map_or(true, |have| have.intensity != bloom.intensity) {
                 commands.entity(entity).insert(bloom.clone());
@@ -1288,7 +1288,7 @@ fn sync_tier_bloom(
     } else {
         for (entity, has_hdr, existing) in &mut cameras {
             if has_hdr {
-                commands.entity(entity).remove::<bevy::render::view::Hdr>();
+                commands.entity(entity).remove::<bevy::camera::Hdr>();
             }
             if existing.is_some() {
                 commands.entity(entity).remove::<Bloom>();
@@ -1358,21 +1358,21 @@ fn apply_climate_look(
     ambient.brightness = look.ambient_bright;
 
     for handle in &grounds {
-        if let Some(mat) = materials.get_mut(handle) {
+        if let Some(mut mat) = materials.get_mut(handle) {
             mat.base_color = look.ground;
             mat.perceptual_roughness = look.roughness;
             mat.metallic = 0.0;
         }
     }
     for handle in &stones {
-        if let Some(mat) = materials.get_mut(handle) {
+        if let Some(mut mat) = materials.get_mut(handle) {
             mat.base_color = look.stone;
             mat.perceptual_roughness = look.roughness;
             mat.metallic = 0.0;
         }
     }
     for handle in &nodes {
-        if let Some(mat) = materials.get_mut(handle) {
+        if let Some(mut mat) = materials.get_mut(handle) {
             mat.base_color = look.node;
             mat.emissive = LinearRgba::from(look.node).with_alpha(1.0) * node_glow;
         }
@@ -3543,7 +3543,7 @@ mod tests {
         let sun = app
             .world_mut()
             .spawn(DirectionalLight {
-                    shadows_enabled: true,
+                    shadow_maps_enabled: true,
                     ..default()
                 })
             .id();
@@ -3552,7 +3552,7 @@ mod tests {
             .spawn((
                 DirectionalLight {
                     illuminance: 8_500.0,
-                    shadows_enabled: false,
+                    shadow_maps_enabled: false,
                     color: Color::srgb(1.0, 0.96, 0.88),
                     ..default()
                 },
@@ -3679,16 +3679,16 @@ mod tests {
         app.update();
 
         let world = app.world().entity(world_cam);
-        assert!(world.get::<bevy::render::view::Hdr>().is_some());
+        assert!(world.get::<bevy::camera::Hdr>().is_some());
         let bloom = world.get::<Bloom>().expect("bloom");
         assert_eq!(bloom.intensity, LIGHT_BLOOM_INTENSITY);
         let ui = app.world().entity(ui_cam);
-        assert!(ui.get::<Camera>().is_some() && ui.get::<bevy::render::view::Hdr>().is_none());
+        assert!(ui.get::<Camera>().is_some() && ui.get::<bevy::camera::Hdr>().is_none());
         assert!(ui.get::<Bloom>().is_none());
 
         app.update();
         let world = app.world().entity(world_cam);
-        assert!(world.get::<bevy::render::view::Hdr>().is_some());
+        assert!(world.get::<bevy::camera::Hdr>().is_some());
         assert!(!world.get_ref::<Bloom>().unwrap().is_added());
         assert!(ui_cam_hdr_still_false(&app, ui_cam));
 
@@ -3698,7 +3698,7 @@ mod tests {
             .set_graphics_preset(GraphicsPreset::Low);
         app.update();
         let world = app.world().entity(world_cam);
-        assert!(world.get::<Camera>().is_some() && world.get::<bevy::render::view::Hdr>().is_none());
+        assert!(world.get::<Camera>().is_some() && world.get::<bevy::camera::Hdr>().is_none());
         assert!(world.get::<Bloom>().is_none());
         assert!(ui_cam_hdr_still_false(&app, ui_cam));
 
@@ -3708,7 +3708,7 @@ mod tests {
             .set_graphics_preset(GraphicsPreset::High);
         app.update();
         let world = app.world().entity(world_cam);
-        assert!(world.get::<bevy::render::view::Hdr>().is_some());
+        assert!(world.get::<bevy::camera::Hdr>().is_some());
         assert_eq!(
             world.get::<Bloom>().unwrap().intensity,
             LIGHT_BLOOM_INTENSITY
@@ -3720,7 +3720,7 @@ mod tests {
         bare.add_systems(Update, sync_tier_bloom);
         let cam = bare.world_mut().spawn((Camera3d::default(), Msaa::Off)).id();
         bare.update();
-        assert!(bare.world().get::<bevy::render::view::Hdr>(cam).is_some());
+        assert!(bare.world().get::<bevy::camera::Hdr>(cam).is_some());
         assert_eq!(
             bare.world().get::<Bloom>(cam).unwrap().intensity,
             MEDIUM_BLOOM_INTENSITY
@@ -3759,14 +3759,14 @@ mod tests {
         };
 
         set(&mut app, GraphicsPreset::High);
-        assert!(app.world().get::<bevy::render::view::Hdr>(cam).is_some());
+        assert!(app.world().get::<bevy::camera::Hdr>(cam).is_some());
         assert_eq!(
             app.world().get::<Bloom>(cam).unwrap().intensity,
             LIGHT_BLOOM_INTENSITY
         );
 
         set(&mut app, GraphicsPreset::Medium);
-        assert!(app.world().get::<bevy::render::view::Hdr>(cam).is_some());
+        assert!(app.world().get::<bevy::camera::Hdr>(cam).is_some());
         assert_eq!(
             app.world().get::<Bloom>(cam).unwrap().intensity,
             MEDIUM_BLOOM_INTENSITY
@@ -3782,7 +3782,7 @@ mod tests {
             .is_added());
 
         set(&mut app, GraphicsPreset::Low);
-        assert!(!app.world().get::<bevy::render::view::Hdr>(cam).is_some());
+        assert!(!app.world().get::<bevy::camera::Hdr>(cam).is_some());
         assert!(app.world().get::<Bloom>(cam).is_none());
     }
 
@@ -3804,27 +3804,31 @@ mod tests {
                     .components()
                     .component_id::<Camera>()
                     .expect("Camera registered");
-                let graph = schedule.graph();
                 let bloom_id = world
                     .components()
                     .component_id::<Bloom>()
                     .expect("Bloom registered");
                 let hdr_id = world
                     .components()
-                    .component_id::<bevy::render::view::Hdr>()
+                    .component_id::<bevy::camera::Hdr>()
                     .expect("Hdr registered");
-                let key = system_key_matching(graph, sync_tier_bloom)
+                let key = system_key_matching(schedule.graph(), sync_tier_bloom)
                     .expect("ClimatePlanePlugin did not register sync_tier_bloom");
                 // Stop storing access in systems (#19496): the schedule
                 // holds the FilteredAccessSet from System::initialize.
                 // `With<Camera3d>` is a filter, not a component read.
                 // `Has<Hdr>` is archetypal. `Option<&Bloom>` is a read.
-                let access = graph
+                // Compiler-forced, no 0.18→0.19 guide entry: PR #23443 made
+                // `SystemWithAccess::access` pub(crate). `System::initialize`
+                // still returns that same FilteredAccessSet.
+                let access_set = schedule
+                    .graph_mut()
                     .systems
-                    .get(key)
+                    .get_mut(key)
                     .expect("sync_tier_bloom")
-                    .access
-                    .combined_access();
+                    .initialize(world);
+                let access = access_set.combined_access();
+                let graph = schedule.graph();
                 assert!(
                     access.has_component_read(bloom_id),
                     "Bloom read missing; access was not initialized"
@@ -3873,7 +3877,7 @@ mod tests {
         let light = SANCTUARY_SUN.directional_light();
         assert_eq!(light.color, SANCTUARY_SUN.color);
         assert_eq!(light.illuminance, SANCTUARY_SUN.illuminance);
-        assert_eq!(light.shadows_enabled, SANCTUARY_SUN.shadows_enabled);
+        assert_eq!(light.shadow_maps_enabled, SANCTUARY_SUN.shadows_enabled);
         let tf = SANCTUARY_SUN.transform();
         assert_eq!(tf.translation, SANCTUARY_SUN.position);
         let toward_origin = (Vec3::ZERO - SANCTUARY_SUN.position).normalize();
@@ -3890,7 +3894,7 @@ mod tests {
         let want = SANCTUARY_SUN.directional_light();
         assert_eq!(light.color, want.color);
         assert_eq!(light.illuminance, want.illuminance);
-        assert_eq!(light.shadows_enabled, want.shadows_enabled);
+        assert_eq!(light.shadow_maps_enabled, want.shadow_maps_enabled);
         assert_eq!(*tf, SANCTUARY_SUN.transform());
     }
 
@@ -4041,7 +4045,7 @@ mod tests {
         app.update();
         let world = app.world_mut();
         let mut q = world.query::<(&DirectionalLight, Option<&VolumetricLight>)>();
-        let lights: Vec<_> = q.iter(world).map(|(l, v)| (l.shadows_enabled, v.is_some())).collect();
+        let lights: Vec<_> = q.iter(world).map(|(l, v)| (l.shadow_maps_enabled, v.is_some())).collect();
         assert_eq!(lights, vec![(true, true)], "one shadowed sun with VolumetricLight");
 
         app.world_mut()
@@ -4069,7 +4073,7 @@ mod tests {
         app.update();
         let world = app.world();
         (
-            world.get::<bevy::render::view::Hdr>(cam).is_some(),
+            world.get::<bevy::camera::Hdr>(cam).is_some(),
             world.get::<Bloom>(cam).cloned(),
         )
     }
@@ -4190,7 +4194,7 @@ mod tests {
         app.world_mut().spawn((
             DirectionalLight {
                 illuminance: 12_000.0,
-                shadows_enabled: true,
+                shadow_maps_enabled: true,
                 ..default()
             },
             Transform::from_xyz(4.0, 8.0, 3.0).looking_at(Vec3::ZERO, Vec3::Y),
@@ -4235,7 +4239,7 @@ mod tests {
 fn ui_cam_hdr_still_false(app: &App, ui_cam: Entity) -> bool {
     let ui = app.world().entity(ui_cam);
     ui.get::<Camera>().is_some()
-        && ui.get::<bevy::render::view::Hdr>().is_none()
+        && ui.get::<bevy::camera::Hdr>().is_none()
         && ui.get::<Bloom>().is_none()
 }
 
@@ -4298,13 +4302,13 @@ fn drive_bloom_probe(
     world_cams: Query<
         (
             &Camera,
-            Has<bevy::render::view::Hdr>,
+            Has<bevy::camera::Hdr>,
             Option<&Bloom>,
             Option<&VolumetricFog>,
         ),
         With<Camera3d>,
     >,
-    ui_cams: Query<(&Camera, Has<bevy::render::view::Hdr>), With<crate::ui_above_world::LivedUiCamera>>,
+    ui_cams: Query<(&Camera, Has<bevy::camera::Hdr>), With<crate::ui_above_world::LivedUiCamera>>,
     ui_bloom_cams: Query<(), (With<crate::ui_above_world::LivedUiCamera>, With<Bloom>)>,
     lights: Query<(), With<VolumetricLight>>,
     msaa: Query<&bevy::render::view::Msaa>,
@@ -4319,9 +4323,9 @@ fn drive_bloom_probe(
             probe.requested = true;
             let tx = probe.tx.clone();
             commands
-                .spawn(bevy::render::view::screenshot::Screenshot::window(window))
+                .spawn(bevy::render::view::window::screenshot::Screenshot::window(window))
                 .observe(
-                    move |trigger: On<bevy::render::view::screenshot::ScreenshotCaptured>| {
+                    move |trigger: On<bevy::render::view::window::screenshot::ScreenshotCaptured>| {
                         let _ = tx.send(trigger.event().image.clone());
                     },
                 );
