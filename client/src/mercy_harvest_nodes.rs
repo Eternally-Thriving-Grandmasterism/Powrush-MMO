@@ -679,8 +679,10 @@ pub fn apply_node_tend(node: &mut MercyHarvestNode) {
 
 /// Bridge embodied Peace E into lived-hour satchel + climate persist (stranger loop).
 ///
-/// CARD HOLD-TEND-TIRES-1 — a held Use on an in-range harvest node calls the
-/// existing `LivedHourBind::care_tend` once per hold. That path does not take.
+/// CARD HOLD-TEND-TIRES-1 — a held Use on an in-range harvest node still calls
+/// `sync_lived_hour_use(..., "tend", ...)` so the lived sim bridge receives
+/// `"tend"`. `care_tend` runs only when that sync did not already raise
+/// climate and standing. One hold raises them once and does not take.
 /// A raised take count still uses the take sync. No new system. No new resource.
 fn sync_lived_hour_from_peace_use(
     nearby: Res<NearbyMercyNode>,
@@ -736,12 +738,16 @@ fn sync_lived_hour_from_peace_use(
         && !claimed
         && !*gesture_tended
         && hold_secs >= TEND_HOLD;
-    // A tend count is the hold that already landed on the node. Route it
-    // through care_tend as well, and never through the take sync.
+    // A tend count is the same hold landing on the session. One gesture, one sync.
     let tend_rose = t > *last_tends;
     if (hold_due || tend_rose) && !*gesture_tended {
         if let Some(bind) = bind.as_deref_mut() {
-            bind.care_tend();
+            hold_tend_once(
+                bind,
+                bridge.as_deref(),
+                now,
+                Some(pool.last_credit.max(0.0)),
+            );
             *gesture_tended = true;
         }
     }
@@ -752,6 +758,37 @@ fn sync_lived_hour_from_peace_use(
     if !held || edge {
         *gesture_tended = false;
     }
+}
+
+/// One hold: bridge `"tend"`, then `care_tend` only if that sync did not
+/// already raise climate and standing. A glowing `tend_nearest` fills the
+/// satchel; that is a take, so the ledger goes back before the one care tend.
+fn hold_tend_once(
+    bind: &mut LivedHourBind,
+    bridge: Option<&LivedSimBridge>,
+    now: f64,
+    valence: Option<f32>,
+) {
+    let before = bind.clone();
+    sync_lived_hour_use(Some(bind), bridge, now, "tend", valence);
+    if sync_already_raised_care_tend(&before, bind) {
+        return;
+    }
+    bind.hour = before.hour.clone();
+    bind.climate = before.climate.clone();
+    bind.standing = before.standing.clone();
+    bind.week = before.week.clone();
+    bind.last_line = before.last_line.clone();
+    bind.climate_slab = before.climate_slab.clone();
+    bind.care_tend();
+}
+
+/// Care tend raises harmony and steward and lowers stress, without a satchel take.
+fn sync_already_raised_care_tend(before: &LivedHourBind, after: &LivedHourBind) -> bool {
+    after.satchel_count() == before.satchel_count()
+        && after.climate.harmony > before.climate.harmony
+        && after.standing.steward > before.standing.steward
+        && after.climate.stress < before.climate.stress
 }
 
 fn try_soft_harvest_sting(
@@ -1261,17 +1298,31 @@ mod tests {
         assert_eq!(text.single(app.world()).unwrap().font_size, FontSize::Px(16.0 / 1.2));
     }
 
-    /// CARD HOLD-TEND-TIRES-1 — holding Use on a harvest node calls `care_tend`
-    /// and does not take. Under `TEND_HOLD` the ledger stays put.
+    /// CARD HOLD-TEND-TIRES-1 — a hold notifies the lived sim bridge with
+    /// `"tend"`, raises climate and standing once, and does not take.
     #[test]
     fn hold_interact_on_harvest_node_tends_and_does_not_take() {
         use crate::first_harvest_epiphany::TEND_HOLD;
         use crate::input::PlayerInput;
+        use crate::lived_sim_bridge::LivedSimBridge;
         use shared::climate_node::{LivedHour, NodeState};
         use shared::persona::STEWARD_ONLINE_YES;
         use shared::shard_climate::ShardClimate;
         use shared::shard_standing::ShardStanding;
         use shared::week_audit::WeekAudit;
+
+        const SESSION: u64 = 732_4242;
+        let _lock = crate::test_env::lock();
+        let dir = std::env::temp_dir().join(format!(
+            "powrush-hold-tend-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("temp user dir");
+        let _user_dir = HoldUserDir::set(&dir);
 
         let mut app = App::new();
         app.add_plugins(bevy::MinimalPlugins)
@@ -1282,6 +1333,7 @@ mod tests {
             .init_resource::<FirstHarvestEpiphany>()
             .init_resource::<SoftRbePool>()
             .init_resource::<PlayerInput>()
+            .init_resource::<LivedSimBridge>()
             .insert_resource(LivedHourBind {
                 hour: LivedHour::new_demo(),
                 climate: ShardClimate::default(),
@@ -1296,6 +1348,7 @@ mod tests {
                 Update,
                 (track_nearby_node, sync_lived_hour_from_peace_use).chain(),
             );
+        hold_schedules_on_test_thread(&mut app);
         app.world_mut().spawn((
             Transform::from_translation(Vec3::ZERO),
             MercyHarvestNode {
@@ -1309,6 +1362,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<Time<bevy::time::Virtual>>()
             .set_max_delta(std::time::Duration::from_secs(2));
+        app.world_mut().resource_mut::<LivedSimBridge>().session_id = SESSION;
         {
             let mut input = app.world_mut().resource_mut::<PlayerInput>();
             input.interact = false;
@@ -1325,6 +1379,7 @@ mod tests {
         set_hold_step(&mut app, short);
         app.update();
         assert_hold_did_not_take_or_tend(&app);
+        assert_eq!(tend_updates_for(SESSION), 0, "short hold must not sync tend");
 
         set_hold_step(&mut app, rest);
         app.update();
@@ -1339,14 +1394,63 @@ mod tests {
             bind.standing.consumption < 0.12,
             "take would raise consumption"
         );
-        assert_eq!(bind.climate.updated_at, 1, "one care_tend");
-        assert_eq!(bind.standing.updated_at, 1, "one care_tend");
+        assert_eq!(bind.climate.updated_at, 1, "tend raises climate once");
+        assert_eq!(bind.standing.updated_at, 1, "tend raises standing once");
+        assert_eq!(
+            tend_updates_for(SESSION),
+            1,
+            "bridge receives one tend update"
+        );
 
         let mut nodes = app.world_mut().query::<&MercyHarvestNode>();
         let node = nodes.single(app.world()).unwrap();
         assert_eq!(node.harvests, 0, "hold must not harvest the node");
         assert_eq!(node.vitality, 1.0);
         assert!(!STEWARD_ONLINE_YES);
+    }
+
+    struct HoldUserDir {
+        prev: Option<String>,
+    }
+
+    impl HoldUserDir {
+        fn set(dir: &std::path::Path) -> Self {
+            let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, dir);
+            Self { prev }
+        }
+    }
+
+    impl Drop for HoldUserDir {
+        fn drop(&mut self) {
+            match &self.prev {
+                Some(value) => {
+                    std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value)
+                }
+                None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
+            }
+        }
+    }
+
+    fn tend_updates_for(session: u64) -> usize {
+        let path = shared::user_persist::persist_path("data/powrush_lived_events.jsonl");
+        let Ok(text) = std::fs::read_to_string(&path) else {
+            return 0;
+        };
+        let needle = format!("\"session_id\":{session}");
+        text.lines()
+            .filter(|line| line.contains(&needle) && line.contains("\"action\":\"tend\""))
+            .count()
+    }
+
+    /// Persist locks `POWRUSH_USER_DIR` on the calling thread. The test already
+    /// holds that lock, so Update must not hop to a worker.
+    fn hold_schedules_on_test_thread(app: &mut App) {
+        use bevy::ecs::schedule::{Schedule, SingleThreadedExecutor};
+        fn use_single_thread(schedule: &mut Schedule) {
+            schedule.set_executor(SingleThreadedExecutor::new());
+        }
+        app.edit_schedule(Update, use_single_thread);
     }
 
     fn set_hold_step(app: &mut App, secs: f64) {
