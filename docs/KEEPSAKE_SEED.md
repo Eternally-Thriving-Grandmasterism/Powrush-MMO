@@ -1,0 +1,16 @@
+# KEEPSAKE_SEED.md — mark one generation, keep the seed
+
+**Contact:** info@Rathor.ai
+**CARD:** KEEPSAKE-SEED-1. Docs only. No client. No mesh. Title Online stays grey.
+
+Cite the Stardew Valley soundtrack habit: a player returns to a piece they love. Powrush can offer the same for a generated thing, but only if the player marks it.
+
+## Take
+
+A generation is a seed plus a short result. Music bed, rare room, short labyrinth. The game may produce one. The player may mark it as a highlight. The mark writes the seed and a short label to a local keep. The player can replay that exact generation later, offline. No network is required for the mark or the replay.
+
+Sharing is a later hour. When online is lit, a player may offer the seed string to another player. The other player regenerates it. Do not upload the generated audio or the mesh. The seed is the object.
+
+## Hold
+
+A community gallery now. A cloud save of generated assets. Generative models that leave the machine. A sixth people. Online stays grey. The yard and the five doors stay the first hour.
