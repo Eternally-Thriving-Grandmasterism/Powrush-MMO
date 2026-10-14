@@ -70,6 +70,11 @@ pub struct WellYard {
     pub hold_until: f64,
     /// Soft slab breath after contest win (P2). Not a second HUD.
     pub well_glow: f32,
+    /// CARD WELL-E-AFTER-TAKE-1 — last frame's first harvest.
+    /// `mark_well_near` copies `FirstHarvestEpiphany::first_harvest_lived`
+    /// in PreUpdate. Update reads this latch, so the take that sets the
+    /// epiphany flag in Update cannot contest on that same frame.
+    pub first_harvest_lived: bool,
 }
 
 impl Default for WellYard {
@@ -78,6 +83,7 @@ impl Default for WellYard {
             well: SkirmishWell::default(),
             hold_until: 0.0,
             well_glow: 0.0,
+            first_harvest_lived: false,
         }
     }
 }
@@ -142,14 +148,18 @@ pub(crate) fn near_first_well(presence: &SoftPresence) -> bool {
 
 pub(crate) fn mark_well_near(
     presence: Res<SoftPresence>,
-    yard: Res<WellYard>,
+    mut yard: ResMut<WellYard>,
     voice: Res<VoiceYard>,
     ledger: Res<LedgerYard>,
     mut epi: ResMut<FirstHarvestEpiphany>,
 ) {
+    // PreUpdate. The harvest take writes `epi.first_harvest_lived` in Update,
+    // so this latch (and `well_near`) stay on the previous frame's value.
+    yard.first_harvest_lived = epi.first_harvest_lived;
     let in_reach = near_first_well(&presence);
     epi.well_in_reach = in_reach;
-    epi.well_near = in_reach
+    epi.well_near = yard.first_harvest_lived
+        && in_reach
         && yard.well.wants_interact()
         && !voice.sash_open
         && !ledger.sash_open
@@ -197,6 +207,11 @@ pub(crate) fn handle_well(
     }
     yard.well.reveal();
     if !keyboard.just_pressed(soft_play_bindings::INTERACT) {
+        return;
+    }
+    // Same latch `mark_well_near` copied in PreUpdate. Until the first
+    // harvest has been lived on a previous frame, E does not contest.
+    if !yard.first_harvest_lived {
         return;
     }
     let step = yard.well.act();

@@ -1099,6 +1099,9 @@ mod tests {
             .resource_mut::<FirstHarvestEpiphany>()
             .wards_near = true;
         app.world_mut()
+            .resource_mut::<FirstHarvestEpiphany>()
+            .first_harvest_lived = true;
+        app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(soft_play_bindings::INTERACT);
         app.update();
@@ -1128,6 +1131,172 @@ mod tests {
         let mut wards = WardSession::default();
         assert!(!claim_ward_use(true, well_in_reach, true, &mut wards));
         assert_eq!(wards.dress.tends, 0);
+    }
+
+    fn well_e_press(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(soft_play_bindings::INTERACT);
+        let mut input = app.world_mut().resource_mut::<PlayerInput>();
+        input.interact = true;
+        input.interact_held = true;
+    }
+
+    fn well_e_release(app: &mut App) {
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.release(soft_play_bindings::INTERACT);
+        keys.clear();
+        let mut input = app.world_mut().resource_mut::<PlayerInput>();
+        input.interact = false;
+        input.interact_held = false;
+    }
+
+    /// CARD WELL-E-AFTER-TAKE-1 — Sanctuary ember is also the first well.
+    /// From a fresh epiphany the first in-range E takes and does not contest.
+    /// The next E, after the PreUpdate latch, contests and does not take.
+    #[test]
+    fn well_e_after_take_first_e_takes_next_e_contests() {
+        use bevy::input::gamepad::GamepadRumbleRequest;
+        use shared::ledger_bind::LedgerBoard;
+        use shared::skirmish_well::{WellHold, WELL_ANCHORS};
+
+        use crate::coop_voice::VoiceYard;
+        use crate::human_presence::SoftPresence;
+        use crate::ledger_bind::LedgerYard;
+        use crate::mercy_harvest_nodes::MercyHarvestNode;
+        use crate::skirmish_well::{handle_well, mark_well_near, WellYard};
+        use crate::thriving_moments::{ThrivingKind, ThrivingMoments};
+
+        let (x, y, z) = WELL_ANCHORS[0];
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .insert_resource(SoftPresence {
+                position: Vec3::new(x, y, z),
+                ..Default::default()
+            })
+            .init_resource::<WellYard>()
+            .init_resource::<VoiceYard>()
+            .insert_resource(LedgerYard {
+                board: LedgerBoard::default(),
+                sash_open: false,
+            })
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<FirstSessionGuidance>()
+            .init_resource::<ThrivingMoments>()
+            .init_resource::<AbundanceJourneyEcho>()
+            .init_resource::<NearbyMercyNode>()
+            .init_resource::<SoftRbePool>()
+            .init_resource::<WorldAnswer>()
+            .init_resource::<PlayerInput>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .add_message::<GamepadRumbleRequest>()
+            .add_systems(PreUpdate, mark_well_near)
+            .add_systems(Update, (handle_interact_harvest, handle_well).chain());
+
+        let node = app
+            .world_mut()
+            .spawn(MercyHarvestNode {
+                name: "Sanctuary ember",
+                climate_id: 1,
+                vitality: 1.0,
+                harvests: 0,
+                pulse: 0.0,
+            })
+            .id();
+        {
+            let mut nearby = app.world_mut().resource_mut::<NearbyMercyNode>();
+            nearby.entity = Some(node);
+            nearby.name = Some("Sanctuary ember");
+            nearby.distance = 0.0;
+            nearby.in_range = true;
+            nearby.nodes_exist = true;
+        }
+
+        assert!(
+            !app.world()
+                .resource::<FirstHarvestEpiphany>()
+                .first_harvest_lived
+        );
+        assert!(!app.world().resource::<WellYard>().first_harvest_lived);
+
+        well_e_press(&mut app);
+        app.update();
+
+        {
+            let epi = app.world().resource::<FirstHarvestEpiphany>();
+            assert!(epi.first_harvest_lived, "first E takes");
+            assert_eq!(epi.harvests_this_session, 1);
+            assert!(!epi.well_near, "take frame does not yield the well");
+            assert!(epi.pulse_line.contains("Sanctuary ember"));
+            assert!(epi.pulse_line.contains("still glows"));
+        }
+        {
+            let yard = app.world().resource::<WellYard>();
+            assert!(
+                !yard.first_harvest_lived,
+                "latch waits for the next PreUpdate"
+            );
+            assert_eq!(yard.well.wins, 0, "first E does not contest");
+            assert_eq!(yard.well.hold, WellHold::Traveler);
+        }
+        assert_eq!(
+            app.world().get::<MercyHarvestNode>(node).unwrap().harvests,
+            1
+        );
+        assert!(app
+            .world()
+            .resource::<ThrivingMoments>()
+            .fired
+            .contains(&ThrivingKind::FirstMercyHarvest));
+        assert!(!app
+            .world()
+            .resource::<ThrivingMoments>()
+            .fired
+            .contains(&ThrivingKind::FirstWell));
+        assert_eq!(app.world().resource::<WorldAnswer>().kind, AnswerKind::Take);
+
+        well_e_release(&mut app);
+        app.update();
+
+        {
+            let yard = app.world().resource::<WellYard>();
+            assert!(
+                yard.first_harvest_lived,
+                "quiet frame latches the lived take"
+            );
+            assert_eq!(yard.well.wins, 0, "no E, no contest");
+            assert_eq!(yard.well.hold, WellHold::Traveler);
+        }
+        {
+            let epi = app.world().resource::<FirstHarvestEpiphany>();
+            assert!(epi.well_near);
+            assert_eq!(epi.harvests_this_session, 1);
+        }
+
+        well_e_press(&mut app);
+        app.update();
+
+        {
+            let epi = app.world().resource::<FirstHarvestEpiphany>();
+            assert_eq!(epi.harvests_this_session, 1, "second E does not take");
+            assert!(epi.well_near);
+        }
+        {
+            let yard = app.world().resource::<WellYard>();
+            assert!(yard.first_harvest_lived);
+            assert_eq!(yard.well.wins, 1, "next E contests");
+            assert_eq!(yard.well.hold, WellHold::Human);
+            assert!(yard.well.last_line.contains("The well is yours"));
+        }
+        assert_eq!(
+            app.world().get::<MercyHarvestNode>(node).unwrap().harvests,
+            1
+        );
+        assert!(app
+            .world()
+            .resource::<ThrivingMoments>()
+            .fired
+            .contains(&ThrivingKind::FirstWell));
     }
 
     #[test]
