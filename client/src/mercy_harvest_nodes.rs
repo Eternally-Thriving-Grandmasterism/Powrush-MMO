@@ -34,7 +34,7 @@ use shared::temper::{seat_ward, TemperError, TemperedItem, WardKind};
 
 use crate::fabricator::FabricatorYard;
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
-use crate::first_harvest_epiphany::{FirstHarvestEpiphany, TEND_HOLD};
+use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::harvest_feel::SoftRbePool;
 use crate::human_presence::SoftPresence;
 use crate::lived_hour_bind::LivedHourBind;
@@ -679,10 +679,10 @@ pub fn apply_node_tend(node: &mut MercyHarvestNode) {
 
 /// Bridge embodied Peace E into lived-hour satchel + climate persist (stranger loop).
 ///
-/// CARD HOLD-TEND-TIRES-1 — a held Use on an in-range harvest node still calls
-/// `sync_lived_hour_use(..., "tend", ...)` so the lived sim bridge receives
-/// `"tend"`. `care_tend` runs only when that sync did not already raise
-/// climate and standing. One hold raises them once and does not take.
+/// CARD HOLD-TEND-TIRES-1 — a hold still reaches this system as a risen tend
+/// count, the same signal as base `cac49a51`. That calls
+/// `sync_lived_hour_use(..., "tend", ...)` and leaves the bridge result in
+/// place. `care_tend` runs only when that sync did not already apply a tend.
 /// A raised take count still uses the take sync. No new system. No new resource.
 fn sync_lived_hour_from_peace_use(
     nearby: Res<NearbyMercyNode>,
@@ -691,38 +691,20 @@ fn sync_lived_hour_from_peace_use(
     time: Res<Time>,
     mut bind: Option<ResMut<LivedHourBind>>,
     bridge: Option<Res<LivedSimBridge>>,
-    player_input: Option<Res<crate::input::PlayerInput>>,
     mut last_harvests: Local<u32>,
     mut last_tends: Local<u32>,
-    mut hold_started: Local<Option<f64>>,
-    mut gesture_tended: Local<bool>,
 ) {
-    let held = player_input
-        .as_ref()
-        .is_some_and(|input| input.interact_held);
-    let edge = player_input.as_ref().is_some_and(|input| input.interact);
-    let now = time.elapsed_secs_f64();
-    let on_node = nearby.in_range && nearby.entity.is_some();
-    let claimed = harvest.harvest_use_is_claimed();
-    if !held || !on_node || edge || claimed {
-        *hold_started = None;
-    } else if hold_started.is_none() {
-        *hold_started = Some(now);
-    }
-    let hold_secs = hold_started.map(|start| now - start).unwrap_or(0.0);
-
     let h = harvest.harvests_this_session;
     let t = harvest.tends_this_session;
-    if !nearby.in_range {
-        if h > *last_harvests || t > *last_tends {
-            *last_harvests = h;
-            *last_tends = t;
-        }
-        if !held || edge {
-            *gesture_tended = false;
-        }
+    if h <= *last_harvests && t <= *last_tends {
         return;
     }
+    if !nearby.in_range {
+        *last_harvests = h;
+        *last_tends = t;
+        return;
+    }
+    let now = time.elapsed_secs_f64();
     if h > *last_harvests {
         sync_lived_hour_use(
             bind.as_deref_mut(),
@@ -732,15 +714,7 @@ fn sync_lived_hour_from_peace_use(
             Some(pool.last_credit.max(0.0)),
         );
     }
-    let hold_due = held
-        && !edge
-        && on_node
-        && !claimed
-        && !*gesture_tended
-        && hold_secs >= TEND_HOLD;
-    // A tend count is the same hold landing on the session. One gesture, one sync.
-    let tend_rose = t > *last_tends;
-    if (hold_due || tend_rose) && !*gesture_tended {
+    if t > *last_tends {
         if let Some(bind) = bind.as_deref_mut() {
             hold_tend_once(
                 bind,
@@ -748,47 +722,30 @@ fn sync_lived_hour_from_peace_use(
                 now,
                 Some(pool.last_credit.max(0.0)),
             );
-            *gesture_tended = true;
         }
     }
-    if h > *last_harvests || t > *last_tends {
-        *last_harvests = h;
-        *last_tends = t;
-    }
-    if !held || edge {
-        *gesture_tended = false;
-    }
+    *last_harvests = h;
+    *last_tends = t;
 }
 
-/// One hold: bridge `"tend"`, then `care_tend` only if that sync did not
-/// already raise climate and standing. A glowing `tend_nearest` fills the
-/// satchel; that is a take, so the ledger goes back before the one care tend.
+/// Bridge `"tend"` first. `care_tend` only when that sync did not already
+/// apply a tend. The sync's hour, climate, standing, week, and slab stay.
 fn hold_tend_once(
     bind: &mut LivedHourBind,
     bridge: Option<&LivedSimBridge>,
     now: f64,
     valence: Option<f32>,
 ) {
-    let before = bind.clone();
+    let satchel = bind.satchel_count();
+    let climate_at = bind.climate.updated_at;
+    let standing_at = bind.standing.updated_at;
     sync_lived_hour_use(Some(bind), bridge, now, "tend", valence);
-    if sync_already_raised_care_tend(&before, bind) {
-        return;
+    let sync_applied_tend = bind.satchel_count() != satchel
+        || bind.climate.updated_at != climate_at
+        || bind.standing.updated_at != standing_at;
+    if !sync_applied_tend {
+        bind.care_tend();
     }
-    bind.hour = before.hour.clone();
-    bind.climate = before.climate.clone();
-    bind.standing = before.standing.clone();
-    bind.week = before.week.clone();
-    bind.last_line = before.last_line.clone();
-    bind.climate_slab = before.climate_slab.clone();
-    bind.care_tend();
-}
-
-/// Care tend raises harmony and steward and lowers stress, without a satchel take.
-fn sync_already_raised_care_tend(before: &LivedHourBind, after: &LivedHourBind) -> bool {
-    after.satchel_count() == before.satchel_count()
-        && after.climate.harmony > before.climate.harmony
-        && after.standing.steward > before.standing.steward
-        && after.climate.stress < before.climate.stress
 }
 
 fn try_soft_harvest_sting(
@@ -1298,23 +1255,79 @@ mod tests {
         assert_eq!(text.single(app.world()).unwrap().font_size, FontSize::Px(16.0 / 1.2));
     }
 
-    /// CARD HOLD-TEND-TIRES-1 — a hold notifies the lived sim bridge with
-    /// `"tend"`, raises climate and standing once, and does not take.
+    /// CARD HOLD-TEND-TIRES-1 — a hold on a glowing node keeps the base
+    /// `cac49a51` satchel and ledger (`sync_lived_hour_use(..., "tend", ...)`),
+    /// and that tend is counted once.
     #[test]
-    fn hold_interact_on_harvest_node_tends_and_does_not_take() {
-        use crate::first_harvest_epiphany::TEND_HOLD;
-        use crate::input::PlayerInput;
-        use crate::lived_sim_bridge::LivedSimBridge;
-        use shared::climate_node::{LivedHour, NodeState};
+    fn hold_on_glowing_node_matches_pre_pr_ledger_once() {
+        use shared::climate_node::NodeState;
         use shared::persona::STEWARD_ONLINE_YES;
-        use shared::shard_climate::ShardClimate;
-        use shared::shard_standing::ShardStanding;
-        use shared::week_audit::WeekAudit;
 
-        const SESSION: u64 = 732_4242;
-        let _lock = crate::test_env::lock();
+        const SESSION: u64 = 732_0001;
+        let _env = hold_user_dir("glow");
+        let mut pre = hold_bind(Some(1));
+        // Base cac49a51 tend branch: sync only, no care_tend and no rollback.
+        sync_lived_hour_use(Some(&mut pre), None, 1.0, "tend", Some(0.0));
+
+        let mut app = run_hold(hold_bind(Some(1)), SESSION);
+        let bind = app.world().resource::<LivedHourBind>();
+        assert_eq!(bind.satchel_count(), pre.satchel_count(), "satchel matches cac49a51");
+        assert_eq!(bind.satchel_count(), 1);
+        assert_eq!(bind.hour.nodes[0].state, pre.hour.nodes[0].state);
+        assert_eq!(bind.hour.nodes[0].state, NodeState::Tended);
+        assert_eq!(bind.hour.nodes[0].fatigue, pre.hour.nodes[0].fatigue);
+        assert_eq!(bind.climate.stress, pre.climate.stress);
+        assert_eq!(bind.climate.harmony, pre.climate.harmony);
+        assert_eq!(bind.climate.regen, pre.climate.regen);
+        assert_eq!(bind.climate.updated_at, pre.climate.updated_at);
+        assert_eq!(bind.standing.peace, pre.standing.peace);
+        assert_eq!(bind.standing.harmony, pre.standing.harmony);
+        assert_eq!(bind.standing.consumption, pre.standing.consumption);
+        assert_eq!(bind.standing.steward, pre.standing.steward);
+        assert_eq!(bind.standing.updated_at, pre.standing.updated_at);
+        assert_eq!(bind.last_line, pre.last_line);
+        assert_eq!(bind.climate.updated_at, 1, "climate moved once");
+        assert_eq!(bind.standing.updated_at, 1, "standing moved once");
+        assert_eq!(tend_updates_for(SESSION), 1, "bridge receives one tend");
+        assert_eq!(mercy_harvest_count(&mut app), 0);
+        assert!(!STEWARD_ONLINE_YES);
+    }
+
+    /// CARD HOLD-TEND-TIRES-1 — when the tend sync does not apply a tend, the
+    /// hold calls `care_tend` and does not take.
+    #[test]
+    fn hold_when_sync_does_not_apply_tends_via_care_and_does_not_take() {
+        use shared::climate_node::NodeState;
+        use shared::persona::STEWARD_ONLINE_YES;
+
+        const SESSION: u64 = 732_0003;
+        let _env = hold_user_dir("idle");
+        // Demo node 3 is Idle, so `tend_nearest` does not apply a tend.
+        let mut app = run_hold(hold_bind(Some(3)), SESSION);
+        let bind = app.world().resource::<LivedHourBind>();
+        assert_eq!(bind.satchel_count(), 0, "hold must not take");
+        assert_eq!(bind.hour.nodes[0].state, NodeState::Glowing);
+        assert_eq!(bind.hour.nodes[2].state, NodeState::Idle);
+        assert!(bind.climate.stress < 0.15, "care_tend lowers stress");
+        assert!(bind.climate.harmony > 0.55, "care_tend raises harmony");
+        assert!(bind.standing.steward > 0.40, "care_tend raises steward");
+        assert!(bind.standing.consumption < 0.12);
+        assert_eq!(bind.climate.updated_at, 1, "care_tend raises climate once");
+        assert_eq!(bind.standing.updated_at, 1, "care_tend raises standing once");
+        assert_eq!(tend_updates_for(SESSION), 1, "bridge still receives one tend");
+        assert_eq!(mercy_harvest_count(&mut app), 0, "harvest count stays 0");
+        assert!(!STEWARD_ONLINE_YES);
+    }
+
+    struct HoldUserDir {
+        prev: Option<String>,
+        _lock: crate::test_env::UserDirEnvGuard,
+    }
+
+    fn hold_user_dir(tag: &str) -> HoldUserDir {
+        let lock = crate::test_env::lock();
         let dir = std::env::temp_dir().join(format!(
-            "powrush-hold-tend-{}-{}",
+            "powrush-hold-tend-{tag}-{}-{}",
             std::process::id(),
             std::time::SystemTime::now()
                 .duration_since(std::time::UNIX_EPOCH)
@@ -1322,7 +1335,42 @@ mod tests {
                 .unwrap_or(0)
         ));
         std::fs::create_dir_all(&dir).expect("temp user dir");
-        let _user_dir = HoldUserDir::set(&dir);
+        let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+        HoldUserDir { prev, _lock: lock }
+    }
+
+    impl Drop for HoldUserDir {
+        fn drop(&mut self) {
+            match &self.prev {
+                Some(value) => {
+                    std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value)
+                }
+                None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
+            }
+        }
+    }
+
+    fn hold_bind(focus_id: Option<u32>) -> LivedHourBind {
+        use shared::climate_node::LivedHour;
+        use shared::shard_climate::ShardClimate;
+        use shared::shard_standing::ShardStanding;
+        use shared::week_audit::WeekAudit;
+
+        LivedHourBind {
+            hour: LivedHour::new_demo(),
+            climate: ShardClimate::default(),
+            standing: ShardStanding::default(),
+            week: WeekAudit::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id,
+            climate_slab: None,
+        }
+    }
+
+    fn run_hold(bind: LivedHourBind, session: u64) -> App {
+        use crate::lived_sim_bridge::LivedSimBridge;
 
         let mut app = App::new();
         app.add_plugins(bevy::MinimalPlugins)
@@ -1332,18 +1380,8 @@ mod tests {
             .init_resource::<NearbyMercyNode>()
             .init_resource::<FirstHarvestEpiphany>()
             .init_resource::<SoftRbePool>()
-            .init_resource::<PlayerInput>()
             .init_resource::<LivedSimBridge>()
-            .insert_resource(LivedHourBind {
-                hour: LivedHour::new_demo(),
-                climate: ShardClimate::default(),
-                standing: ShardStanding::default(),
-                week: WeekAudit::default(),
-                last_line: String::new(),
-                guidance_hidden: false,
-                focus_id: Some(1),
-                climate_slab: None,
-            })
+            .insert_resource(bind)
             .add_systems(
                 Update,
                 (track_nearby_node, sync_lived_hour_from_peace_use).chain(),
@@ -1359,77 +1397,18 @@ mod tests {
                 pulse: 0.0,
             },
         ));
+        app.world_mut().resource_mut::<LivedSimBridge>().session_id = session;
+        app.update();
         app.world_mut()
-            .resource_mut::<Time<bevy::time::Virtual>>()
-            .set_max_delta(std::time::Duration::from_secs(2));
-        app.world_mut().resource_mut::<LivedSimBridge>().session_id = SESSION;
-        {
-            let mut input = app.world_mut().resource_mut::<PlayerInput>();
-            input.interact = false;
-            input.interact_held = true;
-        }
-
-        let short = 0.2;
-        let rest = 0.3;
-        assert!(short < TEND_HOLD, "a short hold is not a tend");
-        assert!(short + rest >= TEND_HOLD, "the full hold reaches tend");
-
-        set_hold_step(&mut app, 0.0);
+            .resource_mut::<FirstHarvestEpiphany>()
+            .tends_this_session = 1;
         app.update();
-        set_hold_step(&mut app, short);
-        app.update();
-        assert_hold_did_not_take_or_tend(&app);
-        assert_eq!(tend_updates_for(SESSION), 0, "short hold must not sync tend");
+        app
+    }
 
-        set_hold_step(&mut app, rest);
-        app.update();
-
-        let bind = app.world().resource::<LivedHourBind>();
-        assert_eq!(bind.satchel_count(), 0, "hold must not take");
-        assert_eq!(bind.hour.nodes[0].state, NodeState::Glowing);
-        assert!(bind.climate.stress < 0.15, "care_tend lowers stress");
-        assert!(bind.climate.harmony > 0.55, "care_tend raises harmony");
-        assert!(bind.standing.steward > 0.40, "care_tend raises steward");
-        assert!(
-            bind.standing.consumption < 0.12,
-            "take would raise consumption"
-        );
-        assert_eq!(bind.climate.updated_at, 1, "tend raises climate once");
-        assert_eq!(bind.standing.updated_at, 1, "tend raises standing once");
-        assert_eq!(
-            tend_updates_for(SESSION),
-            1,
-            "bridge receives one tend update"
-        );
-
+    fn mercy_harvest_count(app: &mut App) -> u32 {
         let mut nodes = app.world_mut().query::<&MercyHarvestNode>();
-        let node = nodes.single(app.world()).unwrap();
-        assert_eq!(node.harvests, 0, "hold must not harvest the node");
-        assert_eq!(node.vitality, 1.0);
-        assert!(!STEWARD_ONLINE_YES);
-    }
-
-    struct HoldUserDir {
-        prev: Option<String>,
-    }
-
-    impl HoldUserDir {
-        fn set(dir: &std::path::Path) -> Self {
-            let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
-            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, dir);
-            Self { prev }
-        }
-    }
-
-    impl Drop for HoldUserDir {
-        fn drop(&mut self) {
-            match &self.prev {
-                Some(value) => {
-                    std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value)
-                }
-                None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
-            }
-        }
+        nodes.single(app.world()).unwrap().harvests
     }
 
     fn tend_updates_for(session: u64) -> usize {
@@ -1451,26 +1430,5 @@ mod tests {
             schedule.set_executor(SingleThreadedExecutor::new());
         }
         app.edit_schedule(Update, use_single_thread);
-    }
-
-    fn set_hold_step(app: &mut App, secs: f64) {
-        *app.world_mut()
-            .resource_mut::<bevy::time::TimeUpdateStrategy>() =
-            bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(
-                secs,
-            ));
-    }
-
-    fn assert_hold_did_not_take_or_tend(app: &App) {
-        use shared::climate_node::NodeState;
-
-        let bind = app.world().resource::<LivedHourBind>();
-        assert_eq!(bind.satchel_count(), 0);
-        assert_eq!(bind.hour.nodes[0].state, NodeState::Glowing);
-        assert_eq!(bind.climate.stress, 0.15);
-        assert_eq!(bind.climate.harmony, 0.55);
-        assert_eq!(bind.standing.steward, 0.40);
-        assert_eq!(bind.standing.consumption, 0.12);
-        assert_eq!(bind.climate.updated_at, 0);
     }
 }
