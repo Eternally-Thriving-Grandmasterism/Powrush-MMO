@@ -774,7 +774,8 @@ fn apply_locomotion(
         speed *= 1.28;
     }
     // CARD STILL-BEFORE-YARD-1 — wish and jump only in the open yard.
-    // A missing door or house keeps today's move. Gravity still runs below.
+    // A closed gate zeros horizontal velocity so a walk stops. Gravity still runs below.
+    // A missing door or house keeps today's move.
     let yard_step = match (door.as_deref(), house.as_deref()) {
         (Some(door), Some(label)) => *door == LaunchDoor::InYard && !label.settings_open,
         _ => true,
@@ -796,6 +797,9 @@ fn apply_locomotion(
         );
         presence.velocity.x = horiz.x;
         presence.velocity.z = horiz.y;
+    } else {
+        presence.velocity.x = 0.0;
+        presence.velocity.z = 0.0;
     }
     presence.velocity.y -= GRAVITY * dt;
     if yard_step && presence.grounded && latch.pending {
@@ -1631,9 +1635,8 @@ mod tests {
         assert!(mesh_lod::race_lobby_closed());
     }
 
-    /// CARD STILL-BEFORE-YARD-1 — held W across a fixed window.
-    /// The first `update` only stamps the clock; the second runs the steps.
-    fn yard_w_app(door: Option<LaunchDoor>, settings_open: Option<bool>) -> App {
+    /// CARD STILL-BEFORE-YARD-1 — held W. Caller steps the fixed clock.
+    fn yard_w_world(door: Option<LaunchDoor>, settings_open: Option<bool>) -> App {
         use bevy::time::TimeUpdateStrategy;
 
         let mut app = App::new();
@@ -1662,6 +1665,12 @@ mod tests {
                 seals_offered: false,
             });
         }
+        app
+    }
+
+    /// The first `update` only stamps the clock; the second runs the steps.
+    fn yard_w_app(door: Option<LaunchDoor>, settings_open: Option<bool>) -> App {
+        let mut app = yard_w_world(door, settings_open);
         app.update();
         app.update();
         assert!(
@@ -1735,5 +1744,24 @@ mod tests {
             presence.position.z
         );
         assert!(presence.velocity.z < 0.0);
+    }
+
+    /// Walk W in the yard, then Esc. Horizontal position holds on the paused frames.
+    #[test]
+    fn still_before_yard_esc_holds_walk_xz() {
+        let mut app = yard_w_world(Some(LaunchDoor::InYard), Some(false));
+        app.update();
+        app.update();
+        app.update();
+        let walked = app.world().resource::<SoftPresence>();
+        let (x, z) = (walked.position.x, walked.position.z);
+        assert!(z < 0.0, "W should have left spawn, z={z}");
+        app.world_mut().resource_mut::<HouseLabel>().settings_open = true;
+        for _ in 0..3 {
+            app.update();
+            let presence = app.world().resource::<SoftPresence>();
+            assert_eq!(presence.position.x, x);
+            assert_eq!(presence.position.z, z);
+        }
     }
 }
