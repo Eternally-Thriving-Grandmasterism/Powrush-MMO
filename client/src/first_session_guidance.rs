@@ -935,7 +935,16 @@ pub(crate) fn update_guidance_visibility(
         time.elapsed_secs_f64(),
         hidden_by_bind,
     );
-    let show = in_yard && guidance.active && !guidance.dismissed && !hidden_by_bind
+    // CARD GUIDE-HIDES-AT-GLOW-1 — hide while the mercy node is in range.
+    // Leaving range shows the strip again unless an existing hide reason
+    // (outside yard, dismissed, guidance_hidden, r2_yields_to) still applies.
+    // Does not write `dismissed` or `guidance_hidden`. Persists nothing.
+    let hidden_at_glow = nearby.as_ref().is_some_and(|node| node.in_range);
+    let show = in_yard
+        && guidance.active
+        && !guidance.dismissed
+        && !hidden_by_bind
+        && !hidden_at_glow
         && !r2_yields_to(
             &ACTION_BAR,
             ID_GUIDANCE,
@@ -3288,5 +3297,82 @@ mod tests {
         assert!(app.world().resource::<LivedHourBind>().guidance_hidden);
         assert!(!dir.join("powrush_lived_tick.json").exists());
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn glow_guidance_app(in_range: bool) -> App {
+        use bevy::MinimalPlugins;
+
+        let mut nearby = NearbyMercyNode::default();
+        nearby.in_range = in_range;
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<FirstSessionGuidance>()
+            .insert_resource(LaunchDoor::InYard)
+            .insert_resource(nearby)
+            .insert_resource(l5_demo_bind())
+            .add_systems(Startup, spawn_guidance_strip)
+            .add_systems(Update, update_guidance_visibility);
+        app
+    }
+
+    fn guidance_strip_visibility(app: &mut App) -> Visibility {
+        let mut query = app
+            .world_mut()
+            .query_filtered::<&Visibility, With<FirstSessionGuidanceStrip>>();
+        *query.single(app.world()).expect("guidance strip")
+    }
+
+    /// CARD GUIDE-HIDES-AT-GLOW-1 — the strip hides while the mercy node is in range.
+    /// `dismissed` and `guidance_hidden` stay clear. Nothing is persisted.
+    #[test]
+    fn guide_hides_while_mercy_node_in_range() {
+        let mut app = glow_guidance_app(false);
+        app.update();
+        assert_eq!(guidance_strip_visibility(&mut app), Visibility::Visible);
+
+        app.world_mut().resource_mut::<NearbyMercyNode>().in_range = true;
+        app.update();
+        assert_eq!(guidance_strip_visibility(&mut app), Visibility::Hidden);
+        let guidance = app.world().resource::<FirstSessionGuidance>();
+        assert!(!guidance.dismissed);
+        assert!(guidance.active);
+        assert!(!app.world().resource::<LivedHourBind>().guidance_hidden);
+    }
+
+    /// CARD GUIDE-HIDES-AT-GLOW-1 — leaving range shows the strip again.
+    #[test]
+    fn guide_returns_after_leaving_mercy_node_range() {
+        let mut app = glow_guidance_app(true);
+        app.update();
+        assert_eq!(guidance_strip_visibility(&mut app), Visibility::Hidden);
+
+        app.world_mut().resource_mut::<NearbyMercyNode>().in_range = false;
+        app.update();
+        assert_eq!(guidance_strip_visibility(&mut app), Visibility::Visible);
+        let guidance = app.world().resource::<FirstSessionGuidance>();
+        assert!(!guidance.dismissed);
+        assert!(guidance.active);
+        assert!(!app.world().resource::<LivedHourBind>().guidance_hidden);
+    }
+
+    /// CARD GUIDE-HIDES-AT-GLOW-1 — a dismissed guide stays hidden and dismissed
+    /// after the player leaves range. `guidance_hidden` is not rewritten.
+    #[test]
+    fn dismissed_guide_stays_hidden_after_leaving_mercy_node_range() {
+        let mut app = glow_guidance_app(true);
+        app.world_mut()
+            .resource_mut::<FirstSessionGuidance>()
+            .dismiss();
+        app.update();
+        assert_eq!(guidance_strip_visibility(&mut app), Visibility::Hidden);
+        assert!(app.world().resource::<FirstSessionGuidance>().dismissed);
+
+        app.world_mut().resource_mut::<NearbyMercyNode>().in_range = false;
+        app.update();
+        assert_eq!(guidance_strip_visibility(&mut app), Visibility::Hidden);
+        let guidance = app.world().resource::<FirstSessionGuidance>();
+        assert!(guidance.dismissed);
+        assert!(!guidance.active);
+        assert!(!app.world().resource::<LivedHourBind>().guidance_hidden);
     }
 }
