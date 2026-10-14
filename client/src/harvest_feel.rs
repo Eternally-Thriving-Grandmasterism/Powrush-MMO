@@ -140,12 +140,11 @@ pub fn rumble_harvest(
     }
 }
 
-/// After a successful first-hour E juice path, write a climate take.
-/// Does not change camera punch, rumble, or glow.
+/// After a successful first-hour E juice path.
+/// A harvest bump leaves the lived-hour satchel and node state alone.
+/// Camera punch, rumble, and glow stay put.
 pub fn note_lived_hour_take(bind: Option<&mut LivedHourBind>) {
-    if let Some(bind) = bind {
-        let _ = bind.tend_nearest();
-    }
+    let _ = bind;
 }
 
 fn tick_harvest_juice(time: Res<Time>, mut pool: ResMut<SoftRbePool>) {
@@ -222,5 +221,133 @@ mod tests {
     #[test]
     fn lived_hour_hook_is_optional() {
         note_lived_hour_take(None);
+    }
+
+    /// CARD TAKE-TENDS-ONCE-1 — a harvest bump leaves satchel and node state unchanged.
+    #[test]
+    fn harvest_bump_leaves_satchel_and_node_state_unchanged() {
+        use shared::climate_node::NodeState;
+
+        let _guard = user_dir_guard("harvest-bump");
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(glow_bind())
+            .init_resource::<SoftRbePool>()
+            .add_systems(Update, sync_lived_hour_take);
+
+        let bind = app.world().resource::<LivedHourBind>();
+        let satchel = bind.satchel_count();
+        let states = node_states(bind);
+        assert_eq!(satchel, 0);
+        assert_eq!(states[0], NodeState::Glowing);
+
+        app.world_mut()
+            .resource_mut::<SoftRbePool>()
+            .credit_mercy_harvest(1.0);
+        assert_eq!(app.world().resource::<SoftRbePool>().harvests, 1);
+        app.update();
+
+        let bind = app.world().resource::<LivedHourBind>();
+        assert_eq!(bind.satchel_count(), satchel);
+        assert_eq!(node_states(bind), states);
+
+        let mut bind = app.world_mut().resource_mut::<LivedHourBind>();
+        note_lived_hour_take(Some(&mut bind));
+        assert_eq!(bind.satchel_count(), satchel);
+        assert_eq!(node_states(&bind), states);
+    }
+
+    /// CARD TAKE-TENDS-ONCE-1 — one glowing tend still lands through the mercy bridge.
+    #[test]
+    fn glowing_tend_through_mercy_bridge_gives_satchel_and_tended() {
+        use crate::lived_sim_bridge::{sync_lived_hour_use, LivedSimBridge};
+        use shared::climate_node::NodeState;
+
+        let _guard = user_dir_guard("glow-tend");
+        let mut bind = glow_bind();
+        assert_eq!(bind.hour.nodes[0].state, NodeState::Glowing);
+        assert_eq!(bind.satchel_count(), 0);
+
+        let mut bridge = LivedSimBridge::default();
+        bridge.session_id = 493_0001;
+        sync_lived_hour_use(Some(&mut bind), Some(&bridge), 1.0, "tend", Some(0.0));
+
+        assert_eq!(bind.satchel_count(), 1);
+        assert_eq!(bind.hour.nodes[0].state, NodeState::Tended);
+        assert_eq!(
+            bind.hour
+                .nodes
+                .iter()
+                .filter(|n| n.state == NodeState::Tended)
+                .count(),
+            1
+        );
+    }
+
+    /// CARD TAKE-TENDS-ONCE-1 — juice kick still decays. `tick_juice` stays.
+    #[test]
+    fn kick_still_decays() {
+        let mut pool = SoftRbePool::default();
+        pool.punch(true);
+        assert_eq!(pool.kick, 1.0);
+        pool.tick_juice(0.1);
+        assert!(pool.kick < 1.0);
+        assert!(pool.kick > 0.0);
+        pool.tick_juice(10.0);
+        assert_eq!(pool.kick, 0.0);
+    }
+
+    fn glow_bind() -> LivedHourBind {
+        use shared::climate_node::LivedHour;
+        use shared::shard_climate::ShardClimate;
+        use shared::shard_standing::ShardStanding;
+        use shared::week_audit::WeekAudit;
+
+        LivedHourBind {
+            hour: LivedHour::new_demo(),
+            climate: ShardClimate::default(),
+            standing: ShardStanding::default(),
+            week: WeekAudit::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: Some(1),
+            climate_slab: None,
+        }
+    }
+
+    fn node_states(bind: &LivedHourBind) -> Vec<shared::climate_node::NodeState> {
+        bind.hour.nodes.iter().map(|n| n.state).collect()
+    }
+
+    struct UserDirGuard {
+        prev: Option<String>,
+        _lock: crate::test_env::UserDirEnvGuard,
+    }
+
+    fn user_dir_guard(tag: &str) -> UserDirGuard {
+        let lock = crate::test_env::lock();
+        let dir = std::env::temp_dir().join(format!(
+            "powrush-take-tends-once-{tag}-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("temp user dir");
+        let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+        UserDirGuard { prev, _lock: lock }
+    }
+
+    impl Drop for UserDirGuard {
+        fn drop(&mut self) {
+            match &self.prev {
+                Some(value) => {
+                    std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value)
+                }
+                None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
+            }
+        }
     }
 }
