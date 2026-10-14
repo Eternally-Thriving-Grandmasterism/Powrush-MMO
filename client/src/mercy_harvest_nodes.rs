@@ -699,20 +699,39 @@ fn sync_lived_hour_from_peace_use(
     if h <= *last_harvests && t <= *last_tends {
         return;
     }
+    // CARD TAKE-SYNC-DROPS-1 — sync each unsent take before the counters
+    // advance. A take on the frame the player leaves range still reaches the
+    // bridge. Tends on that frame stay dropped; the tend branch below is unchanged.
     if !nearby.in_range {
+        if h > *last_harvests {
+            let now = time.elapsed_secs_f64();
+            let valence = Some(pool.last_credit.max(0.0));
+            for _ in 0..(h - *last_harvests) {
+                sync_lived_hour_use(
+                    bind.as_deref_mut(),
+                    bridge.as_deref(),
+                    now,
+                    "take",
+                    valence,
+                );
+            }
+        }
         *last_harvests = h;
         *last_tends = t;
         return;
     }
     let now = time.elapsed_secs_f64();
     if h > *last_harvests {
-        sync_lived_hour_use(
-            bind.as_deref_mut(),
-            bridge.as_deref(),
-            now,
-            "take",
-            Some(pool.last_credit.max(0.0)),
-        );
+        let valence = Some(pool.last_credit.max(0.0));
+        for _ in 0..(h - *last_harvests) {
+            sync_lived_hour_use(
+                bind.as_deref_mut(),
+                bridge.as_deref(),
+                now,
+                "take",
+                valence,
+            );
+        }
     }
     if t > *last_tends {
         if let Some(bind) = bind.as_deref_mut() {
@@ -1319,6 +1338,86 @@ mod tests {
         assert!(!STEWARD_ONLINE_YES);
     }
 
+    /// CARD TAKE-SYNC-DROPS-1 — a take on the frame the player leaves range
+    /// still reaches the bridge. A tend on that same frame stays unsent.
+    #[test]
+    fn take_on_leave_range_frame_reaches_the_bridge() {
+        use shared::persona::STEWARD_ONLINE_YES;
+
+        const SESSION: u64 = 734_0001;
+        let _env = hold_user_dir("leave-take");
+        let mut app = take_sync_app(SESSION);
+        app.update();
+        assert!(app.world().resource::<NearbyMercyNode>().in_range);
+        assert_eq!(action_updates_for(SESSION, "take"), 0);
+
+        {
+            let mut nodes = app
+                .world_mut()
+                .query_filtered::<&mut Transform, With<MercyHarvestNode>>();
+            nodes.single_mut(app.world_mut()).unwrap().translation =
+                Vec3::new(HARVEST_REACH + 4.0, 0.0, 0.0);
+        }
+        {
+            let mut harvest = app.world_mut().resource_mut::<FirstHarvestEpiphany>();
+            harvest.harvests_this_session = 1;
+            harvest.tends_this_session = 1;
+        }
+        app.update();
+        assert!(!app.world().resource::<NearbyMercyNode>().in_range);
+        assert_eq!(
+            action_updates_for(SESSION, "take"),
+            1,
+            "leave-range take reaches the bridge"
+        );
+        assert_eq!(
+            action_updates_for(SESSION, "tend"),
+            0,
+            "tend on the leave frame stays unsent"
+        );
+        assert!(!STEWARD_ONLINE_YES);
+    }
+
+    /// CARD TAKE-SYNC-DROPS-1 — two takes in one frame sync twice.
+    #[test]
+    fn two_takes_in_one_frame_sync_twice() {
+        use shared::persona::STEWARD_ONLINE_YES;
+
+        const SESSION: u64 = 734_0002;
+        let _env = hold_user_dir("two-take");
+        let mut app = take_sync_app(SESSION);
+        app.world_mut()
+            .resource_mut::<FirstHarvestEpiphany>()
+            .harvests_this_session = 2;
+        app.update();
+        assert!(app.world().resource::<NearbyMercyNode>().in_range);
+        assert_eq!(action_updates_for(SESSION, "take"), 2, "one sync per take");
+        assert_eq!(action_updates_for(SESSION, "tend"), 0);
+        assert!(!STEWARD_ONLINE_YES);
+    }
+
+    /// CARD TAKE-SYNC-DROPS-1 — a risen tend count still syncs once per frame.
+    #[test]
+    fn tend_counts_still_sync_once_per_frame() {
+        use shared::persona::STEWARD_ONLINE_YES;
+
+        const SESSION: u64 = 734_0003;
+        let _env = hold_user_dir("tend-once");
+        let mut app = take_sync_app(SESSION);
+        app.world_mut()
+            .resource_mut::<FirstHarvestEpiphany>()
+            .tends_this_session = 2;
+        app.update();
+        assert!(app.world().resource::<NearbyMercyNode>().in_range);
+        assert_eq!(
+            action_updates_for(SESSION, "tend"),
+            1,
+            "tend counts unchanged"
+        );
+        assert_eq!(action_updates_for(SESSION, "take"), 0);
+        assert!(!STEWARD_ONLINE_YES);
+    }
+
     struct HoldUserDir {
         prev: Option<String>,
         _lock: crate::test_env::UserDirEnvGuard,
@@ -1411,15 +1510,52 @@ mod tests {
         nodes.single(app.world()).unwrap().harvests
     }
 
-    fn tend_updates_for(session: u64) -> usize {
+    fn take_sync_app(session: u64) -> App {
+        use crate::lived_sim_bridge::LivedSimBridge;
+
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+                std::time::Duration::ZERO,
+            ))
+            .init_resource::<NearbyMercyNode>()
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<SoftRbePool>()
+            .init_resource::<LivedSimBridge>()
+            .insert_resource(hold_bind(Some(1)))
+            .add_systems(
+                Update,
+                (track_nearby_node, sync_lived_hour_from_peace_use).chain(),
+            );
+        hold_schedules_on_test_thread(&mut app);
+        app.world_mut().spawn((
+            Transform::from_translation(Vec3::ZERO),
+            MercyHarvestNode {
+                name: "Sanctuary ember",
+                climate_id: 1,
+                vitality: 1.0,
+                harvests: 0,
+                pulse: 0.0,
+            },
+        ));
+        app.world_mut().resource_mut::<LivedSimBridge>().session_id = session;
+        app
+    }
+
+    fn action_updates_for(session: u64, action: &str) -> usize {
         let path = shared::user_persist::persist_path("data/powrush_lived_events.jsonl");
         let Ok(text) = std::fs::read_to_string(&path) else {
             return 0;
         };
         let needle = format!("\"session_id\":{session}");
+        let action_needle = format!("\"action\":\"{action}\"");
         text.lines()
-            .filter(|line| line.contains(&needle) && line.contains("\"action\":\"tend\""))
+            .filter(|line| line.contains(&needle) && line.contains(&action_needle))
             .count()
+    }
+
+    fn tend_updates_for(session: u64) -> usize {
+        action_updates_for(session, "tend")
     }
 
     /// Persist locks `POWRUSH_USER_DIR` on the calling thread. The test already
