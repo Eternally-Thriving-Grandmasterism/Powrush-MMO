@@ -56,6 +56,7 @@ use bevy::prelude::*;
 use crate::companion_bond::CompanionBond;
 use crate::hour_sacred::PeopleLanding;
 use crate::input::PlayerInput;
+use crate::title_screen::{HouseLabel, LaunchDoor};
 use crate::harvest_feel::SoftRbePool;
 use crate::living_body::{BodyTell, LivingBody};
 use crate::living_day::{
@@ -754,6 +755,8 @@ fn apply_locomotion(
     time: Res<Time<Fixed>>,
     bond: Option<Res<CompanionBond>>,
     body: Option<Res<LivingBody>>,
+    door: Option<Res<LaunchDoor>>,
+    house: Option<Res<HouseLabel>>,
     mut latch: ResMut<JumpLatch>,
     mut presence: ResMut<SoftPresence>,
 ) {
@@ -770,24 +773,36 @@ fn apply_locomotion(
     if bond.map(|b| b.mounted).unwrap_or(false) {
         speed *= 1.28;
     }
-    let wish = Vec3::new(input.movement.x, 0.0, -input.movement.y);
-    let wish = if wish.length_squared() > 1.0 {
-        wish.normalize()
-    } else {
-        wish
+    // CARD STILL-BEFORE-YARD-1 — wish and jump only in the open yard.
+    // A closed gate zeros horizontal velocity so a walk stops. Gravity still runs below.
+    // A missing door or house keeps today's move.
+    let yard_step = match (door.as_deref(), house.as_deref()) {
+        (Some(door), Some(label)) => *door == LaunchDoor::InYard && !label.settings_open,
+        _ => true,
     };
-    let wish_vel = Vec2::new(wish.x * speed, wish.z * speed);
-    let horiz = approach_horizontal(
-        Vec2::new(presence.velocity.x, presence.velocity.z),
-        wish_vel,
-        MOVE_ACCEL,
-        MOVE_DECEL,
-        dt,
-    );
-    presence.velocity.x = horiz.x;
-    presence.velocity.z = horiz.y;
+    if yard_step {
+        let wish = Vec3::new(input.movement.x, 0.0, -input.movement.y);
+        let wish = if wish.length_squared() > 1.0 {
+            wish.normalize()
+        } else {
+            wish
+        };
+        let wish_vel = Vec2::new(wish.x * speed, wish.z * speed);
+        let horiz = approach_horizontal(
+            Vec2::new(presence.velocity.x, presence.velocity.z),
+            wish_vel,
+            MOVE_ACCEL,
+            MOVE_DECEL,
+            dt,
+        );
+        presence.velocity.x = horiz.x;
+        presence.velocity.z = horiz.y;
+    } else {
+        presence.velocity.x = 0.0;
+        presence.velocity.z = 0.0;
+    }
     presence.velocity.y -= GRAVITY * dt;
-    if presence.grounded && latch.pending {
+    if yard_step && presence.grounded && latch.pending {
         presence.velocity.y = JUMP;
         presence.grounded = false;
         latch.pending = false;
@@ -1618,5 +1633,135 @@ mod tests {
         assert!(!f5_title_is_race_lobby());
         assert!(!garden_roster_is_race_portrait_lobby());
         assert!(mesh_lod::race_lobby_closed());
+    }
+
+    /// CARD STILL-BEFORE-YARD-1 — held W. Caller steps the fixed clock.
+    fn yard_w_world(door: Option<LaunchDoor>, settings_open: Option<bool>) -> App {
+        use bevy::time::TimeUpdateStrategy;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(Time::<Fixed>::from_hz(60.0))
+            .insert_resource(TimeUpdateStrategy::FixedTimesteps(12))
+            .init_resource::<SoftPresence>()
+            .init_resource::<JumpLatch>()
+            .insert_resource(PlayerInput {
+                movement: Vec2::new(0.0, 1.0),
+                ..Default::default()
+            })
+            .add_systems(FixedUpdate, apply_locomotion);
+        if let Some(door) = door {
+            app.insert_resource(door);
+        }
+        if let Some(open) = settings_open {
+            app.insert_resource(HouseLabel {
+                house: shared::house_name::HouseName::default(),
+                persist_present: false,
+                hour_two_held: false,
+                book_held: false,
+                settings_open: open,
+                draft: String::new(),
+                naming_offered: false,
+                seals_offered: false,
+            });
+        }
+        app
+    }
+
+    /// The first `update` only stamps the clock; the second runs the steps.
+    fn yard_w_app(door: Option<LaunchDoor>, settings_open: Option<bool>) -> App {
+        let mut app = yard_w_world(door, settings_open);
+        app.update();
+        app.update();
+        assert!(
+            app.world().resource::<Time<Fixed>>().elapsed_secs() > 0.0,
+            "fixed clock did not step"
+        );
+        app
+    }
+
+    /// (a) Title + W stays at spawn.
+    #[test]
+    fn still_before_yard_title_w_stays_at_spawn() {
+        let app = yard_w_app(Some(LaunchDoor::Title), Some(false));
+        let spawn = Vec3::new(0.0, STAND, 0.0);
+        let presence = app.world().resource::<SoftPresence>();
+        assert_eq!(presence.position, spawn);
+        assert_eq!(presence.velocity, Vec3::ZERO);
+        assert!(presence.grounded);
+    }
+
+    /// (b) Esc pause (settings_open, InYard) + W leaves horizontal position and velocity.
+    #[test]
+    fn still_before_yard_pause_w_leaves_horizontal_unchanged() {
+        let app = yard_w_app(Some(LaunchDoor::InYard), Some(true));
+        let presence = app.world().resource::<SoftPresence>();
+        assert_eq!(presence.position.x, 0.0);
+        assert_eq!(presence.position.z, 0.0);
+        assert_eq!(presence.velocity.x, 0.0);
+        assert_eq!(presence.velocity.z, 0.0);
+    }
+
+    /// (c) An airborne body under pause still lands.
+    #[test]
+    fn still_before_yard_pause_airborne_still_lands() {
+        let mut app = yard_w_app(Some(LaunchDoor::InYard), Some(true));
+        {
+            let mut presence = app.world_mut().resource_mut::<SoftPresence>();
+            presence.position = Vec3::new(0.0, STAND + 0.25, 0.0);
+            presence.velocity = Vec3::ZERO;
+            presence.grounded = false;
+        }
+        app.update();
+        let presence = app.world().resource::<SoftPresence>();
+        assert!(presence.grounded);
+        assert_eq!(presence.position.y, STAND);
+        assert_eq!(presence.velocity.y, 0.0);
+        assert_eq!(presence.position.x, 0.0);
+        assert_eq!(presence.position.z, 0.0);
+        assert_eq!(presence.velocity.x, 0.0);
+        assert_eq!(presence.velocity.z, 0.0);
+    }
+
+    /// (d) NameHouse + W does not move.
+    #[test]
+    fn still_before_yard_name_house_w_does_not_move() {
+        let app = yard_w_app(Some(LaunchDoor::NameHouse), Some(false));
+        let spawn = Vec3::new(0.0, STAND, 0.0);
+        let presence = app.world().resource::<SoftPresence>();
+        assert_eq!(presence.position, spawn);
+        assert_eq!(presence.velocity, Vec3::ZERO);
+    }
+
+    /// (e) InYard, pause closed, W moves.
+    #[test]
+    fn still_before_yard_inyard_w_moves() {
+        let app = yard_w_app(Some(LaunchDoor::InYard), Some(false));
+        let presence = app.world().resource::<SoftPresence>();
+        assert!(
+            presence.position.z < 0.0,
+            "W should step -Z, z={}",
+            presence.position.z
+        );
+        assert!(presence.velocity.z < 0.0);
+    }
+
+    /// Walk W in the yard, then Esc. Horizontal position holds on the paused frames.
+    #[test]
+    fn still_before_yard_esc_holds_walk_xz() {
+        let mut app = yard_w_world(Some(LaunchDoor::InYard), Some(false));
+        app.update();
+        app.update();
+        app.update();
+        let walked = app.world().resource::<SoftPresence>();
+        let (x, z) = (walked.position.x, walked.position.z);
+        assert!(z < 0.0, "W should have left spawn, z={z}");
+        app.world_mut().resource_mut::<HouseLabel>().settings_open = true;
+        for _ in 0..3 {
+            app.update();
+            let presence = app.world().resource::<SoftPresence>();
+            assert_eq!(presence.position.x, x);
+            assert_eq!(presence.position.z, z);
+        }
     }
 }
