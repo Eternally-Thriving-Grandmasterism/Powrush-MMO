@@ -14,3 +14,9 @@ Sharing is a later hour. When online is lit, a player may offer the seed string 
 ## Hold
 
 A community gallery now. A cloud save of generated assets. Generative models that leave the machine. A sixth people. Online stays grey. The yard and the five doors stay the first hour.
+
+## Thumbs do not pay
+
+A later online share may be marked by other players. That mark is not earnings. The first hour already refuses in-world pay: the purse is flow and repair-rights, not wages. A thumb that pays will be farmed with alts and rings. Do not add a currency, a score, or a grant for likes.
+
+If a later hour wants recognition, it is a local or non-transferable mark that cannot be spent. It does not enter the purse. Online stays grey.
