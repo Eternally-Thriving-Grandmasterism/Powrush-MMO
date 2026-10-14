@@ -34,7 +34,7 @@ use shared::temper::{seat_ward, TemperError, TemperedItem, WardKind};
 
 use crate::fabricator::FabricatorYard;
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
-use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+use crate::first_harvest_epiphany::{FirstHarvestEpiphany, TEND_HOLD};
 use crate::harvest_feel::SoftRbePool;
 use crate::human_presence::SoftPresence;
 use crate::lived_hour_bind::LivedHourBind;
@@ -678,6 +678,10 @@ pub fn apply_node_tend(node: &mut MercyHarvestNode) {
 }
 
 /// Bridge embodied Peace E into lived-hour satchel + climate persist (stranger loop).
+///
+/// CARD HOLD-TEND-TIRES-1 — a held Use on an in-range harvest node calls the
+/// existing `LivedHourBind::care_tend` once per hold. That path does not take.
+/// A raised take count still uses the take sync. No new system. No new resource.
 fn sync_lived_hour_from_peace_use(
     nearby: Res<NearbyMercyNode>,
     pool: Res<SoftRbePool>,
@@ -685,20 +689,38 @@ fn sync_lived_hour_from_peace_use(
     time: Res<Time>,
     mut bind: Option<ResMut<LivedHourBind>>,
     bridge: Option<Res<LivedSimBridge>>,
+    player_input: Option<Res<crate::input::PlayerInput>>,
     mut last_harvests: Local<u32>,
     mut last_tends: Local<u32>,
+    mut hold_started: Local<Option<f64>>,
+    mut gesture_tended: Local<bool>,
 ) {
+    let held = player_input
+        .as_ref()
+        .is_some_and(|input| input.interact_held);
+    let edge = player_input.as_ref().is_some_and(|input| input.interact);
+    let now = time.elapsed_secs_f64();
+    let on_node = nearby.in_range && nearby.entity.is_some();
+    let claimed = harvest.harvest_use_is_claimed();
+    if !held || !on_node || edge || claimed {
+        *hold_started = None;
+    } else if hold_started.is_none() {
+        *hold_started = Some(now);
+    }
+    let hold_secs = hold_started.map(|start| now - start).unwrap_or(0.0);
+
     let h = harvest.harvests_this_session;
     let t = harvest.tends_this_session;
-    if h <= *last_harvests && t <= *last_tends {
-        return;
-    }
     if !nearby.in_range {
-        *last_harvests = h;
-        *last_tends = t;
+        if h > *last_harvests || t > *last_tends {
+            *last_harvests = h;
+            *last_tends = t;
+        }
+        if !held || edge {
+            *gesture_tended = false;
+        }
         return;
     }
-    let now = time.elapsed_secs_f64();
     if h > *last_harvests {
         sync_lived_hour_use(
             bind.as_deref_mut(),
@@ -708,17 +730,28 @@ fn sync_lived_hour_from_peace_use(
             Some(pool.last_credit.max(0.0)),
         );
     }
-    if t > *last_tends {
-        sync_lived_hour_use(
-            bind.as_deref_mut(),
-            bridge.as_deref(),
-            now,
-            "tend",
-            Some(pool.last_credit.max(0.0)),
-        );
+    let hold_due = held
+        && !edge
+        && on_node
+        && !claimed
+        && !*gesture_tended
+        && hold_secs >= TEND_HOLD;
+    // A tend count is the hold that already landed on the node. Route it
+    // through care_tend as well, and never through the take sync.
+    let tend_rose = t > *last_tends;
+    if (hold_due || tend_rose) && !*gesture_tended {
+        if let Some(bind) = bind.as_deref_mut() {
+            bind.care_tend();
+            *gesture_tended = true;
+        }
     }
-    *last_harvests = h;
-    *last_tends = t;
+    if h > *last_harvests || t > *last_tends {
+        *last_harvests = h;
+        *last_tends = t;
+    }
+    if !held || edge {
+        *gesture_tended = false;
+    }
 }
 
 fn try_soft_harvest_sting(
@@ -1226,5 +1259,114 @@ mod tests {
             .world_mut()
             .query_filtered::<&TextFont, With<CareCycleStripText>>();
         assert_eq!(text.single(app.world()).unwrap().font_size, FontSize::Px(16.0 / 1.2));
+    }
+
+    /// CARD HOLD-TEND-TIRES-1 — holding Use on a harvest node calls `care_tend`
+    /// and does not take. Under `TEND_HOLD` the ledger stays put.
+    #[test]
+    fn hold_interact_on_harvest_node_tends_and_does_not_take() {
+        use crate::first_harvest_epiphany::TEND_HOLD;
+        use crate::input::PlayerInput;
+        use shared::climate_node::{LivedHour, NodeState};
+        use shared::persona::STEWARD_ONLINE_YES;
+        use shared::shard_climate::ShardClimate;
+        use shared::shard_standing::ShardStanding;
+        use shared::week_audit::WeekAudit;
+
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+                std::time::Duration::ZERO,
+            ))
+            .init_resource::<NearbyMercyNode>()
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<SoftRbePool>()
+            .init_resource::<PlayerInput>()
+            .insert_resource(LivedHourBind {
+                hour: LivedHour::new_demo(),
+                climate: ShardClimate::default(),
+                standing: ShardStanding::default(),
+                week: WeekAudit::default(),
+                last_line: String::new(),
+                guidance_hidden: false,
+                focus_id: Some(1),
+                climate_slab: None,
+            })
+            .add_systems(
+                Update,
+                (track_nearby_node, sync_lived_hour_from_peace_use).chain(),
+            );
+        app.world_mut().spawn((
+            Transform::from_translation(Vec3::ZERO),
+            MercyHarvestNode {
+                name: "Sanctuary ember",
+                climate_id: 1,
+                vitality: 1.0,
+                harvests: 0,
+                pulse: 0.0,
+            },
+        ));
+        app.world_mut()
+            .resource_mut::<Time<bevy::time::Virtual>>()
+            .set_max_delta(std::time::Duration::from_secs(2));
+        {
+            let mut input = app.world_mut().resource_mut::<PlayerInput>();
+            input.interact = false;
+            input.interact_held = true;
+        }
+
+        let short = 0.2;
+        let rest = 0.3;
+        assert!(short < TEND_HOLD, "a short hold is not a tend");
+        assert!(short + rest >= TEND_HOLD, "the full hold reaches tend");
+
+        set_hold_step(&mut app, 0.0);
+        app.update();
+        set_hold_step(&mut app, short);
+        app.update();
+        assert_hold_did_not_take_or_tend(&app);
+
+        set_hold_step(&mut app, rest);
+        app.update();
+
+        let bind = app.world().resource::<LivedHourBind>();
+        assert_eq!(bind.satchel_count(), 0, "hold must not take");
+        assert_eq!(bind.hour.nodes[0].state, NodeState::Glowing);
+        assert!(bind.climate.stress < 0.15, "care_tend lowers stress");
+        assert!(bind.climate.harmony > 0.55, "care_tend raises harmony");
+        assert!(bind.standing.steward > 0.40, "care_tend raises steward");
+        assert!(
+            bind.standing.consumption < 0.12,
+            "take would raise consumption"
+        );
+        assert_eq!(bind.climate.updated_at, 1, "one care_tend");
+        assert_eq!(bind.standing.updated_at, 1, "one care_tend");
+
+        let mut nodes = app.world_mut().query::<&MercyHarvestNode>();
+        let node = nodes.single(app.world()).unwrap();
+        assert_eq!(node.harvests, 0, "hold must not harvest the node");
+        assert_eq!(node.vitality, 1.0);
+        assert!(!STEWARD_ONLINE_YES);
+    }
+
+    fn set_hold_step(app: &mut App, secs: f64) {
+        *app.world_mut()
+            .resource_mut::<bevy::time::TimeUpdateStrategy>() =
+            bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(
+                secs,
+            ));
+    }
+
+    fn assert_hold_did_not_take_or_tend(app: &App) {
+        use shared::climate_node::NodeState;
+
+        let bind = app.world().resource::<LivedHourBind>();
+        assert_eq!(bind.satchel_count(), 0);
+        assert_eq!(bind.hour.nodes[0].state, NodeState::Glowing);
+        assert_eq!(bind.climate.stress, 0.15);
+        assert_eq!(bind.climate.harmony, 0.55);
+        assert_eq!(bind.standing.steward, 0.40);
+        assert_eq!(bind.standing.consumption, 0.12);
+        assert_eq!(bind.climate.updated_at, 0);
     }
 }
