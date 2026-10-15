@@ -52,6 +52,13 @@
  * settings are open (same gate as STILL-BEFORE-YARD-1). Invert-Y, sensitivity,
  * and camera collision stay deferred.
  *
+ * CARD MOVE-STRAFE-DEFAULT-1 — Modern (default) rotates WASD, pad, and touch
+ * by the follow-orbit yaw. W goes along the camera's forward, A/D strafe,
+ * and the body faces that forward while moving. Classic keeps W/S on the
+ * body's facing and turns with keyboard A/D; the orbit yaw follows the body.
+ * Pad and touch stay camera-relative in both presets. The preset is a
+ * resource and is not persisted (UI is CONTROLS-PRESETS-UI-1).
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -557,6 +564,8 @@ impl Plugin for HumanPresencePlugin {
             .init_resource::<PersonAttend>()
             .init_resource::<PersonRhythm>()
             .init_resource::<FollowOrbit>()
+            .init_resource::<ControlPreset>()
+            .init_resource::<BodyFacing>()
             .init_resource::<ButtonInput<MouseButton>>()
             .init_resource::<AccumulatedMouseMotion>()
             .init_resource::<AccumulatedMouseScroll>()
@@ -759,6 +768,144 @@ fn arm_jump_latch(input: Res<PlayerInput>, mut latch: ResMut<JumpLatch>) {
     }
 }
 
+/// CARD MOVE-STRAFE-DEFAULT-1 — not persisted. Settings UI is a later card.
+#[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ControlPreset {
+    /// Camera-relative move. While moving, the body faces the camera forward.
+    #[default]
+    Modern,
+    /// W/S along the body's facing. Keyboard A/D turns. Pad and touch do not.
+    Classic,
+}
+
+/// Radians per second for Classic keyboard A/D.
+/// A (and Left) increases body yaw — a left turn when the rig front is +Z.
+const CLASSIC_TURN_RATE: f32 = 2.5;
+
+/// Body heading for Classic, and the Modern facing stored while moving.
+#[derive(Resource, Debug, Clone, Copy)]
+struct BodyFacing {
+    yaw: f32,
+    /// Classic A/D is held, so a still body still shows the turn.
+    turning: bool,
+}
+
+impl Default for BodyFacing {
+    fn default() -> Self {
+        Self {
+            // Rig front (+Z) along the default camera forward (-Z).
+            yaw: PI,
+            turning: false,
+        }
+    }
+}
+
+fn wrap_pi(yaw: f32) -> f32 {
+    let tau = PI * 2.0;
+    let mut y = (yaw + PI) % tau;
+    if y < 0.0 {
+        y += tau;
+    }
+    y - PI
+}
+
+/// WASD and arrows, matching `input.rs` (out of bounds for this card).
+fn keyboard_axes(keyboard: &ButtonInput<KeyCode>) -> Vec2 {
+    let mut axes = Vec2::ZERO;
+    if keyboard.pressed(KeyCode::KeyW) || keyboard.pressed(KeyCode::ArrowUp) {
+        axes.y += 1.0;
+    }
+    if keyboard.pressed(KeyCode::KeyS) || keyboard.pressed(KeyCode::ArrowDown) {
+        axes.y -= 1.0;
+    }
+    if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft) {
+        axes.x -= 1.0;
+    }
+    if keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight) {
+        axes.x += 1.0;
+    }
+    axes
+}
+
+/// Pad, touch, and scripted sticks all land in `PlayerInput.movement`.
+/// With WASD held, what remains after the key vector is the stick.
+fn stick_axes(movement: Vec2, keys: Vec2) -> Vec2 {
+    if keys.length_squared() < 1e-8 {
+        return movement;
+    }
+    if movement.length_squared() < 1e-8 {
+        return Vec2::ZERO;
+    }
+    let keys = if keys.length_squared() > 1.0 {
+        keys.normalize()
+    } else {
+        keys
+    };
+    let extra = movement - keys;
+    if extra.length_squared() < 1e-4 {
+        Vec2::ZERO
+    } else {
+        extra
+    }
+}
+
+fn clamp_planar(wish: Vec3) -> Vec3 {
+    if wish.length_squared() > 1.0 {
+        wish.normalize()
+    } else {
+        wish
+    }
+}
+
+/// Local stick: +x right, +y forward. Yaw 0 keeps today's world frame (W is -Z).
+fn camera_relative_wish(movement: Vec2, yaw: f32) -> Vec3 {
+    let wish = clamp_planar(Vec3::new(movement.x, 0.0, -movement.y));
+    Quat::from_rotation_y(yaw) * wish
+}
+
+fn body_forward(yaw: f32) -> Vec3 {
+    Quat::from_rotation_y(yaw) * Vec3::Z
+}
+
+/// Rig yaw that points +Z along the camera's horizontal forward.
+fn camera_forward_yaw(orbit_yaw: f32) -> f32 {
+    wrap_pi(orbit_yaw + PI)
+}
+
+fn strafe_wish(
+    preset: ControlPreset,
+    movement: Vec2,
+    keys: Vec2,
+    orbit_yaw: f32,
+    facing_yaw: f32,
+) -> Vec3 {
+    match preset {
+        ControlPreset::Modern => {
+            let axes = if movement.length_squared() > 1e-8 {
+                movement
+            } else {
+                keys
+            };
+            camera_relative_wish(axes, orbit_yaw)
+        }
+        ControlPreset::Classic => {
+            let stick = stick_axes(movement, keys);
+            if keys.length_squared() < 1e-8 {
+                camera_relative_wish(stick, orbit_yaw)
+            } else {
+                let mut wish = Vec3::ZERO;
+                if keys.y != 0.0 {
+                    wish += body_forward(facing_yaw) * keys.y;
+                }
+                if stick.length_squared() > 1e-8 {
+                    wish += camera_relative_wish(stick, orbit_yaw);
+                }
+                clamp_planar(wish)
+            }
+        }
+    }
+}
+
 /// Approach horizontal velocity: accel toward wish, decel to zero on release.
 pub fn approach_horizontal(current: Vec2, wish: Vec2, accel: f32, decel: f32, dt: f32) -> Vec2 {
     if wish.length_squared() < 1e-8 {
@@ -784,6 +931,10 @@ fn apply_locomotion(
     body: Option<Res<LivingBody>>,
     door: Option<Res<LaunchDoor>>,
     house: Option<Res<HouseLabel>>,
+    preset: Option<Res<ControlPreset>>,
+    mut orbit: Option<ResMut<FollowOrbit>>,
+    mut facing: Option<ResMut<BodyFacing>>,
+    keyboard: Option<Res<ButtonInput<KeyCode>>>,
     mut latch: ResMut<JumpLatch>,
     mut presence: ResMut<SoftPresence>,
 ) {
@@ -808,12 +959,28 @@ fn apply_locomotion(
         _ => true,
     };
     if yard_step {
-        let wish = Vec3::new(input.movement.x, 0.0, -input.movement.y);
-        let wish = if wish.length_squared() > 1.0 {
-            wish.normalize()
-        } else {
-            wish
-        };
+        // CARD MOVE-STRAFE-DEFAULT-1 — yaw 0 keeps today's wish (x, 0, -y).
+        let preset_now = preset.as_deref().copied().unwrap_or_default();
+        let orbit_yaw = orbit.as_deref().map(|o| o.yaw).unwrap_or(0.0);
+        let keys = keyboard.as_deref().map(keyboard_axes).unwrap_or(Vec2::ZERO);
+        let facing_yaw = facing.as_deref().map(|f| f.yaw).unwrap_or(PI);
+        let wish = strafe_wish(preset_now, input.movement, keys, orbit_yaw, facing_yaw);
+        if preset_now == ControlPreset::Classic && keys.x != 0.0 {
+            if let Some(facing) = facing.as_deref_mut() {
+                // A is -1. Subtracting that increases yaw: a left turn.
+                facing.yaw = wrap_pi(facing.yaw - keys.x * CLASSIC_TURN_RATE * dt);
+                facing.turning = true;
+                let followed = wrap_pi(facing.yaw + PI);
+                if let Some(orbit) = orbit.as_deref_mut() {
+                    orbit.yaw = followed;
+                }
+            }
+        } else if let Some(facing) = facing.as_deref_mut() {
+            facing.turning = false;
+            if preset_now == ControlPreset::Modern && wish.length_squared() > 1e-8 {
+                facing.yaw = camera_forward_yaw(orbit_yaw);
+            }
+        }
         let wish_vel = Vec2::new(wish.x * speed, wish.z * speed);
         let horiz = approach_horizontal(
             Vec2::new(presence.velocity.x, presence.velocity.z),
@@ -827,6 +994,9 @@ fn apply_locomotion(
     } else {
         presence.velocity.x = 0.0;
         presence.velocity.z = 0.0;
+        if let Some(facing) = facing.as_deref_mut() {
+            facing.turning = false;
+        }
     }
     presence.velocity.y -= GRAVITY * dt;
     if yard_step && presence.grounded && latch.pending {
@@ -879,14 +1049,31 @@ fn latch_use_attend(
 fn sync_body(
     presence: Res<SoftPresence>,
     attend: Res<PersonAttend>,
+    preset: Option<Res<ControlPreset>>,
+    orbit: Option<Res<FollowOrbit>>,
+    facing: Option<Res<BodyFacing>>,
     mut q: Query<&mut Transform, With<HumanPresence>>,
 ) {
+    let preset = preset.as_deref().copied().unwrap_or_default();
     for mut tf in &mut q {
         tf.translation = presence.position;
         let horiz = Vec3::new(presence.velocity.x, 0.0, presence.velocity.z);
         if horiz.length_squared() > 0.04 {
-            let dir = horiz.normalize();
-            tf.rotation = Quat::from_rotation_y(dir.x.atan2(dir.z));
+            let yaw = match preset {
+                // True strafe: face the camera forward, not the A/D direction.
+                ControlPreset::Modern => {
+                    camera_forward_yaw(orbit.as_deref().map(|o| o.yaw).unwrap_or(0.0))
+                }
+                ControlPreset::Classic => facing.as_deref().map(|f| f.yaw).unwrap_or_else(|| {
+                    let dir = horiz.normalize();
+                    dir.x.atan2(dir.z)
+                }),
+            };
+            tf.rotation = Quat::from_rotation_y(yaw);
+        } else if facing.as_deref().is_some_and(|f| f.turning) {
+            if let Some(facing) = facing.as_deref() {
+                tf.rotation = Quat::from_rotation_y(facing.yaw);
+            }
         } else if let Some(target) = attend.toward {
             // Standing Use: turn to the glow so the reach points at it.
             if let Some(yaw) = yaw_toward(presence.position, target) {
@@ -1893,6 +2080,347 @@ mod tests {
             assert_eq!(presence.position.x, x);
             assert_eq!(presence.position.z, z);
         }
+    }
+
+    fn yaw_near(a: f32, b: f32) -> bool {
+        wrap_pi(a - b).abs() < 1e-3
+    }
+
+    fn body_front(app: &mut App) -> Vec3 {
+        let world = app.world_mut();
+        let mut bodies = world.query::<&Transform>();
+        let tf = bodies.iter(world).next().expect("body");
+        tf.rotation * Vec3::Z
+    }
+
+    /// CARD MOVE-STRAFE-DEFAULT-1 — same clock as the yard gate, plus orbit and preset.
+    fn strafe_world(
+        preset: ControlPreset,
+        yaw: f32,
+        movement: Vec2,
+        door: Option<LaunchDoor>,
+        settings_open: Option<bool>,
+        keys: &[KeyCode],
+    ) -> App {
+        use bevy::time::TimeUpdateStrategy;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(Time::<Fixed>::from_hz(60.0))
+            .insert_resource(TimeUpdateStrategy::FixedTimesteps(12))
+            .init_resource::<SoftPresence>()
+            .init_resource::<JumpLatch>()
+            .init_resource::<PersonAttend>()
+            .insert_resource(preset)
+            .init_resource::<BodyFacing>()
+            .init_resource::<FollowOrbit>()
+            .insert_resource(PlayerInput {
+                movement,
+                ..Default::default()
+            })
+            .add_systems(FixedUpdate, apply_locomotion)
+            .add_systems(Update, sync_body);
+        app.world_mut().resource_mut::<FollowOrbit>().yaw = yaw;
+        if let Some(door) = door {
+            app.insert_resource(door);
+        }
+        if let Some(open) = settings_open {
+            app.insert_resource(quiet_house(open));
+        }
+        if !keys.is_empty() {
+            app.init_resource::<ButtonInput<KeyCode>>();
+            let mut keyboard = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            for key in keys {
+                keyboard.press(*key);
+            }
+        }
+        app.world_mut()
+            .spawn((HumanPresence, Transform::default()));
+        app
+    }
+
+    fn strafe_app(
+        preset: ControlPreset,
+        yaw: f32,
+        movement: Vec2,
+        door: Option<LaunchDoor>,
+        settings_open: Option<bool>,
+        keys: &[KeyCode],
+    ) -> App {
+        let mut app = strafe_world(preset, yaw, movement, door, settings_open, keys);
+        app.update();
+        app.update();
+        app
+    }
+
+    /// Default yaw 0: Modern W matches the pre-strafe yard step (-Z, no X).
+    #[test]
+    fn move_strafe_modern_default_yaw_moves_as_today() {
+        assert_eq!(ControlPreset::default(), ControlPreset::Modern);
+        let wish = camera_relative_wish(Vec2::new(0.0, 1.0), 0.0);
+        assert!(wish.x.abs() < 1e-5 && (wish.z + 1.0).abs() < 1e-5);
+        let mut app = strafe_app(
+            ControlPreset::Modern,
+            0.0,
+            Vec2::new(0.0, 1.0),
+            Some(LaunchDoor::InYard),
+            Some(false),
+            &[],
+        );
+        let (px, pz, vz) = {
+            let presence = app.world().resource::<SoftPresence>();
+            (presence.position.x, presence.position.z, presence.velocity.z)
+        };
+        let today = yard_w_app(Some(LaunchDoor::InYard), Some(false));
+        let today_p = today.world().resource::<SoftPresence>();
+        assert!(pz < 0.0);
+        assert!(px.abs() < 1e-4);
+        assert!((px - today_p.position.x).abs() < 1e-4);
+        assert!((pz - today_p.position.z).abs() < 1e-4);
+        assert!((vz - today_p.velocity.z).abs() < 1e-4);
+        let front = body_front(&mut app);
+        assert!(
+            front.z < -0.9 && front.x.abs() < 1e-3,
+            "Modern W faces camera forward, front={front:?}"
+        );
+    }
+
+    /// Yaw 90°: W goes along the camera's forward (-X), same distance as yaw-0 -Z.
+    #[test]
+    fn move_strafe_modern_yaw_90_w_follows_camera_forward() {
+        let yaw0 = strafe_app(
+            ControlPreset::Modern,
+            0.0,
+            Vec2::new(0.0, 1.0),
+            Some(LaunchDoor::InYard),
+            Some(false),
+            &[],
+        );
+        let mut yaw90 = strafe_app(
+            ControlPreset::Modern,
+            FRAC_PI_2,
+            Vec2::new(0.0, 1.0),
+            Some(LaunchDoor::InYard),
+            Some(false),
+            &[],
+        );
+        let p0z = yaw0.world().resource::<SoftPresence>().position.z;
+        let (p90x, p90z, v90x, v90z) = {
+            let p90 = yaw90.world().resource::<SoftPresence>();
+            (p90.position.x, p90.position.z, p90.velocity.x, p90.velocity.z)
+        };
+        assert!(
+            (p90x - p0z).abs() < 1e-3,
+            "yaw 90 W x {p90x} should match yaw 0 z {p0z}"
+        );
+        assert!(p90z.abs() < 1e-3, "z={p90z}");
+        assert!(v90x < 0.0);
+        assert!(v90z.abs() < 1e-3);
+        assert!(yaw_near(
+            yaw90.world().resource::<BodyFacing>().yaw,
+            camera_forward_yaw(FRAC_PI_2)
+        ));
+        let front = body_front(&mut yaw90);
+        assert!(
+            front.x < -0.9 && front.z.abs() < 1e-3,
+            "body faces camera forward, front={front:?}"
+        );
+    }
+
+    /// Classic keyboard A turns in place. It does not strafe.
+    #[test]
+    fn move_strafe_classic_a_turns_without_translating() {
+        let mut app = strafe_app(
+            ControlPreset::Classic,
+            0.0,
+            Vec2::new(-1.0, 0.0),
+            Some(LaunchDoor::InYard),
+            Some(false),
+            &[KeyCode::KeyA],
+        );
+        let presence = app.world().resource::<SoftPresence>();
+        assert!(presence.position.x.abs() < 1e-4, "x={}", presence.position.x);
+        assert!(presence.position.z.abs() < 1e-4, "z={}", presence.position.z);
+        assert!(presence.velocity.x.abs() < 1e-4);
+        assert!(presence.velocity.z.abs() < 1e-4);
+        let facing = app.world().resource::<BodyFacing>().yaw;
+        let turned = wrap_pi(facing - PI);
+        assert!(turned > 0.2, "A should turn left, delta={turned}");
+        let orbit = app.world().resource::<FollowOrbit>().yaw;
+        assert!(
+            yaw_near(orbit, wrap_pi(facing + PI)),
+            "orbit {orbit} should follow body {facing}"
+        );
+        let front = body_front(&mut app);
+        let want = body_forward(facing);
+        assert!(
+            front.distance(want) < 1e-3,
+            "front={front:?} want={want:?}"
+        );
+    }
+
+    /// Classic W follows the body, even when that is not the camera forward.
+    #[test]
+    fn move_strafe_classic_w_follows_body_facing() {
+        let mut app = strafe_world(
+            ControlPreset::Classic,
+            0.0,
+            Vec2::new(0.0, 1.0),
+            Some(LaunchDoor::InYard),
+            Some(false),
+            &[KeyCode::KeyW],
+        );
+        app.world_mut().resource_mut::<BodyFacing>().yaw = 0.0;
+        app.update();
+        app.update();
+        let presence = app.world().resource::<SoftPresence>();
+        assert!(
+            presence.position.z > 0.0,
+            "body facing +Z should step +Z, z={}",
+            presence.position.z
+        );
+        assert!(presence.position.x.abs() < 1e-4);
+        assert!(yaw_near(app.world().resource::<BodyFacing>().yaw, 0.0));
+        assert!(yaw_near(app.world().resource::<FollowOrbit>().yaw, 0.0));
+    }
+
+    /// Pad and touch share `PlayerInput.movement`. Both stay camera-relative
+    /// in Modern and Classic. Classic turning stays on the keyboard.
+    #[test]
+    fn move_strafe_pad_and_touch_camera_relative_in_both_presets() {
+        let modern = strafe_app(
+            ControlPreset::Modern,
+            FRAC_PI_2,
+            Vec2::new(0.0, 1.0),
+            Some(LaunchDoor::InYard),
+            Some(false),
+            &[],
+        );
+        let classic = strafe_app(
+            ControlPreset::Classic,
+            FRAC_PI_2,
+            Vec2::new(0.0, 1.0),
+            Some(LaunchDoor::InYard),
+            Some(false),
+            &[],
+        );
+        let modern_p = modern.world().resource::<SoftPresence>();
+        let classic_p = classic.world().resource::<SoftPresence>();
+        assert!(modern_p.position.x < -0.2, "x={}", modern_p.position.x);
+        assert!(modern_p.position.z.abs() < 1e-3);
+        assert!((modern_p.position.x - classic_p.position.x).abs() < 1e-4);
+        assert!((modern_p.position.z - classic_p.position.z).abs() < 1e-4);
+        assert!(yaw_near(classic.world().resource::<BodyFacing>().yaw, PI));
+        assert!(yaw_near(
+            classic.world().resource::<FollowOrbit>().yaw,
+            FRAC_PI_2
+        ));
+
+        let left = strafe_app(
+            ControlPreset::Classic,
+            0.0,
+            Vec2::new(-1.0, 0.0),
+            Some(LaunchDoor::InYard),
+            Some(false),
+            &[],
+        );
+        let left_p = left.world().resource::<SoftPresence>();
+        assert!(
+            left_p.position.x < -0.2,
+            "stick left should strafe, x={}",
+            left_p.position.x
+        );
+        assert!(left_p.position.z.abs() < 1e-3);
+        assert!(yaw_near(left.world().resource::<BodyFacing>().yaw, PI));
+        assert!(yaw_near(left.world().resource::<FollowOrbit>().yaw, 0.0));
+
+        // Modern A/D is a strafe: the body keeps the camera forward, not the stick direction.
+        let mut modern_left = strafe_app(
+            ControlPreset::Modern,
+            0.0,
+            Vec2::new(-1.0, 0.0),
+            Some(LaunchDoor::InYard),
+            Some(false),
+            &[],
+        );
+        let (mx, mz) = {
+            let presence = modern_left.world().resource::<SoftPresence>();
+            (presence.position.x, presence.position.z)
+        };
+        assert!(mx < -0.2);
+        assert!(mz.abs() < 1e-3);
+        let front = body_front(&mut modern_left);
+        assert!(
+            front.z < -0.9 && front.x.abs() < 1e-3,
+            "strafe should not turn the body, front={front:?}"
+        );
+    }
+
+    /// Title and settings still block wish and Classic A/D. Same gate as #736.
+    #[test]
+    fn move_strafe_title_and_settings_gate_holds() {
+        let title = strafe_app(
+            ControlPreset::Modern,
+            FRAC_PI_2,
+            Vec2::new(0.0, 1.0),
+            Some(LaunchDoor::Title),
+            Some(false),
+            &[],
+        );
+        let title_p = title.world().resource::<SoftPresence>();
+        assert_eq!(title_p.position.x, 0.0);
+        assert_eq!(title_p.position.z, 0.0);
+        assert_eq!(title_p.velocity.x, 0.0);
+        assert_eq!(title_p.velocity.z, 0.0);
+
+        let settings = strafe_app(
+            ControlPreset::Modern,
+            FRAC_PI_2,
+            Vec2::new(0.0, 1.0),
+            Some(LaunchDoor::InYard),
+            Some(true),
+            &[],
+        );
+        let settings_p = settings.world().resource::<SoftPresence>();
+        assert_eq!(settings_p.position.x, 0.0);
+        assert_eq!(settings_p.position.z, 0.0);
+        assert_eq!(settings_p.velocity.x, 0.0);
+        assert_eq!(settings_p.velocity.z, 0.0);
+
+        let title_a = strafe_app(
+            ControlPreset::Classic,
+            0.0,
+            Vec2::new(-1.0, 0.0),
+            Some(LaunchDoor::Title),
+            Some(false),
+            &[KeyCode::KeyA],
+        );
+        assert!(yaw_near(title_a.world().resource::<BodyFacing>().yaw, PI));
+        assert_eq!(title_a.world().resource::<FollowOrbit>().yaw, 0.0);
+        assert_eq!(title_a.world().resource::<SoftPresence>().position.x, 0.0);
+        assert_eq!(title_a.world().resource::<SoftPresence>().position.z, 0.0);
+
+        let settings_a = strafe_app(
+            ControlPreset::Classic,
+            0.0,
+            Vec2::new(-1.0, 0.0),
+            Some(LaunchDoor::InYard),
+            Some(true),
+            &[KeyCode::KeyA],
+        );
+        assert!(yaw_near(
+            settings_a.world().resource::<BodyFacing>().yaw,
+            PI
+        ));
+        assert_eq!(settings_a.world().resource::<FollowOrbit>().yaw, 0.0);
+        assert_eq!(
+            settings_a.world().resource::<SoftPresence>().position.x,
+            0.0
+        );
+        assert_eq!(
+            settings_a.world().resource::<SoftPresence>().position.z,
+            0.0
+        );
     }
 
     fn quiet_house(settings_open: bool) -> HouseLabel {
