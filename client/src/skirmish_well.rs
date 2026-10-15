@@ -19,6 +19,7 @@ use crate::hud_anchor_registry::{HudSlab, WELL};
 use crate::harvest_feel::{rumble_harvest, SoftRbePool};
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::human_presence::SoftPresence;
+use crate::input::PlayerInput;
 use crate::ledger_bind::LedgerYard;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
@@ -102,7 +103,15 @@ impl Plugin for SkirmishWellPlugin {
             .add_systems(PreUpdate, mark_well_near)
             .add_systems(
                 Update,
-                (pressure_hold, handle_well, tick_well_glow, update_well_slab),
+                (
+                    pressure_hold,
+                    // Same frame as the Use edge. `handle_player_input` writes
+                    // `PlayerInput.interact` in Update; reading it earlier misses
+                    // the pad press, and a later frame can see the stale edge.
+                    handle_well.after(crate::input::handle_player_input),
+                    tick_well_glow,
+                    update_well_slab,
+                ),
             );
     }
 }
@@ -188,6 +197,8 @@ fn pressure_hold(
 
 pub(crate) fn handle_well(
     keyboard: Res<ButtonInput<KeyCode>>,
+    // Absent in key-only harnesses. The live client always inserts this.
+    input: Option<Res<PlayerInput>>,
     presence: Res<SoftPresence>,
     voice: Res<VoiceYard>,
     ledger: Res<LedgerYard>,
@@ -206,7 +217,11 @@ pub(crate) fn handle_well(
         return;
     }
     yard.well.reveal();
-    if !keyboard.just_pressed(soft_play_bindings::INTERACT) {
+    // One Use edge: key E, or the pad South / 0.120 s buffer already folded
+    // into `PlayerInput.interact`. Either source calls `act` once.
+    let use_edge = keyboard.just_pressed(soft_play_bindings::INTERACT)
+        || input.as_ref().is_some_and(|input| input.interact);
+    if !use_edge {
         return;
     }
     // Same latch `mark_well_near` copied in PreUpdate. Until the first
@@ -627,5 +642,119 @@ mod tests {
             assert_eq!(vis, Visibility::Visible);
             assert_eq!(bg.to_srgba().alpha, 1.0, "synced fill alpha at glow {glow}");
         }
+    }
+
+    /// Near the first well, latch already lived, no Use yet.
+    fn well_pad_use_app(near: bool) -> App {
+        use shared::ledger_bind::LedgerBoard;
+
+        let position = if near {
+            let (x, y, z) = WELL_ANCHORS[0];
+            Vec3::new(x, y, z)
+        } else {
+            SoftPresence::default().position
+        };
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(SoftPresence {
+                position,
+                ..default()
+            })
+            .insert_resource(WellYard {
+                first_harvest_lived: true,
+                ..default()
+            })
+            .init_resource::<VoiceYard>()
+            .insert_resource(LedgerYard {
+                board: LedgerBoard::default(),
+                sash_open: false,
+            })
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<ThrivingMoments>()
+            .init_resource::<SoftRbePool>()
+            .init_resource::<PlayerInput>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .add_message::<GamepadRumbleRequest>()
+            .add_systems(Update, handle_well);
+        app
+    }
+
+    /// CARD WELL-PAD-USE-1 — key E near the well after a lived take still wins.
+    #[test]
+    fn well_pad_use_key_e_after_lived_take_still_wins() {
+        let mut app = well_pad_use_app(true);
+        assert!(near_first_well(app.world().resource::<SoftPresence>()));
+        assert!(app.world().resource::<WellYard>().first_harvest_lived);
+        assert!(!app.world().resource::<PlayerInput>().interact);
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(soft_play_bindings::INTERACT);
+        app.update();
+        let well = &app.world().resource::<WellYard>().well;
+        assert_eq!(well.wins, 1, "key E still contests");
+        assert_eq!(well.hold, WellHold::Human);
+        assert!(well.last_line.contains("The well is yours"));
+    }
+
+    /// CARD WELL-PAD-USE-1 — `interact == true` with no key calls `act` once.
+    #[test]
+    fn well_pad_use_interact_without_key_calls_act_once() {
+        let mut app = well_pad_use_app(true);
+        assert!(
+            !app.world()
+                .resource::<ButtonInput<KeyCode>>()
+                .just_pressed(soft_play_bindings::INTERACT)
+        );
+        app.world_mut().resource_mut::<PlayerInput>().interact = true;
+        app.update();
+        {
+            let well = &app.world().resource::<WellYard>().well;
+            assert_eq!(well.wins, 1, "pad edge contests once");
+            assert_eq!(well.hold, WellHold::Human);
+            assert_eq!(well.losses, 0);
+        }
+        app.world_mut().resource_mut::<PlayerInput>().interact = false;
+        app.update();
+        {
+            let well = &app.world().resource::<WellYard>().well;
+            assert_eq!(well.wins, 1, "dropped edge does not contest again");
+            assert_eq!(well.hold, WellHold::Human);
+        }
+
+        // A second `act` in the same run would dawn and then contest.
+        // One call stops on dawn: Traveler, wins still 0.
+        let mut once = well_pad_use_app(true);
+        once.world_mut().resource_mut::<WellYard>().well.hold = WellHold::Aftercare;
+        once.world_mut().resource_mut::<PlayerInput>().interact = true;
+        once.update();
+        let well = &once.world().resource::<WellYard>().well;
+        assert_eq!(well.hold, WellHold::Traveler, "act ran once");
+        assert_eq!(well.wins, 0, "a second act would have contested");
+        assert_eq!(well.losses, 0);
+    }
+
+    /// CARD WELL-PAD-USE-1 — neither input, or out of reach, does not call `act`.
+    #[test]
+    fn well_pad_use_neither_input_or_out_of_reach_does_not_act() {
+        let mut idle = well_pad_use_app(true);
+        assert!(!idle.world().resource::<PlayerInput>().interact);
+        idle.update();
+        let well = &idle.world().resource::<WellYard>().well;
+        assert_eq!(well.wins, 0);
+        assert_eq!(well.hold, WellHold::Traveler);
+        assert_eq!(well.losses, 0);
+
+        let mut far = well_pad_use_app(false);
+        assert!(!near_first_well(far.world().resource::<SoftPresence>()));
+        assert!(far.world().resource::<WellYard>().first_harvest_lived);
+        far.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(soft_play_bindings::INTERACT);
+        far.world_mut().resource_mut::<PlayerInput>().interact = true;
+        far.update();
+        let well = &far.world().resource::<WellYard>().well;
+        assert_eq!(well.wins, 0, "out of reach does not contest");
+        assert_eq!(well.hold, WellHold::Traveler);
+        assert!(well.last_line.is_empty(), "out of reach returns before act");
     }
 }
