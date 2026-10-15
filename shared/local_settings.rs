@@ -4,7 +4,8 @@
 //! (or `POWRUSH_USER_DIR`). Cwd `data/powrush_settings.json` is adopt-only.
 //! Look · Mute · Invert-Y · Hide slabs · Brightness · Text scale · Grove ·
 //! Graphics preset · Mesh LOD · Weather fidelity (EARTH-CLIMATE) · Comfort graphics banner · Reduced motion · Rumble ·
-//! Colorblind wells · LAN · Controls (I0) · HUD layout preset (`hud_preset`).
+//! Colorblind wells · LAN · Controls (I0) · HUD layout preset (`hud_preset`) ·
+//! movement preset (`control_preset`, Modern default).
 //! Defaults = Peace hour / Peace desktop (sticks auto-off for mouse Title).
 //! Mute on pause plate = same MasterMute flag.
 //! Online stays grey — no settings toggle binds a socket / POWRUSH_NET=on.
@@ -411,6 +412,10 @@ pub struct LocalSettings {
     /// Missing, unparsable, or unknown → classic. Not a second layout file.
     #[serde(default = "default_hud_preset", deserialize_with = "deserialize_hud_preset")]
     pub hud_preset: String,
+    /// CARD CONTROLS-PRESETS-UI-1. "modern" | "classic".
+    /// Missing or unknown → modern, so an old `powrush_settings.json` stays Modern.
+    #[serde(default = "default_control_preset")]
+    pub control_preset: String,
 }
 
 fn default_look() -> f32 {
@@ -510,6 +515,10 @@ fn default_hud_preset() -> String {
     "classic".into()
 }
 
+fn default_control_preset() -> String {
+    "modern".into()
+}
+
 /// "classic" | "minimal" | "management". Anything else, including a blank, is classic.
 pub fn canonical_hud_preset(raw: &str) -> String {
     match raw.trim().to_ascii_lowercase().as_str() {
@@ -567,6 +576,7 @@ impl Default for LocalSettings {
             sprint_mode: default_sprint_mode(),
             show_use_prompt: true,
             hud_preset: default_hud_preset(),
+            control_preset: default_control_preset(),
         }
     }
 }
@@ -840,6 +850,50 @@ impl LocalSettings {
         self.normalize_on_screen_sticks();
         self.normalize_nintendo_face();
         self.normalize_sprint_mode();
+        self.normalize_control_preset();
+    }
+
+    /// Clamp `control_preset` to modern | classic. Missing or unknown → modern.
+    pub fn normalize_control_preset(&mut self) {
+        let t = self.control_preset.trim().to_ascii_lowercase();
+        self.control_preset = match t.as_str() {
+            "classic" => "classic".into(),
+            _ => "modern".into(),
+        };
+    }
+
+    pub fn control_preset_is_classic(&self) -> bool {
+        self.control_preset
+            .trim()
+            .eq_ignore_ascii_case("classic")
+    }
+
+    /// Settings row face. Unknown already reads as Modern.
+    pub fn control_preset_face(&self) -> &'static str {
+        if self.control_preset_is_classic() {
+            "Classic"
+        } else {
+            "Modern"
+        }
+    }
+
+    /// One-line hint beside the face. Modern strafes. Classic turns.
+    pub fn control_preset_hint(&self) -> &'static str {
+        if self.control_preset_is_classic() {
+            "A/D turn"
+        } else {
+            "A/D strafe"
+        }
+    }
+
+    /// Modern → Classic → Modern.
+    pub fn cycle_control_preset(&mut self) {
+        self.normalize_control_preset();
+        self.control_preset = if self.control_preset_is_classic() {
+            "modern".into()
+        } else {
+            "classic".into()
+        };
     }
 
     /// Clamp on_screen_sticks to auto|on|off. Unknown → auto.
@@ -1757,6 +1811,41 @@ mod tests {
         )
         .unwrap();
         assert_eq!(minimal.hud_preset, "minimal");
+    }
+
+    /// CARD CONTROLS-PRESETS-UI-1 — an old file with no field loads Modern.
+    /// Switching to Classic, saving, and loading again round-trips.
+    #[test]
+    fn control_preset_missing_loads_modern_and_classic_round_trips() {
+        let legacy = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false}"#;
+        let old = LocalSettings::from_json(legacy).unwrap();
+        assert_eq!(old.control_preset, "modern");
+        assert_eq!(old.control_preset_face(), "Modern");
+        assert_eq!(old.control_preset_hint(), "A/D strafe");
+        assert!(!old.control_preset_is_classic());
+        assert!((old.look_sensitivity - 1.0).abs() < f32::EPSILON);
+
+        let unknown = LocalSettings::from_json(
+            r#"{"schema":"powrush_settings_v1","look_sensitivity":1.25,"control_preset":"birds"}"#,
+        )
+        .unwrap();
+        assert_eq!(unknown.control_preset, "modern");
+        assert!((unknown.look_sensitivity - 1.25).abs() < f32::EPSILON);
+
+        let mut switched = LocalSettings::peace_defaults();
+        assert_eq!(switched.control_preset, "modern");
+        switched.cycle_control_preset();
+        assert_eq!(switched.control_preset, "classic");
+        assert_eq!(switched.control_preset_face(), "Classic");
+        assert_eq!(switched.control_preset_hint(), "A/D turn");
+        let saved = switched.to_json().unwrap();
+        assert!(saved.contains("\"control_preset\": \"classic\""));
+        let loaded = LocalSettings::from_json(&saved).unwrap();
+        assert_eq!(loaded.control_preset, "classic");
+        assert_eq!(loaded, switched);
+        switched.cycle_control_preset();
+        assert_eq!(switched.control_preset, "modern");
+        assert_eq!(switched.control_preset_hint(), "A/D strafe");
     }
 
 }

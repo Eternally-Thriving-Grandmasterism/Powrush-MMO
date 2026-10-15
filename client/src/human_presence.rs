@@ -56,8 +56,11 @@
  * by the follow-orbit yaw. W goes along the camera's forward, A/D strafe,
  * and the body faces that forward while moving. Classic keeps W/S on the
  * body's facing and turns with keyboard A/D; the orbit yaw follows the body.
- * Pad and touch stay camera-relative in both presets. The preset is a
- * resource and is not persisted (UI is CONTROLS-PRESETS-UI-1).
+ * Pad and touch stay camera-relative in both presets.
+ *
+ * CARD CONTROLS-PRESETS-UI-1 — `ControlPreset` follows LocalSettings
+ * `control_preset` at boot and whenever that field changes. Movement
+ * logic is unchanged. Missing or unknown stays Modern.
  *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
@@ -79,8 +82,8 @@ use crate::living_day::{
     greet_by_place_mood, preferred_work, schedule_copy_is_honest, still_frame_line, DayPeriod,
     PreferredWork, SacredVerb, SchedulePlace, WellMood,
 };
-use crate::local_settings::{LocalFeedbackFeel, LocalMeshLodFeel};
-use shared::local_settings::GraphicsPreset;
+use crate::local_settings::{LocalFeedbackFeel, LocalMeshLodFeel, LocalSettingsState};
+use shared::local_settings::{GraphicsPreset, LocalSettings};
 
 /// H-2026-09-16-MESH-PERSONA-HANDS — Comfort MeshLodPlan (PATHS-only compile).
 #[path = "gltf_integration.rs"]
@@ -569,13 +572,14 @@ impl Plugin for HumanPresencePlugin {
             .init_resource::<ButtonInput<MouseButton>>()
             .init_resource::<AccumulatedMouseMotion>()
             .init_resource::<AccumulatedMouseScroll>()
-            .add_systems(Startup, spawn_human_presence)
+            .add_systems(Startup, (spawn_human_presence, seed_control_preset_from_settings))
             .add_systems(
                 Update,
                 (
                     apply_presence_mesh_lod,
                     arm_jump_latch,
                     latch_use_attend,
+                    sync_control_preset_from_settings,
                     sync_body,
                     pose_person,
                     follow_camera,
@@ -762,13 +766,48 @@ fn apply_presence_mesh_lod(
     }
 }
 
+fn preset_from_settings(settings: &LocalSettings) -> ControlPreset {
+    if settings.control_preset_is_classic() {
+        ControlPreset::Classic
+    } else {
+        ControlPreset::Modern
+    }
+}
+
+fn seed_control_preset_from_settings(
+    settings: Option<Res<LocalSettingsState>>,
+    mut preset: ResMut<ControlPreset>,
+) {
+    let Some(settings) = settings else {
+        return;
+    };
+    *preset = preset_from_settings(&settings.inner);
+}
+
+fn sync_control_preset_from_settings(
+    settings: Option<Res<LocalSettingsState>>,
+    mut preset: ResMut<ControlPreset>,
+) {
+    let Some(settings) = settings else {
+        return;
+    };
+    if !settings.is_changed() {
+        return;
+    }
+    let next = preset_from_settings(&settings.inner);
+    if *preset != next {
+        *preset = next;
+    }
+}
+
 fn arm_jump_latch(input: Res<PlayerInput>, mut latch: ResMut<JumpLatch>) {
     if input.jump {
         latch.pending = true;
     }
 }
 
-/// CARD MOVE-STRAFE-DEFAULT-1 — not persisted. Settings UI is a later card.
+/// CARD CONTROLS-PRESETS-UI-1 — follows `LocalSettings.control_preset`.
+/// Modern is the serde default, so an old settings file stays Modern.
 #[derive(Resource, Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum ControlPreset {
     /// Camera-relative move. While moving, the body faces the camera forward.
@@ -1365,6 +1404,8 @@ pub fn presence_copy_is_honest(s: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::local_settings::LocalSettingsState;
+    use shared::local_settings::LocalSettings;
 
     /// CARD VP-SKY-1 — follow-camera look height: Sanctuary 1.15, every other
     /// realm 0.45, and the Ambrosian look-down stays exactly 0.45.
@@ -2725,5 +2766,50 @@ mod tests {
             got.distance(fixed) < 1e-3,
             "Ambrosian look-down left the fixed offset, got {got:?} want {fixed:?}"
         );
+    }
+
+    fn preset_follow_app(inner: LocalSettings) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<ControlPreset>()
+            .insert_resource(LocalSettingsState {
+                inner,
+                dirty: false,
+            })
+            .add_systems(Startup, seed_control_preset_from_settings)
+            .add_systems(Update, sync_control_preset_from_settings);
+        app
+    }
+
+    /// CARD CONTROLS-PRESETS-UI-1 — the resource follows LocalSettings at boot and on change.
+    #[test]
+    fn control_preset_resource_follows_settings() {
+        let legacy = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false}"#;
+        let old = LocalSettings::from_json(legacy).unwrap();
+        assert_eq!(old.control_preset, "modern");
+        let mut boot_old = preset_follow_app(old);
+        boot_old.update();
+        assert_eq!(
+            *boot_old.world().resource::<ControlPreset>(),
+            ControlPreset::Modern
+        );
+
+        let mut classic = LocalSettings::peace_defaults();
+        classic.cycle_control_preset();
+        let mut app = preset_follow_app(classic);
+        app.update();
+        assert_eq!(*app.world().resource::<ControlPreset>(), ControlPreset::Classic);
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .cycle_control_preset();
+        app.update();
+        assert_eq!(*app.world().resource::<ControlPreset>(), ControlPreset::Modern);
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .control_preset = "classic".into();
+        app.update();
+        assert_eq!(*app.world().resource::<ControlPreset>(), ControlPreset::Classic);
     }
 }
