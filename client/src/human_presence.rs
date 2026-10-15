@@ -46,11 +46,20 @@
  * modest cap. Medium and High stay full. A punch scale of 0 (reduced motion)
  * stays 0: reduced motion wins over the Low cap. No Ultra. No rumble rewrite.
  *
+ * CARD CAM-MOUSE-ORBIT-1 — hold the right mouse button to orbit the follow
+ * camera (yaw, pitch, distance). The scroll wheel zooms inside a clamp.
+ * Defaults match CAM_BACK / CAM_UP. No orbit on the title screen or while
+ * settings are open (same gate as STILL-BEFORE-YARD-1). Invert-Y, sensitivity,
+ * and camera collision stay deferred.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
-use std::f32::consts::PI;
+use std::f32::consts::{FRAC_PI_2, PI};
 
+use bevy::input::mouse::{
+    AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollPixelsPerLine, MouseScrollUnit,
+};
 use bevy::prelude::*;
 
 use crate::companion_bond::CompanionBond;
@@ -79,6 +88,20 @@ const GRAVITY: f32 = 18.0;
 const JUMP: f32 = 5.6;
 const CAM_BACK: f32 = 6.4;
 const CAM_UP: f32 = 2.35;
+/// Radians of yaw per mouse pixel while the right button is held.
+const ORBIT_YAW_PER_PX: f32 = 0.004;
+/// Radians of pitch per mouse pixel while the right button is held.
+const ORBIT_PITCH_PER_PX: f32 = 0.003;
+/// Distance change per scroll line. Wheel up (positive y) zooms in.
+const ORBIT_DIST_PER_LINE: f32 = 0.85;
+/// Matches Bevy's `MouseScrollPixelsPerLine` default when that resource is absent.
+const ORBIT_PIXELS_PER_LINE: f32 = 100.0;
+const CAM_DIST_MIN: f32 = 2.2;
+const CAM_DIST_MAX: f32 = 16.0;
+/// Above horizontal, so the camera stays over the ground at every allowed distance.
+const CAM_PITCH_MIN: f32 = 0.05;
+/// Short of vertical, so `look_at` cannot flip over the pole.
+const CAM_PITCH_MAX: f32 = FRAC_PI_2 - 0.08;
 /// Horizontal accel toward wish speed (units/s²).
 pub const MOVE_ACCEL: f32 = 28.0;
 /// Horizontal decel when wish is released — stop-on-release, no ice-skate.
@@ -533,6 +556,10 @@ impl Plugin for HumanPresencePlugin {
             .init_resource::<JumpLatch>()
             .init_resource::<PersonAttend>()
             .init_resource::<PersonRhythm>()
+            .init_resource::<FollowOrbit>()
+            .init_resource::<ButtonInput<MouseButton>>()
+            .init_resource::<AccumulatedMouseMotion>()
+            .init_resource::<AccumulatedMouseScroll>()
             .add_systems(Startup, spawn_human_presence)
             .add_systems(
                 Update,
@@ -928,14 +955,117 @@ fn pose_person(
     }
 }
 
+/// CARD CAM-MOUSE-ORBIT-1 — yaw, pitch, and distance around the player.
+/// Defaults reconstruct today's CAM_BACK / CAM_UP offset.
+#[derive(Resource, Debug, Clone, Copy)]
+struct FollowOrbit {
+    yaw: f32,
+    pitch: f32,
+    distance: f32,
+}
+
+impl Default for FollowOrbit {
+    fn default() -> Self {
+        Self {
+            yaw: 0.0,
+            pitch: default_orbit_pitch(),
+            distance: default_orbit_distance(),
+        }
+    }
+}
+
+impl FollowOrbit {
+    fn offset(self) -> Vec3 {
+        orbit_offset(self.yaw, self.pitch, self.distance)
+    }
+}
+
+fn default_orbit_pitch() -> f32 {
+    CAM_UP.atan2(CAM_BACK)
+}
+
+fn default_orbit_distance() -> f32 {
+    CAM_BACK.hypot(CAM_UP)
+}
+
+/// Yaw 0, positive pitch: camera sits on +Z, above the player.
+fn orbit_offset(yaw: f32, pitch: f32, distance: f32) -> Vec3 {
+    let horiz = distance * pitch.cos();
+    Vec3::new(horiz * yaw.sin(), distance * pitch.sin(), horiz * yaw.cos())
+}
+
+/// Same gate as STILL-BEFORE-YARD-1. Orbit input only in the open yard.
+/// A missing door or house keeps today's follow, so the mouse still applies.
+fn orbit_input_open(door: Option<&LaunchDoor>, house: Option<&HouseLabel>) -> bool {
+    match (door, house) {
+        (Some(door), Some(label)) => *door == LaunchDoor::InYard && !label.settings_open,
+        _ => true,
+    }
+}
+
+fn scroll_lines(scroll: &AccumulatedMouseScroll, pixels_per_line: f32) -> f32 {
+    let per = if pixels_per_line.is_finite() && pixels_per_line > 0.0 {
+        pixels_per_line
+    } else {
+        ORBIT_PIXELS_PER_LINE
+    };
+    match scroll.unit {
+        MouseScrollUnit::Line => scroll.delta.y,
+        MouseScrollUnit::Pixel => scroll.delta.y / per,
+    }
+}
+
+fn apply_orbit_input(
+    orbit: &mut FollowOrbit,
+    buttons: &ButtonInput<MouseButton>,
+    motion: &AccumulatedMouseMotion,
+    scroll: &AccumulatedMouseScroll,
+    pixels_per_line: f32,
+) {
+    if buttons.pressed(MouseButton::Right) {
+        if motion.delta.x.is_finite() {
+            // Mouse right turns the view right: the camera swings toward -X.
+            orbit.yaw -= motion.delta.x * ORBIT_YAW_PER_PX;
+        }
+        if motion.delta.y.is_finite() {
+            // Mouse down (positive y) raises the camera and looks down at the player.
+            orbit.pitch += motion.delta.y * ORBIT_PITCH_PER_PX;
+        }
+    }
+    let lines = scroll_lines(scroll, pixels_per_line);
+    if lines.is_finite() && lines != 0.0 {
+        orbit.distance -= lines * ORBIT_DIST_PER_LINE;
+    }
+    orbit.pitch = orbit.pitch.clamp(CAM_PITCH_MIN, CAM_PITCH_MAX);
+    orbit.distance = orbit.distance.clamp(CAM_DIST_MIN, CAM_DIST_MAX);
+}
+
 fn follow_camera(
     presence: Res<SoftPresence>,
     pool: Option<Res<SoftRbePool>>,
     feedback: Res<LocalFeedbackFeel>,
     mesh_lod: Option<Res<LocalMeshLodFeel>>,
     realm: Option<Res<crate::living_practice_loop::SoftPlayerRealm>>,
+    door: Option<Res<LaunchDoor>>,
+    house: Option<Res<HouseLabel>>,
+    mouse_buttons: Res<ButtonInput<MouseButton>>,
+    mouse_motion: Res<AccumulatedMouseMotion>,
+    mouse_scroll: Res<AccumulatedMouseScroll>,
+    scroll_px: Option<Res<MouseScrollPixelsPerLine>>,
+    mut orbit: ResMut<FollowOrbit>,
     mut cams: Query<&mut Transform, With<Camera3d>>,
 ) {
+    // CARD CAM-MOUSE-ORBIT-1 — same yard gate as STILL-BEFORE-YARD-1.
+    if orbit_input_open(door.as_deref(), house.as_deref()) {
+        let pixels_per_line = scroll_px.map(|px| **px).unwrap_or(ORBIT_PIXELS_PER_LINE);
+        apply_orbit_input(
+            &mut orbit,
+            &mouse_buttons,
+            &mouse_motion,
+            &mouse_scroll,
+            pixels_per_line,
+        );
+    }
     let kick = pool.map(|p| p.kick).unwrap_or(0.0);
     let preset = mesh_lod
         .map(|f| f.preset)
@@ -949,7 +1079,7 @@ fn follow_camera(
     let desired = if look_down {
         presence.position + Vec3::new(0.0, CAM_UP + 1.1, CAM_BACK - 1.4)
     } else {
-        presence.position + Vec3::new(0.0, CAM_UP, CAM_BACK) + punch_delta
+        presence.position + orbit.offset() + punch_delta
     };
     let look = if look_down {
         Vec3::new(presence.position.x, 0.45, presence.position.z)
@@ -1763,5 +1893,309 @@ mod tests {
             assert_eq!(presence.position.x, x);
             assert_eq!(presence.position.z, z);
         }
+    }
+
+    fn quiet_house(settings_open: bool) -> HouseLabel {
+        HouseLabel {
+            house: shared::house_name::HouseName::default(),
+            persist_present: false,
+            hour_two_held: false,
+            book_held: false,
+            settings_open,
+            draft: String::new(),
+            naming_offered: false,
+            seals_offered: false,
+        }
+    }
+
+    /// Spawn the follow camera and the orbit resources. Door and house are optional.
+    fn orbit_world(door: Option<LaunchDoor>, settings_open: Option<bool>) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<SoftPresence>()
+            .init_resource::<FollowOrbit>()
+            .init_resource::<ButtonInput<MouseButton>>()
+            .init_resource::<AccumulatedMouseMotion>()
+            .init_resource::<AccumulatedMouseScroll>()
+            .insert_resource(LocalFeedbackFeel::default())
+            .add_systems(Update, follow_camera);
+        if let Some(door) = door {
+            app.insert_resource(door);
+        }
+        if let Some(open) = settings_open {
+            app.insert_resource(quiet_house(open));
+        }
+        app.world_mut().spawn((
+            Camera3d::default(),
+            Transform::from_xyz(0.0, 8.0, 14.0),
+        ));
+        app
+    }
+
+    fn settle_follow(app: &mut App) {
+        for _ in 0..80 {
+            app.update();
+        }
+    }
+
+    fn cam_translation(app: &mut App) -> Vec3 {
+        let mut q = app.world_mut().query::<(&Transform, &Camera3d)>();
+        q.iter(app.world()).next().expect("camera").0.translation
+    }
+
+    fn cam_up_y(app: &mut App) -> f32 {
+        let mut q = app.world_mut().query::<(&Transform, &Camera3d)>();
+        q.iter(app.world()).next().expect("camera").0.up().as_vec3().y
+    }
+
+    /// Defaults equal today's CAM_BACK / CAM_UP view.
+    #[test]
+    fn cam_mouse_orbit_default_matches_fixed_offset() {
+        let orbit = FollowOrbit::default();
+        let offset = orbit.offset();
+        let fixed = Vec3::new(0.0, CAM_UP, CAM_BACK);
+        assert!(
+            offset.distance(fixed) < 1e-4,
+            "default orbit {offset:?} left the fixed offset {fixed:?}"
+        );
+        assert!(default_orbit_pitch() > CAM_PITCH_MIN);
+        assert!(default_orbit_pitch() < CAM_PITCH_MAX);
+        assert!(default_orbit_distance() > CAM_DIST_MIN);
+        assert!(default_orbit_distance() < CAM_DIST_MAX);
+    }
+
+    /// A player who never touches the mouse settles on the same follow point.
+    #[test]
+    fn cam_mouse_orbit_untouched_settles_on_fixed_view() {
+        let mut app = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        settle_follow(&mut app);
+        let presence = app.world().resource::<SoftPresence>().position;
+        let want = presence + Vec3::new(0.0, CAM_UP, CAM_BACK);
+        let got = cam_translation(&mut app);
+        assert!(
+            got.distance(want) < 0.02,
+            "untouched camera {got:?} left {want:?}"
+        );
+        assert!(cam_up_y(&mut app) > 0.0, "default look flipped");
+    }
+
+    /// Hold right mouse plus motion changes yaw and pitch.
+    #[test]
+    fn cam_mouse_orbit_rmb_motion_changes_yaw_and_pitch() {
+        let mut app = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        {
+            let world = app.world_mut();
+            world
+                .resource_mut::<ButtonInput<MouseButton>>()
+                .press(MouseButton::Right);
+            world.resource_mut::<AccumulatedMouseMotion>().delta = Vec2::new(30.0, 20.0);
+        }
+        app.update();
+        let orbit = *app.world().resource::<FollowOrbit>();
+        assert!(
+            (orbit.yaw - (-30.0 * ORBIT_YAW_PER_PX)).abs() < 1e-4,
+            "mouse right should turn the view right, yaw={}",
+            orbit.yaw
+        );
+        assert!(
+            (orbit.pitch - (default_orbit_pitch() + 20.0 * ORBIT_PITCH_PER_PX)).abs() < 1e-4,
+            "mouse down should raise the camera, pitch={}",
+            orbit.pitch
+        );
+        assert!((orbit.distance - default_orbit_distance()).abs() < 1e-4);
+    }
+
+    /// Motion without the right button does not change yaw or pitch.
+    #[test]
+    fn cam_mouse_orbit_motion_without_rmb_holds_angles() {
+        let mut app = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        app.world_mut().resource_mut::<AccumulatedMouseMotion>().delta = Vec2::new(80.0, -40.0);
+        app.update();
+        let orbit = *app.world().resource::<FollowOrbit>();
+        assert_eq!(orbit.yaw, 0.0);
+        assert!((orbit.pitch - default_orbit_pitch()).abs() < 1e-5);
+        assert!((orbit.distance - default_orbit_distance()).abs() < 1e-5);
+    }
+
+    /// Pitch cannot flip over the pole or drop the camera under the ground.
+    #[test]
+    fn cam_mouse_orbit_pitch_clamped_no_flip_or_underground() {
+        let mut app = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        {
+            let world = app.world_mut();
+            world
+                .resource_mut::<ButtonInput<MouseButton>>()
+                .press(MouseButton::Right);
+            world.resource_mut::<AccumulatedMouseMotion>().delta = Vec2::new(0.0, -100_000.0);
+        }
+        app.update();
+        let low = *app.world().resource::<FollowOrbit>();
+        assert_eq!(low.pitch, CAM_PITCH_MIN);
+        assert!(low.offset().y > 0.0, "pitch floor still buried the camera");
+        app.world_mut().resource_mut::<AccumulatedMouseMotion>().delta = Vec2::ZERO;
+        settle_follow(&mut app);
+        let grounded = cam_translation(&mut app);
+        assert!(
+            grounded.y > 0.15,
+            "camera went under the ground at y={}",
+            grounded.y
+        );
+        assert!(cam_up_y(&mut app) > 0.0, "low pitch flipped the camera");
+
+        app.world_mut().resource_mut::<AccumulatedMouseMotion>().delta = Vec2::new(0.0, 100_000.0);
+        app.update();
+        let high = *app.world().resource::<FollowOrbit>();
+        assert_eq!(high.pitch, CAM_PITCH_MAX);
+        assert!(high.pitch < FRAC_PI_2);
+        assert!(high.pitch.cos() > 0.0, "pitch reached the pole");
+        app.world_mut().resource_mut::<AccumulatedMouseMotion>().delta = Vec2::ZERO;
+        settle_follow(&mut app);
+        let up_y = cam_up_y(&mut app);
+        // Near overhead, world-up on the camera is small but still positive.
+        // A flip would point up.y down through the ground.
+        assert!(up_y > 0.0, "high pitch flipped the camera, up.y={up_y}");
+        let overhead = cam_translation(&mut app);
+        assert!(
+            overhead.y > STAND,
+            "high pitch dropped the camera, y={}",
+            overhead.y
+        );
+    }
+
+    /// Scroll changes distance and clamps to min and max. The right button is not required.
+    #[test]
+    fn cam_mouse_orbit_scroll_clamps_distance() {
+        let mut app = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        {
+            let mut scroll = app.world_mut().resource_mut::<AccumulatedMouseScroll>();
+            scroll.unit = MouseScrollUnit::Line;
+            scroll.delta = Vec2::new(0.0, 1.0);
+        }
+        app.update();
+        let zoomed = app.world().resource::<FollowOrbit>().distance;
+        assert!(
+            (zoomed - (default_orbit_distance() - ORBIT_DIST_PER_LINE)).abs() < 1e-4,
+            "wheel up should zoom in, distance={zoomed}"
+        );
+
+        {
+            let mut scroll = app.world_mut().resource_mut::<AccumulatedMouseScroll>();
+            scroll.unit = MouseScrollUnit::Pixel;
+            scroll.delta = Vec2::new(0.0, ORBIT_PIXELS_PER_LINE);
+        }
+        app.update();
+        let pixels = app.world().resource::<FollowOrbit>().distance;
+        assert!(
+            (pixels - (default_orbit_distance() - 2.0 * ORBIT_DIST_PER_LINE)).abs() < 1e-4,
+            "100 px should match one line, distance={pixels}"
+        );
+
+        {
+            let mut scroll = app.world_mut().resource_mut::<AccumulatedMouseScroll>();
+            scroll.unit = MouseScrollUnit::Line;
+            scroll.delta = Vec2::new(0.0, 10_000.0);
+        }
+        app.update();
+        assert_eq!(app.world().resource::<FollowOrbit>().distance, CAM_DIST_MIN);
+
+        app.world_mut().resource_mut::<AccumulatedMouseScroll>().delta = Vec2::new(0.0, -10_000.0);
+        app.update();
+        assert_eq!(app.world().resource::<FollowOrbit>().distance, CAM_DIST_MAX);
+
+        let orbit = *app.world().resource::<FollowOrbit>();
+        assert_eq!(orbit.yaw, 0.0);
+        assert!((orbit.pitch - default_orbit_pitch()).abs() < 1e-5);
+    }
+
+    fn mouse_orbit_attempt(app: &mut App) {
+        {
+            let world = app.world_mut();
+            world
+                .resource_mut::<ButtonInput<MouseButton>>()
+                .press(MouseButton::Right);
+            world.resource_mut::<AccumulatedMouseMotion>().delta = Vec2::new(40.0, 25.0);
+            let mut scroll = world.resource_mut::<AccumulatedMouseScroll>();
+            scroll.unit = MouseScrollUnit::Line;
+            scroll.delta = Vec2::new(0.0, 2.0);
+        }
+        app.update();
+    }
+
+    fn assert_orbit_still_default(app: &App) {
+        let orbit = *app.world().resource::<FollowOrbit>();
+        assert_eq!(orbit.yaw, 0.0);
+        assert!((orbit.pitch - default_orbit_pitch()).abs() < 1e-5);
+        assert!((orbit.distance - default_orbit_distance()).abs() < 1e-5);
+    }
+
+    /// No orbit on the title screen.
+    #[test]
+    fn cam_mouse_orbit_title_ignores_mouse() {
+        let mut app = orbit_world(Some(LaunchDoor::Title), Some(false));
+        mouse_orbit_attempt(&mut app);
+        assert_orbit_still_default(&app);
+    }
+
+    /// No orbit while settings are open.
+    #[test]
+    fn cam_mouse_orbit_settings_open_ignores_mouse() {
+        let mut app = orbit_world(Some(LaunchDoor::InYard), Some(true));
+        mouse_orbit_attempt(&mut app);
+        assert_orbit_still_default(&app);
+    }
+
+    /// Same gate as #736: NameHouse is not the open yard.
+    #[test]
+    fn cam_mouse_orbit_name_house_ignores_mouse() {
+        let mut app = orbit_world(Some(LaunchDoor::NameHouse), Some(false));
+        mouse_orbit_attempt(&mut app);
+        assert_orbit_still_default(&app);
+    }
+
+    /// A missing door or house keeps today's follow, so the mouse still orbits.
+    #[test]
+    fn cam_mouse_orbit_missing_door_still_reads_mouse() {
+        let mut app = orbit_world(None, None);
+        mouse_orbit_attempt(&mut app);
+        let orbit = *app.world().resource::<FollowOrbit>();
+        assert!(orbit.yaw < 0.0);
+        assert!(orbit.pitch > default_orbit_pitch());
+        assert!(orbit.distance < default_orbit_distance());
+    }
+
+    /// Gamepad and WASD stay on PlayerInput. They do not orbit the camera.
+    #[test]
+    fn cam_mouse_orbit_player_input_does_not_orbit() {
+        let mut app = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        app.insert_resource(PlayerInput {
+            movement: Vec2::new(1.0, 1.0),
+            interact: true,
+            interact_held: true,
+            jump: true,
+            sprint: true,
+            ..Default::default()
+        });
+        app.update();
+        assert_orbit_still_default(&app);
+    }
+
+    /// Ambrosian look-down keeps the fixed offset. An orbited yaw does not move it.
+    #[test]
+    fn cam_mouse_orbit_ambrosian_look_down_keeps_fixed_offset() {
+        let mut app = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        let ambro = Vec3::new(1.0, sanctuary_yard_wake().y + AMBROSIAN_LIFT_DETECT + 1.0, -2.0);
+        let fixed = ambro + Vec3::new(0.0, CAM_UP + 1.1, CAM_BACK - 1.4);
+        app.world_mut().resource_mut::<SoftPresence>().position = ambro;
+        app.world_mut().resource_mut::<FollowOrbit>().yaw = FRAC_PI_2;
+        {
+            let mut q = app.world_mut().query::<&mut Transform>();
+            q.iter_mut(app.world_mut()).next().expect("camera").translation = fixed;
+        }
+        app.update();
+        let got = cam_translation(&mut app);
+        assert!(
+            got.distance(fixed) < 1e-3,
+            "Ambrosian look-down left the fixed offset, got {got:?} want {fixed:?}"
+        );
     }
 }
