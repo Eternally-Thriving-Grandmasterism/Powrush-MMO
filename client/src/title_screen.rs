@@ -709,6 +709,11 @@ struct SettingsTapUseLabel;
 struct SettingsSprintBtn;
 #[derive(Component)]
 struct SettingsSprintLabel;
+/// Controls tab — cycles Modern / Classic. Not a key rebind.
+#[derive(Component)]
+struct SettingsControlPresetBtn;
+#[derive(Component)]
+struct SettingsControlPresetLabel;
 #[derive(Component)]
 struct SettingsOnlineStubBtn;
 #[derive(Component)]
@@ -1292,6 +1297,7 @@ impl Plugin for TitleScreenPlugin {
                     lethal_sign_settings_clicks,
                 ),
             )
+            .add_systems(Update, control_preset_clicks)
             .add_systems(Update, refresh_hud_layout_label)
             // Same-frame as Places row Pressed: hide Comfort before soft-GPU composites.
             .add_systems(
@@ -1735,12 +1741,18 @@ TextColor(TITLE_TEXT_PRIMARY),
                     SettingsLethalLabel,
                 );
             });
-            // Controls tab — sticks + Peace remap + Reset-to-Peace.
+            // Controls tab — movement preset, sticks, Peace remap, Reset-to-Peace.
             p.spawn((
                 settings_tab_panel_bundle(false),
                 PauseTabPanel(PauseTab::Controls),
             ))
             .with_children(|controls| {
+                spawn_settings_row(
+                    controls,
+                    "Move · Modern · A/D strafe",
+                    SettingsControlPresetBtn,
+                    SettingsControlPresetLabel,
+                );
                 spawn_settings_row(
                     controls,
                     "Touch sticks · auto",
@@ -3015,6 +3027,14 @@ pub fn sprint_btn_label(s: &LocalSettings) -> String {
     format!("Pad sprint · {face}")
 }
 
+pub fn control_preset_btn_label(s: &LocalSettings) -> String {
+    format!(
+        "Move · {} · {}",
+        s.control_preset_face(),
+        s.control_preset_hint()
+    )
+}
+
 impl PeaceAction {
     const fn label(self) -> &'static str {
         match self {
@@ -3492,6 +3512,26 @@ fn local_settings_clicks(
     }
 }
 
+fn control_preset_clicks(
+    label: Res<HouseLabel>,
+    mut settings: ResMut<LocalSettingsState>,
+    preset: Query<&Interaction, (Changed<Interaction>, With<SettingsControlPresetBtn>)>,
+) {
+    if !label.settings_open {
+        return;
+    }
+    let mut changed = false;
+    for i in &preset {
+        if *i == Interaction::Pressed {
+            settings.inner.cycle_control_preset();
+            changed = true;
+        }
+    }
+    if changed {
+        settings.mark_and_persist();
+    }
+}
+
 fn accessibility_settings_clicks(
     label: Res<HouseLabel>,
     mut settings: ResMut<LocalSettingsState>,
@@ -3641,6 +3681,7 @@ fn refresh_controls_settings_labels(
         Query<(&mut Text, &mut TextFont), With<SettingsSticksLabel>>,
         Query<(&mut Text, &mut TextFont), With<SettingsTapUseLabel>>,
         Query<(&mut Text, &mut TextFont), With<SettingsSprintLabel>>,
+        Query<(&mut Text, &mut TextFont), With<SettingsControlPresetLabel>>,
     )>,
 ) {
     if !label.settings_open {
@@ -3650,6 +3691,7 @@ fn refresh_controls_settings_labels(
     let sticks = sticks_btn_label(s);
     let tap = tap_use_btn_label(s);
     let sprint = sprint_btn_label(s);
+    let preset = control_preset_btn_label(s);
     let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
     for (mut text, mut font_face) in &mut texts.p0() {
         set_btn_section_text(&mut text, &sticks);
@@ -3661,6 +3703,10 @@ fn refresh_controls_settings_labels(
     }
     for (mut text, mut font_face) in &mut texts.p2() {
         set_btn_section_text(&mut text, &sprint);
+        set_btn_section_font(&mut font_face, font);
+    }
+    for (mut text, mut font_face) in &mut texts.p3() {
+        set_btn_section_text(&mut text, &preset);
         set_btn_section_font(&mut font_face, font);
     }
 }
@@ -7894,6 +7940,83 @@ mod tests {
         assert_eq!(edit_btns.iter(app.world()).count(), 1);
         let mut edit_labels = app.world_mut().query::<&SettingsHudEditLabel>();
         assert_eq!(edit_labels.iter(app.world()).count(), 1);
+    }
+
+    /// CARD CONTROLS-PRESETS-UI-1 — Controls tab switches Modern/Classic and saves.
+    #[test]
+    fn controls_preset_switch_saves_classic_and_reloads() {
+        let scratch = NameRiteUserDir::new("control-preset");
+        let mut label = rite_label(HouseName::default(), false);
+        label.settings_open = true;
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(LocalSettingsState {
+                inner: LocalSettings::peace_defaults(),
+                dirty: false,
+            })
+            .insert_resource(label)
+            .add_systems(Startup, super::spawn_settings_stub)
+            .add_systems(
+                Update,
+                (
+                    super::refresh_controls_settings_labels,
+                    super::control_preset_clicks,
+                ),
+            );
+        app.update();
+        assert_eq!(
+            control_preset_label_text(&mut app),
+            "Move · Modern · A/D strafe"
+        );
+        assert_eq!(
+            app.world().resource::<LocalSettingsState>().inner.control_preset,
+            "modern"
+        );
+        press_control_preset(&mut app);
+        app.update();
+        app.update();
+        assert_eq!(
+            app.world().resource::<LocalSettingsState>().inner.control_preset,
+            "classic"
+        );
+        assert_eq!(
+            control_preset_label_text(&mut app),
+            "Move · Classic · A/D turn"
+        );
+        let saved = std::fs::read_to_string(scratch.dir.join("powrush_settings.json"))
+            .expect("settings save");
+        assert!(saved.contains("\"control_preset\": \"classic\""));
+        let loaded = LocalSettings::load_or_default();
+        assert_eq!(loaded.control_preset, "classic");
+        assert_eq!(loaded.control_preset_face(), "Classic");
+        assert_eq!(loaded.control_preset_hint(), "A/D turn");
+        press_control_preset(&mut app);
+        app.update();
+        let back = LocalSettings::load_or_default();
+        assert_eq!(back.control_preset, "modern");
+        assert_eq!(back.control_preset_hint(), "A/D strafe");
+    }
+
+    fn control_preset_label_text(app: &mut App) -> String {
+        let mut labels = app
+            .world_mut()
+            .query_filtered::<&Text, With<SettingsControlPresetLabel>>();
+        labels
+            .iter(app.world())
+            .next()
+            .expect("preset label")
+            .as_str()
+            .to_string()
+    }
+
+    fn press_control_preset(app: &mut App) {
+        let entity = {
+            let mut buttons = app
+                .world_mut()
+                .query_filtered::<Entity, With<SettingsControlPresetBtn>>();
+            buttons.iter(app.world()).next().expect("preset button")
+        };
+        *app.world_mut().get_mut::<Interaction>(entity).unwrap() = Interaction::Pressed;
     }
 
     #[test]
