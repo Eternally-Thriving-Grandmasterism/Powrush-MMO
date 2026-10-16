@@ -57,6 +57,14 @@
  * invert off) match the raw per-pixel rates. The follow lerp is
  * `1 - (1 - 0.12)^(dt * 60)`, the old 0.12 weight at 60 fps.
  *
+ * CARD CAM-MOUSELOOK-1A — optional mouse-look (default off) orbits while the
+ * cursor is grabbed, without holding the right button. Grab is `Locked`
+ * (`bevy_winit` falls back to `Confined`) and the cursor is hidden, only when
+ * mouse-look is on, the door is InYard, settings are closed, HUD edit is off,
+ * and the primary window is focused. Every other frame releases (`None`,
+ * visible). The following eligible frame grabs again. mouse_look off leaves
+ * the RMB orbit and the cursor untouched.
+ *
  * CARD MOVE-STRAFE-DEFAULT-1 — Modern (default) rotates WASD, pad, and touch
  * by the follow-orbit yaw. W goes along the camera's forward, A/D strafe,
  * and the body faces that forward while moving. Classic keeps W/S on the
@@ -83,6 +91,7 @@ use bevy::input::mouse::{
     AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollPixelsPerLine, MouseScrollUnit,
 };
 use bevy::prelude::*;
+use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::companion_bond::CompanionBond;
 use crate::hour_sacred::PeopleLanding;
@@ -605,6 +614,7 @@ impl Plugin for HumanPresencePlugin {
                     sync_control_preset_from_settings,
                     sync_body,
                     pose_person,
+                    sync_mouse_look_grab,
                     follow_camera,
                 )
                     .chain(),
@@ -1346,6 +1356,66 @@ fn scroll_lines(scroll: &AccumulatedMouseScroll, pixels_per_line: f32) -> f32 {
     }
 }
 
+/// CARD CAM-MOUSELOOK-1A — grab only in the open, focused yard.
+/// Settings and HUD edit keep the cursor free. A lost focus releases it.
+fn mouse_look_grab_eligible(
+    mouse_look: bool,
+    in_yard: bool,
+    settings_open: bool,
+    hud_edit: bool,
+    focused: bool,
+) -> bool {
+    mouse_look && in_yard && !settings_open && !hud_edit && focused
+}
+
+/// `Locked` hides the cursor. `bevy_winit` falls back to `Confined` when the
+/// platform rejects `Locked`. A free cursor is `None` and visible.
+fn mouse_look_cursor(eligible: bool) -> (CursorGrabMode, bool) {
+    if eligible {
+        (CursorGrabMode::Locked, false)
+    } else {
+        (CursorGrabMode::None, true)
+    }
+}
+
+/// `Locked` is the request. `Confined` still counts: that is the platform fallback.
+fn cursor_counts_as_grabbed(mode: CursorGrabMode) -> bool {
+    matches!(mode, CursorGrabMode::Locked | CursorGrabMode::Confined)
+}
+
+/// Each Update asks again, before `follow_camera`. A menu, HUD edit, title
+/// door, or lost focus releases on that frame. The next eligible frame grabs.
+fn sync_mouse_look_grab(
+    look: Option<Res<LocalLookFeel>>,
+    door: Option<Res<LaunchDoor>>,
+    house: Option<Res<HouseLabel>>,
+    edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
+    mut windows: Query<(&Window, &mut CursorOptions), With<PrimaryWindow>>,
+) {
+    let mouse_look = look.as_ref().is_some_and(|feel| feel.mouse_look);
+    let in_yard = door.as_deref().copied() == Some(LaunchDoor::InYard);
+    let settings_open = house.as_deref().is_some_and(|label| label.settings_open);
+    let hud_edit = edit.as_deref().is_some_and(|mode| mode.active);
+    for (window, mut cursor) in &mut windows {
+        let eligible = mouse_look_grab_eligible(
+            mouse_look,
+            in_yard,
+            settings_open,
+            hud_edit,
+            window.focused,
+        );
+        let (grab, visible) = mouse_look_cursor(eligible);
+        // Write only when the cursor would change, so mouse_look off leaves
+        // a default cursor untouched.
+        if cursor.grab_mode != grab {
+            cursor.grab_mode = grab;
+        }
+        if cursor.visible != visible {
+            cursor.visible = visible;
+        }
+    }
+}
+
 fn apply_orbit_input(
     orbit: &mut FollowOrbit,
     buttons: &ButtonInput<MouseButton>,
@@ -1353,8 +1423,9 @@ fn apply_orbit_input(
     scroll: &AccumulatedMouseScroll,
     pixels_per_line: f32,
     look: &LocalLookFeel,
+    grabbed: bool,
 ) {
-    if buttons.pressed(MouseButton::Right) {
+    if buttons.pressed(MouseButton::Right) || (look.mouse_look && grabbed) {
         // Sensitivity scales both axes. Invert-Y flips pitch only.
         // Scroll distance stays on the raw line rate so default feel matches today.
         let (dx, dy) = look.apply_delta(motion.delta.x, motion.delta.y);
@@ -1404,10 +1475,14 @@ fn follow_camera(
     scroll_px: Option<Res<MouseScrollPixelsPerLine>>,
     mut orbit: ResMut<FollowOrbit>,
     mut cams: Query<&mut Transform, With<Camera3d>>,
+    cursors: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
     // CARD CAM-MOUSE-ORBIT-1 — same yard gate as STILL-BEFORE-YARD-1.
     if orbit_input_open(door.as_deref(), house.as_deref()) {
         let pixels_per_line = scroll_px.map(|px| **px).unwrap_or(ORBIT_PIXELS_PER_LINE);
+        let grabbed = cursors
+            .iter()
+            .any(|cursor| cursor_counts_as_grabbed(cursor.grab_mode));
         apply_orbit_input(
             &mut orbit,
             &mouse_buttons,
@@ -1415,6 +1490,7 @@ fn follow_camera(
             &mouse_scroll,
             pixels_per_line,
             &look,
+            grabbed,
         );
     }
     let kick = pool.map(|p| p.kick).unwrap_or(0.0);
@@ -3200,6 +3276,7 @@ mod tests {
         app.insert_resource(LocalLookFeel {
             sensitivity: 2.0,
             invert_y: false,
+            mouse_look: false,
         });
         {
             let world = app.world_mut();
@@ -3238,6 +3315,7 @@ mod tests {
         app.insert_resource(LocalLookFeel {
             sensitivity: 1.0,
             invert_y: true,
+            mouse_look: false,
         });
         {
             let world = app.world_mut();
@@ -3253,6 +3331,222 @@ mod tests {
             (orbit.pitch - (default_orbit_pitch() - 20.0 * ORBIT_PITCH_PER_PX)).abs() < 1e-4,
             "invert-Y should flip pitch, got {}",
             orbit.pitch
+        );
+    }
+
+    fn look_feel(mouse_look: bool) -> LocalLookFeel {
+        LocalLookFeel {
+            sensitivity: 1.0,
+            invert_y: false,
+            mouse_look,
+        }
+    }
+
+    fn orbit_after(look: LocalLookFeel, rmb: bool, grabbed: bool, delta: Vec2) -> FollowOrbit {
+        let mut orbit = FollowOrbit::default();
+        let mut buttons = ButtonInput::default();
+        if rmb {
+            buttons.press(MouseButton::Right);
+        }
+        let motion = AccumulatedMouseMotion { delta };
+        let scroll = AccumulatedMouseScroll::default();
+        apply_orbit_input(
+            &mut orbit,
+            &buttons,
+            &motion,
+            &scroll,
+            ORBIT_PIXELS_PER_LINE,
+            &look,
+            grabbed,
+        );
+        orbit
+    }
+
+    /// Grab only when mouse-look is on, in the yard, menu closed, HUD edit off, focused.
+    #[test]
+    fn mouse_look_grab_eligible_only_in_open_focused_yard() {
+        assert!(mouse_look_grab_eligible(true, true, false, false, true));
+        assert!(!mouse_look_grab_eligible(false, true, false, false, true));
+        assert!(!mouse_look_grab_eligible(true, false, false, false, true));
+        assert!(!mouse_look_grab_eligible(true, true, true, false, true));
+        assert!(!mouse_look_grab_eligible(true, true, false, true, true));
+        assert!(!mouse_look_grab_eligible(true, true, false, false, false));
+    }
+
+    /// Eligible asks for Locked and a hidden cursor. Otherwise None and visible.
+    /// Confined still counts as grabbed: that is the platform fallback for Locked.
+    #[test]
+    fn mouse_look_cursor_locks_and_confined_counts_as_grabbed() {
+        let (grab, visible) = mouse_look_cursor(true);
+        assert_eq!(grab, CursorGrabMode::Locked);
+        assert!(!visible);
+        let (grab, visible) = mouse_look_cursor(false);
+        assert_eq!(grab, CursorGrabMode::None);
+        assert!(visible);
+        assert!(cursor_counts_as_grabbed(CursorGrabMode::Locked));
+        assert!(cursor_counts_as_grabbed(CursorGrabMode::Confined));
+        assert!(!cursor_counts_as_grabbed(CursorGrabMode::None));
+    }
+
+    /// mouse_look off keeps the RMB orbit and ignores a grabbed cursor.
+    #[test]
+    fn mouse_look_off_keeps_rmb_orbit_and_ignores_grab() {
+        let delta = Vec2::new(30.0, 20.0);
+        let off = look_feel(false);
+        let held = orbit_after(off, false, true, delta);
+        assert_eq!(held.yaw, 0.0);
+        assert!((held.pitch - default_orbit_pitch()).abs() < 1e-5);
+        let rmb = orbit_after(off, true, false, delta);
+        assert!((rmb.yaw - (-30.0 * ORBIT_YAW_PER_PX)).abs() < 1e-4);
+        assert!((rmb.pitch - (default_orbit_pitch() + 20.0 * ORBIT_PITCH_PER_PX)).abs() < 1e-4);
+        let both = orbit_after(off, true, true, delta);
+        assert!((both.yaw - rmb.yaw).abs() < 1e-6);
+        assert!((both.pitch - rmb.pitch).abs() < 1e-6);
+    }
+
+    /// mouse_look on orbits without RMB only while the cursor is grabbed.
+    #[test]
+    fn mouse_look_grabbed_orbits_without_rmb() {
+        let delta = Vec2::new(30.0, 20.0);
+        let on = look_feel(true);
+        let free = orbit_after(on, false, false, delta);
+        assert_eq!(free.yaw, 0.0);
+        assert!((free.pitch - default_orbit_pitch()).abs() < 1e-5);
+        let grabbed = orbit_after(on, false, true, delta);
+        assert!((grabbed.yaw - (-30.0 * ORBIT_YAW_PER_PX)).abs() < 1e-4);
+        assert!(
+            (grabbed.pitch - (default_orbit_pitch() + 20.0 * ORBIT_PITCH_PER_PX)).abs() < 1e-4
+        );
+        let rmb = orbit_after(on, true, false, delta);
+        assert!((rmb.yaw - grabbed.yaw).abs() < 1e-6);
+        assert!((rmb.pitch - grabbed.pitch).abs() < 1e-6);
+    }
+
+    fn spawn_primary_cursor(app: &mut App, hit_test: bool) {
+        app.world_mut().spawn((
+            Window::default(),
+            PrimaryWindow,
+            CursorOptions {
+                visible: true,
+                grab_mode: CursorGrabMode::None,
+                hit_test,
+            },
+        ));
+    }
+
+    fn primary_cursor(app: &mut App) -> (CursorGrabMode, bool, bool) {
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&CursorOptions, With<PrimaryWindow>>();
+        let cursor = q.iter(app.world()).next().expect("primary cursor");
+        (cursor.grab_mode, cursor.visible, cursor.hit_test)
+    }
+
+    fn grab_app(mouse_look: bool, door: LaunchDoor, settings_open: bool) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(look_feel(mouse_look))
+            .insert_resource(door)
+            .insert_resource(quiet_house(settings_open))
+            .add_systems(Update, sync_mouse_look_grab);
+        spawn_primary_cursor(&mut app, false);
+        app
+    }
+
+    /// Eligible yard grabs Locked and hides the cursor. Settings, HUD edit,
+    /// title, and a lost focus release. The next eligible frame grabs again.
+    /// mouse_look off leaves the cursor where it was, including hit_test.
+    #[test]
+    fn sync_mouse_look_grab_releases_until_the_next_eligible_frame() {
+        let mut off = grab_app(false, LaunchDoor::InYard, false);
+        off.update();
+        assert_eq!(primary_cursor(&mut off), (CursorGrabMode::None, true, false));
+
+        let mut title = grab_app(true, LaunchDoor::Title, false);
+        title.update();
+        assert_eq!(
+            primary_cursor(&mut title),
+            (CursorGrabMode::None, true, false)
+        );
+
+        let mut app = grab_app(true, LaunchDoor::InYard, true);
+        app.update();
+        assert_eq!(primary_cursor(&mut app), (CursorGrabMode::None, true, false));
+
+        app.world_mut().resource_mut::<HouseLabel>().settings_open = false;
+        app.update();
+        assert_eq!(
+            primary_cursor(&mut app),
+            (CursorGrabMode::Locked, false, false)
+        );
+
+        {
+            let mut edit = crate::hud_edit_mode::HudEditMode::default();
+            edit.active = true;
+            app.insert_resource(edit);
+        }
+        app.update();
+        assert_eq!(primary_cursor(&mut app), (CursorGrabMode::None, true, false));
+
+        app.world_mut()
+            .resource_mut::<crate::hud_edit_mode::HudEditMode>()
+            .active = false;
+        app.update();
+        assert_eq!(
+            primary_cursor(&mut app),
+            (CursorGrabMode::Locked, false, false)
+        );
+
+        {
+            let mut q = app
+                .world_mut()
+                .query_filtered::<&mut Window, With<PrimaryWindow>>();
+            q.iter_mut(app.world_mut()).next().expect("window").focused = false;
+        }
+        app.update();
+        assert_eq!(primary_cursor(&mut app), (CursorGrabMode::None, true, false));
+
+        {
+            let mut q = app
+                .world_mut()
+                .query_filtered::<&mut Window, With<PrimaryWindow>>();
+            q.iter_mut(app.world_mut()).next().expect("window").focused = true;
+        }
+        app.update();
+        assert_eq!(
+            primary_cursor(&mut app),
+            (CursorGrabMode::Locked, false, false)
+        );
+    }
+
+    /// The grab system and the orbit share one frame: grabbed mouse-look turns
+    /// without RMB. mouse_look off does not, and the cursor stays free.
+    #[test]
+    fn sync_mouse_look_grab_orbits_when_grabbed_and_stays_idle_when_off() {
+        let mut on = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        on.insert_resource(look_feel(true));
+        on.add_systems(Update, sync_mouse_look_grab.before(follow_camera));
+        spawn_primary_cursor(&mut on, true);
+        on.world_mut().resource_mut::<AccumulatedMouseMotion>().delta = Vec2::new(30.0, 20.0);
+        on.update();
+        let orbit = *on.world().resource::<FollowOrbit>();
+        assert!((orbit.yaw - (-30.0 * ORBIT_YAW_PER_PX)).abs() < 1e-4);
+        assert!((orbit.pitch - (default_orbit_pitch() + 20.0 * ORBIT_PITCH_PER_PX)).abs() < 1e-4);
+        assert_eq!(
+            primary_cursor(&mut on),
+            (CursorGrabMode::Locked, false, true)
+        );
+
+        let mut idle = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        idle.insert_resource(look_feel(false));
+        idle.add_systems(Update, sync_mouse_look_grab.before(follow_camera));
+        spawn_primary_cursor(&mut idle, true);
+        idle.world_mut().resource_mut::<AccumulatedMouseMotion>().delta = Vec2::new(80.0, -40.0);
+        idle.update();
+        assert_orbit_still_default(&idle);
+        assert_eq!(
+            primary_cursor(&mut idle),
+            (CursorGrabMode::None, true, true)
         );
     }
 

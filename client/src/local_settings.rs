@@ -54,20 +54,19 @@ impl LocalSettingsState {
     }
 }
 
-/// Thin look feel — sensitivity + invert for any mouse-look hook.
+/// Thin look feel — sensitivity, invert, and the mouse-look flag.
 #[derive(Resource, Debug, Clone, Copy)]
 pub struct LocalLookFeel {
     pub sensitivity: f32,
     pub invert_y: bool,
+    /// CARD CAM-MOUSELOOK-1A. Default off. Filled from `LocalSettings`.
+    pub mouse_look: bool,
 }
 
 impl Default for LocalLookFeel {
     fn default() -> Self {
         let s = LocalSettings::peace_defaults();
-        Self {
-            sensitivity: s.look_sensitivity,
-            invert_y: s.invert_y,
-        }
+        Self::from_settings(&s)
     }
 }
 
@@ -76,6 +75,7 @@ impl LocalLookFeel {
         Self {
             sensitivity: s.look_sensitivity,
             invert_y: s.invert_y,
+            mouse_look: s.mouse_look,
         }
     }
 
@@ -374,10 +374,25 @@ mod tests {
         let feel = LocalLookFeel {
             sensitivity: 2.0,
             invert_y: true,
+            mouse_look: false,
         };
         let (dx, dy) = feel.apply_delta(1.0, 3.0);
         assert!((dx - 2.0).abs() < f32::EPSILON);
         assert!((dy - (-6.0)).abs() < f32::EPSILON);
+    }
+
+    /// CARD CAM-MOUSELOOK-1A — `from_settings` copies the flag. Default stays off.
+    #[test]
+    fn look_feel_copies_mouse_look_from_settings() {
+        let off = LocalLookFeel::from_settings(&LocalSettings::peace_defaults());
+        assert!(!off.mouse_look);
+        assert!(!LocalLookFeel::default().mouse_look);
+        let mut on = LocalSettings::peace_defaults();
+        on.toggle_mouse_look();
+        let feel = LocalLookFeel::from_settings(&on);
+        assert!(feel.mouse_look);
+        assert!((feel.sensitivity - off.sensitivity).abs() < f32::EPSILON);
+        assert_eq!(feel.invert_y, off.invert_y);
     }
 
     #[test]
