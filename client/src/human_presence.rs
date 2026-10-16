@@ -62,9 +62,16 @@
  * `control_preset` at boot and whenever that field changes. Movement
  * logic is unchanged. Missing or unknown stays Modern.
  *
+ * CARD KEY-REBIND-1 — `keyboard_axes` reads forward, back, left, and right
+ * from the saved Peace key map. Arrow keys stay a fallback only when that
+ * arrow is not bound to an action, so one key does not drive two actions.
+ * Classic turning uses the mapped left and right keys. Default bindings
+ * move as they do today.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
+use std::collections::HashSet;
 use std::f32::consts::{FRAC_PI_2, PI};
 
 use bevy::input::mouse::{
@@ -83,7 +90,7 @@ use crate::living_day::{
     PreferredWork, SacredVerb, SchedulePlace, WellMood,
 };
 use crate::local_settings::{LocalFeedbackFeel, LocalMeshLodFeel, LocalSettingsState};
-use shared::local_settings::{GraphicsPreset, LocalSettings};
+use shared::local_settings::{GraphicsPreset, LocalSettings, PeaceKey};
 
 /// H-2026-09-16-MESH-PERSONA-HANDS — Comfort MeshLodPlan (PATHS-only compile).
 #[path = "gltf_integration.rs"]
@@ -569,9 +576,16 @@ impl Plugin for HumanPresencePlugin {
             .init_resource::<FollowOrbit>()
             .init_resource::<ControlPreset>()
             .init_resource::<BodyFacing>()
+            .init_resource::<MoveKeySnapshot>()
             .init_resource::<ButtonInput<MouseButton>>()
             .init_resource::<AccumulatedMouseMotion>()
             .init_resource::<AccumulatedMouseScroll>()
+            .add_systems(
+                PreUpdate,
+                snapshot_move_keys
+                    .after(bevy::input::InputSystems)
+                    .before(crate::input::PeaceRemapSet),
+            )
             .add_systems(Startup, (spawn_human_presence, seed_control_preset_from_settings))
             .add_systems(
                 Update,
@@ -848,19 +862,96 @@ fn wrap_pi(yaw: f32) -> f32 {
     y - PI
 }
 
-/// WASD and arrows, matching `input.rs` (out of bounds for this card).
-fn keyboard_axes(keyboard: &ButtonInput<KeyCode>) -> Vec2 {
+/// Physical keys copied before `input.rs` writes them onto the canon WASD keys.
+///
+/// A custom binding clears its source key. This snapshot is that source, so
+/// movement still sees the saved map. Uncaptured (lib tests, first frame
+/// before PreUpdate) falls through to `ButtonInput`.
+#[derive(Resource, Default)]
+struct MoveKeySnapshot {
+    pressed: HashSet<KeyCode>,
+    captured: bool,
+}
+
+fn snapshot_move_keys(
+    keyboard: Option<Res<ButtonInput<KeyCode>>>,
+    mut snap: ResMut<MoveKeySnapshot>,
+) {
+    let Some(keyboard) = keyboard else {
+        snap.captured = false;
+        snap.pressed.clear();
+        return;
+    };
+    snap.pressed.clear();
+    snap.pressed.extend(keyboard.get_pressed().copied());
+    snap.captured = true;
+}
+
+fn move_key_held(
+    code: KeyCode,
+    snap: Option<&MoveKeySnapshot>,
+    keyboard: Option<&ButtonInput<KeyCode>>,
+) -> bool {
+    if let Some(snap) = snap.filter(|snap| snap.captured) {
+        return snap.pressed.contains(&code);
+    }
+    keyboard.is_some_and(|keyboard| keyboard.pressed(code))
+}
+
+/// True when `arrow` is already the saved key for any Peace action.
+fn peace_arrow_is_bound(settings: &LocalSettings, arrow: PeaceKey) -> bool {
+    settings.key_move_up == arrow
+        || settings.key_move_down == arrow
+        || settings.key_move_left == arrow
+        || settings.key_move_right == arrow
+        || settings.key_jump == arrow
+        || settings.key_sprint == arrow
+        || settings.key_use == arrow
+        || settings.key_satchel == arrow
+        || settings.key_hide == arrow
+        || settings.key_allocate == arrow
+}
+
+fn axis_held(
+    held: &impl Fn(KeyCode) -> bool,
+    settings: &LocalSettings,
+    bound: PeaceKey,
+    arrow: PeaceKey,
+) -> bool {
+    if held(soft_play_bindings::peace_key_code(bound)) {
+        return true;
+    }
+    // Arrow fallback only when that arrow is not already bound.
+    if bound != arrow && !peace_arrow_is_bound(settings, arrow) {
+        return held(soft_play_bindings::peace_key_code(arrow));
+    }
+    false
+}
+
+/// Forward, back, left, and right from the saved Peace map.
+///
+/// Missing settings use the Peace defaults, so W A S D and the four arrows
+/// match the pre-rebind axes. An arrow bound to another action does not also
+/// move. Classic A/D turning reads the same left and right axes.
+fn keyboard_axes(held: impl Fn(KeyCode) -> bool, settings: Option<&LocalSettings>) -> Vec2 {
+    let defaults = LocalSettings::default();
+    let settings = settings.unwrap_or(&defaults);
     let mut axes = Vec2::ZERO;
-    if keyboard.pressed(KeyCode::KeyW) || keyboard.pressed(KeyCode::ArrowUp) {
+    if axis_held(&held, settings, settings.key_move_up, PeaceKey::ArrowUp) {
         axes.y += 1.0;
     }
-    if keyboard.pressed(KeyCode::KeyS) || keyboard.pressed(KeyCode::ArrowDown) {
+    if axis_held(&held, settings, settings.key_move_down, PeaceKey::ArrowDown) {
         axes.y -= 1.0;
     }
-    if keyboard.pressed(KeyCode::KeyA) || keyboard.pressed(KeyCode::ArrowLeft) {
+    if axis_held(&held, settings, settings.key_move_left, PeaceKey::ArrowLeft) {
         axes.x -= 1.0;
     }
-    if keyboard.pressed(KeyCode::KeyD) || keyboard.pressed(KeyCode::ArrowRight) {
+    if axis_held(
+        &held,
+        settings,
+        settings.key_move_right,
+        PeaceKey::ArrowRight,
+    ) {
         axes.x += 1.0;
     }
     axes
@@ -974,6 +1065,8 @@ fn apply_locomotion(
     mut orbit: Option<ResMut<FollowOrbit>>,
     mut facing: Option<ResMut<BodyFacing>>,
     keyboard: Option<Res<ButtonInput<KeyCode>>>,
+    move_keys: Option<Res<MoveKeySnapshot>>,
+    settings: Option<Res<LocalSettingsState>>,
     mut latch: ResMut<JumpLatch>,
     mut presence: ResMut<SoftPresence>,
 ) {
@@ -1001,7 +1094,10 @@ fn apply_locomotion(
         // CARD MOVE-STRAFE-DEFAULT-1 — yaw 0 keeps today's wish (x, 0, -y).
         let preset_now = preset.as_deref().copied().unwrap_or_default();
         let orbit_yaw = orbit.as_deref().map(|o| o.yaw).unwrap_or(0.0);
-        let keys = keyboard.as_deref().map(keyboard_axes).unwrap_or(Vec2::ZERO);
+        let keys = keyboard_axes(
+            |code| move_key_held(code, move_keys.as_deref(), keyboard.as_deref()),
+            settings.as_deref().map(|state| &state.inner),
+        );
         let facing_yaw = facing.as_deref().map(|f| f.yaw).unwrap_or(PI);
         let wish = strafe_wish(preset_now, input.movement, keys, orbit_yaw, facing_yaw);
         if preset_now == ControlPreset::Classic && keys.x != 0.0 {
@@ -1405,7 +1501,7 @@ pub fn presence_copy_is_honest(s: &str) -> bool {
 mod tests {
     use super::*;
     use crate::local_settings::LocalSettingsState;
-    use shared::local_settings::LocalSettings;
+    use shared::local_settings::{LocalSettings, PeaceKey};
 
     /// CARD VP-SKY-1 — follow-camera look height: Sanctuary 1.15, every other
     /// realm 0.45, and the Ambrosian look-down stays exactly 0.45.
@@ -2462,6 +2558,280 @@ mod tests {
             settings_a.world().resource::<SoftPresence>().position.z,
             0.0
         );
+    }
+
+    /// CARD KEY-REBIND-1 — settings plus raw keys. Movement stays at zero so
+    /// the axes, not a stick, are what step the body.
+    fn rebind_app(preset: ControlPreset, settings: LocalSettings, keys: &[KeyCode]) -> App {
+        let mut app = strafe_world(
+            preset,
+            0.0,
+            Vec2::ZERO,
+            Some(LaunchDoor::InYard),
+            Some(false),
+            keys,
+        );
+        app.insert_resource(LocalSettingsState {
+            inner: settings,
+            dirty: false,
+        });
+        app.update();
+        app.update();
+        app
+    }
+
+    fn xz_near(app: &App, x: f32, z: f32) -> bool {
+        let presence = app.world().resource::<SoftPresence>();
+        (presence.position.x - x).abs() < 1e-4 && (presence.position.z - z).abs() < 1e-4
+    }
+
+    /// Defaults: W and ArrowUp step the same as today's yard W. Classic A turns.
+    #[test]
+    fn key_rebind_defaults_match_wasd_and_arrows() {
+        let today = yard_w_app(Some(LaunchDoor::InYard), Some(false));
+        let (tx, tz) = {
+            let presence = today.world().resource::<SoftPresence>();
+            (presence.position.x, presence.position.z)
+        };
+        assert!(tz < 0.0, "yard W should step -Z, z={tz}");
+
+        let keyed = rebind_app(
+            ControlPreset::Modern,
+            LocalSettings::default(),
+            &[KeyCode::KeyW],
+        );
+        assert!(
+            xz_near(&keyed, tx, tz),
+            "default W left today's step, pos={:?}",
+            keyed.world().resource::<SoftPresence>().position
+        );
+
+        let bare = strafe_app(
+            ControlPreset::Modern,
+            0.0,
+            Vec2::ZERO,
+            Some(LaunchDoor::InYard),
+            Some(false),
+            &[KeyCode::KeyW],
+        );
+        assert!(
+            xz_near(&bare, tx, tz),
+            "missing settings stay on the default map"
+        );
+
+        let arrows = rebind_app(
+            ControlPreset::Modern,
+            LocalSettings::default(),
+            &[KeyCode::ArrowUp],
+        );
+        assert!(
+            xz_near(&arrows, tx, tz),
+            "ArrowUp stays the forward fallback"
+        );
+
+        let classic = rebind_app(
+            ControlPreset::Classic,
+            LocalSettings::default(),
+            &[KeyCode::KeyA],
+        );
+        let turned = wrap_pi(classic.world().resource::<BodyFacing>().yaw - PI);
+        assert!(
+            turned > 0.2,
+            "default A should still turn left, delta={turned}"
+        );
+        assert!(xz_near(&classic, 0.0, 0.0), "Classic A does not strafe");
+
+        let arrow_left = rebind_app(
+            ControlPreset::Classic,
+            LocalSettings::default(),
+            &[KeyCode::ArrowLeft],
+        );
+        assert!(
+            yaw_near(
+                arrow_left.world().resource::<BodyFacing>().yaw,
+                classic.world().resource::<BodyFacing>().yaw
+            ),
+            "default ArrowLeft still turns with A"
+        );
+        assert!(xz_near(&arrow_left, 0.0, 0.0));
+    }
+
+    /// Remap forward to F: F moves, W does not, and an unbound arrow still does.
+    #[test]
+    fn key_rebind_forward_other_key_moves_and_w_does_not() {
+        let today = yard_w_app(Some(LaunchDoor::InYard), Some(false));
+        let (tx, tz) = {
+            let presence = today.world().resource::<SoftPresence>();
+            (presence.position.x, presence.position.z)
+        };
+        let mut settings = LocalSettings::default();
+        settings.key_move_up = PeaceKey::F;
+
+        let moved = rebind_app(ControlPreset::Modern, settings.clone(), &[KeyCode::KeyF]);
+        assert!(
+            xz_near(&moved, tx, tz),
+            "F should step like W, pos={:?}",
+            moved.world().resource::<SoftPresence>().position
+        );
+
+        let w = rebind_app(ControlPreset::Modern, settings.clone(), &[KeyCode::KeyW]);
+        assert!(
+            xz_near(&w, 0.0, 0.0),
+            "W is no longer forward, pos={:?}",
+            w.world().resource::<SoftPresence>().position
+        );
+        let w_vel = w.world().resource::<SoftPresence>().velocity;
+        assert_eq!(w_vel.x, 0.0);
+        assert_eq!(w_vel.z, 0.0);
+
+        let arrow = rebind_app(ControlPreset::Modern, settings, &[KeyCode::ArrowUp]);
+        assert!(
+            xz_near(&arrow, tx, tz),
+            "unbound ArrowUp stays a forward fallback"
+        );
+    }
+
+    /// An arrow saved on another action does not also move or Classic-turn.
+    #[test]
+    fn key_rebind_arrow_bound_elsewhere_does_not_move() {
+        let mut settings = LocalSettings::default();
+        settings.key_use = PeaceKey::ArrowUp;
+        let up = rebind_app(ControlPreset::Modern, settings.clone(), &[KeyCode::ArrowUp]);
+        assert!(
+            xz_near(&up, 0.0, 0.0),
+            "ArrowUp bound to Use must not walk, pos={:?}",
+            up.world().resource::<SoftPresence>().position
+        );
+        let up_vel = up.world().resource::<SoftPresence>().velocity;
+        assert_eq!(up_vel.x, 0.0);
+        assert_eq!(up_vel.z, 0.0);
+
+        let w = rebind_app(ControlPreset::Modern, settings, &[KeyCode::KeyW]);
+        assert!(
+            w.world().resource::<SoftPresence>().position.z < 0.0,
+            "W is still forward"
+        );
+
+        let mut classic = LocalSettings::default();
+        classic.key_satchel = PeaceKey::ArrowLeft;
+        let left = rebind_app(ControlPreset::Classic, classic, &[KeyCode::ArrowLeft]);
+        assert!(
+            yaw_near(left.world().resource::<BodyFacing>().yaw, PI),
+            "ArrowLeft bound to satchel must not turn"
+        );
+        assert!(xz_near(&left, 0.0, 0.0));
+    }
+
+    /// Classic turning follows the saved left and right keys.
+    #[test]
+    fn key_rebind_classic_turns_on_remapped_keys() {
+        let mut settings = LocalSettings::default();
+        settings.key_move_left = PeaceKey::Q;
+        settings.key_move_right = PeaceKey::C;
+
+        let q = rebind_app(ControlPreset::Classic, settings.clone(), &[KeyCode::KeyQ]);
+        let a = rebind_app(
+            ControlPreset::Classic,
+            LocalSettings::default(),
+            &[KeyCode::KeyA],
+        );
+        assert!(
+            yaw_near(
+                q.world().resource::<BodyFacing>().yaw,
+                a.world().resource::<BodyFacing>().yaw
+            ),
+            "Q should turn as far as default A"
+        );
+        assert!(xz_near(&q, 0.0, 0.0), "remapped left does not strafe");
+
+        let old_a = rebind_app(ControlPreset::Classic, settings.clone(), &[KeyCode::KeyA]);
+        assert!(
+            yaw_near(old_a.world().resource::<BodyFacing>().yaw, PI),
+            "A is no longer turn-left"
+        );
+        assert!(xz_near(&old_a, 0.0, 0.0));
+
+        let c = rebind_app(ControlPreset::Classic, settings.clone(), &[KeyCode::KeyC]);
+        let d = rebind_app(
+            ControlPreset::Classic,
+            LocalSettings::default(),
+            &[KeyCode::KeyD],
+        );
+        assert!(
+            yaw_near(
+                c.world().resource::<BodyFacing>().yaw,
+                d.world().resource::<BodyFacing>().yaw
+            ),
+            "C should turn as far as default D"
+        );
+        assert!(xz_near(&c, 0.0, 0.0));
+
+        let old_d = rebind_app(ControlPreset::Classic, settings, &[KeyCode::KeyD]);
+        assert!(
+            yaw_near(old_d.world().resource::<BodyFacing>().yaw, PI),
+            "D is no longer turn-right"
+        );
+        assert!(xz_near(&old_d, 0.0, 0.0));
+    }
+
+    /// `input.rs` clears a custom source after copying it onto canon W.
+    /// The pre-remap snapshot still carries F, so forward still steps.
+    #[test]
+    fn key_rebind_mapped_forward_survives_canon_remap() {
+        use bevy::input::keyboard::KeyboardInput;
+        use bevy::input::mouse::MouseButtonInput;
+        use bevy::input::touch::TouchInput;
+        use bevy::time::TimeUpdateStrategy;
+
+        let mut settings = LocalSettings::default();
+        settings.key_move_up = PeaceKey::F;
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(Time::<Fixed>::from_hz(60.0))
+            .insert_resource(TimeUpdateStrategy::FixedTimesteps(12))
+            .add_message::<KeyboardInput>()
+            .add_message::<MouseButtonInput>()
+            .add_message::<TouchInput>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .init_resource::<SoftPresence>()
+            .init_resource::<JumpLatch>()
+            .init_resource::<MoveKeySnapshot>()
+            .init_resource::<BodyFacing>()
+            .init_resource::<FollowOrbit>()
+            .insert_resource(ControlPreset::Modern)
+            .insert_resource(LocalSettingsState {
+                inner: settings,
+                dirty: false,
+            })
+            .add_plugins(crate::input::InputPlugin)
+            .add_systems(
+                PreUpdate,
+                snapshot_move_keys
+                    .after(bevy::input::InputSystems)
+                    .before(crate::input::PeaceRemapSet),
+            )
+            .add_systems(FixedUpdate, apply_locomotion);
+        // The first update stamps the clock. Re-press so the stepping update
+        // still sees F before remap clears it.
+        for _ in 0..2 {
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .press(KeyCode::KeyF);
+            app.update();
+        }
+
+        let keyboard = app.world().resource::<ButtonInput<KeyCode>>();
+        assert!(
+            !keyboard.pressed(KeyCode::KeyF),
+            "remap consumes the custom forward key"
+        );
+        let presence = app.world().resource::<SoftPresence>();
+        assert!(
+            presence.position.z < 0.0,
+            "saved forward still steps after remap, z={}",
+            presence.position.z
+        );
+        assert!(presence.position.x.abs() < 1e-4);
     }
 
     fn quiet_house(settings_open: bool) -> HouseLabel {
