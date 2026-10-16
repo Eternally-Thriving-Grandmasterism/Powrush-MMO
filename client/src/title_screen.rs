@@ -8,6 +8,8 @@
 //! with Resume / Title / Quit (Title = old Esc-to-title path; Quit = AppExit).
 //! D2: same plate hosts local Look / Mute / Invert-Y / Hide guidance; persist
 //! `data/powrush_settings.json` beside house JSON. Online stays grey — no socket.
+//! CARD CAM-MOUSELOOK-1B: Comfort row "Mouse look · off/on" sits after Invert-Y.
+//! Default stays off. The click calls `toggle_mouse_look` then `persist`.
 //! H-2026-09-12-PAUSE-TABS: Esc plate splits Comfort · Controls · Guide tabs
 //! (Online stays grey).
 //! CARD FLESH-GUIDE-BREATH: Guide is one sentence of the locked peak memory
@@ -636,6 +638,9 @@ struct SettingsLookBtn;
 struct SettingsMuteBtn;
 #[derive(Component)]
 struct SettingsInvertBtn;
+/// CARD CAM-MOUSELOOK-1B. Comfort row after Invert-Y. Not a hotkey.
+#[derive(Component)]
+struct SettingsMouseLookBtn;
 #[derive(Component)]
 struct SettingsHideSlabsBtn;
 #[derive(Component)]
@@ -644,6 +649,9 @@ struct SettingsLookLabel;
 struct SettingsMuteLabel;
 #[derive(Component)]
 struct SettingsInvertLabel;
+/// CARD CAM-MOUSELOOK-1B. Label marker, disjoint from the other Comfort labels.
+#[derive(Component)]
+struct SettingsMouseLookLabel;
 #[derive(Component)]
 struct SettingsHideLabel;
 #[derive(Component)]
@@ -1615,6 +1623,23 @@ TextColor(fg),
     });
 }
 
+/// Pause plate chrome shared by every tab. The 720p budget is
+/// [`comfort_pause_plate_height_px`].
+const PAUSE_PLATE_PAD: f32 = 10.0;
+const PAUSE_PLATE_BORDER: f32 = 1.5;
+const PAUSE_PLATE_ROW_GAP: f32 = 4.0;
+/// Row padding outside Comfort. Controls and HUD keep this.
+const SETTINGS_ROW_PAD_Y: f32 = 5.0;
+const SETTINGS_ROW_BORDER: f32 = 1.0;
+const SETTINGS_TAB_ROW_GAP: f32 = 4.0;
+/// CARD CAM-MOUSELOOK-1B. Fourteen Comfort rows. Pad 5→3 and gap 4→1 keep
+/// the Esc plate inside 98% of 720px when text scale is at its max.
+const COMFORT_ROW_PAD_Y: f32 = 3.0;
+const COMFORT_ROW_GAP: f32 = 1.0;
+/// Graphics through lethal, including Mouse look. Keep in sync with the
+/// Comfort children in `spawn_settings_stub`.
+const COMFORT_SETTINGS_ROWS: u32 = 14;
+
 fn spawn_settings_stub(mut commands: Commands) {
     // D1 Pause honesty + D2 local settings — Comfort · Controls · Guide tabs (no second HUD).
     commands
@@ -1631,10 +1656,10 @@ fn spawn_settings_stub(mut commands: Commands) {
                         left: Val::Px(-210.0),
                         ..default()
                     },
-                    padding: UiRect::all(Val::Px(10.0)),
+                    padding: UiRect::all(Val::Px(PAUSE_PLATE_PAD)),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(4.0),
-                    border: UiRect::all(Val::Px(1.5)),
+                    row_gap: Val::Px(PAUSE_PLATE_ROW_GAP),
+                    border: UiRect::all(Val::Px(PAUSE_PLATE_BORDER)),
                     align_items: AlignItems::Center,
                     ..default()
                 },
@@ -1672,69 +1697,76 @@ TextColor(TITLE_TEXT_PRIMARY),
             });
             // Comfort tab (default visible).
             p.spawn((
-                settings_tab_panel_bundle(true),
+                comfort_tab_panel_bundle(true),
                 PauseTabPanel(PauseTab::Comfort),
             ))
             .with_children(|comfort| {
-                spawn_settings_row(
+                spawn_comfort_row(
                     comfort,
                     "Graphics · Medium",
                     SettingsGraphicsBtn,
                     SettingsGraphicsLabel,
                 );
-                spawn_settings_row(comfort, "Look · 1.00", SettingsLookBtn, SettingsLookLabel);
-                spawn_settings_row(comfort, "Mute · off", SettingsMuteBtn, SettingsMuteLabel);
-                spawn_settings_row(
+                spawn_comfort_row(comfort, "Look · 1.00", SettingsLookBtn, SettingsLookLabel);
+                spawn_comfort_row(comfort, "Mute · off", SettingsMuteBtn, SettingsMuteLabel);
+                spawn_comfort_row(
                     comfort,
                     "Invert-Y · off",
                     SettingsInvertBtn,
                     SettingsInvertLabel,
                 );
-                spawn_settings_row(
+                // CARD CAM-MOUSELOOK-1B — after Invert-Y. Default off.
+                spawn_comfort_row(
+                    comfort,
+                    "Mouse look · off",
+                    SettingsMouseLookBtn,
+                    SettingsMouseLookLabel,
+                );
+                spawn_comfort_row(
                     comfort,
                     "Hide guidance · off",
                     SettingsHideSlabsBtn,
                     SettingsHideLabel,
                 );
-                spawn_settings_row(
+                spawn_comfort_row(
                     comfort,
                     "Brightness · 1.00",
                     SettingsBrightnessBtn,
                     SettingsBrightnessLabel,
                 );
-                spawn_settings_row(
+                spawn_comfort_row(
                     comfort,
                     "Text scale · 1.00 · Standard",
                     SettingsTextScaleBtn,
                     SettingsTextScaleLabel,
                 );
-                spawn_settings_row(
+                spawn_comfort_row(
                     comfort,
                     "Scenery · off",
                     SettingsGroveBtn,
                     SettingsGroveLabel,
                 );
-                spawn_settings_row(
+                spawn_comfort_row(
                     comfort,
                     "Reduced motion · off",
                     SettingsReducedMotionBtn,
                     SettingsReducedMotionLabel,
                 );
-                spawn_settings_row(
+                spawn_comfort_row(
                     comfort,
                     "Rumble · on",
                     SettingsRumbleBtn,
                     SettingsRumbleLabel,
                 );
-                spawn_settings_row(
+                spawn_comfort_row(
                     comfort,
                     "Colorblind wells · off",
                     SettingsColorblindWellsBtn,
                     SettingsColorblindWellsLabel,
                 );
                 // Loopback lab remains separate from disabled Title Online.
-                spawn_settings_row(comfort, "LAN · off", SettingsLanBtn, SettingsLanLabel);
-                spawn_settings_row(
+                spawn_comfort_row(comfort, "LAN · off", SettingsLanBtn, SettingsLanLabel);
+                spawn_comfort_row(
                     comfort,
                     "this hex admits harm · off",
                     SettingsLethalBtn,
@@ -2730,11 +2762,19 @@ fn return_yard_to_title(
 }
 
 fn settings_tab_panel_bundle(visible: bool) -> impl Bundle {
+    settings_tab_panel_bundle_gap(visible, SETTINGS_TAB_ROW_GAP)
+}
+
+fn comfort_tab_panel_bundle(visible: bool) -> impl Bundle {
+    settings_tab_panel_bundle_gap(visible, COMFORT_ROW_GAP)
+}
+
+fn settings_tab_panel_bundle_gap(visible: bool, row_gap: f32) -> impl Bundle {
     (
         Node {
             width: Val::Percent(100.0),
             flex_direction: FlexDirection::Column,
-            row_gap: Val::Px(4.0),
+            row_gap: Val::Px(row_gap),
             align_items: AlignItems::Stretch,
             // Inactive tabs must leave the flex flow (Hidden still occupies space).
             display: if visible {
@@ -2910,13 +2950,32 @@ fn spawn_settings_row<B: Component, L: Component>(
     btn: B,
     text_marker: L,
 ) {
+    spawn_settings_row_padded(p, label, btn, text_marker, SETTINGS_ROW_PAD_Y);
+}
+
+fn spawn_comfort_row<B: Component, L: Component>(
+    p: &mut ChildSpawnerCommands,
+    label: &str,
+    btn: B,
+    text_marker: L,
+) {
+    spawn_settings_row_padded(p, label, btn, text_marker, COMFORT_ROW_PAD_Y);
+}
+
+fn spawn_settings_row_padded<B: Component, L: Component>(
+    p: &mut ChildSpawnerCommands,
+    label: &str,
+    btn: B,
+    text_marker: L,
+    pad_y: f32,
+) {
     p.spawn((
         (
             bevy::ui_widgets::Button, Interaction::default(),
             Node {
-                padding: UiRect::axes(Val::Px(12.0), Val::Px(5.0)),
+                padding: UiRect::axes(Val::Px(12.0), Val::Px(pad_y)),
                 justify_content: JustifyContent::Center,
-                border: UiRect::all(Val::Px(1.0)),
+                border: UiRect::all(Val::Px(SETTINGS_ROW_BORDER)),
                 width: Val::Percent(100.0),
                 ..default()
             },
@@ -2955,6 +3014,32 @@ pub fn mute_btn_label(s: &LocalSettings) -> String {
 
 pub fn invert_btn_label(s: &LocalSettings) -> String {
     format!("Invert-Y · {}", on_off(s.invert_y))
+}
+
+pub fn mouse_look_btn_label(s: &LocalSettings) -> String {
+    format!("Mouse look · {}", on_off(s.mouse_look))
+}
+
+/// Esc Comfort plate height at `text_scale`, border box, Places hidden.
+///
+/// Row refresh stores `(15 * scale).clamp(11, 22) / 1.2`. The default line
+/// height is 1.2× that, so the line box equals the logical size, and Bevy's
+/// text measure ceils it. Unscaled chrome matches the pause cue (logical 16),
+/// tab buttons (pad 6, border 1, logical 14), and Online / Resume / Title / Quit
+/// (pad 10, border 1, logical 15).
+fn comfort_pause_plate_height_px(text_scale: f32) -> f32 {
+    let logical = (15.0 * text_scale).clamp(11.0, 22.0);
+    let line = logical.ceil();
+    let comfort_row = line + COMFORT_ROW_PAD_Y * 2.0 + SETTINGS_ROW_BORDER * 2.0;
+    let rows = COMFORT_SETTINGS_ROWS as f32;
+    let comfort = rows * comfort_row + (rows - 1.0) * COMFORT_ROW_GAP;
+    let cue = 16.0_f32.ceil();
+    let tab = 14.0_f32.ceil() + 6.0 * 2.0 + SETTINGS_ROW_BORDER * 2.0;
+    let menu = 15.0_f32.ceil() + 10.0 * 2.0 + SETTINGS_ROW_BORDER * 2.0;
+    let chrome = PAUSE_PLATE_PAD * 2.0 + PAUSE_PLATE_BORDER * 2.0;
+    // cue, tabs, comfort panel, Online, Resume, Title, Quit
+    let gaps = 6.0 * PAUSE_PLATE_ROW_GAP;
+    chrome + cue + tab + comfort + 4.0 * menu + gaps
 }
 
 pub fn hide_slabs_btn_label(s: &LocalSettings) -> String {
@@ -3381,6 +3466,16 @@ fn refresh_accessibility_settings_labels(
             Without<SettingsGraphicsLabel>,
         ),
     >,
+    mut mouse_look: Query<
+        (&mut Text, &mut TextFont),
+        (
+            With<SettingsMouseLookLabel>,
+            Without<SettingsGraphicsLabel>,
+            Without<SettingsReducedMotionLabel>,
+            Without<SettingsRumbleLabel>,
+            Without<SettingsColorblindWellsLabel>,
+        ),
+    >,
 ) {
     if !label.settings_open {
         return;
@@ -3390,6 +3485,7 @@ fn refresh_accessibility_settings_labels(
     let reduced_motion_label = reduced_motion_btn_label(s);
     let rumble_label = rumble_btn_label(s);
     let colorblind_label = colorblind_wells_btn_label(s);
+    let mouse_look_label = mouse_look_btn_label(s);
     let font = (15.0 * s.text_scale).clamp(11.0, 22.0);
     for (mut text, mut font_face) in &mut graphics {
         set_btn_section_text(&mut text, &graphics_label);
@@ -3407,6 +3503,10 @@ fn refresh_accessibility_settings_labels(
         set_btn_section_text(&mut text, &colorblind_label);
         set_btn_section_font(&mut font_face, font);
     }
+    for (mut text, mut font_face) in &mut mouse_look {
+        set_btn_section_text(&mut text, &mouse_look_label);
+        set_btn_section_font(&mut font_face, font);
+    }
 }
 
 fn local_settings_clicks(
@@ -3415,6 +3515,7 @@ fn local_settings_clicks(
     look: Query<&Interaction, (Changed<Interaction>, With<SettingsLookBtn>)>,
     mute: Query<&Interaction, (Changed<Interaction>, With<SettingsMuteBtn>)>,
     invert: Query<&Interaction, (Changed<Interaction>, With<SettingsInvertBtn>)>,
+    mouse_look: Query<&Interaction, (Changed<Interaction>, With<SettingsMouseLookBtn>)>,
     hide: Query<&Interaction, (Changed<Interaction>, With<SettingsHideSlabsBtn>)>,
     bright: Query<&Interaction, (Changed<Interaction>, With<SettingsBrightnessBtn>)>,
     scale: Query<&Interaction, (Changed<Interaction>, With<SettingsTextScaleBtn>)>,
@@ -3445,6 +3546,13 @@ fn local_settings_clicks(
     for i in &invert {
         if *i == Interaction::Pressed {
             settings.inner.toggle_invert_y();
+            changed = true;
+        }
+    }
+    for i in &mouse_look {
+        if *i == Interaction::Pressed {
+            // Same persist path as Invert-Y: toggle, then mark_and_persist.
+            settings.inner.toggle_mouse_look();
             changed = true;
         }
     }
@@ -6148,6 +6256,8 @@ mod tests {
         assert_eq!(look_btn_label(&s), "Look · 1.00");
         assert_eq!(mute_btn_label(&s), "Mute · off");
         assert_eq!(invert_btn_label(&s), "Invert-Y · off");
+        assert!(!s.mouse_look);
+        assert_eq!(mouse_look_btn_label(&s), "Mouse look · off");
         assert_eq!(hide_slabs_btn_label(&s), "Hide guidance · off");
         assert_eq!(brightness_btn_label(&s), "Brightness · 1.00");
         assert_eq!(text_scale_btn_label(&s), "Text scale · 1.00 · Standard");
@@ -6265,6 +6375,7 @@ mod tests {
         let mut s = LocalSettings::default();
         s.mute = true;
         s.invert_y = true;
+        s.mouse_look = true;
         s.hide_slabs = true;
         s.look_sensitivity = 1.50;
         s.brightness = 1.25;
@@ -6279,6 +6390,8 @@ mod tests {
         let back = LocalSettings::from_json(&raw).unwrap();
         assert_eq!(mute_btn_label(&back), "Mute · on");
         assert_eq!(invert_btn_label(&back), "Invert-Y · on");
+        assert_eq!(mouse_look_btn_label(&back), "Mouse look · on");
+        assert!(back.mouse_look);
         assert_eq!(hide_slabs_btn_label(&back), "Hide guidance · on");
         assert_eq!(look_btn_label(&back), "Look · 1.50");
         assert_eq!(brightness_btn_label(&back), "Brightness · 1.25");
@@ -6289,6 +6402,132 @@ mod tests {
         assert_eq!(rumble_btn_label(&back), "Rumble · off");
         assert_eq!(colorblind_wells_btn_label(&back), "Colorblind wells · shapes only");
         assert_eq!(lan_btn_label(&back), "LAN · loopback");
+    }
+
+    /// CARD CAM-MOUSELOOK-1B — label copy is "Mouse look · off/on". Invert-Y stays put.
+    #[test]
+    fn mouse_look_label_reads_off_then_on() {
+        let mut s = LocalSettings::peace_defaults();
+        assert!(!s.mouse_look);
+        assert_eq!(mouse_look_btn_label(&s), "Mouse look · off");
+        assert_eq!(invert_btn_label(&s), "Invert-Y · off");
+        s.toggle_mouse_look();
+        assert!(s.mouse_look);
+        assert_eq!(mouse_look_btn_label(&s), "Mouse look · on");
+        assert!(!s.invert_y);
+        assert_eq!(invert_btn_label(&s), "Invert-Y · off");
+        s.toggle_mouse_look();
+        assert_eq!(mouse_look_btn_label(&s), "Mouse look · off");
+    }
+
+    /// Writes Pressed in the same frame, ahead of `local_settings_clicks`.
+    fn press_mouse_look_row(mut rows: Query<&mut Interaction, With<SettingsMouseLookBtn>>) {
+        for mut interaction in &mut rows {
+            *interaction = Interaction::Pressed;
+        }
+    }
+
+    /// CARD CAM-MOUSELOOK-1B — the Comfort click calls `toggle_mouse_look` then persist.
+    #[test]
+    fn mouse_look_click_toggles_and_persists() {
+        let dir = std::env::temp_dir().join(format!(
+            "powrush-mouse-look-{}-{}",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or(0)
+        ));
+        std::fs::create_dir_all(&dir).expect("temp user dir");
+        let _guard = crate::test_env::lock();
+        let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut app = App::new();
+            app.insert_resource(LocalSettingsState {
+                inner: LocalSettings::peace_defaults(),
+                dirty: false,
+            })
+            .insert_resource(HouseLabel {
+                house: HouseName::default(),
+                persist_present: false,
+                hour_two_held: false,
+                book_held: false,
+                settings_open: true,
+                draft: String::new(),
+                naming_offered: false,
+                seals_offered: false,
+            })
+            .add_systems(
+                Update,
+                (
+                    press_mouse_look_row,
+                    local_settings_clicks,
+                    refresh_accessibility_settings_labels,
+                )
+                    .chain(),
+            );
+            app.world_mut()
+                .spawn((Interaction::None, SettingsMouseLookBtn));
+            let text_entity = app
+                .world_mut()
+                .spawn((
+                    Text::new("stale"),
+                    TextFont {
+                        font_size: FontSize::Px(15.0 / 1.2),
+                        ..TextFont::default()
+                    },
+                    SettingsMouseLookLabel,
+                ))
+                .id();
+            assert!(!app.world().resource::<LocalSettingsState>().inner.mouse_look);
+            // The press system writes Pressed in this frame, before the click
+            // system. A label-query conflict (B0001) panics while initializing.
+            app.update();
+            let settings = &app.world().resource::<LocalSettingsState>().inner;
+            assert!(settings.mouse_look);
+            assert!(!settings.invert_y);
+            assert!(!settings.mute);
+            assert_eq!(
+                app.world().get::<Text>(text_entity).unwrap().as_str(),
+                "Mouse look · on"
+            );
+            let path = dir.join(shared::user_persist::persist_file_name(SETTINGS_PATH));
+            let raw = std::fs::read_to_string(&path).expect("settings persisted");
+            assert!(raw.contains("\"mouse_look\": true"));
+            assert!(raw.contains("\"invert_y\": false"));
+            assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        }));
+        match &prev {
+            Some(value) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value),
+            None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+        if let Err(payload) = result {
+            std::panic::resume_unwind(payload);
+        }
+    }
+
+    /// CARD CAM-MOUSELOOK-1B — fourteen Comfort rows fit 1280×720 at max text scale.
+    #[test]
+    fn comfort_plate_fits_720p_at_max_text_scale() {
+        let scale = shared::local_settings::TEXT_SCALE_MAX;
+        let height = comfort_pause_plate_height_px(scale);
+        let cap = 720.0 * 0.98;
+        assert!(
+            cap - height >= 16.0,
+            "comfort plate {height}px leaves under 16px inside the 720p cap {cap}"
+        );
+        let bottom = 720.0 * 0.01 + height;
+        assert!(
+            bottom <= 720.0,
+            "plate top 1% plus height {height}px ends at {bottom}, past 720"
+        );
+        assert!(comfort_pause_plate_height_px(1.0) < height);
+        assert_eq!(COMFORT_SETTINGS_ROWS, 14);
+        assert!(COMFORT_ROW_PAD_Y < SETTINGS_ROW_PAD_Y);
+        assert!(COMFORT_ROW_GAP < SETTINGS_TAB_ROW_GAP);
+        assert!(refuse_online_socket_toggle(true));
     }
 
     #[test]
