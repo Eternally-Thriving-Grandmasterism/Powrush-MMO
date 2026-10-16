@@ -65,6 +65,13 @@
  * visible). The following eligible frame grabs again. mouse_look off leaves
  * the RMB orbit and the cursor untouched.
  *
+ * CARD CAM-COLLIDE-1 — after `follow_camera`, one mesh ray from the follow
+ * pivot toward the camera. A closer hit snaps the camera to hit − margin,
+ * never under the floor, so the lens does not sit inside a wall. No hit
+ * leaves that frame's translation. Easing back out is `follow_camera`'s
+ * frame-rate independent lerp (`1 - (1 - 0.12)^(dt * 60)`). Orbit, mouse
+ * look, and the glance are not written. Runs only InYard.
+ *
  * CARD MOVE-STRAFE-DEFAULT-1 — Modern (default) rotates WASD, pad, and touch
  * by the follow-orbit yaw. W goes along the camera's forward, A/D strafe,
  * and the body faces that forward while moving. Classic keeps W/S on the
@@ -137,6 +144,10 @@ const CAM_PITCH_MIN: f32 = 0.05;
 const CAM_PITCH_MAX: f32 = FRAC_PI_2 - 0.08;
 /// Follow smoothing at 60 fps. Other rates use `1 - (1 - this)^(dt * 60)`.
 const FOLLOW_LERP_AT_60: f32 = 0.12;
+/// CARD CAM-COLLIDE-1 — gap kept between a wall hit and the pulled camera.
+const CAM_WALL_MARGIN: f32 = 0.3;
+/// CARD CAM-COLLIDE-1 — closest the wall pull may place the camera to the pivot.
+const CAM_WALL_FLOOR: f32 = 0.6;
 /// Horizontal accel toward wish speed (units/s²).
 pub const MOVE_ACCEL: f32 = 28.0;
 /// Horizontal decel when wish is released — stop-on-release, no ice-skate.
@@ -608,16 +619,19 @@ impl Plugin for HumanPresencePlugin {
             .add_systems(
                 Update,
                 (
-                    apply_presence_mesh_lod,
-                    arm_jump_latch,
-                    latch_use_attend,
-                    sync_control_preset_from_settings,
-                    sync_body,
-                    pose_person,
-                    sync_mouse_look_grab,
-                    follow_camera,
-                )
-                    .chain(),
+                    (
+                        apply_presence_mesh_lod,
+                        arm_jump_latch,
+                        latch_use_attend,
+                        sync_control_preset_from_settings,
+                        sync_body,
+                        pose_person,
+                        sync_mouse_look_grab,
+                        follow_camera,
+                    )
+                        .chain(),
+                    pull_camera_from_walls.after(follow_camera),
+                ),
             )
             .add_systems(FixedUpdate, apply_locomotion);
     }
@@ -1517,6 +1531,112 @@ fn follow_camera(
     for mut cam in &mut cams {
         cam.translation = cam.translation.lerp(desired, follow_t);
         cam.look_at(look, Vec3::Y);
+    }
+}
+
+/// Distance from the follow pivot after a wall test.
+///
+/// `want` is the current distance from the pivot to the camera. `hit` is the
+/// nearest accepted mesh along that ray. No hit leaves `want`. A hit closer
+/// than the camera snaps to `hit - margin`, and the result is never under the floor.
+fn pulled_camera_distance(want: f32, hit: Option<f32>) -> f32 {
+    let Some(hit) = hit else {
+        return want;
+    };
+    if !want.is_finite() || !hit.is_finite() || hit >= want {
+        return want;
+    }
+    (hit - CAM_WALL_MARGIN).max(CAM_WALL_FLOOR)
+}
+
+/// Snap when the wall is closer. Ease back out with the same frame-rate
+/// independent weight as CAM-FEEL-PASS-1 when the resolved distance is farther.
+fn camera_distance_after_pull(current: f32, resolved: f32, dt: f32) -> f32 {
+    if !current.is_finite() || !resolved.is_finite() {
+        return current;
+    }
+    if resolved < current {
+        resolved
+    } else if resolved > current {
+        let t = follow_lerp_t(dt);
+        current + (resolved - current) * t
+    } else {
+        current
+    }
+}
+
+/// The presence root and every descendant are not walls.
+fn follow_ray_keeps_entity(entity: Entity, body: &[Entity]) -> bool {
+    !body.contains(&entity)
+}
+
+fn extend_presence_body(entity: Entity, children: &Query<&Children>, body: &mut Vec<Entity>) {
+    let start = body.len();
+    body.push(entity);
+    let mut index = start;
+    while index < body.len() {
+        let node = body[index];
+        index += 1;
+        if let Ok(kids) = children.get(node) {
+            body.extend(kids.iter());
+        }
+    }
+}
+
+/// CARD CAM-COLLIDE-1 — one ray from the follow pivot toward the camera.
+///
+/// Chained after `follow_camera`. A closer hit snaps translation in
+/// (hit − margin, floored) so the camera never spends the frame inside a wall.
+/// No hit leaves the translation `follow_camera` just wrote; that system eases
+/// back out with [`follow_lerp_t`]. Does not write orbit, yaw, pitch, or rotation,
+/// so mouse look and the glance keep the facing they already set. InYard only.
+fn pull_camera_from_walls(
+    time: Res<Time>,
+    presence: Res<SoftPresence>,
+    realm: Option<Res<crate::living_practice_loop::SoftPlayerRealm>>,
+    door: Option<Res<LaunchDoor>>,
+    mut ray_cast: MeshRayCast,
+    roots: Query<Entity, With<HumanPresence>>,
+    children: Query<&Children>,
+    mut cams: Query<&mut Transform, With<Camera3d>>,
+    mut body: Local<Vec<Entity>>,
+) {
+    if door.as_deref().copied() != Some(LaunchDoor::InYard) {
+        return;
+    }
+    body.clear();
+    for root in &roots {
+        extend_presence_body(root, &children, &mut body);
+    }
+    let filter = |entity: Entity| follow_ray_keeps_entity(entity, body.as_slice());
+    let settings = MeshRayCastSettings::default()
+        .with_filter(&filter)
+        .with_visibility(RayCastVisibility::Visible)
+        .always_early_exit();
+    let pivot = presence.position
+        + Vec3::Y * follow_look_height_for_realm(realm.and_then(|realm| realm.current));
+    let dt = time.delta_secs();
+    for mut cam in &mut cams {
+        let to_cam = cam.translation - pivot;
+        let current = to_cam.length();
+        if !current.is_finite() || current <= f32::EPSILON {
+            continue;
+        }
+        let Some(direction) = Dir3::new(to_cam).ok() else {
+            continue;
+        };
+        // The ray stops at the camera. Anything farther is not between the pivot and the lens.
+        let hit = {
+            let hits = ray_cast.cast_ray(Ray3d::new(pivot, direction), &settings);
+            hits.iter()
+                .map(|(_, hit)| hit.distance)
+                .find(|distance| distance.is_finite() && *distance < current)
+        };
+        let resolved = pulled_camera_distance(current, hit);
+        let distance = camera_distance_after_pull(current, resolved, dt);
+        if (distance - current).abs() > f32::EPSILON {
+            cam.translation = pivot + *direction * distance;
+        }
     }
 }
 
@@ -3596,6 +3716,206 @@ mod tests {
         assert!(
             slow.distance(want) > 0.5,
             "follow already sat on the target, got {slow:?}"
+        );
+    }
+
+    /// A closer hit snaps to hit − margin. The floor holds. No hit leaves the distance.
+    #[test]
+    fn cam_collide_distance_snaps_to_hit_margin_floor_and_miss() {
+        let want = 6.0;
+        let hit = 3.0;
+        assert_eq!(
+            pulled_camera_distance(want, Some(hit)),
+            hit - CAM_WALL_MARGIN,
+            "a closer hit pulls in to hit − margin"
+        );
+        let inside = CAM_WALL_MARGIN;
+        assert!(inside - CAM_WALL_MARGIN < CAM_WALL_FLOOR);
+        assert_eq!(
+            pulled_camera_distance(want, Some(inside)),
+            CAM_WALL_FLOOR,
+            "the floor holds when hit − margin would pass it"
+        );
+        assert_eq!(pulled_camera_distance(want, None), want);
+        assert_eq!(pulled_camera_distance(want, Some(want)), want);
+        assert_eq!(pulled_camera_distance(want, Some(want + 1.0)), want);
+    }
+
+    /// Pull-in snaps. Easing back out uses the CAM-FEEL-PASS-1 weight, so 30 fps matches 144 fps.
+    #[test]
+    fn cam_collide_pull_snaps_and_ease_out_matches_feel_pass() {
+        assert_eq!(
+            camera_distance_after_pull(8.0, 2.0, 1.0 / 30.0),
+            2.0,
+            "pull-in snaps"
+        );
+        let current = 2.0;
+        let resolved = 8.0;
+        let once = camera_distance_after_pull(current, resolved, 1.0 / 60.0);
+        let expect = current + (resolved - current) * FOLLOW_LERP_AT_60;
+        assert!(
+            (once - expect).abs() < 1e-5,
+            "60 fps ease left the 0.12 weight, got {once} want {expect}"
+        );
+        let step = |dt: f32, n: u32| {
+            let mut distance = current;
+            for _ in 0..n {
+                distance = camera_distance_after_pull(distance, resolved, dt);
+            }
+            distance
+        };
+        let slow = step(1.0 / 30.0, 5);
+        let fast = step(1.0 / 144.0, 24);
+        assert!(
+            (slow - fast).abs() < 1e-3,
+            "ease out at 30 fps {slow} left 144 fps {fast}"
+        );
+        assert!(slow > current + 0.5, "ease out did not move, got {slow}");
+        assert!(slow < resolved - 0.5, "ease out already sat on the target, got {slow}");
+    }
+
+    fn collide_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<SoftPresence>()
+            .init_resource::<Assets<Mesh>>()
+            .insert_resource(LaunchDoor::InYard)
+            .add_systems(Update, pull_camera_from_walls);
+        app
+    }
+
+    fn pivot_of(app: &App) -> Vec3 {
+        let presence = app.world().resource::<SoftPresence>().position;
+        presence + Vec3::Y * follow_look_height_for_realm(None)
+    }
+
+    /// A thin wall facing the pivot. Near face sits `near_z` along +Z from the pivot.
+    fn spawn_wall(app: &mut App, near_z: f32) -> Entity {
+        let half_z = 0.1;
+        let pivot = pivot_of(app);
+        let center = pivot + Vec3::Z * (near_z + half_z);
+        let transform = Transform::from_translation(center);
+        let mut meshes = app.world_mut().resource_mut::<Assets<Mesh>>();
+        let handle = meshes.add(Mesh::from(Cuboid::new(4.0, 4.0, half_z * 2.0)));
+        app.world_mut()
+            .spawn((
+                Mesh3d(handle),
+                transform,
+                GlobalTransform::from(transform),
+                bevy::camera::primitives::Aabb::from_min_max(
+                    Vec3::new(-2.0, -2.0, -half_z),
+                    Vec3::new(2.0, 2.0, half_z),
+                ),
+                InheritedVisibility::VISIBLE,
+                ViewVisibility::VISIBLE,
+            ))
+            .id()
+    }
+
+    fn spawn_follow_cam(app: &mut App, distance: f32) {
+        let pivot = pivot_of(app);
+        app.world_mut().spawn((
+            Camera3d::default(),
+            Transform::from_translation(pivot + Vec3::Z * distance),
+        ));
+    }
+
+    fn cam_distance_from_pivot(app: &mut App) -> f32 {
+        let pivot = pivot_of(app);
+        cam_translation(app).distance(pivot)
+    }
+
+    /// The system pulls the lens to the wall hit minus the margin.
+    #[test]
+    fn cam_collide_system_pulls_in_to_hit_margin() {
+        let mut app = collide_app();
+        let near_z = 3.0;
+        spawn_wall(&mut app, near_z);
+        spawn_follow_cam(&mut app, 6.0);
+        app.update();
+        let got = cam_distance_from_pivot(&mut app);
+        let want = pulled_camera_distance(6.0, Some(near_z));
+        assert!(
+            (got - want).abs() < 1e-3,
+            "camera distance {got} left hit−margin {want}"
+        );
+    }
+
+    /// A hit inside the floor stays on the floor instead of the pivot.
+    #[test]
+    fn cam_collide_system_floor_holds() {
+        let mut app = collide_app();
+        spawn_wall(&mut app, CAM_WALL_MARGIN * 0.5);
+        spawn_follow_cam(&mut app, 6.0);
+        app.update();
+        let got = cam_distance_from_pivot(&mut app);
+        assert!(
+            (got - CAM_WALL_FLOOR).abs() < 1e-3,
+            "floor did not hold, distance {got}"
+        );
+    }
+
+    /// No mesh along the ray leaves the follow distance alone.
+    #[test]
+    fn cam_collide_system_miss_leaves_distance() {
+        let mut app = collide_app();
+        let distance = 6.0;
+        spawn_follow_cam(&mut app, distance);
+        app.update();
+        let got = cam_distance_from_pivot(&mut app);
+        assert!(
+            (got - distance).abs() < 1e-4,
+            "miss moved the camera to {got}"
+        );
+    }
+
+    /// The presence body and its children are not walls, even when a mesh sits on the ray.
+    #[test]
+    fn cam_collide_system_ignores_presence_body() {
+        let mut app = collide_app();
+        let near_z = 3.0;
+        let wall = spawn_wall(&mut app, near_z);
+        let root = app.world_mut().spawn(HumanPresence).id();
+        app.world_mut().entity_mut(wall).insert(ChildOf(root));
+        let distance = 6.0;
+        spawn_follow_cam(&mut app, distance);
+        app.update();
+        let got = cam_distance_from_pivot(&mut app);
+        assert!(
+            (got - distance).abs() < 1e-3,
+            "presence body pulled the camera to {got}"
+        );
+
+        let stranger = Entity::PLACEHOLDER;
+        let mut body = Vec::new();
+        let world = app.world_mut();
+        let mut stack = vec![root];
+        while let Some(node) = stack.pop() {
+            body.push(node);
+            if let Some(kids) = world.get::<Children>(node) {
+                stack.extend(kids.iter());
+            }
+        }
+        assert!(body.contains(&root));
+        assert!(body.contains(&wall));
+        assert!(!follow_ray_keeps_entity(root, &body));
+        assert!(!follow_ray_keeps_entity(wall, &body));
+        assert!(follow_ray_keeps_entity(stranger, &body));
+    }
+
+    /// Title and other doors do not pull, so orbit on the way in stays put.
+    #[test]
+    fn cam_collide_skips_when_not_in_yard() {
+        let mut app = collide_app();
+        app.insert_resource(LaunchDoor::Title);
+        spawn_wall(&mut app, 3.0);
+        let distance = 6.0;
+        spawn_follow_cam(&mut app, distance);
+        app.update();
+        let got = cam_distance_from_pivot(&mut app);
+        assert!(
+            (got - distance).abs() < 1e-4,
+            "door other than InYard pulled the camera to {got}"
         );
     }
 
