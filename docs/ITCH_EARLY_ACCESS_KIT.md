@@ -1,7 +1,7 @@
 # ITCH-EARLY-ACCESS-KIT-1
 
 **Contact:** info@Rathor.ai  
-**Checked against:** `main` `a2ca9aac`.  
+**Checked against:** `main` `55c830ca`.  
 **Seat:** docs only. One file. No `client/**`, `shared/**`, or workflow edits.
 
 Sherif publishes the itch.io page. This file is the copy and the checklist. An agent does not create the account, does not upload, and does not press publish.
@@ -50,6 +50,7 @@ Sound can be muted. Scenery stays off unless you turn it on.
 - Hold the right mouse button to look around. Mouse look is optional and off until you turn it on.
 - The camera pulls back from walls, so it does not pass into them.
 - Controls in Settings: rebind keys. A taken key is refused, and a line under Reset keys warns about key conflicts.
+- Reserved shortcut keys are refused with the message "reserved · <key>".
 - Tend or harvest the well. Open a satchel. Hide guidance. Allocate into flow or reserve.
 - The well speaks Idle, Glowing, Tended, Resting, or Stressed.
 - Saves stay on the computer. Quit and return. The yard remembers.
@@ -92,9 +93,7 @@ Do not count places, and do not list them as a closed set. Do not claim other pl
 
 ## 2. Price
 
-Sherif decided on 2026-10-16, 1:18 PM ET: pay what you want, with a $5 USD minimum.
-
-The buyer types a price. The page refuses less than $5. The buyer may pay more.
+Pay what you want, $5 USD minimum.
 
 ---
 
