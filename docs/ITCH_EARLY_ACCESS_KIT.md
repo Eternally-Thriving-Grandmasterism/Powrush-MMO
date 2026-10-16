@@ -92,15 +92,9 @@ Do not count places, and do not list them as a closed set. Do not claim other pl
 
 ## 2. Price
 
-Sherif chooses. This kit does not recommend either option.
-
-### Option A — Pay what you want, minimum $5 USD
+Sherif decided on 2026-10-16, 1:18 PM ET: pay what you want, with a $5 USD minimum.
 
 The buyer types a price. The page refuses less than $5. The buyer may pay more.
-
-### Option B — Fixed $10 USD
-
-One number. No box to pay more.
 
 ---
 
@@ -155,7 +149,7 @@ No agent, bot, or collaborator does these. No one publishes, uploads, or takes p
 3. Set itch's revenue-share slider himself. This kit does not pick the share.
 4. Create a new project. Kind: downloadable game. Title: Powrush. Paste the tagline, short pitch, long description, feature bullets, keys, and buyer launch notes from section 1.
 5. Tag the project early access, and keep the words "Early access" in the first line of the description.
-6. Choose option A or option B in section 2 and set that price. This kit does not choose.
+6. Set the price to pay what you want with a $5 USD minimum, as section 2 records.
 7. Download the Windows and Linux zips in section 3 from a green `offline-build` run on `main`.
 8. Upload the Windows zip and mark it Windows. Upload the Linux zip and mark it Linux.
 9. Open each uploaded zip far enough to see `README.txt`, and confirm the offline / Online-off lines are still there.
