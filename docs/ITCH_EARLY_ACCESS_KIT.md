@@ -26,7 +26,7 @@ Powrush is a universe of many worlds and many peoples.
 
 The peoples are Humans. Draek are tall plated humanoids. The plate is hard chitin, lit violet at the seams. They are never reptiles. Quellorians are people of resonance. Ambrosians are crystalline-organic people. Cydruids are humans who wear a cyborg frame. A Cydruid is never a tree.
 
-The peaceful alliance in that universe is the Quellorian / Aetherion Luminari Alliance. It stands against the Hivelord's Draek Dominion. It is open to every peaceful people promoting TOLC — truth, order, love, compassion, service, abundance, joy, and cosmic harmony — including Draeks who rebelled against that Dominion. Vrendak the Unbound is the freed-Draek leader of that break. He held the Dominion's harvest office, broke his own Crownstone link, and left with his own voice. This download does not put him, the Alliance, or the Dominion on screen.
+The peaceful alliance in that universe is the Aetherion Luminari Alliance. It is not only Quellorians. The Quellorians and Ambrosians are among its members, and it is open to every peaceful people promoting TOLC — truth, order, love, compassion, service, abundance, joy, and cosmic harmony — including Draeks who rebelled against that Dominion. It stands against the Hivelord's Draek Dominion. Vrendak the Unbound is the freed-Draek leader of that break. He held the Dominion's harvest office, broke his own Crownstone link, and left with his own voice. This download does not put him, the Alliance, or the Dominion on screen.
 
 What you are buying is an early-access offline prototype. It is single-player. The title screen leaves Online off. There is no account and no public server. A later online game would be a different release.
 
@@ -169,7 +169,7 @@ No agent, bot, or collaborator does these. No one publishes, uploads, or takes p
 
 ## Sources (do not paste)
 
-There is no `docs/lore` directory. Alliance wording is from `docs/FACTIONS_OVERVIEW.md` (the Quellorian / Aetherion Luminari Alliance against the Draek Dominion, led by the Hivelord) and `docs/design/FACTION_LEADERS.md` (Vrendak the Unbound; Solmaris wants redeemed Draeks who left the Dominion inside the mercy the Alliance already speaks for, and Alliance crews do not trust them yet). TOLC's eight words are in `docs/PERFECTION_PHILOSOPHY.md`. The page line that the Alliance is open to every peaceful people promoting TOLC, including rebel Draeks, is the steward's sentence for this kit, using those names.
+There is no `docs/lore` directory. Alliance wording on the page is the Aetherion Luminari Alliance (not only Quellorians; the Quellorians and Ambrosians are among its members) against the Draek Dominion, led by the Hivelord. Related files: `docs/FACTIONS_OVERVIEW.md` and `docs/design/FACTION_LEADERS.md` (Vrendak the Unbound; Solmaris wants redeemed Draeks who left the Dominion inside the mercy the Alliance already speaks for, and Alliance crews do not trust them yet). TOLC's eight words are in `docs/PERFECTION_PHILOSOPHY.md`. The page line that the Alliance is open to every peaceful people promoting TOLC, including rebel Draeks, is the steward's sentence for this kit, using those names.
 
 Lived hour and keys: `README.md`, `docs/STRANGER_LOOP.md`.  
 Peoples: `docs/PLAYABLE_RACES.md`. Draek plate and the lineage cycle are in the client. Vrendak's name is not in the client.  
