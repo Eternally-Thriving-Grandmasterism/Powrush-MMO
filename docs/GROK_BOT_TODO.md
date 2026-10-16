@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `2c084e71` (`2c084e719c538b4b752da0383685bfd1bdc7ade9`) — spent #596 through #703. Spent #592 through #595 (bank #593–#595 after TODO-SYNC-RITE #592; P3 CONTINUE-BAK-AWARE RETIRED, not cooked). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). Standing Next: [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT (recorded on #577) · #577–#584 SPENT (recorded on #585) · #585–#586 SPENT (recorded on #587) · #587–#588 SPENT (recorded on #589) · #589–#591 SPENT (recorded on #592) · #592–#595 SPENT (recorded on #596) · #596–#703 SPENT on this tip.
+Tip `5084ce9f` (`5084ce9f94163021901cbd5ef161fac321fbcd24`) — spent #596 through #749. Spent #592 through #595 (bank #593–#595 after TODO-SYNC-RITE #592; P3 CONTINUE-BAK-AWARE RETIRED, not cooked). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). Standing Next: [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT (recorded on #577) · #577–#584 SPENT (recorded on #585) · #585–#586 SPENT (recorded on #587) · #587–#588 SPENT (recorded on #589) · #589–#591 SPENT (recorded on #592) · #592–#595 SPENT (recorded on #596) · #596–#749 SPENT on this tip.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -260,6 +260,51 @@ TODO-SYNC-RITE spent at #592 `2a7e90c0`. Stamp P1 NAME-RITE-DOC-SYNC #593 `29c4e
 - **#700** — docs: Cydruid stalactite city may become a later Place (PLACE-CYDRUID-CITY-1) (#700) · `d3decdb`. Spent. Cite only. Do not rebuild.
 - **#701** — ci: first-line Dual GREEN + Core VOTE guard before auto-merge (GH-DUAL-GUARD-1) (#701) · `7beb09b`. Spent. Cite only. Do not rebuild.
 - **#703** — CARD LOADING-SCREEN-1: boot loading overlay with real asset progress and rotating lines (#703) · `2c084e7`. Spent. Cite only. Do not rebuild.
+- **#704** — CARD TODO-SYNC-703 (#704) · `a99b7a1`. Spent. Cite only. Do not rebuild.
+- **#705** — CARD OFFLINE-BUILD-1 (#705) · `2aa21bf`. Spent. Cite only. Do not rebuild.
+- **#706** — CARD OFFLINE-BUILD-2 (#706) · `9f4559a`. Spent. Cite only. Do not rebuild.
+- **#707** — CARD OFFLINE-BUILD-3 (#707) · `64ebbc2`. Spent. Cite only. Do not rebuild.
+- **#708** — CARD OFFLINE-BUILD-4: clean-boot Ubuntu 24.04 for the Linux offline artifact (#708) · `fe4bc9b`. Spent. Cite only. Do not rebuild.
+- **#709** — CARD PLAYABLE-GAP-AUDIT-1: stamp the offline hour a player can finish and a script cannot (#709) · `3a89b8b`. Spent. Cite only. Do not rebuild.
+- **#710** — CARD QUIT-HOUR-PERSIST-1: persist the lived hour on Pause Quit (#710) · `cf371d0`. Spent. Cite only. Do not rebuild.
+- **#711** — CARD WINDOW-CLOSE-PERSIST-1: persist the lived hour on window close (#711) · `26d7e87`. Spent. Cite only. Do not rebuild.
+- **#712** — CARD GUIDANCE-WALK-BODY-1: count body travel, not key-hold time (#712) · `3280351`. Spent. Cite only. Do not rebuild.
+- **#713** — CARD HOUR-CARD-END-1: persist the lived hour when the guidance card ends (#713) · `ce2b73c`. Spent. Cite only. Do not rebuild.
+- **#714** — CARD BEVY-CLIMB-015: Bevy 0.14 -> 0.15 (migration guide only) (#714) · `e90b21b`. Spent. Cite only. Do not rebuild.
+- **#715** — CARD BEVY-CLIMB-016: Bevy 0.15 -> 0.16 (migration guide only) (#715) · `4b12da7`. Spent. Cite only. Do not rebuild.
+- **#716** — CARD BEVY-CLIMB-017 · Bevy 0.16 → 0.17 (client only) (#716) · `4c9252f`. Spent. Cite only. Do not rebuild.
+- **#717** — CARD BEVY-CLIMB-018 · Bevy 0.17 → 0.18 (client only) (#717) · `e7968ff`. Spent. Cite only. Do not rebuild.
+- **#718** — CARD BEVY-CLIMB-019 · Bevy 0.18 → 0.19 (client) (#718) · `09e580a`. Spent. Cite only. Do not rebuild.
+- **#719** — CARD BEVY-CLIMB-020 · Bevy 0.19 → 0.20 (client) (#719) · `1345979`. Spent. Cite only. Do not rebuild.
+- **#720** — CARD SCRIPT-HOLD-TEND-1 · hold-to-tend reads PlayerInput (client) (#720) · `30233d3`. Spent. Cite only. Do not rebuild.
+- **#721** — CARD SCRIPT-HOUR-DRIVE-1 · --script timeline drives PlayerInput (client) (#721) · `377c495`. Spent. Cite only. Do not rebuild.
+- **#722** — CARD SCRIPT-RUN-WALK-1 · play-offline.sh --script-walk (scripts) (#722) · `a94c885`. Spent. Cite only. Do not rebuild.
+- **#723** — CARD TITLE-SCRIPT-PLAY-1 · scripted Use starts Play on Title (client) (#723) · `061c916`. Spent. Cite only. Do not rebuild.
+- **#724** — CARD Q2-HOUR-DRIVE-1 (#724) · `4dcbb50`. Spent. Cite only. Do not rebuild.
+- **#725** — CARD SCRIPT-RUN-DOC-1 (#725) · `c2ca7ae`. Spent. Cite only. Do not rebuild.
+- **#726** — CARD SCRIPT-CLOCK-DOC-1 (#726) · `36e4dc7`. Spent. Cite only. Do not rebuild.
+- **#727** — CARD WELL-E-AFTER-TAKE-1 (#727) · `cac49a5`. Spent. Cite only. Do not rebuild.
+- **#728** — CARD AION2-READ-1 (#728) · `f924d39`. Spent. Cite only. Do not rebuild.
+- **#729** — CARD KEEPSAKE-SEED-1 (#729) · `132aafe`. Spent. Cite only. Do not rebuild.
+- **#730** — CARD KEEPSAKE-NO-PAY-1 (#730) · `7dae1ee`. Spent. Cite only. Do not rebuild.
+- **#731** — CARD VOICE-LINE-1 (#731) · `21280a3`. Spent. Cite only. Do not rebuild.
+- **#732** — CARD HOLD-TEND-TIRES-1 (#732) · `ab7df42`. Spent. Cite only. Do not rebuild.
+- **#733** — CARD GUIDE-HIDES-AT-GLOW-1 (#733) · `5963020`. Spent. Cite only. Do not rebuild.
+- **#734** — CARD TAKE-SYNC-DROPS-1 (#734) · `4e520ae`. Spent. Cite only. Do not rebuild.
+- **#735** — CARD TAKE-TENDS-ONCE-1 (#735) · `ad77140`. Spent. Cite only. Do not rebuild.
+- **#736** — CARD STILL-BEFORE-YARD-1 (#736) · `41ba3f7`. Spent. Cite only. Do not rebuild.
+- **#737** — DOCS ITCH-EARLY-ACCESS-KIT-1 (Lead Mate, Sherif GO) (#737) · `5084ce9`. Spent. Cite only. Do not rebuild.
+- **#739** — WELL-PAD-USE-1 (#739) · `707017c`. Spent. Cite only. Do not rebuild.
+- **#740** — CARD CAM-MOUSE-ORBIT-1 (#740) · `294051b`. Spent. Cite only. Do not rebuild.
+- **#741** — CARD MOVE-STRAFE-DEFAULT-1 (#741) · `612a575`. Spent. Cite only. Do not rebuild.
+- **#742** — CARD CONTROLS-PRESETS-UI-1 (#742) · `b351f39`. Spent. Cite only. Do not rebuild.
+- **#743** — CARD KEY-REBIND-1 (#743) · `6ea67b0`. Spent. Cite only. Do not rebuild.
+- **#744** — CARD CAM-FEEL-PASS-1 (#744) · `c9bd505`. Spent. Cite only. Do not rebuild.
+- **#745** — CARD CAM-MOUSELOOK-1A (#745) · `d4d629b`. Spent. Cite only. Do not rebuild.
+- **#746** — CARD CAM-MOUSELOOK-1B (#746) · `f61ef0a`. Spent. Cite only. Do not rebuild.
+- **#747** — CARD CAM-COLLIDE-1 (#747) · `81aeb05`. Spent. Cite only. Do not rebuild.
+- **#748** — CARD KEY-REBIND-RESET-1A (#748) · `a2ca9aa`. Spent. Cite only. Do not rebuild.
+- **#749** — CARD KEY-REBIND-RESET-1B: refuse reserved keys on rebind (#749) · `55c830c`. Spent. Cite only. Do not rebuild.
 - **HEARTBEAT** — GREEN @ `014f9a81` (before #511–#513). Both core gates passed · 0 open PRs on that stamp. Cite only. The next HEARTBEAT cook is named on [`BOT_RESET_QUEUE.md`](BOT_RESET_QUEUE.md) after CLERK-LAG-LABELS. Do not open a heartbeat PR from this stamp.
 
 Immersion / logistics waves A–E already spent earlier in court (docs + Hands on the lived ladder). Do not reopen.
@@ -292,7 +337,7 @@ Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/s
 
 **STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 2c084e71. Method B confirm UI stays JUNCTION until Steward names PATH.
 
-**Effective order (verified):** TODO-SYNC-703 → HEARTBEAT → Gap 7 (pending Sherif's word for .github/**). No other card named.
+**Effective order (verified):** TODO-SYNC-749 → HEARTBEAT. No other card named.
 
 **DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.20. Playable-preview tag `11c577e`. No OFFER NEXT.
 
