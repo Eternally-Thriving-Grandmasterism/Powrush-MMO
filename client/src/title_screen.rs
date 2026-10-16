@@ -11,7 +11,9 @@
 //! CARD CAM-MOUSELOOK-1B: Comfort row "Mouse look · off/on" sits after Invert-Y.
 //! Default stays off. The click calls `toggle_mouse_look` then `persist`.
 //! CARD KEY-REBIND-RESET-1A: Controls lists key conflicts under Reset keys.
-//! Display only — a loaded duplicate or a reserved shortcut is a row, not a reject.
+//! A loaded duplicate or a reserved shortcut still warns on that row.
+//! CARD KEY-REBIND-RESET-1B: capture refuses a reserved shortcut unless it is
+//! this action's own default. Loaded keys are not rewritten.
 //! H-2026-09-12-PAUSE-TABS: Esc plate splits Comfort · Controls · Guide tabs
 //! (Online stays grey).
 //! CARD FLESH-GUIDE-BREATH: Guide is one sentence of the locked peak memory
@@ -3315,7 +3317,8 @@ fn bound_peace_action(
 
 /// Hard-coded client shortcuts a peace bind can land on.
 /// Digit1–5, Tab, Enter, Backspace, H, I, C, P, N.
-/// Display warning only — [`try_peace_rebind`] still accepts them.
+/// Capture refuses these unless the key is that action's own default.
+/// A key loaded from settings still only warns on the Key conflicts row.
 const RESERVED_SHORTCUT_KEYS: [PeaceKey; 13] = [
     PeaceKey::Digit1,
     PeaceKey::Digit2,
@@ -3340,7 +3343,8 @@ enum PeaceBindingConflict {
         second: PeaceAction,
         key_face: &'static str,
     },
-    /// A peace key sits on a hard-coded shortcut. Not a reject.
+    /// A peace key sits on a hard-coded shortcut.
+    /// The row warns. Loading does not drop the key.
     Warning { action: PeaceAction, key: PeaceKey },
 }
 
@@ -3469,13 +3473,40 @@ fn peace_conflicts_row_text(settings: &LocalSettings) -> String {
     fit_conflict_list(&phrases, capacity, CONTROLS_CONFLICT_MAX_LINES as usize)
 }
 
+/// Why [`try_peace_rebind`] left the binding alone.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PeaceRebindReject {
+    /// Another peace action already claims this key.
+    Taken(PeaceAction),
+    /// [`RESERVED_SHORTCUT_KEYS`] hit, and the key is not this action's default.
+    Reserved(PeaceKey),
+}
+
+fn peace_rebind_reject_notice(reject: PeaceRebindReject) -> String {
+    match reject {
+        PeaceRebindReject::Taken(bound) => format!("taken by {}", bound.label()),
+        PeaceRebindReject::Reserved(key) => format!("reserved · {}", key.display_label()),
+    }
+}
+
+/// Apply one peace rebind.
+///
+/// A key another action already claims is [`PeaceRebindReject::Taken`].
+/// A key in [`RESERVED_SHORTCUT_KEYS`] that is not this action's own default
+/// is [`PeaceRebindReject::Reserved`] — the same rule as the Key conflicts
+/// warning. Hide on H and Satchel on I still bind. The binding changes only
+/// on `Ok`.
 fn try_peace_rebind(
     settings: &mut LocalSettings,
     action: PeaceAction,
     key: PeaceKey,
-) -> Result<(), PeaceAction> {
+) -> Result<(), PeaceRebindReject> {
     if let Some(bound) = bound_peace_action(settings, key, action) {
-        return Err(bound);
+        return Err(PeaceRebindReject::Taken(bound));
+    }
+    let defaults = LocalSettings::peace_defaults();
+    if RESERVED_SHORTCUT_KEYS.contains(&key) && action.key(&defaults) != key {
+        return Err(PeaceRebindReject::Reserved(key));
     }
     action.set_key(settings, key);
     Ok(())
@@ -3606,8 +3637,8 @@ fn capture_peace_rebind(
                 state.waiting = None;
                 state.notice = None;
             }
-            Err(bound) => {
-                state.notice = Some(format!("taken by {}", bound.label()));
+            Err(reject) => {
+                state.notice = Some(peace_rebind_reject_notice(reject));
             }
         }
         return;
@@ -6589,12 +6620,12 @@ mod tests {
         let mut s = LocalSettings::peace_defaults();
         assert_eq!(
             try_peace_rebind(&mut s, PeaceAction::Use, PeaceKey::W),
-            Err(PeaceAction::MoveUp)
+            Err(PeaceRebindReject::Taken(PeaceAction::MoveUp))
         );
         assert_eq!(s.key_use, PeaceKey::E);
         assert_eq!(
             try_peace_rebind(&mut s, PeaceAction::Use, PeaceKey::RightShift),
-            Err(PeaceAction::Sprint),
+            Err(PeaceRebindReject::Taken(PeaceAction::Sprint)),
             "default sprint claims either Shift"
         );
 
@@ -6725,9 +6756,10 @@ mod tests {
         let mut rebound = clean.clone();
         assert_eq!(
             try_peace_rebind(&mut rebound, PeaceAction::Jump, PeaceKey::Digit1),
-            Ok(())
+            Err(PeaceRebindReject::Reserved(PeaceKey::Digit1))
         );
-        assert_eq!(rebound.key_jump, PeaceKey::Digit1);
+        assert_eq!(rebound.key_jump, clean.key_jump);
+        rebound.key_jump = PeaceKey::Digit1;
         assert!(matches!(
             peace_binding_conflicts(&rebound).as_slice(),
             [PeaceBindingConflict::Warning { .. }]
@@ -6741,6 +6773,251 @@ mod tests {
         assert_eq!(peace_conflicts_row_text(&messy), "Key conflicts · none");
         assert!(refuse_online_socket_toggle(true));
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+    }
+
+    fn settings_plate_label(settings_open: bool) -> HouseLabel {
+        HouseLabel {
+            house: shared::house_name::HouseName::default(),
+            persist_present: false,
+            hour_two_held: false,
+            book_held: false,
+            settings_open,
+            draft: String::new(),
+            naming_offered: false,
+            seals_offered: false,
+        }
+    }
+
+    /// CARD KEY-REBIND-RESET-1B — reserved key refused, binding unchanged.
+    #[test]
+    fn key_rebind_reset_1b_reserved_key_refused_binding_unchanged() {
+        let defaults = LocalSettings::peace_defaults();
+        let mut open = defaults.clone();
+        assert_eq!(
+            try_peace_rebind(&mut open, PeaceAction::Hide, PeaceKey::G),
+            Ok(())
+        );
+        assert_eq!(
+            try_peace_rebind(&mut open, PeaceAction::Satchel, PeaceKey::B),
+            Ok(())
+        );
+        for key in RESERVED_SHORTCUT_KEYS {
+            let before = open.clone();
+            assert_eq!(
+                try_peace_rebind(&mut open, PeaceAction::Jump, key),
+                Err(PeaceRebindReject::Reserved(key)),
+                "reserved {key:?} refused for Jump"
+            );
+            assert_eq!(open, before, "binding unchanged after reserved {key:?}");
+        }
+
+        let mut held = defaults.clone();
+        assert_eq!(
+            try_peace_rebind(&mut held, PeaceAction::Use, PeaceKey::H),
+            Err(PeaceRebindReject::Taken(PeaceAction::Hide)),
+            "a held reserved key reports Taken before Reserved"
+        );
+        assert_eq!(held.key_use, PeaceKey::E);
+        assert_eq!(held.key_hide, PeaceKey::H);
+        assert_eq!(
+            try_peace_rebind(&mut held, PeaceAction::Use, PeaceKey::I),
+            Err(PeaceRebindReject::Taken(PeaceAction::Satchel))
+        );
+        assert_eq!(held.key_satchel, PeaceKey::I);
+
+        let capacity = controls_conflict_line_capacity(shared::local_settings::TEXT_SCALE_MAX);
+        for action in PEACE_ACTIONS {
+            for key in RESERVED_SHORTCUT_KEYS {
+                let face = format!(
+                    "{} · {}",
+                    action.label(),
+                    peace_rebind_reject_notice(PeaceRebindReject::Reserved(key))
+                );
+                assert_eq!(
+                    conflict_wrap_lines(&face, capacity),
+                    1,
+                    "{face:?} wraps at max text scale (capacity {capacity})"
+                );
+            }
+        }
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_message::<KeyboardInput>()
+            .insert_resource(settings_plate_label(true))
+            .insert_resource(LocalSettingsState {
+                inner: defaults.clone(),
+                dirty: false,
+            })
+            .insert_resource(PeaceRebindState {
+                waiting: Some(PeaceAction::MoveRight),
+                notice: None,
+                suppress_shortcuts: false,
+            })
+            .add_systems(
+                Update,
+                (capture_peace_rebind, refresh_peace_rebind_labels).chain(),
+            );
+        let bind = app
+            .world_mut()
+            .spawn((
+                Text::new("stale"),
+                TextFont {
+                    font_size: FontSize::Px(15.0 / 1.2),
+                    ..TextFont::default()
+                },
+                SettingsPeaceBindLabel(PeaceAction::MoveRight),
+            ))
+            .id();
+        app.world_mut().write_message(KeyboardInput {
+            key_code: KeyCode::Backspace,
+            logical_key: Key::Backspace,
+            state: ButtonState::Pressed,
+            repeat: false,
+            text: None,
+            window: Entity::PLACEHOLDER,
+        });
+        app.update();
+        let state = app.world().resource::<PeaceRebindState>();
+        assert_eq!(state.waiting, Some(PeaceAction::MoveRight));
+        assert_eq!(state.notice.as_deref(), Some("reserved · Backspace"));
+        assert_eq!(
+            app.world()
+                .resource::<LocalSettingsState>()
+                .inner
+                .key_move_right,
+            PeaceKey::D
+        );
+        assert!(!app.world().resource::<LocalSettingsState>().dirty);
+        let face = app.world().get::<Text>(bind).unwrap().as_str();
+        assert_eq!(face, "Move right · reserved · Backspace");
+        assert!(face.chars().count() <= capacity);
+
+        let mut taken = App::new();
+        taken
+            .add_plugins(MinimalPlugins)
+            .add_message::<KeyboardInput>()
+            .insert_resource(settings_plate_label(true))
+            .insert_resource(LocalSettingsState {
+                inner: defaults,
+                dirty: false,
+            })
+            .insert_resource(PeaceRebindState {
+                waiting: Some(PeaceAction::Use),
+                notice: None,
+                suppress_shortcuts: false,
+            })
+            .add_systems(Update, capture_peace_rebind);
+        taken.world_mut().write_message(KeyboardInput {
+            key_code: KeyCode::KeyW,
+            logical_key: Key::Character("w".into()),
+            state: ButtonState::Pressed,
+            repeat: false,
+            text: None,
+            window: Entity::PLACEHOLDER,
+        });
+        taken.update();
+        let state = taken.world().resource::<PeaceRebindState>();
+        assert_eq!(state.waiting, Some(PeaceAction::Use));
+        assert_eq!(state.notice.as_deref(), Some("taken by Move up"));
+        assert_eq!(
+            taken.world().resource::<LocalSettingsState>().inner.key_use,
+            PeaceKey::E
+        );
+    }
+
+    /// CARD KEY-REBIND-RESET-1B — a free key outside the reserved list binds.
+    #[test]
+    fn key_rebind_reset_1b_non_reserved_free_key_accepted() {
+        let mut s = LocalSettings::peace_defaults();
+        assert!(!RESERVED_SHORTCUT_KEYS.contains(&PeaceKey::J));
+        assert_eq!(
+            try_peace_rebind(&mut s, PeaceAction::Jump, PeaceKey::J),
+            Ok(())
+        );
+        assert_eq!(s.key_jump, PeaceKey::J);
+        assert!(!RESERVED_SHORTCUT_KEYS.contains(&PeaceKey::Digit6));
+        assert_eq!(
+            try_peace_rebind(&mut s, PeaceAction::Use, PeaceKey::Digit6),
+            Ok(())
+        );
+        assert_eq!(s.key_use, PeaceKey::Digit6);
+        assert_eq!(s.key_jump, PeaceKey::J);
+    }
+
+    /// CARD KEY-REBIND-RESET-1B — Hide→H and Satchel→I stay legal. Reset still restores them.
+    #[test]
+    fn key_rebind_reset_1b_own_default_key_accepted() {
+        let mut s = LocalSettings::peace_defaults();
+        assert!(RESERVED_SHORTCUT_KEYS.contains(&PeaceKey::H));
+        assert!(RESERVED_SHORTCUT_KEYS.contains(&PeaceKey::I));
+        assert_eq!(
+            try_peace_rebind(&mut s, PeaceAction::Hide, PeaceKey::G),
+            Ok(())
+        );
+        assert_eq!(
+            try_peace_rebind(&mut s, PeaceAction::Hide, PeaceKey::H),
+            Ok(())
+        );
+        assert_eq!(s.key_hide, PeaceKey::H);
+        assert_eq!(
+            try_peace_rebind(&mut s, PeaceAction::Satchel, PeaceKey::B),
+            Ok(())
+        );
+        assert_eq!(
+            try_peace_rebind(&mut s, PeaceAction::Satchel, PeaceKey::I),
+            Ok(())
+        );
+        assert_eq!(s.key_satchel, PeaceKey::I);
+        assert_eq!(
+            try_peace_rebind(&mut s, PeaceAction::Hide, PeaceKey::H),
+            Ok(())
+        );
+        assert_eq!(
+            try_peace_rebind(&mut s, PeaceAction::Satchel, PeaceKey::I),
+            Ok(())
+        );
+
+        s.key_hide = PeaceKey::V;
+        s.key_satchel = PeaceKey::B;
+        s.key_jump = PeaceKey::Digit1;
+        reset_peace_bindings(&mut s);
+        assert_eq!(s.key_hide, PeaceKey::H);
+        assert_eq!(s.key_satchel, PeaceKey::I);
+        assert_eq!(s.key_jump, PeaceKey::Space);
+        assert!(s.peace_keys_are_default());
+    }
+
+    /// CARD KEY-REBIND-RESET-1B — a reserved key loaded from settings only warns.
+    #[test]
+    fn key_rebind_reset_1b_loaded_reserved_key_still_only_warns() {
+        let mut saved = LocalSettings::peace_defaults();
+        saved.key_jump = PeaceKey::Digit1;
+        let loaded = LocalSettings::from_json(&saved.to_json().unwrap()).unwrap();
+        assert_eq!(loaded.key_jump, PeaceKey::Digit1);
+        assert_eq!(
+            peace_binding_conflicts(&loaded),
+            vec![PeaceBindingConflict::Warning {
+                action: PeaceAction::Jump,
+                key: PeaceKey::Digit1,
+            }]
+        );
+        assert_eq!(
+            peace_conflicts_row_text(&loaded),
+            "Key conflicts · warning · Jump on 1"
+        );
+
+        let mut again = loaded.clone();
+        assert_eq!(
+            try_peace_rebind(&mut again, PeaceAction::Use, PeaceKey::Digit2),
+            Err(PeaceRebindReject::Reserved(PeaceKey::Digit2))
+        );
+        assert_eq!(again.key_use, PeaceKey::E);
+        assert_eq!(again.key_jump, PeaceKey::Digit1);
+        assert_eq!(
+            peace_binding_conflicts(&again),
+            peace_binding_conflicts(&loaded)
+        );
     }
 
     #[test]
