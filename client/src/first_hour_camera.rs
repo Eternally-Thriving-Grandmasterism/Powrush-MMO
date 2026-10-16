@@ -6,6 +6,8 @@
  * Any WASD / look intent cancels instantly. Never hijacks the stick.
  * CARD CAM-FEEL-PASS-1 — an RMB orbit drag or a mouse scroll cancels
  * the glance the same way WASD does, so the hint does not fight the orbit.
+ * CARD CAM-MOUSELOOK-1A — mouse motion while mouse-look has the cursor
+ * grabbed cancels the glance the same way. A free cursor does not.
  *
  * PATSAGi ruling: camera assist must not steal sovereignty.
  * CARD FLESH-CAMERA-PLACE — glance runs in PostUpdate, before
@@ -15,11 +17,12 @@
 
 use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
+use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::first_session_guidance::{FirstSessionGuidance, GuidanceObjective};
 use crate::human_presence::punch_scale_for_graphics;
-use crate::local_settings::{LocalFeedbackFeel, LocalMeshLodFeel};
+use crate::local_settings::{LocalFeedbackFeel, LocalLookFeel, LocalMeshLodFeel};
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
 use shared::local_settings::GraphicsPreset;
 
@@ -74,9 +77,14 @@ fn moving(keyboard: &ButtonInput<KeyCode>) -> bool {
         || keyboard.pressed(KeyCode::Space)
 }
 
-/// Right button held with mouse motion. A bare click is not an orbit drag.
-fn orbit_drag(buttons: &ButtonInput<MouseButton>, motion: &AccumulatedMouseMotion) -> bool {
-    if !buttons.pressed(MouseButton::Right) {
+/// Right button held with mouse motion, or mouse-look grabbed with motion.
+/// A bare click, or a grabbed cursor that did not move, is not an orbit drag.
+fn orbit_drag(
+    buttons: &ButtonInput<MouseButton>,
+    motion: &AccumulatedMouseMotion,
+    mouse_look_grabbed: bool,
+) -> bool {
+    if !(buttons.pressed(MouseButton::Right) || mouse_look_grabbed) {
         return false;
     }
     let d = motion.delta;
@@ -94,8 +102,11 @@ fn look_intent(
     buttons: &ButtonInput<MouseButton>,
     motion: &AccumulatedMouseMotion,
     scroll: &AccumulatedMouseScroll,
+    mouse_look_grabbed: bool,
 ) -> bool {
-    moving(keyboard) || orbit_drag(buttons, motion) || mouse_scroll(scroll)
+    moving(keyboard)
+        || orbit_drag(buttons, motion, mouse_look_grabbed)
+        || mouse_scroll(scroll)
 }
 
 fn glance_toward_nearest_node(
@@ -109,6 +120,8 @@ fn glance_toward_nearest_node(
     guidance: Res<FirstSessionGuidance>,
     feedback: Option<Res<LocalFeedbackFeel>>,
     mesh_lod: Option<Res<LocalMeshLodFeel>>,
+    look: Option<Res<LocalLookFeel>>,
+    cursors: Query<&CursorOptions, With<PrimaryWindow>>,
     mut glance: ResMut<FirstHourGlance>,
     nodes: Query<&GlobalTransform, With<MercyHarvestNode>>,
     mut cameras: Query<&mut Transform, With<Camera3d>>,
@@ -129,7 +142,17 @@ fn glance_toward_nearest_node(
         return;
     }
 
-    if look_intent(&keyboard, &mouse_buttons, &mouse_motion, &mouse_scroll) {
+    let mouse_look_grabbed = look.as_ref().is_some_and(|feel| feel.mouse_look)
+        && cursors
+            .iter()
+            .any(|cursor| cursor.grab_mode != CursorGrabMode::None);
+    if look_intent(
+        &keyboard,
+        &mouse_buttons,
+        &mouse_motion,
+        &mouse_scroll,
+        mouse_look_grabbed,
+    ) {
         glance.idle_secs = 0.0;
         glance.active = false;
         return;
@@ -187,10 +210,11 @@ mod tests {
     use crate::first_harvest_epiphany::FirstHarvestEpiphany;
     use crate::first_session_guidance::FirstSessionGuidance;
     use crate::human_presence::punch_scale_for_graphics;
-    use crate::local_settings::LocalFeedbackFeel;
+    use crate::local_settings::{LocalFeedbackFeel, LocalLookFeel};
     use crate::mercy_harvest_nodes::NearbyMercyNode;
     use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit};
     use bevy::prelude::*;
+    use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
     use shared::local_settings::{GraphicsPreset, LocalSettings};
 
     #[test]
@@ -313,5 +337,67 @@ mod tests {
         }
         app.update();
         assert_cancelled(&app);
+    }
+
+    /// Mouse motion counts as an orbit drag while mouse-look has the cursor.
+    /// A free cursor, and a grabbed cursor that did not move, do not.
+    #[test]
+    fn orbit_drag_counts_motion_while_mouse_look_is_grabbed() {
+        let mut buttons = ButtonInput::default();
+        let moved = AccumulatedMouseMotion {
+            delta: Vec2::new(6.0, -2.0),
+        };
+        let still = AccumulatedMouseMotion { delta: Vec2::ZERO };
+        assert!(!super::orbit_drag(&buttons, &moved, false));
+        assert!(super::orbit_drag(&buttons, &moved, true));
+        assert!(!super::orbit_drag(&buttons, &still, true));
+        buttons.press(MouseButton::Right);
+        assert!(super::orbit_drag(&buttons, &moved, false));
+        assert!(!super::orbit_drag(&buttons, &still, false));
+    }
+
+    /// A grabbed mouse-look drag clears the glance. Motion with the cursor free does not.
+    #[test]
+    fn glance_cancels_on_mouse_look_grab_drag() {
+        let mut grabbed = armed_glance();
+        grabbed.insert_resource(LocalLookFeel {
+            sensitivity: 1.0,
+            invert_y: false,
+            mouse_look: true,
+        });
+        grabbed.world_mut().spawn((
+            Window::default(),
+            PrimaryWindow,
+            CursorOptions {
+                visible: false,
+                grab_mode: CursorGrabMode::Locked,
+                hit_test: true,
+            },
+        ));
+        grabbed
+            .world_mut()
+            .resource_mut::<AccumulatedMouseMotion>()
+            .delta = Vec2::new(8.0, -2.0);
+        grabbed.update();
+        assert_cancelled(&grabbed);
+
+        let mut free = armed_glance();
+        free.insert_resource(LocalLookFeel {
+            sensitivity: 1.0,
+            invert_y: false,
+            mouse_look: true,
+        });
+        free.world_mut().spawn((
+            Window::default(),
+            PrimaryWindow,
+            CursorOptions {
+                visible: true,
+                grab_mode: CursorGrabMode::None,
+                hit_test: true,
+            },
+        ));
+        free.world_mut().resource_mut::<AccumulatedMouseMotion>().delta = Vec2::new(8.0, -2.0);
+        free.update();
+        assert_held(&free);
     }
 }
