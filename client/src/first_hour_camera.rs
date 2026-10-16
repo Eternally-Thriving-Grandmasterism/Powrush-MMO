@@ -4,6 +4,8 @@
  * If the human is idle for a breath and has not harvested yet,
  * the camera eases a few degrees toward the nearest glowing node.
  * Any WASD / look intent cancels instantly. Never hijacks the stick.
+ * CARD CAM-FEEL-PASS-1 — an RMB orbit drag or a mouse scroll cancels
+ * the glance the same way WASD does, so the hint does not fight the orbit.
  *
  * PATSAGi ruling: camera assist must not steal sovereignty.
  * CARD FLESH-CAMERA-PLACE — glance runs in PostUpdate, before
@@ -11,6 +13,7 @@
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
+use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll};
 use bevy::prelude::*;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
@@ -43,10 +46,14 @@ pub struct FirstHourCameraPlugin;
 
 impl Plugin for FirstHourCameraPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<FirstHourGlance>().add_systems(
-            PostUpdate,
-            glance_toward_nearest_node.before(TransformSystems::Propagate),
-        );
+        app.init_resource::<FirstHourGlance>()
+            .init_resource::<ButtonInput<MouseButton>>()
+            .init_resource::<AccumulatedMouseMotion>()
+            .init_resource::<AccumulatedMouseScroll>()
+            .add_systems(
+                PostUpdate,
+                glance_toward_nearest_node.before(TransformSystems::Propagate),
+            );
     }
 }
 
@@ -67,8 +74,35 @@ fn moving(keyboard: &ButtonInput<KeyCode>) -> bool {
         || keyboard.pressed(KeyCode::Space)
 }
 
+/// Right button held with mouse motion. A bare click is not an orbit drag.
+fn orbit_drag(buttons: &ButtonInput<MouseButton>, motion: &AccumulatedMouseMotion) -> bool {
+    if !buttons.pressed(MouseButton::Right) {
+        return false;
+    }
+    let d = motion.delta;
+    d.x.is_finite() && d.y.is_finite() && d.length_squared() > 0.0
+}
+
+/// Wheel movement. Zoom uses y; any non-zero wheel delta is a mouse scroll.
+fn mouse_scroll(scroll: &AccumulatedMouseScroll) -> bool {
+    let d = scroll.delta;
+    (d.x.is_finite() && d.x != 0.0) || (d.y.is_finite() && d.y != 0.0)
+}
+
+fn look_intent(
+    keyboard: &ButtonInput<KeyCode>,
+    buttons: &ButtonInput<MouseButton>,
+    motion: &AccumulatedMouseMotion,
+    scroll: &AccumulatedMouseScroll,
+) -> bool {
+    moving(keyboard) || orbit_drag(buttons, motion) || mouse_scroll(scroll)
+}
+
 fn glance_toward_nearest_node(
     keyboard: Res<ButtonInput<KeyCode>>,
+    mouse_buttons: Res<ButtonInput<MouseButton>>,
+    mouse_motion: Res<AccumulatedMouseMotion>,
+    mouse_scroll: Res<AccumulatedMouseScroll>,
     time: Res<Time>,
     nearby: Res<NearbyMercyNode>,
     harvest: Res<FirstHarvestEpiphany>,
@@ -95,7 +129,7 @@ fn glance_toward_nearest_node(
         return;
     }
 
-    if moving(&keyboard) {
+    if look_intent(&keyboard, &mouse_buttons, &mouse_motion, &mouse_scroll) {
         glance.idle_secs = 0.0;
         glance.active = false;
         return;
@@ -147,9 +181,16 @@ fn glance_toward_nearest_node(
 
 #[cfg(test)]
 mod tests {
-    use super::{glance_blend, GLANCE_BLEND};
+    use super::{
+        glance_blend, glance_toward_nearest_node, FirstHourGlance, GLANCE_BLEND, IDLE_BEFORE_GLANCE,
+    };
+    use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+    use crate::first_session_guidance::FirstSessionGuidance;
     use crate::human_presence::punch_scale_for_graphics;
     use crate::local_settings::LocalFeedbackFeel;
+    use crate::mercy_harvest_nodes::NearbyMercyNode;
+    use bevy::input::mouse::{AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollUnit};
+    use bevy::prelude::*;
     use shared::local_settings::{GraphicsPreset, LocalSettings};
 
     #[test]
@@ -203,5 +244,74 @@ mod tests {
         }
         assert!(glance_blend(0.0) <= GLANCE_BLEND);
         assert_eq!(glance_blend(1.0), GLANCE_BLEND);
+    }
+
+    fn armed_glance() -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<ButtonInput<KeyCode>>()
+            .init_resource::<ButtonInput<MouseButton>>()
+            .init_resource::<AccumulatedMouseMotion>()
+            .init_resource::<AccumulatedMouseScroll>()
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<FirstSessionGuidance>()
+            .init_resource::<NearbyMercyNode>()
+            .init_resource::<FirstHourGlance>()
+            .add_systems(Update, glance_toward_nearest_node);
+        {
+            let mut nearby = app.world_mut().resource_mut::<NearbyMercyNode>();
+            nearby.nodes_exist = true;
+            let mut glance = app.world_mut().resource_mut::<FirstHourGlance>();
+            glance.idle_secs = IDLE_BEFORE_GLANCE + 0.5;
+            glance.active = true;
+        }
+        app
+    }
+
+    fn assert_cancelled(app: &App) {
+        let glance = app.world().resource::<FirstHourGlance>();
+        assert!(!glance.active, "glance stayed active");
+        assert_eq!(glance.idle_secs, 0.0);
+    }
+
+    fn assert_held(app: &App) {
+        let glance = app.world().resource::<FirstHourGlance>();
+        assert!(glance.active, "glance dropped without look intent");
+        assert!(glance.idle_secs >= IDLE_BEFORE_GLANCE);
+    }
+
+    /// An RMB drag clears the glance. A bare right-button hold does not.
+    #[test]
+    fn glance_cancels_on_rmb_drag() {
+        let mut drag = armed_glance();
+        {
+            let world = drag.world_mut();
+            world
+                .resource_mut::<ButtonInput<MouseButton>>()
+                .press(MouseButton::Right);
+            world.resource_mut::<AccumulatedMouseMotion>().delta = Vec2::new(12.0, -4.0);
+        }
+        drag.update();
+        assert_cancelled(&drag);
+
+        let mut held = armed_glance();
+        held.world_mut()
+            .resource_mut::<ButtonInput<MouseButton>>()
+            .press(MouseButton::Right);
+        held.update();
+        assert_held(&held);
+    }
+
+    /// A mouse scroll (zoom) clears the glance the same way a drag does.
+    #[test]
+    fn glance_cancels_on_mouse_scroll() {
+        let mut app = armed_glance();
+        {
+            let mut scroll = app.world_mut().resource_mut::<AccumulatedMouseScroll>();
+            scroll.unit = MouseScrollUnit::Line;
+            scroll.delta = Vec2::new(0.0, 1.0);
+        }
+        app.update();
+        assert_cancelled(&app);
     }
 }

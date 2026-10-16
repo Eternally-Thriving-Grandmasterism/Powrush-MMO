@@ -49,8 +49,13 @@
  * CARD CAM-MOUSE-ORBIT-1 — hold the right mouse button to orbit the follow
  * camera (yaw, pitch, distance). The scroll wheel zooms inside a clamp.
  * Defaults match CAM_BACK / CAM_UP. No orbit on the title screen or while
- * settings are open (same gate as STILL-BEFORE-YARD-1). Invert-Y, sensitivity,
- * and camera collision stay deferred.
+ * settings are open (same gate as STILL-BEFORE-YARD-1). Camera collision
+ * stays deferred.
+ *
+ * CARD CAM-FEEL-PASS-1 — orbit yaw and pitch read `LocalLookFeel`. Sensitivity
+ * scales both axes and invert-Y flips pitch. Saved defaults (sensitivity 1,
+ * invert off) match the raw per-pixel rates. The follow lerp is
+ * `1 - (1 - 0.12)^(dt * 60)`, the old 0.12 weight at 60 fps.
  *
  * CARD MOVE-STRAFE-DEFAULT-1 — Modern (default) rotates WASD, pad, and touch
  * by the follow-orbit yaw. W goes along the camera's forward, A/D strafe,
@@ -89,7 +94,9 @@ use crate::living_day::{
     greet_by_place_mood, preferred_work, schedule_copy_is_honest, still_frame_line, DayPeriod,
     PreferredWork, SacredVerb, SchedulePlace, WellMood,
 };
-use crate::local_settings::{LocalFeedbackFeel, LocalMeshLodFeel, LocalSettingsState};
+use crate::local_settings::{
+    LocalFeedbackFeel, LocalLookFeel, LocalMeshLodFeel, LocalSettingsState,
+};
 use shared::local_settings::{GraphicsPreset, LocalSettings, PeaceKey};
 
 /// H-2026-09-16-MESH-PERSONA-HANDS — Comfort MeshLodPlan (PATHS-only compile).
@@ -119,6 +126,8 @@ const CAM_DIST_MAX: f32 = 16.0;
 const CAM_PITCH_MIN: f32 = 0.05;
 /// Short of vertical, so `look_at` cannot flip over the pole.
 const CAM_PITCH_MAX: f32 = FRAC_PI_2 - 0.08;
+/// Follow smoothing at 60 fps. Other rates use `1 - (1 - this)^(dt * 60)`.
+const FOLLOW_LERP_AT_60: f32 = 0.12;
 /// Horizontal accel toward wish speed (units/s²).
 pub const MOVE_ACCEL: f32 = 28.0;
 /// Horizontal decel when wish is released — stop-on-release, no ice-skate.
@@ -1343,15 +1352,19 @@ fn apply_orbit_input(
     motion: &AccumulatedMouseMotion,
     scroll: &AccumulatedMouseScroll,
     pixels_per_line: f32,
+    look: &LocalLookFeel,
 ) {
     if buttons.pressed(MouseButton::Right) {
-        if motion.delta.x.is_finite() {
+        // Sensitivity scales both axes. Invert-Y flips pitch only.
+        // Scroll distance stays on the raw line rate so default feel matches today.
+        let (dx, dy) = look.apply_delta(motion.delta.x, motion.delta.y);
+        if dx.is_finite() {
             // Mouse right turns the view right: the camera swings toward -X.
-            orbit.yaw -= motion.delta.x * ORBIT_YAW_PER_PX;
+            orbit.yaw -= dx * ORBIT_YAW_PER_PX;
         }
-        if motion.delta.y.is_finite() {
+        if dy.is_finite() {
             // Mouse down (positive y) raises the camera and looks down at the player.
-            orbit.pitch += motion.delta.y * ORBIT_PITCH_PER_PX;
+            orbit.pitch += dy * ORBIT_PITCH_PER_PX;
         }
     }
     let lines = scroll_lines(scroll, pixels_per_line);
@@ -1362,10 +1375,25 @@ fn apply_orbit_input(
     orbit.distance = orbit.distance.clamp(CAM_DIST_MIN, CAM_DIST_MAX);
 }
 
+/// `1 - (1 - 0.12)^(dt * 60)`. Exactly `FOLLOW_LERP_AT_60` when `dt` is 1/60.
+fn follow_lerp_t(dt: f32) -> f32 {
+    if !dt.is_finite() || dt <= 0.0 {
+        return 0.0;
+    }
+    let t = 1.0 - (1.0 - FOLLOW_LERP_AT_60).powf(dt * 60.0);
+    if t.is_finite() {
+        t.clamp(0.0, 1.0)
+    } else {
+        1.0
+    }
+}
+
 fn follow_camera(
+    time: Res<Time>,
     presence: Res<SoftPresence>,
     pool: Option<Res<SoftRbePool>>,
     feedback: Res<LocalFeedbackFeel>,
+    look: Res<LocalLookFeel>,
     mesh_lod: Option<Res<LocalMeshLodFeel>>,
     realm: Option<Res<crate::living_practice_loop::SoftPlayerRealm>>,
     door: Option<Res<LaunchDoor>>,
@@ -1386,6 +1414,7 @@ fn follow_camera(
             &mouse_motion,
             &mouse_scroll,
             pixels_per_line,
+            &look,
         );
     }
     let kick = pool.map(|p| p.kick).unwrap_or(0.0);
@@ -1408,8 +1437,9 @@ fn follow_camera(
     } else {
         presence.position + Vec3::Y * (follow_look_height_for_realm(realm.and_then(|r| r.current)) + look_lift)
     };
+    let follow_t = follow_lerp_t(time.delta_secs());
     for mut cam in &mut cams {
-        cam.translation = cam.translation.lerp(desired, 0.12);
+        cam.translation = cam.translation.lerp(desired, follow_t);
         cam.look_at(look, Vec3::Y);
     }
 }
@@ -2856,7 +2886,11 @@ mod tests {
             .init_resource::<ButtonInput<MouseButton>>()
             .init_resource::<AccumulatedMouseMotion>()
             .init_resource::<AccumulatedMouseScroll>()
+            .init_resource::<LocalLookFeel>()
             .insert_resource(LocalFeedbackFeel::default())
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+                std::time::Duration::from_secs_f64(1.0 / 60.0),
+            ))
             .add_systems(Update, follow_camera);
         if let Some(door) = door {
             app.insert_resource(door);
@@ -3135,6 +3169,139 @@ mod tests {
         assert!(
             got.distance(fixed) < 1e-3,
             "Ambrosian look-down left the fixed offset, got {got:?} want {fixed:?}"
+        );
+    }
+
+    /// Saved look defaults (sensitivity 1, invert off) keep today's per-pixel orbit.
+    #[test]
+    fn cam_feel_default_look_matches_today_orbit() {
+        let feel = LocalLookFeel::default();
+        assert!((feel.sensitivity - 1.0).abs() < 1e-6);
+        assert!(!feel.invert_y);
+        let mut app = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        {
+            let world = app.world_mut();
+            world
+                .resource_mut::<ButtonInput<MouseButton>>()
+                .press(MouseButton::Right);
+            world.resource_mut::<AccumulatedMouseMotion>().delta = Vec2::new(30.0, 20.0);
+        }
+        app.update();
+        let orbit = *app.world().resource::<FollowOrbit>();
+        assert!((orbit.yaw - (-30.0 * ORBIT_YAW_PER_PX)).abs() < 1e-4);
+        assert!((orbit.pitch - (default_orbit_pitch() + 20.0 * ORBIT_PITCH_PER_PX)).abs() < 1e-4);
+        assert!((orbit.distance - default_orbit_distance()).abs() < 1e-4);
+    }
+
+    /// Look sensitivity scales yaw and pitch. Distance stays on the raw scroll rate.
+    #[test]
+    fn cam_feel_sensitivity_scales_yaw_and_pitch() {
+        let mut app = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        app.insert_resource(LocalLookFeel {
+            sensitivity: 2.0,
+            invert_y: false,
+        });
+        {
+            let world = app.world_mut();
+            world
+                .resource_mut::<ButtonInput<MouseButton>>()
+                .press(MouseButton::Right);
+            world.resource_mut::<AccumulatedMouseMotion>().delta = Vec2::new(30.0, 20.0);
+            let mut scroll = world.resource_mut::<AccumulatedMouseScroll>();
+            scroll.unit = MouseScrollUnit::Line;
+            scroll.delta = Vec2::new(0.0, 1.0);
+        }
+        app.update();
+        let orbit = *app.world().resource::<FollowOrbit>();
+        assert!(
+            (orbit.yaw - (-30.0 * 2.0 * ORBIT_YAW_PER_PX)).abs() < 1e-4,
+            "sensitivity should scale yaw, got {}",
+            orbit.yaw
+        );
+        assert!(
+            (orbit.pitch - (default_orbit_pitch() + 20.0 * 2.0 * ORBIT_PITCH_PER_PX)).abs()
+                < 1e-4,
+            "sensitivity should scale pitch, got {}",
+            orbit.pitch
+        );
+        assert!(
+            (orbit.distance - (default_orbit_distance() - ORBIT_DIST_PER_LINE)).abs() < 1e-4,
+            "sensitivity must not scale zoom, distance={}",
+            orbit.distance
+        );
+    }
+
+    /// Invert-Y flips pitch and leaves yaw on the same sign.
+    #[test]
+    fn cam_feel_invert_y_flips_pitch_only() {
+        let mut app = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        app.insert_resource(LocalLookFeel {
+            sensitivity: 1.0,
+            invert_y: true,
+        });
+        {
+            let world = app.world_mut();
+            world
+                .resource_mut::<ButtonInput<MouseButton>>()
+                .press(MouseButton::Right);
+            world.resource_mut::<AccumulatedMouseMotion>().delta = Vec2::new(30.0, 20.0);
+        }
+        app.update();
+        let orbit = *app.world().resource::<FollowOrbit>();
+        assert!((orbit.yaw - (-30.0 * ORBIT_YAW_PER_PX)).abs() < 1e-4);
+        assert!(
+            (orbit.pitch - (default_orbit_pitch() - 20.0 * ORBIT_PITCH_PER_PX)).abs() < 1e-4,
+            "invert-Y should flip pitch, got {}",
+            orbit.pitch
+        );
+    }
+
+    fn follow_after(dt_secs: f32, steps: u32) -> Vec3 {
+        let mut app = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+            std::time::Duration::from_secs_f32(dt_secs),
+        ));
+        // The first update only stamps the clock, so its delta stays zero.
+        app.update();
+        for _ in 0..steps {
+            app.update();
+        }
+        cam_translation(&mut app)
+    }
+
+    /// The 60 fps weight stays 0.12, and 30 fps matches 144 fps over the same time.
+    #[test]
+    fn cam_feel_follow_matches_at_30_and_144_fps() {
+        let at_60 = follow_lerp_t(1.0 / 60.0);
+        assert!(
+            (at_60 - FOLLOW_LERP_AT_60).abs() < 1e-5,
+            "60 fps weight left 0.12, got {at_60}"
+        );
+
+        let start = Vec3::new(0.0, 8.0, 14.0);
+        let one = follow_after(1.0 / 60.0, 1);
+        let presence = Vec3::new(0.0, STAND, 0.0);
+        let want = presence + Vec3::new(0.0, CAM_UP, CAM_BACK);
+        let expected = start.lerp(want, FOLLOW_LERP_AT_60);
+        assert!(
+            one.distance(expected) < 1e-3,
+            "one 60 fps frame left the legacy 0.12 step, got {one:?} want {expected:?}"
+        );
+
+        // 5/30 s = 24/144 s. Not settled, so a no-op lerp cannot pass.
+        let slow = follow_after(1.0 / 30.0, 5);
+        let fast = follow_after(1.0 / 144.0, 24);
+        assert!(
+            slow.distance(fast) < 1e-3,
+            "30 fps {slow:?} left 144 fps {fast:?} over the same time"
+        );
+        assert!(
+            slow.distance(start) > 1.0,
+            "follow did not move off the start, got {slow:?}"
+        );
+        assert!(
+            slow.distance(want) > 0.5,
+            "follow already sat on the target, got {slow:?}"
         );
     }
 
