@@ -10,6 +10,8 @@
 //! `data/powrush_settings.json` beside house JSON. Online stays grey — no socket.
 //! CARD CAM-MOUSELOOK-1B: Comfort row "Mouse look · off/on" sits after Invert-Y.
 //! Default stays off. The click calls `toggle_mouse_look` then `persist`.
+//! CARD KEY-REBIND-RESET-1A: Controls lists key conflicts under Reset keys.
+//! Display only — a loaded duplicate or a reserved shortcut is a row, not a reject.
 //! H-2026-09-12-PAUSE-TABS: Esc plate splits Comfort · Controls · Guide tabs
 //! (Online stays grey).
 //! CARD FLESH-GUIDE-BREATH: Guide is one sentence of the locked peak memory
@@ -730,6 +732,12 @@ struct SettingsPeaceBindBtn(PeaceAction);
 struct SettingsPeaceBindLabel(PeaceAction);
 #[derive(Component)]
 struct SettingsPeaceResetBtn;
+/// Controls tab — conflict row button. Display only; no click system.
+#[derive(Component)]
+struct SettingsPeaceConflictBtn;
+/// Controls tab — "Key conflicts · …" text. Kept off the bind-label query.
+#[derive(Component)]
+struct SettingsPeaceConflictLabel;
 #[derive(Component)]
 struct NameHouseRoot;
 #[derive(Component)]
@@ -1624,11 +1632,12 @@ TextColor(fg),
 }
 
 /// Pause plate chrome shared by every tab. The 720p budget is
-/// [`comfort_pause_plate_height_px`].
+/// [`comfort_pause_plate_height_px`] and [`controls_pause_plate_height_px`].
+const PAUSE_PLATE_WIDTH: f32 = 420.0;
 const PAUSE_PLATE_PAD: f32 = 10.0;
 const PAUSE_PLATE_BORDER: f32 = 1.5;
 const PAUSE_PLATE_ROW_GAP: f32 = 4.0;
-/// Row padding outside Comfort. Controls and HUD keep this.
+/// Row padding outside Comfort and Controls. HUD keeps this.
 const SETTINGS_ROW_PAD_Y: f32 = 5.0;
 const SETTINGS_ROW_BORDER: f32 = 1.0;
 const SETTINGS_TAB_ROW_GAP: f32 = 4.0;
@@ -1639,6 +1648,19 @@ const COMFORT_ROW_GAP: f32 = 1.0;
 /// Graphics through lethal, including Mouse look. Keep in sync with the
 /// Comfort children in `spawn_settings_stub`.
 const COMFORT_SETTINGS_ROWS: u32 = 14;
+/// CARD KEY-REBIND-RESET-1A. Four preset rows, ten peace binds, Reset keys,
+/// and Key conflicts. The pre-card Controls tab (pad 5, gap 4, 15 rows) is
+/// already 790px at max text scale, past the 705.6px cap. Pad 5→1 and gap
+/// 4→1 bring sixteen rows, with the conflict row allowed two lines, back
+/// inside that cap. HUD keeps [`SETTINGS_ROW_PAD_Y`].
+const CONTROLS_ROW_PAD_Y: f32 = 1.0;
+const CONTROLS_ROW_GAP: f32 = 1.0;
+/// Keep in sync with the Controls children in `spawn_settings_stub`.
+const CONTROLS_SETTINGS_ROWS: u32 = 16;
+/// One conflict can wrap to two lines ("share either Shift", "share
+/// Backspace"). The row is capped here so a file full of duplicates cannot
+/// grow the plate.
+const CONTROLS_CONFLICT_MAX_LINES: f32 = 2.0;
 
 fn spawn_settings_stub(mut commands: Commands) {
     // D1 Pause honesty + D2 local settings — Comfort · Controls · Guide tabs (no second HUD).
@@ -1650,10 +1672,10 @@ fn spawn_settings_stub(mut commands: Commands) {
                     // Single active tab keeps the Settings plate readable at 720p.
                     top: Val::Percent(1.0),
                     left: Val::Percent(50.0),
-                    width: Val::Px(420.0),
+                    width: Val::Px(PAUSE_PLATE_WIDTH),
                     max_height: Val::Percent(98.0),
                     margin: UiRect {
-                        left: Val::Px(-210.0),
+                        left: Val::Px(-PAUSE_PLATE_WIDTH / 2.0),
                         ..default()
                     },
                     padding: UiRect::all(Val::Px(PAUSE_PLATE_PAD)),
@@ -1773,50 +1795,52 @@ TextColor(TITLE_TEXT_PRIMARY),
                     SettingsLethalLabel,
                 );
             });
-            // Controls tab — movement preset, sticks, Peace remap, Reset-to-Peace.
+            // Controls tab — movement preset, sticks, Peace remap, Reset-to-Peace,
+            // then the display-only conflict row.
             p.spawn((
-                settings_tab_panel_bundle(false),
+                settings_tab_panel_bundle_gap(false, CONTROLS_ROW_GAP),
                 PauseTabPanel(PauseTab::Controls),
             ))
             .with_children(|controls| {
-                spawn_settings_row(
+                spawn_controls_row(
                     controls,
                     "Move · Modern · A/D strafe",
                     SettingsControlPresetBtn,
                     SettingsControlPresetLabel,
                 );
-                spawn_settings_row(
+                spawn_controls_row(
                     controls,
                     "Touch sticks · auto",
                     SettingsSticksBtn,
                     SettingsSticksLabel,
                 );
-                spawn_settings_row(
+                spawn_controls_row(
                     controls,
                     "Tap-to-Use · off",
                     SettingsTapUseBtn,
                     SettingsTapUseLabel,
                 );
-                spawn_settings_row(
+                spawn_controls_row(
                     controls,
                     "Pad sprint · off",
                     SettingsSprintBtn,
                     SettingsSprintLabel,
                 );
                 for action in PEACE_ACTIONS {
-                    spawn_settings_row(
+                    spawn_controls_row(
                         controls,
                         &peace_binding_label(action, &LocalSettings::peace_defaults()),
                         SettingsPeaceBindBtn(action),
                         SettingsPeaceBindLabel(action),
                     );
                 }
-                spawn_settings_row(
+                spawn_controls_row(
                     controls,
                     "Reset keys",
                     SettingsPeaceResetBtn,
                     SettingsPeaceResetBtn,
                 );
+                spawn_controls_conflict_row(controls);
             });
             // HUD tab — layout preset and Reset UI. No hotkey. Plate style stays.
             p.spawn((
@@ -2953,6 +2977,51 @@ fn spawn_settings_row<B: Component, L: Component>(
     spawn_settings_row_padded(p, label, btn, text_marker, SETTINGS_ROW_PAD_Y);
 }
 
+fn spawn_controls_row<B: Component, L: Component>(
+    p: &mut ChildSpawnerCommands,
+    label: &str,
+    btn: B,
+    text_marker: L,
+) {
+    spawn_settings_row_padded(p, label, btn, text_marker, CONTROLS_ROW_PAD_Y);
+}
+
+/// Conflict row matches a Controls row's box, capped at two lines so a long
+/// list cannot push the plate past 720p. Nothing listens for its clicks.
+fn spawn_controls_conflict_row(p: &mut ChildSpawnerCommands) {
+    p.spawn((
+        (
+            bevy::ui_widgets::Button,
+            Interaction::default(),
+            Node {
+                padding: UiRect::axes(Val::Px(12.0), Val::Px(CONTROLS_ROW_PAD_Y)),
+                justify_content: JustifyContent::Center,
+                border: UiRect::all(Val::Px(SETTINGS_ROW_BORDER)),
+                width: Val::Percent(100.0),
+                max_height: Val::Px(controls_conflict_max_height_px(1.0)),
+                overflow: Overflow::hidden(),
+                ..default()
+            },
+            BorderColor::all(TITLE_BORDER),
+            BackgroundColor(TITLE_BTN_BG),
+        ),
+        SettingsPeaceConflictBtn,
+    ))
+    .with_children(|b| {
+        b.spawn((
+            (
+                Text::new("Key conflicts · none"),
+                TextFont {
+                    font_size: FontSize::Px(15.0 / 1.2),
+                    ..default()
+                },
+                TextColor(TITLE_BTN_FG),
+            ),
+            SettingsPeaceConflictLabel,
+        ));
+    });
+}
+
 fn spawn_comfort_row<B: Component, L: Component>(
     p: &mut ChildSpawnerCommands,
     label: &str,
@@ -3027,19 +3096,67 @@ pub fn mouse_look_btn_label(s: &LocalSettings) -> String {
 /// text measure ceils it. Unscaled chrome matches the pause cue (logical 16),
 /// tab buttons (pad 6, border 1, logical 14), and Online / Resume / Title / Quit
 /// (pad 10, border 1, logical 15).
-fn comfort_pause_plate_height_px(text_scale: f32) -> f32 {
-    let logical = (15.0 * text_scale).clamp(11.0, 22.0);
-    let line = logical.ceil();
-    let comfort_row = line + COMFORT_ROW_PAD_Y * 2.0 + SETTINGS_ROW_BORDER * 2.0;
-    let rows = COMFORT_SETTINGS_ROWS as f32;
-    let comfort = rows * comfort_row + (rows - 1.0) * COMFORT_ROW_GAP;
+fn settings_row_line_px(text_scale: f32) -> f32 {
+    (15.0 * text_scale).clamp(11.0, 22.0).ceil()
+}
+
+/// Cue, tabs, Online, Resume, Title, Quit. Places stays hidden. The active
+/// tab panel is added by the caller.
+fn pause_plate_chrome_px() -> f32 {
     let cue = 16.0_f32.ceil();
     let tab = 14.0_f32.ceil() + 6.0 * 2.0 + SETTINGS_ROW_BORDER * 2.0;
     let menu = 15.0_f32.ceil() + 10.0 * 2.0 + SETTINGS_ROW_BORDER * 2.0;
     let chrome = PAUSE_PLATE_PAD * 2.0 + PAUSE_PLATE_BORDER * 2.0;
-    // cue, tabs, comfort panel, Online, Resume, Title, Quit
     let gaps = 6.0 * PAUSE_PLATE_ROW_GAP;
-    chrome + cue + tab + comfort + 4.0 * menu + gaps
+    chrome + cue + tab + 4.0 * menu + gaps
+}
+
+fn comfort_pause_plate_height_px(text_scale: f32) -> f32 {
+    let line = settings_row_line_px(text_scale);
+    let comfort_row = line + COMFORT_ROW_PAD_Y * 2.0 + SETTINGS_ROW_BORDER * 2.0;
+    let rows = COMFORT_SETTINGS_ROWS as f32;
+    let comfort = rows * comfort_row + (rows - 1.0) * COMFORT_ROW_GAP;
+    pause_plate_chrome_px() + comfort
+}
+
+fn controls_row_box_px(text_scale: f32, lines: f32) -> f32 {
+    settings_row_line_px(text_scale) * lines
+        + CONTROLS_ROW_PAD_Y * 2.0
+        + SETTINGS_ROW_BORDER * 2.0
+}
+
+fn controls_conflict_max_height_px(text_scale: f32) -> f32 {
+    controls_row_box_px(text_scale, CONTROLS_CONFLICT_MAX_LINES)
+}
+
+/// Esc Controls plate height at `text_scale`, border box, Places hidden.
+/// Fifteen rows are one line. The conflict row is budgeted at its two-line cap.
+fn controls_pause_plate_height_px(text_scale: f32) -> f32 {
+    let rows = CONTROLS_SETTINGS_ROWS as f32;
+    let single = controls_row_box_px(text_scale, 1.0);
+    let conflict = controls_conflict_max_height_px(text_scale);
+    let panel = (rows - 1.0) * single + conflict + (rows - 1.0) * CONTROLS_ROW_GAP;
+    pause_plate_chrome_px() + panel
+}
+
+/// Inner width of a Controls row's text, border box, plate width 420.
+fn controls_row_text_width_px() -> f32 {
+    let plate = PAUSE_PLATE_WIDTH - PAUSE_PLATE_PAD * 2.0 - PAUSE_PLATE_BORDER * 2.0;
+    plate - 12.0 * 2.0 - SETTINGS_ROW_BORDER * 2.0
+}
+
+/// Fira Mono subset advance is 0.6em. The row stores font size as logical/1.2.
+fn controls_glyph_advance_px(text_scale: f32) -> f32 {
+    let logical = (15.0 * text_scale).clamp(11.0, 22.0);
+    0.6 * (logical / 1.2)
+}
+
+fn controls_conflict_line_capacity(text_scale: f32) -> usize {
+    let advance = controls_glyph_advance_px(text_scale);
+    if advance <= 0.0 {
+        return 1;
+    }
+    (controls_row_text_width_px() / advance).floor() as usize
 }
 
 pub fn hide_slabs_btn_label(s: &LocalSettings) -> String {
@@ -3177,21 +3294,179 @@ fn peace_binding_label(action: PeaceAction, settings: &LocalSettings) -> String 
     format!("{} · {key_label}", action.label())
 }
 
+/// Same rule as [`bound_peace_action`]: an exact key match, or Sprint stored
+/// on Left Shift also claims Right Shift.
+fn peace_action_claims_key(action: PeaceAction, bound: PeaceKey, key: PeaceKey) -> bool {
+    bound == key
+        || (action == PeaceAction::Sprint
+            && bound == PeaceKey::LeftShift
+            && key == PeaceKey::RightShift)
+}
+
 fn bound_peace_action(
     settings: &LocalSettings,
     key: PeaceKey,
     except: PeaceAction,
 ) -> Option<PeaceAction> {
     PEACE_ACTIONS.into_iter().find(|action| {
-        if *action == except {
-            return false;
-        }
-        let bound = action.key(settings);
-        bound == key
-            || (*action == PeaceAction::Sprint
-                && bound == PeaceKey::LeftShift
-                && key == PeaceKey::RightShift)
+        *action != except && peace_action_claims_key(*action, action.key(settings), key)
     })
+}
+
+/// Hard-coded client shortcuts a peace bind can land on.
+/// Digit1–5, Tab, Enter, Backspace, H, I, C, P, N.
+/// Display warning only — [`try_peace_rebind`] still accepts them.
+const RESERVED_SHORTCUT_KEYS: [PeaceKey; 13] = [
+    PeaceKey::Digit1,
+    PeaceKey::Digit2,
+    PeaceKey::Digit3,
+    PeaceKey::Digit4,
+    PeaceKey::Digit5,
+    PeaceKey::Tab,
+    PeaceKey::Enter,
+    PeaceKey::Backspace,
+    PeaceKey::H,
+    PeaceKey::I,
+    PeaceKey::C,
+    PeaceKey::P,
+    PeaceKey::N,
+];
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum PeaceBindingConflict {
+    /// Two peace actions claim one key, including a duplicate loaded from settings.
+    Share {
+        first: PeaceAction,
+        second: PeaceAction,
+        key_face: &'static str,
+    },
+    /// A peace key sits on a hard-coded shortcut. Not a reject.
+    Warning { action: PeaceAction, key: PeaceKey },
+}
+
+impl PeaceBindingConflict {
+    fn phrase(self) -> String {
+        match self {
+            Self::Share {
+                first,
+                second,
+                key_face,
+            } => format!(
+                "{} and {} share {key_face}",
+                first.label(),
+                second.label()
+            ),
+            Self::Warning { action, key } => {
+                format!("warning · {} on {}", action.label(), key.display_label())
+            }
+        }
+    }
+}
+
+/// Conflicts on `settings`.
+///
+/// Shares come first, in [`PEACE_ACTIONS`] order, using the
+/// [`bound_peace_action`] rule (either Shift counts as Sprint when Sprint is
+/// Left Shift). Warnings follow. Hide on H and Satchel on I are the shipped
+/// defaults for those shortcuts, so a clean default map is empty and the row
+/// reads "none". A different action on H or I, or any action moved onto
+/// another reserved key, is a warning.
+fn peace_binding_conflicts(settings: &LocalSettings) -> Vec<PeaceBindingConflict> {
+    let defaults = LocalSettings::peace_defaults();
+    let mut out = Vec::new();
+    for (i, first) in PEACE_ACTIONS.iter().enumerate() {
+        for second in PEACE_ACTIONS.iter().skip(i + 1) {
+            let ka = first.key(settings);
+            let kb = second.key(settings);
+            let shared = peace_action_claims_key(*first, ka, kb)
+                || peace_action_claims_key(*second, kb, ka);
+            if !shared {
+                continue;
+            }
+            let key_face = if ka == kb {
+                ka.display_label()
+            } else {
+                "either Shift"
+            };
+            out.push(PeaceBindingConflict::Share {
+                first: *first,
+                second: *second,
+                key_face,
+            });
+        }
+    }
+    for action in PEACE_ACTIONS {
+        let key = action.key(settings);
+        if RESERVED_SHORTCUT_KEYS.contains(&key) && action.key(&defaults) != key {
+            out.push(PeaceBindingConflict::Warning { action, key });
+        }
+    }
+    out
+}
+
+fn conflict_wrap_lines(text: &str, capacity: usize) -> usize {
+    if text.is_empty() || capacity == 0 {
+        return 1;
+    }
+    let mut lines = 1usize;
+    let mut col = 0usize;
+    for word in text.split(' ') {
+        let w = word.chars().count();
+        if col == 0 {
+            col = w;
+            continue;
+        }
+        if col + 1 + w <= capacity {
+            col += 1 + w;
+        } else {
+            lines += 1;
+            col = w;
+        }
+    }
+    lines
+}
+
+fn fit_conflict_list(phrases: &[String], capacity: usize, max_lines: usize) -> String {
+    let full = format!("Key conflicts · {}", phrases.join(" · "));
+    if conflict_wrap_lines(&full, capacity) <= max_lines {
+        return full;
+    }
+    let n = phrases.len();
+    for keep in (1..n).rev() {
+        let rest = n - keep;
+        let text = format!("Key conflicts · {} · +{rest}", phrases[..keep].join(" · "));
+        if conflict_wrap_lines(&text, capacity) <= max_lines {
+            return text;
+        }
+    }
+    let rest = n.saturating_sub(1);
+    let marker = if rest > 0 {
+        format!(" · +{rest}")
+    } else {
+        String::new()
+    };
+    let prefix = "Key conflicts · ";
+    let body = phrases.first().map(String::as_str).unwrap_or("");
+    let mut end = body.chars().count();
+    while end > 0 {
+        let trimmed: String = body.chars().take(end).collect();
+        let text = format!("{prefix}{trimmed}{marker}");
+        if conflict_wrap_lines(&text, capacity) <= max_lines {
+            return text;
+        }
+        end -= 1;
+    }
+    format!("{prefix}{marker}")
+}
+
+fn peace_conflicts_row_text(settings: &LocalSettings) -> String {
+    let conflicts = peace_binding_conflicts(settings);
+    if conflicts.is_empty() {
+        return "Key conflicts · none".to_string();
+    }
+    let phrases: Vec<String> = conflicts.iter().copied().map(|c| c.phrase()).collect();
+    let capacity = controls_conflict_line_capacity(shared::local_settings::TEXT_SCALE_MAX);
+    fit_conflict_list(&phrases, capacity, CONTROLS_CONFLICT_MAX_LINES as usize)
 }
 
 fn try_peace_rebind(
@@ -3344,6 +3619,14 @@ fn refresh_peace_rebind_labels(
     settings: Res<LocalSettingsState>,
     state: Res<PeaceRebindState>,
     mut texts: Query<(&SettingsPeaceBindLabel, &mut Text, &mut TextFont)>,
+    mut conflicts: Query<
+        (&mut Text, &mut TextFont),
+        (
+            With<SettingsPeaceConflictLabel>,
+            Without<SettingsPeaceBindLabel>,
+        ),
+    >,
+    mut conflict_rows: Query<&mut Node, With<SettingsPeaceConflictBtn>>,
 ) {
     if !label.settings_open {
         return;
@@ -3361,6 +3644,17 @@ fn refresh_peace_rebind_labels(
         };
         set_btn_section_text(&mut text, &value);
         set_btn_section_font(&mut font_face, font);
+    }
+    let row = peace_conflicts_row_text(&settings.inner);
+    for (mut text, mut font_face) in &mut conflicts {
+        set_btn_section_text(&mut text, &row);
+        set_btn_section_font(&mut font_face, font);
+    }
+    let cap = Val::Px(controls_conflict_max_height_px(settings.inner.text_scale));
+    for mut node in &mut conflict_rows {
+        if node.max_height != cap {
+            node.max_height = cap;
+        }
     }
 }
 
@@ -6349,6 +6643,194 @@ mod tests {
         );
     }
 
+    /// CARD KEY-REBIND-RESET-1A — clean defaults, one duplicate, one warning.
+    #[test]
+    fn key_rebind_reset_1a_conflicts_are_display_only() {
+        let clean = LocalSettings::peace_defaults();
+        assert!(
+            RESERVED_SHORTCUT_KEYS.contains(&PeaceKey::H)
+                && RESERVED_SHORTCUT_KEYS.contains(&PeaceKey::I),
+            "H and I stay on the reserved list"
+        );
+        assert!(
+            peace_binding_conflicts(&clean).is_empty(),
+            "Hide on H and Satchel on I are the shipped defaults, so the row is none"
+        );
+        assert_eq!(peace_conflicts_row_text(&clean), "Key conflicts · none");
+
+        let mut duplicate = clean.clone();
+        duplicate.key_use = PeaceKey::F;
+        duplicate.key_jump = PeaceKey::F;
+        assert_eq!(
+            peace_binding_conflicts(&duplicate),
+            vec![PeaceBindingConflict::Share {
+                first: PeaceAction::Jump,
+                second: PeaceAction::Use,
+                key_face: "F",
+            }]
+        );
+        assert_eq!(
+            peace_conflicts_row_text(&duplicate),
+            "Key conflicts · Jump and Use share F"
+        );
+        let loaded = LocalSettings::from_json(&duplicate.to_json().unwrap()).unwrap();
+        assert_eq!(peace_binding_conflicts(&loaded).len(), 1);
+
+        let mut reserved = clean.clone();
+        reserved.key_jump = PeaceKey::Digit1;
+        assert_eq!(
+            peace_binding_conflicts(&reserved),
+            vec![PeaceBindingConflict::Warning {
+                action: PeaceAction::Jump,
+                key: PeaceKey::Digit1,
+            }]
+        );
+        assert_eq!(
+            peace_conflicts_row_text(&reserved),
+            "Key conflicts · warning · Jump on 1"
+        );
+
+        let mut on_h = clean.clone();
+        on_h.key_hide = PeaceKey::G;
+        on_h.key_jump = PeaceKey::H;
+        assert_eq!(
+            peace_binding_conflicts(&on_h),
+            vec![PeaceBindingConflict::Warning {
+                action: PeaceAction::Jump,
+                key: PeaceKey::H,
+            }]
+        );
+
+        let mut shift = clean.clone();
+        shift.key_use = PeaceKey::RightShift;
+        assert_eq!(
+            peace_binding_conflicts(&shift),
+            vec![PeaceBindingConflict::Share {
+                first: PeaceAction::Sprint,
+                second: PeaceAction::Use,
+                key_face: "either Shift",
+            }]
+        );
+        assert_eq!(
+            peace_conflicts_row_text(&shift),
+            "Key conflicts · Sprint and Use share either Shift"
+        );
+        shift.key_sprint = PeaceKey::RightShift;
+        shift.key_use = PeaceKey::LeftShift;
+        assert!(
+            peace_binding_conflicts(&shift).is_empty(),
+            "Sprint on Right Shift does not claim Left Shift"
+        );
+
+        let mut rebound = clean.clone();
+        assert_eq!(
+            try_peace_rebind(&mut rebound, PeaceAction::Jump, PeaceKey::Digit1),
+            Ok(())
+        );
+        assert_eq!(rebound.key_jump, PeaceKey::Digit1);
+        assert!(matches!(
+            peace_binding_conflicts(&rebound).as_slice(),
+            [PeaceBindingConflict::Warning { .. }]
+        ));
+
+        let mut messy = clean.clone();
+        messy.key_jump = PeaceKey::Digit1;
+        messy.key_use = PeaceKey::F;
+        reset_peace_bindings(&mut messy);
+        assert!(peace_binding_conflicts(&messy).is_empty());
+        assert_eq!(peace_conflicts_row_text(&messy), "Key conflicts · none");
+        assert!(refuse_online_socket_toggle(true));
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+    }
+
+    #[test]
+    fn key_rebind_reset_1a_many_duplicates_stay_within_two_lines() {
+        let mut s = LocalSettings::peace_defaults();
+        for action in PEACE_ACTIONS {
+            action.set_key(&mut s, PeaceKey::F);
+        }
+        assert_eq!(peace_binding_conflicts(&s).len(), 45);
+        let text = peace_conflicts_row_text(&s);
+        let capacity = controls_conflict_line_capacity(shared::local_settings::TEXT_SCALE_MAX);
+        assert!(
+            conflict_wrap_lines(&text, capacity) <= CONTROLS_CONFLICT_MAX_LINES as usize,
+            "row {text:?} wraps past two lines at capacity {capacity}"
+        );
+        assert!(text.starts_with("Key conflicts · "));
+        assert!(text.contains('+'));
+    }
+
+    #[test]
+    fn key_rebind_reset_1a_conflict_label_refreshes_without_b0001() {
+        let mut settings = LocalSettings::peace_defaults();
+        settings.key_use = PeaceKey::F;
+        settings.key_jump = PeaceKey::F;
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(HouseLabel {
+                house: shared::house_name::HouseName::default(),
+                persist_present: false,
+                hour_two_held: false,
+                book_held: false,
+                settings_open: true,
+                draft: String::new(),
+                naming_offered: false,
+                seals_offered: false,
+            })
+            .insert_resource(LocalSettingsState {
+                inner: settings,
+                dirty: false,
+            })
+            .init_resource::<PeaceRebindState>()
+            .add_systems(Update, refresh_peace_rebind_labels);
+        let bind = app
+            .world_mut()
+            .spawn((
+                Text::new("stale"),
+                TextFont {
+                    font_size: FontSize::Px(15.0 / 1.2),
+                    ..TextFont::default()
+                },
+                SettingsPeaceBindLabel(PeaceAction::Use),
+            ))
+            .id();
+        let conflict = app
+            .world_mut()
+            .spawn((
+                Text::new("stale"),
+                TextFont {
+                    font_size: FontSize::Px(15.0 / 1.2),
+                    ..TextFont::default()
+                },
+                SettingsPeaceConflictLabel,
+            ))
+            .id();
+        let row = app
+            .world_mut()
+            .spawn((
+                Node {
+                    max_height: Val::Px(1.0),
+                    ..default()
+                },
+                SettingsPeaceConflictBtn,
+            ))
+            .id();
+        app.update();
+        assert_eq!(
+            app.world().get::<Text>(bind).unwrap().as_str(),
+            "Use · F"
+        );
+        assert_eq!(
+            app.world().get::<Text>(conflict).unwrap().as_str(),
+            "Key conflicts · Jump and Use share F"
+        );
+        let cap = controls_conflict_max_height_px(1.0);
+        assert_eq!(
+            app.world().get::<Node>(row).unwrap().max_height,
+            Val::Px(cap)
+        );
+    }
+
     #[test]
     fn b4_supported_physical_keys_map_to_persisted_keys() {
         assert_eq!(peace_key_from_key_code(KeyCode::KeyQ), Some(PeaceKey::Q));
@@ -6528,6 +7010,43 @@ mod tests {
         assert!(COMFORT_ROW_PAD_Y < SETTINGS_ROW_PAD_Y);
         assert!(COMFORT_ROW_GAP < SETTINGS_TAB_ROW_GAP);
         assert!(refuse_online_socket_toggle(true));
+    }
+
+    /// CARD KEY-REBIND-RESET-1A — sixteen Controls rows fit 1280×720 at max text scale.
+    /// The plate is 420px wide, so 1280 is not the clip axis. Height is.
+    #[test]
+    fn controls_plate_fits_720p_at_max_text_scale() {
+        let scale = shared::local_settings::TEXT_SCALE_MAX;
+        let height = controls_pause_plate_height_px(scale);
+        let cap = 720.0 * 0.98;
+        let spare = cap - height;
+        assert!(
+            spare >= 16.0,
+            "controls plate {height}px leaves {spare}px inside the 720p cap {cap}"
+        );
+        let bottom = 720.0 * 0.01 + height;
+        assert!(
+            bottom <= 720.0,
+            "plate top 1% plus height {height}px ends at {bottom}, past 720"
+        );
+        assert!((height - 675.0).abs() < 0.01, "height {height}");
+        assert!((spare - 30.6).abs() < 0.05, "spare {spare}");
+        assert!(controls_pause_plate_height_px(1.0) < height);
+        assert!((controls_pause_plate_height_px(1.0) - 573.0).abs() < 0.01);
+        assert_eq!(
+            CONTROLS_SETTINGS_ROWS,
+            4 + PEACE_ACTIONS.len() as u32 + 2
+        );
+        assert!(CONTROLS_ROW_PAD_Y < COMFORT_ROW_PAD_Y);
+        assert!(CONTROLS_ROW_GAP < SETTINGS_TAB_ROW_GAP);
+        let capacity = controls_conflict_line_capacity(scale);
+        assert_eq!(capacity, 36, "glyphs per line at max scale");
+        assert!((controls_row_text_width_px() - 371.0).abs() < 0.01);
+        let none = peace_conflicts_row_text(&LocalSettings::peace_defaults());
+        assert!(conflict_wrap_lines(&none, capacity) == 1);
+        assert!(none.chars().count() <= capacity);
+        assert!(refuse_online_socket_toggle(true));
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
     }
 
     #[test]
