@@ -27,6 +27,7 @@ use crate::hour_sacred::{read_hour_two_json, HourSacred};
 use crate::infra_spill::EvidenceYard;
 use crate::input::{InputMapSet, PlayerInput};
 use crate::lived_hour_bind::LivedHourBind;
+use crate::local_settings::LocalSettingsState;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::title_screen::{HouseLabel, TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
@@ -89,6 +90,15 @@ impl Plugin for LedgerBindPlugin {
     }
 }
 
+/// CARD LEDGER-TEXT-SCALE-1 — ledger slab type follows `text_scale`.
+/// `(14 × s).clamp(11, 22) / 1.2`, the same clamp as `climate_slab_font_px`,
+/// stored the way that slab writes (`logical / 1.2`). At 1.00 this is today's
+/// `14 / 1.2`. Non-finite input is that clamp: NaN stays NaN, infinities sit
+/// on the 11 and 22 rails, then ÷ 1.2.
+fn ledger_slab_font_px(text_scale: f32) -> f32 {
+    (14.0 * text_scale).clamp(11.0, 22.0) / 1.2
+}
+
 fn spawn_ledger_slab(mut commands: Commands) {
     // Opaque plate + Global z — Title contrast law; soft GPU must not alpha into fog.
     commands
@@ -116,7 +126,7 @@ GlobalZIndex(LIVED_UI_Z_LEDGER),
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: FontSize::Px(14.0 / 1.2), ..default() },
+TextFont { font_size: FontSize::Px(ledger_slab_font_px(1.0)), ..default() },
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 LedgerSlabText,
@@ -259,14 +269,16 @@ fn refresh_house_week_bill(
     }
 }
 
+#[allow(clippy::too_many_arguments)] // text_scale is the climate slab's settings param
 fn update_ledger_slab(
     hour: Res<HourSacred>,
     yard: Res<LedgerYard>,
     bind: Res<LivedHourBind>,
     bill: Res<HouseWeekBill>,
     house_label: Res<HouseLabel>,
+    settings: Option<Res<LocalSettingsState>>,
     mut root: Query<&mut Visibility, With<LedgerSlabRoot>>,
-    mut text_q: Query<&mut Text, With<LedgerSlabText>>,
+    mut text_q: Query<(&mut Text, &mut TextFont), With<LedgerSlabText>>,
 ) {
     // Show whenever L sash is open — wait line before Settled, full face after.
     let show = yard.sash_open;
@@ -323,7 +335,17 @@ fn update_ledger_slab(
         }
         format!("{face}\n{sign}\n{sash}")
     };
-    for mut text in &mut text_q {
+    // Same read as the climate slab: missing settings stay on today's px.
+    // Write the font only when the stored size actually moves.
+    let slab_px = settings
+        .as_ref()
+        .map(|state| ledger_slab_font_px(state.inner.text_scale))
+        .unwrap_or(ledger_slab_font_px(1.0));
+    for (mut text, mut font) in &mut text_q {
+        match font.font_size {
+            FontSize::Px(current) if (current - slab_px).abs() <= 0.01 => {}
+            _ => font.font_size = FontSize::Px(slab_px),
+        }
         if text.as_str() != line {
             **text = line.clone();
         }
@@ -884,5 +906,366 @@ mod tests {
         // Sanctuary Use stays E — confirm is Digit3 / Settings row, not default Use.
         assert_eq!(soft_play_bindings::INTERACT, KeyCode::KeyE);
         assert_ne!(KeyCode::Digit3, soft_play_bindings::INTERACT);
+    }
+
+    /// CARD LEDGER-TEXT-SCALE-1 — steps, clamps, and the climate non-finite clamp.
+    #[test]
+    fn ledger_slab_font_px_pins_scale_steps_guards_and_non_finite() {
+        use crate::climate_visible::climate_slab_font_px;
+
+        assert_eq!(shared::local_settings::TEXT_SCALE_MIN, 0.85);
+        assert_eq!(shared::local_settings::DEFAULT_TEXT_SCALE, 1.0);
+        assert_eq!(shared::local_settings::TEXT_SCALE_MAX, 1.35);
+
+        let compact = ledger_slab_font_px(0.85);
+        assert!((compact - 9.917).abs() < 0.001, "0.85 stored {compact}");
+        assert_eq!(
+            compact.to_bits(),
+            (climate_slab_font_px(0.85) / 1.2).to_bits()
+        );
+
+        assert_eq!(
+            ledger_slab_font_px(1.0).to_bits(),
+            (14.0_f32 / 1.2).to_bits()
+        );
+        assert!((ledger_slab_font_px(1.0) - 11.667).abs() < 0.001);
+
+        let comfort = ledger_slab_font_px(1.35);
+        assert!((comfort - 15.75).abs() < 1e-4, "1.35 stored {comfort}");
+        assert_eq!(
+            comfort.to_bits(),
+            (climate_slab_font_px(1.35) / 1.2).to_bits()
+        );
+
+        assert_eq!(
+            ledger_slab_font_px(0.5).to_bits(),
+            (11.0_f32 / 1.2).to_bits()
+        );
+        assert_eq!(
+            ledger_slab_font_px(2.0).to_bits(),
+            (22.0_f32 / 1.2).to_bits()
+        );
+        assert_eq!(
+            ledger_slab_font_px(0.5).to_bits(),
+            (climate_slab_font_px(0.5) / 1.2).to_bits()
+        );
+        assert_eq!(
+            ledger_slab_font_px(2.0).to_bits(),
+            (climate_slab_font_px(2.0) / 1.2).to_bits()
+        );
+
+        assert!(ledger_slab_font_px(f32::NAN).is_nan());
+        assert!(climate_slab_font_px(f32::NAN).is_nan());
+        assert_eq!(
+            ledger_slab_font_px(f32::INFINITY).to_bits(),
+            (climate_slab_font_px(f32::INFINITY) / 1.2).to_bits()
+        );
+        assert_eq!(
+            ledger_slab_font_px(f32::NEG_INFINITY).to_bits(),
+            (climate_slab_font_px(f32::NEG_INFINITY) / 1.2).to_bits()
+        );
+        assert_eq!(
+            ledger_slab_font_px(f32::INFINITY).to_bits(),
+            (22.0_f32 / 1.2).to_bits()
+        );
+        assert_eq!(
+            ledger_slab_font_px(f32::NEG_INFINITY).to_bits(),
+            (11.0_f32 / 1.2).to_bits()
+        );
+    }
+
+    /// CARD LEDGER-TEXT-SCALE-1 — 1.35 on 720p. Three lines sit near 91 px.
+    /// Two extra wraps stay under the Well at bottom 132.
+    #[test]
+    fn ledger_slab_top_at_135_on_720p_clears_the_well_with_two_wraps() {
+        use crate::hud_anchor_registry::WELL;
+
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .add_systems(Startup, spawn_ledger_slab);
+        app.update();
+
+        let (width, padding, bottom, border, left) = {
+            let mut q = app
+                .world_mut()
+                .query_filtered::<&Node, With<LedgerSlabRoot>>();
+            let node = q.single(app.world()).expect("ledger node");
+            (
+                node.width,
+                node.padding,
+                node.bottom,
+                node.border,
+                node.left,
+            )
+        };
+        assert_eq!(width, Val::Px(560.0));
+        assert_eq!(left, Val::Px(16.0));
+        assert_eq!(padding, UiRect::axes(Val::Px(14.0), Val::Px(8.0)));
+        assert_eq!(bottom, Val::Px(16.0));
+        assert_eq!(border, UiRect::all(Val::Px(1.0)));
+        let (spawn_px, _) = ledger_text_font(&mut app);
+        assert_eq!(spawn_px.to_bits(), ledger_slab_font_px(1.0).to_bits());
+        assert_eq!(spawn_px.to_bits(), (14.0_f32 / 1.2).to_bits());
+
+        let line = ledger_slab_font_px(1.35) * 1.2;
+        assert!((line - 18.9).abs() < 1e-3, "logical line {line}");
+        let top = |lines: f32| 16.0 + lines * line + 8.0 * 2.0 + 1.0 * 2.0;
+        let three = top(3.0);
+        assert!(
+            (three - 91.0).abs() < 0.5,
+            "three-line slab top {three}, want about 91"
+        );
+        let two_wraps = top(5.0);
+        assert!(
+            (two_wraps - 129.0).abs() < 1.0,
+            "two wraps sit near 129, got {two_wraps}"
+        );
+        assert_eq!(WELL.bottom(), Val::Px(132.0));
+        assert_eq!(WELL.left(), Val::Px(16.0));
+        assert!(
+            two_wraps < 132.0,
+            "slab top {two_wraps} meets the Well at 132"
+        );
+        let view_h = 720.0_f32;
+        assert!(132.0 < view_h);
+        assert!(two_wraps < view_h);
+    }
+
+    /// CARD LEDGER-TEXT-SCALE-1 — open sash follows text scale, and a repeat
+    /// of the same scale does not write the font again.
+    #[test]
+    fn ledger_slab_font_tracks_text_scale_and_skips_unchanged_writes() {
+        let mut bare = ledger_scale_app(true, None);
+        bare.update();
+        let (bare_px, bare_line) = ledger_text_font(&mut bare);
+        assert_eq!(bare_px.to_bits(), (14.0_f32 / 1.2).to_bits());
+        assert!(!bare_line.is_empty());
+        let (width, padding, bottom) = ledger_plate_edges(&mut bare);
+        assert_eq!(width, Val::Px(560.0));
+        assert_eq!(padding, UiRect::axes(Val::Px(14.0), Val::Px(8.0)));
+        assert_eq!(bottom, Val::Px(16.0));
+
+        let mut app = ledger_scale_app(true, Some(1.0));
+        app.init_resource::<LedgerFontTape>();
+        app.add_systems(Update, tape_ledger_font.after(update_ledger_slab));
+        app.update();
+        let (spawned, line) = ledger_text_font(&mut app);
+        assert_eq!(spawned.to_bits(), ledger_slab_font_px(1.0).to_bits());
+
+        app.update();
+        assert!(
+            !app.world().resource::<LedgerFontTape>().changed,
+            "unchanged scale must not rewrite the font"
+        );
+        let (still, still_line) = ledger_text_font(&mut app);
+        assert_eq!(still.to_bits(), spawned.to_bits());
+        assert_eq!(still_line, line);
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .text_scale = 1.35;
+        app.update();
+        assert!(app.world().resource::<LedgerFontTape>().changed);
+        let (bumped, bumped_line) = ledger_text_font(&mut app);
+        assert!((bumped - ledger_slab_font_px(1.35)).abs() <= 0.01);
+        assert!((bumped - 15.75).abs() < 1e-4);
+        assert_eq!(bumped_line, line);
+        let (width, padding, bottom) = ledger_plate_edges(&mut app);
+        assert_eq!(width, Val::Px(560.0));
+        assert_eq!(padding, UiRect::axes(Val::Px(14.0), Val::Px(8.0)));
+        assert_eq!(bottom, Val::Px(16.0));
+
+        app.update();
+        assert!(!app.world().resource::<LedgerFontTape>().changed);
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .text_scale = 1.35;
+        app.update();
+        assert!(
+            !app.world().resource::<LedgerFontTape>().changed,
+            "writing the same text scale must not rewrite the font"
+        );
+        let (again, _) = ledger_text_font(&mut app);
+        assert_eq!(again.to_bits(), bumped.to_bits());
+    }
+
+    /// CARD LEDGER-TEXT-SCALE-1 — H does not open the ledger. A closed sash
+    /// stays hidden across text scale, and closing the sash hides it again.
+    #[test]
+    fn ledger_h_hide_keeps_the_slab_hidden() {
+        use crate::infra_spill::EvidenceYard;
+        use crate::input::PlayerInput;
+        use crate::thriving_moments::ThrivingMoments;
+        use bevy::input::keyboard::{Key, KeyboardInput};
+        use bevy::input::ButtonState;
+        use bevy::input::InputPlugin as BevyInputPlugin;
+        use shared::infra_spill::InfraWitness;
+
+        assert_eq!(soft_play_bindings::HIDE_GUIDANCE, KeyCode::KeyH);
+        assert_ne!(KeyCode::KeyH, soft_play_bindings::LEDGER);
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, BevyInputPlugin));
+        insert_ledger_scale_world(&mut app, false, Some(1.35));
+        app.insert_resource(EvidenceYard {
+            witness: InfraWitness::default(),
+        });
+        app.insert_resource(PlayerInput::default());
+        app.insert_resource(ThrivingMoments::default());
+        app.add_systems(Startup, spawn_ledger_slab);
+        app.add_systems(Update, (handle_ledger, update_ledger_slab));
+        app.world_mut()
+            .resource_mut::<LivedHourBind>()
+            .guidance_hidden = true;
+
+        app.update();
+        assert_eq!(ledger_vis(&mut app), Visibility::Hidden);
+        let (hidden_px, _) = ledger_text_font(&mut app);
+        assert_eq!(hidden_px.to_bits(), ledger_slab_font_px(1.0).to_bits());
+        let (width, padding, bottom) = ledger_plate_edges(&mut app);
+        assert_eq!(width, Val::Px(560.0));
+        assert_eq!(padding, UiRect::axes(Val::Px(14.0), Val::Px(8.0)));
+        assert_eq!(bottom, Val::Px(16.0));
+
+        app.world_mut().write_message(KeyboardInput {
+            key_code: KeyCode::KeyH,
+            logical_key: Key::Character("h".into()),
+            state: ButtonState::Pressed,
+            repeat: false,
+            text: None,
+            window: Entity::PLACEHOLDER,
+        });
+        app.update();
+        assert!(!app.world().resource::<LedgerYard>().sash_open);
+        assert!(app.world().resource::<LivedHourBind>().guidance_hidden);
+        assert_eq!(ledger_vis(&mut app), Visibility::Hidden);
+
+        app.world_mut().resource_mut::<LedgerYard>().sash_open = true;
+        app.update();
+        assert_eq!(ledger_vis(&mut app), Visibility::Visible);
+        let (open_px, _) = ledger_text_font(&mut app);
+        assert!((open_px - ledger_slab_font_px(1.35)).abs() <= 0.01);
+
+        app.world_mut().resource_mut::<LedgerYard>().sash_open = false;
+        app.update();
+        assert_eq!(ledger_vis(&mut app), Visibility::Hidden);
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .text_scale = 0.85;
+        app.update();
+        assert_eq!(ledger_vis(&mut app), Visibility::Hidden);
+        let (still_px, _) = ledger_text_font(&mut app);
+        assert!((still_px - open_px).abs() <= 0.01);
+        let (width, padding, bottom) = ledger_plate_edges(&mut app);
+        assert_eq!(width, Val::Px(560.0));
+        assert_eq!(padding, UiRect::axes(Val::Px(14.0), Val::Px(8.0)));
+        assert_eq!(bottom, Val::Px(16.0));
+    }
+
+    #[derive(Resource, Default)]
+    struct LedgerFontTape {
+        changed: bool,
+    }
+
+    fn tape_ledger_font(
+        fonts: Query<Ref<TextFont>, With<LedgerSlabText>>,
+        mut tape: ResMut<LedgerFontTape>,
+    ) {
+        tape.changed = fonts.iter().any(|font| font.is_changed());
+    }
+
+    fn ledger_scale_app(sash_open: bool, text_scale: Option<f32>) -> App {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins);
+        insert_ledger_scale_world(&mut app, sash_open, text_scale);
+        app.add_systems(Startup, spawn_ledger_slab);
+        app.add_systems(Update, update_ledger_slab);
+        app
+    }
+
+    fn insert_ledger_scale_world(app: &mut App, sash_open: bool, text_scale: Option<f32>) {
+        use shared::house_name::HouseName;
+        use shared::local_settings::LocalSettings;
+        use shared::space_law::{CharterKind, SpaceSession};
+
+        let mut house = HouseName::default();
+        house.skip();
+        house.skip_seals();
+        house.skip_heritage();
+
+        app.insert_resource(HourSacred {
+            session: SpaceSession {
+                charter_id: Some("house-local".into()),
+                hex: HexFlag::Frontier,
+                kind: CharterKind::House,
+                ..Default::default()
+            },
+            complete: true,
+            hour_three_complete: true,
+        });
+        app.insert_resource(LedgerYard {
+            board: LedgerBoard::default(),
+            sash_open,
+        });
+        app.insert_resource(LivedHourBind {
+            hour: shared::climate_node::LivedHour::new_demo(),
+            climate: shared::shard_climate::ShardClimate::default(),
+            standing: shared::shard_standing::ShardStanding::default(),
+            week: WeekAudit::default(),
+            last_line: String::new(),
+            guidance_hidden: false,
+            focus_id: None,
+            climate_slab: None,
+        });
+        app.insert_resource(HouseWeekBill::default());
+        app.insert_resource(HouseLabel {
+            house,
+            persist_present: true,
+            hour_two_held: true,
+            book_held: true,
+            settings_open: false,
+            draft: String::new(),
+            naming_offered: true,
+            seals_offered: true,
+        });
+        if let Some(scale) = text_scale {
+            let mut inner = LocalSettings::peace_defaults();
+            inner.text_scale = scale;
+            app.insert_resource(LocalSettingsState {
+                inner,
+                dirty: false,
+            });
+        }
+    }
+
+    fn ledger_text_font(app: &mut App) -> (f32, String) {
+        let mut fonts = app
+            .world_mut()
+            .query_filtered::<(&Text, &TextFont), With<LedgerSlabText>>();
+        let (text, font) = fonts.single(app.world()).expect("ledger slab text");
+        let FontSize::Px(size) = font.font_size else {
+            panic!("ledger font size is {:?}", font.font_size);
+        };
+        (size, text.as_str().to_string())
+    }
+
+    fn ledger_vis(app: &mut App) -> Visibility {
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Visibility, With<LedgerSlabRoot>>();
+        *q.single(app.world()).expect("ledger root")
+    }
+
+    fn ledger_plate_edges(app: &mut App) -> (Val, UiRect, Val) {
+        let mut q = app
+            .world_mut()
+            .query_filtered::<&Node, With<LedgerSlabRoot>>();
+        let node = q.single(app.world()).expect("ledger node");
+        (node.width, node.padding, node.bottom)
     }
 }
