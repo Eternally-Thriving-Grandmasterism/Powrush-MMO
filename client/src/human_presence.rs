@@ -72,6 +72,12 @@
  * frame-rate independent lerp (`1 - (1 - 0.12)^(dt * 60)`). Orbit, mouse
  * look, and the glance are not written. Runs only InYard.
  *
+ * CARD PAD-LOOK-STICK-1 — the first gamepad's right stick orbits yaw and pitch
+ * while that same yard gate is open. Per-axis 0.18 deadzone, rescaled to 0..1.
+ * Full deflection is 2.5 rad/s yaw and 1.875 rad/s pitch, times look
+ * sensitivity and dt, through `apply_delta` (stick-up looks up). Invert-Y
+ * flips pitch only. The mouse block is unchanged. No new setting.
+ *
  * CARD MOVE-STRAFE-DEFAULT-1 — Modern (default) rotates WASD, pad, and touch
  * by the follow-orbit yaw. W goes along the camera's forward, A/D strafe,
  * and the body faces that forward while moving. Classic keeps W/S on the
@@ -94,6 +100,7 @@
 use std::collections::HashSet;
 use std::f32::consts::{FRAC_PI_2, PI};
 
+use bevy::ecs::system::SystemParam;
 use bevy::input::mouse::{
     AccumulatedMouseMotion, AccumulatedMouseScroll, MouseScrollPixelsPerLine, MouseScrollUnit,
 };
@@ -132,6 +139,10 @@ const CAM_UP: f32 = 2.35;
 const ORBIT_YAW_PER_PX: f32 = 0.004;
 /// Radians of pitch per mouse pixel while the right button is held.
 const ORBIT_PITCH_PER_PX: f32 = 0.003;
+/// CARD PAD-LOOK-STICK-1 — full right-stick deflection, radians per second.
+/// Pitch keeps the mouse ratio `ORBIT_PITCH_PER_PX / ORBIT_YAW_PER_PX`.
+const STICK_LOOK_YAW_RATE: f32 = 2.5;
+const STICK_LOOK_PITCH_RATE: f32 = 1.875;
 /// Distance change per scroll line. Wheel up (positive y) zooms in.
 const ORBIT_DIST_PER_LINE: f32 = 0.85;
 /// Matches Bevy's `MouseScrollPixelsPerLine` default when that resource is absent.
@@ -1430,6 +1441,85 @@ fn sync_mouse_look_grab(
     }
 }
 
+/// Per-axis deadzone, then rescale the live band onto 0..1. Matches the
+/// left stick's 0.18 cutoff (`|v| > deadzone`) and removes the edge jump.
+fn rescale_stick_axis(value: f32) -> f32 {
+    if !value.is_finite() {
+        return 0.0;
+    }
+    let deadzone = crate::input::STICK_DEADZONE;
+    let mag = value.abs();
+    if mag <= deadzone {
+        return 0.0;
+    }
+    let span = 1.0 - deadzone;
+    if span <= 0.0 {
+        return 0.0;
+    }
+    ((mag - deadzone) / span).min(1.0).copysign(value)
+}
+
+/// Right-stick look. `(stick x, stick y, dt, look_sens, invert_y)` becomes
+/// the same delta `LocalLookFeel::apply_delta` returns for the mouse: pixels
+/// after sensitivity, with invert-Y on pitch only. `dy = -stickY` so stick-up
+/// looks up. A centred stick or a non-finite `dt` is exactly `(0, 0)`.
+fn stick_look_delta(
+    stick_x: f32,
+    stick_y: f32,
+    dt: f32,
+    look_sens: f32,
+    invert_y: bool,
+) -> (f32, f32) {
+    if !dt.is_finite() || !look_sens.is_finite() {
+        return (0.0, 0.0);
+    }
+    let x = rescale_stick_axis(stick_x);
+    let y = rescale_stick_axis(stick_y);
+    if x == 0.0 && y == 0.0 {
+        return (0.0, 0.0);
+    }
+    // Pixel rates that the existing per-pixel orbit turns back into rad/s.
+    let raw_dx = x * STICK_LOOK_YAW_RATE * dt / ORBIT_YAW_PER_PX;
+    let raw_dy = -y * STICK_LOOK_PITCH_RATE * dt / ORBIT_PITCH_PER_PX;
+    LocalLookFeel {
+        sensitivity: look_sens,
+        invert_y,
+        mouse_look: false,
+    }
+    .apply_delta(raw_dx, raw_dy)
+}
+
+/// First connected pad only, same query order as move input. No pad is `(0, 0)`.
+fn first_pad_right_stick(pads: &Query<&Gamepad>) -> (f32, f32) {
+    let Some(gamepad) = pads.iter().next() else {
+        return (0.0, 0.0);
+    };
+    (
+        gamepad.get(GamepadAxis::RightStickX).unwrap_or(0.0),
+        gamepad.get(GamepadAxis::RightStickY).unwrap_or(0.0),
+    )
+}
+
+/// Writes a non-zero stick delta with the same yaw and pitch signs as the mouse.
+/// A centred stick does not write. Call this before `apply_orbit_input` so that
+/// function's pitch clamp still covers the stick.
+fn apply_stick_look(
+    orbit: &mut FollowOrbit,
+    stick_x: f32,
+    stick_y: f32,
+    dt: f32,
+    look: &LocalLookFeel,
+) {
+    let (stick_dx, stick_dy) =
+        stick_look_delta(stick_x, stick_y, dt, look.sensitivity, look.invert_y);
+    if stick_dx.is_finite() && stick_dx != 0.0 {
+        orbit.yaw -= stick_dx * ORBIT_YAW_PER_PX;
+    }
+    if stick_dy.is_finite() && stick_dy != 0.0 {
+        orbit.pitch += stick_dy * ORBIT_PITCH_PER_PX;
+    }
+}
+
 fn apply_orbit_input(
     orbit: &mut FollowOrbit,
     buttons: &ButtonInput<MouseButton>,
@@ -1473,8 +1563,16 @@ fn follow_lerp_t(dt: f32) -> f32 {
     }
 }
 
+/// Time and the pad query share one param. `follow_camera` is already at
+/// Bevy's 16-parameter ceiling.
+#[derive(SystemParam)]
+struct FollowTimePads<'w, 's> {
+    time: Res<'w, Time>,
+    pads: Query<'w, 's, &'static Gamepad>,
+}
+
 fn follow_camera(
-    time: Res<Time>,
+    clock: FollowTimePads,
     presence: Res<SoftPresence>,
     pool: Option<Res<SoftRbePool>>,
     feedback: Res<LocalFeedbackFeel>,
@@ -1491,12 +1589,15 @@ fn follow_camera(
     mut cams: Query<&mut Transform, With<Camera3d>>,
     cursors: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
+    let dt = clock.time.delta_secs();
     // CARD CAM-MOUSE-ORBIT-1 — same yard gate as STILL-BEFORE-YARD-1.
     if orbit_input_open(door.as_deref(), house.as_deref()) {
         let pixels_per_line = scroll_px.map(|px| **px).unwrap_or(ORBIT_PIXELS_PER_LINE);
         let grabbed = cursors
             .iter()
             .any(|cursor| cursor_counts_as_grabbed(cursor.grab_mode));
+        let (stick_x, stick_y) = first_pad_right_stick(&clock.pads);
+        apply_stick_look(&mut orbit, stick_x, stick_y, dt, &look);
         apply_orbit_input(
             &mut orbit,
             &mouse_buttons,
@@ -1527,7 +1628,7 @@ fn follow_camera(
     } else {
         presence.position + Vec3::Y * (follow_look_height_for_realm(realm.and_then(|r| r.current)) + look_lift)
     };
-    let follow_t = follow_lerp_t(time.delta_secs());
+    let follow_t = follow_lerp_t(dt);
     for mut cam in &mut cams {
         cam.translation = cam.translation.lerp(desired, follow_t);
         cam.look_at(look, Vec3::Y);
@@ -3332,7 +3433,7 @@ mod tests {
         assert!(orbit.distance < default_orbit_distance());
     }
 
-    /// Gamepad and WASD stay on PlayerInput. They do not orbit the camera.
+    /// PlayerInput does not orbit. Right-stick look reads the pad axes.
     #[test]
     fn cam_mouse_orbit_player_input_does_not_orbit() {
         let mut app = orbit_world(Some(LaunchDoor::InYard), Some(false));
@@ -3452,6 +3553,204 @@ mod tests {
             "invert-Y should flip pitch, got {}",
             orbit.pitch
         );
+    }
+
+    /// Yaw and pitch radians the stick delta becomes through the same per-pixel rates.
+    fn stick_orbit_radians(x: f32, y: f32, dt: f32, sens: f32, invert_y: bool) -> (f32, f32) {
+        let (dx, dy) = stick_look_delta(x, y, dt, sens, invert_y);
+        (-dx * ORBIT_YAW_PER_PX, dy * ORBIT_PITCH_PER_PX)
+    }
+
+    fn spawn_right_stick(app: &mut App, x: f32, y: f32) {
+        let mut pad = Gamepad::default();
+        pad.analog_mut().set(GamepadAxis::RightStickX, x);
+        pad.analog_mut().set(GamepadAxis::RightStickY, y);
+        app.world_mut().spawn(pad);
+    }
+
+    /// Inside the 0.18 deadzone, and a non-finite dt, the delta is exactly 0.
+    /// One axis inside the zone does not mute the other.
+    #[test]
+    fn stick_look_inside_deadzone_is_zero() {
+        assert_eq!(crate::input::STICK_DEADZONE, 0.18);
+        assert_eq!(stick_look_delta(0.1, -0.1, 1.0, 1.0, false), (0.0, 0.0));
+        assert_eq!(stick_look_delta(0.18, 0.18, 1.0, 1.0, false), (0.0, 0.0));
+        assert_eq!(stick_look_delta(-0.18, 0.0, 1.0, 1.0, false), (0.0, 0.0));
+        assert_eq!(stick_look_delta(0.0, 0.0, 1.0, 1.0, false), (0.0, 0.0));
+        assert_eq!(stick_look_delta(1.0, 1.0, f32::NAN, 1.0, false), (0.0, 0.0));
+        assert_eq!(
+            stick_look_delta(1.0, 1.0, f32::INFINITY, 1.0, false),
+            (0.0, 0.0)
+        );
+        let (dx, dy) = stick_look_delta(0.1, 1.0, 1.0, 1.0, false);
+        assert_eq!(dx, 0.0);
+        let pitch = dy * ORBIT_PITCH_PER_PX;
+        assert!(
+            (pitch - (-STICK_LOOK_PITCH_RATE)).abs() < 1e-4,
+            "live pitch axis should stay full, got {pitch}"
+        );
+    }
+
+    /// Full deflection for 1 s at look_sens 1. Stick right yaws −2.5. Stick up pitches −1.875.
+    #[test]
+    fn stick_look_full_deflection_one_second_matches_rates() {
+        let (yaw, pitch) = stick_orbit_radians(1.0, 1.0, 1.0, 1.0, false);
+        assert!((yaw - (-STICK_LOOK_YAW_RATE)).abs() < 1e-4, "yaw {yaw}");
+        assert!(
+            (pitch - (-STICK_LOOK_PITCH_RATE)).abs() < 1e-4,
+            "pitch {pitch}"
+        );
+        assert!((STICK_LOOK_YAW_RATE - 2.5).abs() < 1e-6);
+        assert!((STICK_LOOK_PITCH_RATE - 1.875).abs() < 1e-6);
+    }
+
+    /// The live band past 0.18 maps onto 0..1. Halfway is half rate, not the raw axis.
+    #[test]
+    fn stick_look_deadzone_rescales_to_unit_range() {
+        let deadzone = crate::input::STICK_DEADZONE;
+        let mid = deadzone + 0.5 * (1.0 - deadzone);
+        let (yaw, pitch) = stick_orbit_radians(mid, -mid, 1.0, 1.0, false);
+        assert!((yaw - (-1.25)).abs() < 1e-4, "yaw {yaw}");
+        assert!((pitch - 0.9375).abs() < 1e-4, "pitch {pitch}");
+        let (full_yaw, _) = stick_orbit_radians(2.0, 0.0, 1.0, 1.0, false);
+        assert!(
+            (full_yaw - (-STICK_LOOK_YAW_RATE)).abs() < 1e-4,
+            "past full scale stays at the rate, yaw {full_yaw}"
+        );
+    }
+
+    /// look_sens 2 doubles yaw and pitch.
+    #[test]
+    fn stick_look_sensitivity_two_doubles_both() {
+        let (yaw, pitch) = stick_orbit_radians(1.0, 1.0, 1.0, 2.0, false);
+        assert!((yaw - (-5.0)).abs() < 1e-4, "yaw {yaw}");
+        assert!((pitch - (-3.75)).abs() < 1e-4, "pitch {pitch}");
+    }
+
+    /// Invert-Y flips the pitch sign and leaves yaw alone.
+    #[test]
+    fn stick_look_invert_y_flips_pitch_sign_only() {
+        let (yaw, pitch) = stick_orbit_radians(1.0, 1.0, 1.0, 1.0, true);
+        assert!((yaw - (-2.5)).abs() < 1e-4, "yaw {yaw}");
+        assert!((pitch - 1.875).abs() < 1e-4, "pitch {pitch}");
+    }
+
+    /// Mouse-only orbit, and a centred stick beside it, stay on today's pixel rates.
+    #[test]
+    fn stick_look_mouse_only_result_is_unchanged() {
+        let look = LocalLookFeel {
+            sensitivity: 1.0,
+            invert_y: false,
+            mouse_look: false,
+        };
+        let plain = orbit_after(look, true, false, Vec2::new(30.0, 20.0));
+        assert!((plain.yaw - (-30.0 * ORBIT_YAW_PER_PX)).abs() < 1e-4);
+        assert!((plain.pitch - (default_orbit_pitch() + 20.0 * ORBIT_PITCH_PER_PX)).abs() < 1e-4);
+        assert!((plain.distance - default_orbit_distance()).abs() < 1e-4);
+
+        let mut with_stick = FollowOrbit::default();
+        let mut buttons = ButtonInput::default();
+        buttons.press(MouseButton::Right);
+        let motion = AccumulatedMouseMotion {
+            delta: Vec2::new(30.0, 20.0),
+        };
+        let scroll = AccumulatedMouseScroll::default();
+        apply_stick_look(&mut with_stick, 0.1, -0.1, 1.0, &look);
+        apply_orbit_input(
+            &mut with_stick,
+            &buttons,
+            &motion,
+            &scroll,
+            ORBIT_PIXELS_PER_LINE,
+            &look,
+            false,
+        );
+        assert!((with_stick.yaw - plain.yaw).abs() < 1e-6);
+        assert!((with_stick.pitch - plain.pitch).abs() < 1e-6);
+        assert!((with_stick.distance - plain.distance).abs() < 1e-6);
+    }
+
+    /// The existing pitch clamp still bounds a full second of stick look.
+    #[test]
+    fn stick_look_pitch_clamp_still_applies() {
+        let look = LocalLookFeel {
+            sensitivity: 1.0,
+            invert_y: false,
+            mouse_look: false,
+        };
+        let mut up = FollowOrbit::default();
+        let buttons = ButtonInput::default();
+        let motion = AccumulatedMouseMotion::default();
+        let scroll = AccumulatedMouseScroll::default();
+        apply_stick_look(&mut up, 1.0, 1.0, 1.0, &look);
+        apply_orbit_input(
+            &mut up,
+            &buttons,
+            &motion,
+            &scroll,
+            ORBIT_PIXELS_PER_LINE,
+            &look,
+            false,
+        );
+        assert!((up.yaw - (-2.5)).abs() < 1e-3, "yaw {}", up.yaw);
+        assert_eq!(up.pitch, CAM_PITCH_MIN);
+
+        let mut down = FollowOrbit::default();
+        apply_stick_look(&mut down, 0.0, -1.0, 1.0, &look);
+        apply_orbit_input(
+            &mut down,
+            &buttons,
+            &motion,
+            &scroll,
+            ORBIT_PIXELS_PER_LINE,
+            &look,
+            false,
+        );
+        assert_eq!(down.pitch, CAM_PITCH_MAX);
+    }
+
+    /// Manual time's first frame has delta 0. The next frame carries 1/60.
+    fn step_primed(app: &mut App) -> f32 {
+        app.update();
+        app.update();
+        let dt = app.world().resource::<Time>().delta_secs();
+        assert!(dt > 0.0, "primed frame should have a timestep");
+        dt
+    }
+
+    /// The first pad's right stick orbits in the open yard. Title and settings do not.
+    #[test]
+    fn stick_look_right_stick_orbits_in_the_open_yard_only() {
+        let mut yard = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        spawn_right_stick(&mut yard, 1.0, 0.0);
+        let dt = step_primed(&mut yard);
+        let orbit = *yard.world().resource::<FollowOrbit>();
+        assert!(
+            (orbit.yaw - (-STICK_LOOK_YAW_RATE * dt)).abs() < 1e-4,
+            "yard stick yaw {} dt {dt}",
+            orbit.yaw
+        );
+        assert!((orbit.pitch - default_orbit_pitch()).abs() < 1e-4);
+
+        let mut title = orbit_world(Some(LaunchDoor::Title), Some(false));
+        spawn_right_stick(&mut title, 1.0, 1.0);
+        step_primed(&mut title);
+        assert_orbit_still_default(&title);
+
+        let mut settings = orbit_world(Some(LaunchDoor::InYard), Some(true));
+        spawn_right_stick(&mut settings, 1.0, 1.0);
+        step_primed(&mut settings);
+        assert_orbit_still_default(&settings);
+    }
+
+    /// A centred first pad hides a deflected second pad.
+    #[test]
+    fn stick_look_first_pad_only() {
+        let mut app = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        spawn_right_stick(&mut app, 0.0, 0.0);
+        spawn_right_stick(&mut app, 1.0, 1.0);
+        step_primed(&mut app);
+        assert_orbit_still_default(&app);
     }
 
     fn look_feel(mouse_look: bool) -> LocalLookFeel {
