@@ -118,6 +118,10 @@
 //! docs/PLAYABLE_RACES.md · docs/ART_BIBLE.md. Do not invent lore.
 //! PlaceId stays 3. 0 meshes. S2 / S3 / F5 / F6 WRITE unread.
 //! Play / Continue / Settings · Online grey unchanged.
+//!
+//! CARD TITLE-MENU-TEXT-SCALE-1 — Title plate Play, Continue, Settings,
+//! Persona, and Online labels, plus the hint under them, follow text scale.
+//! Pause Resume / Title / Quit stay the fixed 15px row. Online stays grey.
 //! Contact: info@Rathor.ai
 
 use bevy::input::keyboard::{Key, KeyboardInput};
@@ -229,6 +233,8 @@ pub const YARD_WAITING: &str = "the yard is waiting";
 pub const TITLE_CHROME_PLAY: &str = "Play — first Hands";
 pub const TITLE_CHROME_CONTINUE: &str = "Continue";
 pub const TITLE_CHROME_SETTINGS: &str = "Settings";
+/// Hint under the Title plate buttons. Its own base, same 11..=22 clamp.
+const TITLE_MENU_HINT: &str = "1 Play · 2 Continue · 3 Settings · Esc from yard opens pause";
 
 /// CARD L2 — Garden / boot (walkable title · God-plane) hosts five People-doors.
 /// Law only — not Title chrome, not race portraits. Cite D0 EDEN-PLANE-LAW @ 2afff36.
@@ -587,6 +593,12 @@ struct TitleSettingsBtn;
 #[derive(Component)]
 #[allow(dead_code)]
 struct TitleOnlineBtn;
+/// CARD TITLE-MENU-TEXT-SCALE-1. Logical base px for one Title-plate label.
+/// Pause rows do not carry this marker. Not a resource.
+#[derive(Component)]
+struct TitleMenuScaledLabel {
+    base_px: f32,
+}
 #[derive(Component)]
 struct SettingsStubRoot;
 /// First-launch Comfort graphics banner (MESH-LOD) — title / yard pause.
@@ -1315,6 +1327,7 @@ impl Plugin for TitleScreenPlugin {
                     lethal_sign_settings_clicks,
                 ),
             )
+            .add_systems(Update, refresh_title_menu_text_scale)
             .add_systems(Update, control_preset_clicks)
             .add_systems(Update, refresh_hud_layout_label)
             // Same-frame as Places row Pressed: hide Comfort before soft-GPU composites.
@@ -1383,7 +1396,12 @@ impl Plugin for TitleScreenPlugin {
     }
 }
 
-fn spawn_title_screen(mut commands: Commands) {
+fn spawn_title_screen(mut commands: Commands, settings: Option<Res<LocalSettingsState>>) {
+    // Missing only in headless spawn tests. 1.00 is today's unscaled size.
+    let text_scale = match &settings {
+        Some(state) => state.inner.text_scale,
+        None => 1.0,
+    };
     commands
         .spawn((
             (
@@ -1461,21 +1479,29 @@ TextColor(TITLE_TEXT_SECONDARY),
 ),
                     TitleCueText,
                 ));
-                spawn_menu_btn(p, TITLE_CHROME_PLAY, TitlePlayBtn, true);
-                spawn_menu_btn(p, TITLE_CHROME_CONTINUE, TitleContinueBtn, true);
-                spawn_menu_btn(p, TITLE_CHROME_SETTINGS, TitleSettingsBtn, true);
-                spawn_menu_btn(
+                spawn_title_plate_btn(p, TITLE_CHROME_PLAY, TitlePlayBtn, true, text_scale);
+                spawn_title_plate_btn(p, TITLE_CHROME_CONTINUE, TitleContinueBtn, true, text_scale);
+                spawn_title_plate_btn(p, TITLE_CHROME_SETTINGS, TitleSettingsBtn, true, text_scale);
+                spawn_title_plate_btn(
                     p,
                     persona_title_btn_label(PERSONA_CREATOR_ENABLED),
                     TitlePersonaBtn,
                     PERSONA_CREATOR_ENABLED,
+                    text_scale,
                 );
-                spawn_menu_btn(p, ONLINE_STUB_LABEL, TitleOnlineBtn, false);
+                spawn_title_plate_btn(p, ONLINE_STUB_LABEL, TitleOnlineBtn, false, text_scale);
+                let hint_px = title_menu_label_px(TITLE_MENU_HINT_BASE_PX, text_scale);
                 p.spawn((
-Text::new("1 Play · 2 Continue · 3 Settings · Esc from yard opens pause"),
-TextFont { font_size: FontSize::Px(11.0 / 1.2), ..default() },
-TextColor(TITLE_TEXT_SECONDARY),
-));
+                    Text::new(TITLE_MENU_HINT),
+                    TextFont {
+                        font_size: FontSize::Px(hint_px / 1.2),
+                        ..default()
+                    },
+                    TextColor(TITLE_TEXT_SECONDARY),
+                    TitleMenuScaledLabel {
+                        base_px: TITLE_MENU_HINT_BASE_PX,
+                    },
+                ));
             });
         });
 }
@@ -1630,6 +1656,56 @@ Text::new(label),
 TextFont { font_size: FontSize::Px(15.0 / 1.2), ..default() },
 TextColor(fg),
 ));
+    });
+}
+
+/// Title-plate sibling of [`spawn_menu_btn`]. Same chrome and colours.
+/// Font follows text scale. Other `spawn_menu_btn` call sites stay fixed.
+fn spawn_title_plate_btn<C: Component>(
+    p: &mut ChildSpawnerCommands,
+    label: &str,
+    marker: C,
+    enabled: bool,
+    text_scale: f32,
+) {
+    let bg = if enabled {
+        TITLE_BTN_BG
+    } else {
+        TITLE_BTN_DISABLED_BG
+    };
+    let fg = if enabled {
+        TITLE_BTN_FG
+    } else {
+        TITLE_BTN_DISABLED_FG
+    };
+    let logical = title_menu_label_px(TITLE_MENU_BTN_BASE_PX, text_scale);
+    p.spawn((
+        (
+            bevy::ui_widgets::Button,
+            Interaction::default(),
+            Node {
+                padding: UiRect::axes(Val::Px(TITLE_MENU_BTN_PAD_X), Val::Px(TITLE_MENU_BTN_PAD_Y)),
+                justify_content: JustifyContent::Center,
+                border: UiRect::all(Val::Px(TITLE_MENU_BTN_BORDER)),
+                ..default()
+            },
+            BorderColor::all(TITLE_BORDER),
+            BackgroundColor(bg),
+        ),
+        marker,
+    ))
+    .with_children(|b| {
+        b.spawn((
+            Text::new(label),
+            TextFont {
+                font_size: FontSize::Px(logical / 1.2),
+                ..default()
+            },
+            TextColor(fg),
+            TitleMenuScaledLabel {
+                base_px: TITLE_MENU_BTN_BASE_PX,
+            },
+        ));
     });
 }
 
@@ -2259,6 +2335,136 @@ pub fn garden_boot_want_font_px(text_scale: f32) -> f32 {
     (14.0 * text_scale.clamp(1.0, 1.6)).clamp(13.0, 22.0)
 }
 
+/// Today's Title button logical px. Stored as this value / 1.2.
+const TITLE_MENU_BTN_BASE_PX: f32 = 15.0;
+/// Today's Title hint logical px. Stored as this value / 1.2.
+const TITLE_MENU_HINT_BASE_PX: f32 = 11.0;
+/// Title plate padding. Matches the `TitlePlate` node.
+const TITLE_PLATE_PAD: f32 = 22.0;
+/// Title plate border. Matches the `TitlePlate` node.
+const TITLE_PLATE_BORDER: f32 = 2.0;
+/// Title plate row gap. Matches the `TitlePlate` node.
+const TITLE_PLATE_ROW_GAP: f32 = 10.0;
+/// Title button horizontal padding. Matches [`spawn_menu_btn`].
+const TITLE_MENU_BTN_PAD_X: f32 = 14.0;
+/// Title button vertical padding. Matches [`spawn_menu_btn`].
+const TITLE_MENU_BTN_PAD_Y: f32 = 10.0;
+/// Title button border. Matches [`spawn_menu_btn`].
+const TITLE_MENU_BTN_BORDER: f32 = 1.0;
+
+/// CARD TITLE-MENU-TEXT-SCALE-1. `(base × text_scale)` clamped to 11..=22 px.
+/// At text scale 1.00 the result is `base`, so `base / 1.2` matches today's font.
+fn title_menu_label_px(base_px: f32, text_scale: f32) -> f32 {
+    (base_px * text_scale).clamp(11.0, 22.0)
+}
+
+/// Fira Mono subset advance is 0.6em of the stored font (`logical / 1.2`).
+fn title_glyph_advance_px(logical_px: f32) -> f32 {
+    0.6 * (logical_px / 1.2)
+}
+
+fn title_plate_inner_width_px() -> f32 {
+    TITLE_PLATE_MAX_WIDTH - TITLE_PLATE_PAD * 2.0 - TITLE_PLATE_BORDER * 2.0
+}
+
+fn title_btn_text_width_px() -> f32 {
+    title_plate_inner_width_px() - TITLE_MENU_BTN_PAD_X * 2.0 - TITLE_MENU_BTN_BORDER * 2.0
+}
+
+fn title_line_box_px(logical_px: f32) -> f32 {
+    logical_px.ceil()
+}
+
+/// Word-boundary lines inside `width_px`. A token wider than the line stays
+/// one overflowing line; callers that forbid wrap also check glyph width.
+fn title_soft_wrap_lines(label: &str, logical_px: f32, width_px: f32) -> f32 {
+    let advance = title_glyph_advance_px(logical_px);
+    if advance <= 0.0 || width_px <= 0.0 || label.is_empty() {
+        return 1.0;
+    }
+    let mut lines = 1.0_f32;
+    let mut used = 0.0_f32;
+    let mut pending = 0.0_f32;
+    for ch in label.chars() {
+        pending += 1.0;
+        if ch == ' ' {
+            title_flush_word(advance, width_px, &mut pending, &mut lines, &mut used);
+        }
+    }
+    title_flush_word(advance, width_px, &mut pending, &mut lines, &mut used);
+    lines
+}
+
+fn title_flush_word(
+    advance: f32,
+    width_px: f32,
+    pending: &mut f32,
+    lines: &mut f32,
+    used: &mut f32,
+) {
+    if *pending == 0.0 {
+        return;
+    }
+    let width = *pending * advance;
+    if *used > 0.0 && *used + width > width_px {
+        *lines += 1.0;
+        *used = width;
+    } else {
+        *used += width;
+    }
+    *pending = 0.0;
+}
+
+fn title_label_fits_one_line(label: &str, logical_px: f32, width_px: f32) -> bool {
+    let advance = title_glyph_advance_px(logical_px);
+    (label.chars().count() as f32) * advance <= width_px
+}
+
+fn title_plate_buttons_fit_one_line(text_scale: f32) -> bool {
+    let px = title_menu_label_px(TITLE_MENU_BTN_BASE_PX, text_scale);
+    let width = title_btn_text_width_px();
+    [
+        TITLE_CHROME_PLAY,
+        TITLE_CHROME_CONTINUE,
+        TITLE_CHROME_SETTINGS,
+        persona_title_btn_label(true),
+        persona_title_btn_label(false),
+        ONLINE_STUB_LABEL,
+    ]
+    .into_iter()
+    .all(|label| title_label_fits_one_line(label, px, width))
+}
+
+/// Title plate height at `text_scale`, border box, inside the 24px safe inset.
+/// Buttons and the hint use [`title_menu_label_px`]. Other lines stay fixed,
+/// except Garden Want, which already scales on its own.
+fn title_plate_height_px(text_scale: f32) -> f32 {
+    let title = title_line_box_px(28.0);
+    let subtitle = title_line_box_px(14.0);
+    let want_px = garden_boot_want_font_px(text_scale);
+    let want_lines = title_soft_wrap_lines(
+        &first_minutes_people_want_line(),
+        want_px,
+        title_plate_inner_width_px(),
+    );
+    let want = title_line_box_px(want_px) * want_lines;
+    let cue = title_line_box_px(13.0);
+    let hint_px = title_menu_label_px(TITLE_MENU_HINT_BASE_PX, text_scale);
+    let hint_lines = title_soft_wrap_lines(TITLE_MENU_HINT, hint_px, title_plate_inner_width_px());
+    let hint = title_line_box_px(hint_px) * hint_lines;
+    let btn_px = title_menu_label_px(TITLE_MENU_BTN_BASE_PX, text_scale);
+    let btn = title_line_box_px(btn_px) + TITLE_MENU_BTN_PAD_Y * 2.0 + TITLE_MENU_BTN_BORDER * 2.0;
+    let buttons = 5.0 * btn;
+    let gaps = 9.0 * TITLE_PLATE_ROW_GAP;
+    let chrome = TITLE_PLATE_PAD * 2.0 + TITLE_PLATE_BORDER * 2.0;
+    title + subtitle + want + cue + hint + buttons + gaps + chrome
+}
+
+/// 720 − 2×[`TITLE_SAFE_INSET`]. The plate's safe height on a 720p window.
+fn title_plate_safe_height_px() -> f32 {
+    720.0 - TITLE_SAFE_INSET * 2.0
+}
+
 /// CARD L1 GARDEN-WANT / CARD S1 / CARD F7 — Title / God-plane speaks
 /// People + Want until H hushes. After a sealed People-door land, the
 /// same plate speaks Place-local aftermath plus one F7 variant (not a
@@ -2295,6 +2501,18 @@ fn refresh_garden_boot_want(
         } else {
             Visibility::Hidden
         };
+    }
+}
+
+/// CARD TITLE-MENU-TEXT-SCALE-1. Rewrite Title-plate label fonts in place.
+/// No respawn and no new resource. Pause rows have no [`TitleMenuScaledLabel`].
+fn refresh_title_menu_text_scale(
+    settings: Res<LocalSettingsState>,
+    mut labels: Query<(&TitleMenuScaledLabel, &mut TextFont)>,
+) {
+    let scale = settings.inner.text_scale;
+    for (label, mut font) in &mut labels {
+        set_btn_section_font(&mut font, title_menu_label_px(label.base_px, scale));
     }
 }
 
@@ -7264,6 +7482,246 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         if let Err(payload) = result {
             std::panic::resume_unwind(payload);
+        }
+    }
+
+    /// CARD TITLE-MENU-TEXT-SCALE-1 — helper pins at the real steps and the clamps.
+    #[test]
+    fn title_menu_label_px_pins_scale_steps_and_clamps() {
+        assert_eq!(shared::local_settings::TEXT_SCALE_MIN, 0.85);
+        assert_eq!(shared::local_settings::DEFAULT_TEXT_SCALE, 1.0);
+        assert_eq!(shared::local_settings::TEXT_SCALE_MAX, 1.35);
+        assert_eq!(title_menu_label_px(TITLE_MENU_BTN_BASE_PX, 0.85), 12.75);
+        assert_eq!(title_menu_label_px(TITLE_MENU_BTN_BASE_PX, 1.00), 15.0);
+        assert_eq!(title_menu_label_px(TITLE_MENU_BTN_BASE_PX, 1.35), 20.25);
+        assert_eq!(title_menu_label_px(TITLE_MENU_BTN_BASE_PX, 0.5), 11.0);
+        assert_eq!(title_menu_label_px(TITLE_MENU_BTN_BASE_PX, 2.0), 22.0);
+        assert_eq!(title_menu_label_px(TITLE_MENU_HINT_BASE_PX, 0.85), 11.0);
+        assert_eq!(title_menu_label_px(TITLE_MENU_HINT_BASE_PX, 1.00), 11.0);
+        assert_eq!(
+            title_menu_label_px(TITLE_MENU_HINT_BASE_PX, 1.35).to_bits(),
+            (11.0_f32 * 1.35).to_bits()
+        );
+        assert_eq!(
+            (title_menu_label_px(TITLE_MENU_BTN_BASE_PX, 1.00) / 1.2).to_bits(),
+            (15.0_f32 / 1.2).to_bits()
+        );
+        assert_eq!(
+            (title_menu_label_px(TITLE_MENU_HINT_BASE_PX, 1.00) / 1.2).to_bits(),
+            (11.0_f32 / 1.2).to_bits()
+        );
+    }
+
+    /// CARD TITLE-MENU-TEXT-SCALE-1 — Title plate fits the 672px safe height at 1.35.
+    /// Button labels stay one line. The hint wraps to two and still fits.
+    #[test]
+    fn title_plate_fits_within_672_at_text_scale_135() {
+        let scale = 1.35_f32;
+        let safe = title_plate_safe_height_px();
+        assert!((safe - 672.0).abs() < 0.01, "safe height {safe}");
+        assert!(title_plate_buttons_fit_one_line(scale));
+        assert!(title_label_fits_one_line(
+            ONLINE_STUB_LABEL,
+            title_menu_label_px(TITLE_MENU_BTN_BASE_PX, scale),
+            title_btn_text_width_px(),
+        ));
+        assert!((title_btn_text_width_px() - 342.0).abs() < 0.01);
+        let want_px = garden_boot_want_font_px(scale);
+        assert_eq!(
+            title_soft_wrap_lines(
+                &first_minutes_people_want_line(),
+                want_px,
+                title_plate_inner_width_px(),
+            ),
+            2.0
+        );
+        assert_eq!(
+            title_soft_wrap_lines(
+                TITLE_MENU_HINT,
+                title_menu_label_px(TITLE_MENU_HINT_BASE_PX, 1.0),
+                title_plate_inner_width_px(),
+            ),
+            1.0
+        );
+        assert_eq!(
+            title_soft_wrap_lines(
+                TITLE_MENU_HINT,
+                title_menu_label_px(TITLE_MENU_HINT_BASE_PX, scale),
+                title_plate_inner_width_px(),
+            ),
+            2.0
+        );
+        let btn = title_line_box_px(title_menu_label_px(TITLE_MENU_BTN_BASE_PX, scale))
+            + TITLE_MENU_BTN_PAD_Y * 2.0
+            + TITLE_MENU_BTN_BORDER * 2.0;
+        assert!((btn - 43.0).abs() < 0.01, "button box {btn}");
+        let hint = title_line_box_px(title_menu_label_px(TITLE_MENU_HINT_BASE_PX, scale)) * 2.0;
+        assert!((hint - 30.0).abs() < 0.01, "hint box {hint}");
+        let want = title_line_box_px(want_px) * 2.0;
+        assert!((want - 38.0).abs() < 0.01, "want box {want}");
+        // 28 + 14 + 38 + 13 + 30 + 5×43 + 9×10 + 48.
+        let expected = 28.0 + 14.0 + want + 13.0 + hint + 5.0 * btn + 90.0 + 48.0;
+        let height = title_plate_height_px(scale);
+        assert!(
+            (height - expected).abs() < 0.01,
+            "height {height} expected {expected}"
+        );
+        assert!(
+            (height - 476.0).abs() < 0.01,
+            "title plate {height}px, clerk's unscaled-hint measure was about 457"
+        );
+        assert!(
+            height <= safe,
+            "title plate {height}px exceeds the 672px safe height"
+        );
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+        assert_eq!(ONLINE_STUB_LABEL, "Online — off (no listen)");
+    }
+
+    /// CARD TITLE-MENU-TEXT-SCALE-1 — labels update in place. Pause rows stay 15px.
+    #[test]
+    fn title_menu_labels_follow_text_scale_without_respawn() {
+        let mut settings = LocalSettingsState::default();
+        settings.inner.text_scale = 1.0;
+        let mut app = App::new();
+        app.insert_resource(settings)
+            .add_systems(Startup, (spawn_title_screen, spawn_settings_stub))
+            .add_systems(Update, refresh_title_menu_text_scale);
+        app.update();
+
+        let play = {
+            let world = app.world_mut();
+            world
+                .query_filtered::<Entity, With<TitlePlayBtn>>()
+                .single(world)
+                .unwrap()
+        };
+        let online = {
+            let world = app.world_mut();
+            world
+                .query_filtered::<Entity, With<TitleOnlineBtn>>()
+                .single(world)
+                .unwrap()
+        };
+        let resume = {
+            let world = app.world_mut();
+            world
+                .query_filtered::<Entity, With<PauseResumeBtn>>()
+                .single(world)
+                .unwrap()
+        };
+        let pause_title = {
+            let world = app.world_mut();
+            world
+                .query_filtered::<Entity, With<PauseTitleBtn>>()
+                .single(world)
+                .unwrap()
+        };
+        let quit = {
+            let world = app.world_mut();
+            world
+                .query_filtered::<Entity, With<PauseQuitBtn>>()
+                .single(world)
+                .unwrap()
+        };
+        let pause_online = {
+            let world = app.world_mut();
+            world
+                .query_filtered::<Entity, With<SettingsOnlineStubBtn>>()
+                .single(world)
+                .unwrap()
+        };
+        {
+            let world = app.world_mut();
+            assert_eq!(
+                world.get::<BackgroundColor>(online).unwrap(),
+                &BackgroundColor(TITLE_BTN_DISABLED_BG)
+            );
+            assert_eq!(
+                world.get::<Node>(play).unwrap().padding,
+                UiRect::axes(Val::Px(14.0), Val::Px(10.0))
+            );
+            let plate = world
+                .query_filtered::<&Node, With<TitlePlate>>()
+                .single(world)
+                .unwrap();
+            assert_eq!(plate.max_width, Val::Px(TITLE_PLATE_MAX_WIDTH));
+            assert_eq!(plate.padding, UiRect::all(Val::Px(22.0)));
+            assert_title_menu_fonts(world, 15.0 / 1.2, 11.0 / 1.2);
+            for parent in [resume, pause_title, quit, pause_online] {
+                assert_eq!(
+                    button_label_font_px(world, parent).to_bits(),
+                    (15.0_f32 / 1.2).to_bits()
+                );
+            }
+        }
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .text_scale = 1.35;
+        app.update();
+
+        let world = app.world_mut();
+        assert_eq!(
+            world
+                .query_filtered::<Entity, With<TitlePlayBtn>>()
+                .single(world)
+                .unwrap(),
+            play
+        );
+        assert_eq!(
+            world
+                .query_filtered::<Entity, With<TitleOnlineBtn>>()
+                .iter(world)
+                .count(),
+            1
+        );
+        assert_eq!(
+            world.get::<BackgroundColor>(online).unwrap(),
+            &BackgroundColor(TITLE_BTN_DISABLED_BG)
+        );
+        let btn_px = title_menu_label_px(TITLE_MENU_BTN_BASE_PX, 1.35) / 1.2;
+        let hint_px = title_menu_label_px(TITLE_MENU_HINT_BASE_PX, 1.35) / 1.2;
+        assert_title_menu_fonts(world, btn_px, hint_px);
+        for parent in [resume, pause_title, quit, pause_online] {
+            assert_eq!(
+                button_label_font_px(world, parent).to_bits(),
+                (15.0_f32 / 1.2).to_bits()
+            );
+        }
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+    }
+
+    fn assert_title_menu_fonts(world: &mut World, btn_px: f32, hint_px: f32) {
+        let mut buttons = 0;
+        let mut hints = 0;
+        let mut labels = world.query::<(&TitleMenuScaledLabel, &TextFont)>();
+        for (label, font) in labels.iter(world) {
+            let px = match font.font_size {
+                FontSize::Px(px) => px,
+                other => panic!("title label font is {other:?}"),
+            };
+            if (label.base_px - TITLE_MENU_BTN_BASE_PX).abs() < f32::EPSILON {
+                assert_eq!(px.to_bits(), btn_px.to_bits());
+                buttons += 1;
+            } else if (label.base_px - TITLE_MENU_HINT_BASE_PX).abs() < f32::EPSILON {
+                assert_eq!(px.to_bits(), hint_px.to_bits());
+                hints += 1;
+            } else {
+                panic!("unexpected title label base {}", label.base_px);
+            }
+        }
+        assert_eq!(buttons, 5);
+        assert_eq!(hints, 1);
+    }
+
+    fn button_label_font_px(world: &World, parent: Entity) -> f32 {
+        let children = world.get::<Children>(parent).expect("button children");
+        let child = children[0];
+        match world.get::<TextFont>(child).expect("label font").font_size {
+            FontSize::Px(px) => px,
+            other => panic!("pause label font is {other:?}"),
         }
     }
 
