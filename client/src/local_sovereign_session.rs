@@ -20,6 +20,7 @@ use bevy::prelude::*;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hud_anchor_registry::{HudSlab, SOVEREIGN};
 use crate::first_session_guidance::FirstSessionGuidance;
+use crate::input::{InputMapSet, PlayerInput};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 const BANNER_SECS: f64 = 8.5;
@@ -66,7 +67,10 @@ impl Plugin for LocalSovereignSessionPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LocalSovereignSession>()
             .add_systems(Startup, spawn_banner)
-            .add_systems(Update, (announce_once, dismiss_on_intent, update_banner));
+            .add_systems(
+                Update,
+                (announce_once, dismiss_on_intent, update_banner).after(InputMapSet),
+            );
     }
 }
 
@@ -125,14 +129,18 @@ fn dismiss_on_intent(
     harvest: Res<FirstHarvestEpiphany>,
     guidance: Res<FirstSessionGuidance>,
     mut session: ResMut<LocalSovereignSession>,
+    player_input: Option<Res<PlayerInput>>,
 ) {
     if session.dismissed {
         return;
     }
+    // WASD stays the keyboard check. Arrows, the stick, and touch arrive as
+    // this frame's `PlayerInput.movement` (deadzone stays in input.rs).
     let moving = keyboard.pressed(KeyCode::KeyW)
         || keyboard.pressed(KeyCode::KeyA)
         || keyboard.pressed(KeyCode::KeyS)
-        || keyboard.pressed(KeyCode::KeyD);
+        || keyboard.pressed(KeyCode::KeyD)
+        || player_input.is_some_and(|input| input.movement.length_squared() > 0.0);
     if moving || harvest.first_harvest_lived || guidance.dismissed {
         session.dismissed = true;
     }
@@ -278,5 +286,266 @@ mod tests {
             assert!(!low.contains("online"), "{sample}");
             assert!(!sample.contains("Threshold"), "{sample}");
         }
+    }
+
+    /// Resources `dismiss_on_intent` already required, plus optional movement.
+    fn intent_app(with_player_input: bool) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<ButtonInput<KeyCode>>()
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<FirstSessionGuidance>()
+            .init_resource::<LocalSovereignSession>()
+            .add_systems(Update, dismiss_on_intent);
+        if with_player_input {
+            app.init_resource::<PlayerInput>();
+        }
+        assert!(!app.world().resource::<LocalSovereignSession>().dismissed);
+        assert!(
+            !app.world()
+                .resource::<FirstHarvestEpiphany>()
+                .first_harvest_lived
+        );
+        assert!(!app.world().resource::<FirstSessionGuidance>().dismissed);
+        if with_player_input {
+            assert_eq!(app.world().resource::<PlayerInput>().movement, Vec2::ZERO);
+        } else {
+            assert!(app.world().get_resource::<PlayerInput>().is_none());
+        }
+        app
+    }
+
+    /// CARD SOVEREIGN-BANNER-INTENT-1 — WASD still dismisses when mapped movement is zero.
+    /// W+S is the input-map cancel (movement stays 0) and must keep today's keyboard path.
+    #[test]
+    fn sovereign_banner_wasd_dismisses_when_movement_is_zero() {
+        for key in [KeyCode::KeyW, KeyCode::KeyA, KeyCode::KeyS, KeyCode::KeyD] {
+            let mut app = intent_app(true);
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .press(key);
+            assert_eq!(
+                app.world().resource::<PlayerInput>().movement,
+                Vec2::ZERO,
+                "{key:?} is tested with movement still zero"
+            );
+            app.update();
+            assert!(
+                app.world().resource::<LocalSovereignSession>().dismissed,
+                "{key:?} still dismisses"
+            );
+        }
+
+        let mut cancel = intent_app(true);
+        {
+            let mut keys = cancel.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.press(KeyCode::KeyW);
+            keys.press(KeyCode::KeyS);
+        }
+        cancel.world_mut().resource_mut::<PlayerInput>().movement = Vec2::ZERO;
+        cancel.update();
+        assert!(
+            cancel.world().resource::<LocalSovereignSession>().dismissed,
+            "W+S still dismisses when movement cancels to zero"
+        );
+    }
+
+    /// CARD SOVEREIGN-BANNER-INTENT-1 — arrow axes and stick deflections share `movement`.
+    /// A value under input.rs's 0.18 deadzone still counts: this reader does not deadzone again.
+    #[test]
+    fn sovereign_banner_nonzero_movement_dismisses_without_wasd() {
+        for movement in [
+            Vec2::new(0.0, 1.0),
+            Vec2::new(-1.0, 0.0),
+            Vec2::new(0.42, -0.25),
+            Vec2::new(0.05, 0.0),
+        ] {
+            let mut app = intent_app(true);
+            app.world_mut().resource_mut::<PlayerInput>().movement = movement;
+            app.update();
+            assert!(
+                app.world().resource::<LocalSovereignSession>().dismissed,
+                "{movement:?} dismisses with no WASD"
+            );
+            let keys = app.world().resource::<ButtonInput<KeyCode>>();
+            assert!(!keys.pressed(KeyCode::KeyW));
+            assert!(!keys.pressed(KeyCode::KeyA));
+            assert!(!keys.pressed(KeyCode::KeyS));
+            assert!(!keys.pressed(KeyCode::KeyD));
+        }
+    }
+
+    /// CARD SOVEREIGN-BANNER-INTENT-1 — zero movement and no WASD leaves the banner up.
+    /// Arrow keys are not a second keyboard check; they dismiss only through `movement`.
+    #[test]
+    fn sovereign_banner_zero_movement_with_no_wasd_does_not_dismiss() {
+        let mut idle = intent_app(true);
+        idle.world_mut().resource_mut::<PlayerInput>().movement = Vec2::ZERO;
+        idle.update();
+        assert!(!idle.world().resource::<LocalSovereignSession>().dismissed);
+
+        let mut arrows = intent_app(true);
+        {
+            let mut keys = arrows.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.press(KeyCode::ArrowUp);
+            keys.press(KeyCode::ArrowDown);
+            keys.press(KeyCode::ArrowLeft);
+            keys.press(KeyCode::ArrowRight);
+        }
+        assert_eq!(
+            arrows.world().resource::<PlayerInput>().movement,
+            Vec2::ZERO
+        );
+        arrows.update();
+        assert!(
+            !arrows.world().resource::<LocalSovereignSession>().dismissed,
+            "arrow keys with zero movement do not dismiss"
+        );
+
+        let mut other = intent_app(true);
+        {
+            let mut keys = other.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.press(KeyCode::KeyE);
+            keys.press(KeyCode::Space);
+            keys.press(KeyCode::ShiftLeft);
+        }
+        other.update();
+        assert!(
+            !other.world().resource::<LocalSovereignSession>().dismissed,
+            "non-move keys do not dismiss"
+        );
+    }
+
+    /// CARD SOVEREIGN-BANNER-INTENT-1 — `dismiss_on_intent` is ordered after `InputMapSet`
+    /// so it reads this frame's movement.
+    #[test]
+    fn sovereign_banner_intent_runs_after_input_map_set() {
+        use bevy::ecs::schedule::{NodeId, Schedules};
+        use bevy::ecs::system::{IntoSystem, System};
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(LocalSovereignSessionPlugin);
+        let graph = app
+            .world()
+            .resource::<Schedules>()
+            .get(Update)
+            .expect("Update schedule")
+            .graph();
+        let want = IntoSystem::system_type_id(&dismiss_on_intent);
+        let system_key = graph
+            .systems
+            .iter()
+            .find_map(|(key, scheduled, _)| {
+                (System::system_type(&**scheduled) == want).then_some(key)
+            })
+            .expect("dismiss_on_intent is in Update");
+        let set_key = graph
+            .system_sets
+            .get_key(InputMapSet.intern())
+            .expect("InputMapSet is on the Update graph");
+        assert!(
+            graph
+                .dependency()
+                .graph()
+                .contains_edge(NodeId::Set(set_key), NodeId::System(system_key),),
+            "dismiss_on_intent is after InputMapSet"
+        );
+    }
+
+    /// CARD SOVEREIGN-BANNER-INTENT-1 — no `PlayerInput` resource: no panic, WASD still dismisses.
+    #[test]
+    fn sovereign_banner_missing_player_input_does_not_panic_and_wasd_still_dismisses() {
+        let mut idle = intent_app(false);
+        idle.update();
+        assert!(idle.world().get_resource::<PlayerInput>().is_none());
+        assert!(!idle.world().resource::<LocalSovereignSession>().dismissed);
+
+        let mut keyed = intent_app(false);
+        keyed
+            .world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyW);
+        keyed.update();
+        assert!(keyed.world().get_resource::<PlayerInput>().is_none());
+        assert!(keyed.world().resource::<LocalSovereignSession>().dismissed);
+
+        let mut plugin = App::new();
+        plugin
+            .add_plugins(MinimalPlugins)
+            .init_resource::<ButtonInput<KeyCode>>()
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<FirstSessionGuidance>()
+            .add_plugins(LocalSovereignSessionPlugin);
+        assert!(plugin.world().get_resource::<PlayerInput>().is_none());
+        plugin
+            .world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyD);
+        plugin.update();
+        assert!(plugin.world().get_resource::<PlayerInput>().is_none());
+        let session = plugin.world().resource::<LocalSovereignSession>();
+        assert!(session.dismissed, "plugin path still sees WASD");
+        assert!(session.announced);
+    }
+
+    /// CARD SOVEREIGN-BANNER-INTENT-1 — a dismissed banner stays dismissed on a quiet frame.
+    #[test]
+    fn sovereign_banner_already_dismissed_stays_dismissed() {
+        let mut quiet = intent_app(true);
+        {
+            let mut session = quiet.world_mut().resource_mut::<LocalSovereignSession>();
+            session.dismissed = true;
+            assert_eq!(session.banner_until, BANNER_SECS);
+        }
+        quiet.update();
+        {
+            let session = quiet.world().resource::<LocalSovereignSession>();
+            assert!(session.dismissed);
+            assert_eq!(session.banner_until, BANNER_SECS);
+            assert!(!session.announced);
+        }
+
+        let mut moving = intent_app(false);
+        moving
+            .world_mut()
+            .resource_mut::<LocalSovereignSession>()
+            .dismissed = true;
+        moving
+            .world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyA);
+        moving.update();
+        assert!(moving.world().resource::<LocalSovereignSession>().dismissed);
+    }
+
+    /// Harvest and guidance dismissal stay on the same predicate.
+    #[test]
+    fn sovereign_banner_harvest_and_guidance_still_dismiss_without_movement() {
+        let mut harvest = intent_app(true);
+        harvest
+            .world_mut()
+            .resource_mut::<FirstHarvestEpiphany>()
+            .first_harvest_lived = true;
+        harvest.update();
+        assert!(
+            harvest
+                .world()
+                .resource::<LocalSovereignSession>()
+                .dismissed
+        );
+
+        let mut guidance = intent_app(false);
+        guidance
+            .world_mut()
+            .resource_mut::<FirstSessionGuidance>()
+            .dismissed = true;
+        guidance.update();
+        assert!(
+            guidance
+                .world()
+                .resource::<LocalSovereignSession>()
+                .dismissed
+        );
     }
 }
