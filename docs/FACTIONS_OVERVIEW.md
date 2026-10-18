@@ -1,7 +1,7 @@
 # Factions Overview — Powrush-MMO
 
 **Version:** 1.0  
-**Last Updated:** June 12, 2026  
+**Last Updated:** June 12, 2026 (lore cross-link added 2026-10-18)  
 **Status:** Active Development
 
 ---
@@ -45,6 +45,9 @@ The Auroral Unification Nexus follows a hybrid aesthetic inspired by both the Pr
 
 **Philosophy**  
 The Quellorian side values elegance, technological mastery, unity, and the elevation of civilization. Their technology often produces beautiful side effects (such as the auroral light) because their systems are built on principles of resonance, harmony, and high-energy field manipulation rather than brute force.
+
+**Related Lore (2026-10-18)**  
+See `docs/LIGHT_ESSENCE_EXPERIENCE_TRAVEL_LORE.md` for the ocean-of-electric-light / beings-of-light / experience-based trajectory motif that seasons Quellorian resonance, auroral effects, and Ambrosian attunement. Canonical source lives in the Ra-Thor monorepo.
 
 ---
 
