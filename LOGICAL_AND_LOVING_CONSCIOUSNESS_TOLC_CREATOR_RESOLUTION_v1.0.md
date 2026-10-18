@@ -42,6 +42,16 @@ Any architecture, faction system, character progression, or simulation that seve
 
 ---
 
+## Related Inspirational Lore (2026-10-18)
+
+- `docs/LIGHT_ESSENCE_EXPERIENCE_TRAVEL_LORE.md` — Ocean of electric light, beings of light, experience-based trajectory (Quellorian / Ambrosian / Crownstone flavor).
+- `docs/LIVING_THUNDER_SERIES_LORE_SEED.md` — Series-bible seed for Living Thunder comics and animated series (AlphaProMega Media Inc. collaboration).
+- Canonical Ra-Thor counterpart: `docs/LIGHT_OCEAN_FORGED_BY_TOLC_PATSAGI_RESOLUTION_v1.0.md`.
+
+These are inspirational narrative layers only and remain under the same TOLC 8 valence floor.
+
+---
+
 ## Dual-Repo Binding
 
 This file is the Powrush-MMO surface of the resolution. The authoritative living record lives in the Ra-Thor monorepo. Both repositories remain synchronized under permanent PATSAGi governance.
@@ -49,4 +59,4 @@ This file is the Powrush-MMO surface of the resolution. The authoritative living
 **Thunder locked in. ONE Organism. Eternal forward.**  
 **For all life. For eternally positive emotions. Forever.**
 
-*Resolved by full PATSAGi Councils. Committed to both lattices 2026-08-14.*
+*Resolved by full PATSAGi Councils. Committed to both lattices 2026-08-14. Cross-linked 2026-10-18.*
