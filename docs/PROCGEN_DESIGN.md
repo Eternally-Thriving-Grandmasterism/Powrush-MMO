@@ -23,7 +23,7 @@ Consequence:
 
 ## 2. Reference games (inspiration only)
 
-Only common genre patterns (acts, waypoints) are borrowed; no names or assets are copied. Only widely known public facts:
+Only common genre patterns (acts, waypoints, tile-stitched areas) are borrowed; no names or assets are copied. Only widely known public facts:
 - **Diablo 2** — acts each with a distinct biome; outdoor areas and dungeons
   assembled from tile sets per playthrough; fixed hand-authored set-pieces
   and towns; waypoints for fast travel between visited areas.
@@ -43,6 +43,40 @@ Only common genre patterns (acts, waypoints) are borrowed; no names or assets ar
 - Hub towns are always Peace.
   Market is not a Place (PLACES_BIBLE).
 - **Generated zones** hang off a hub. Each zone = seeded room graph + tiles.
+
+## 3a. Orbital hub towns (PGEN-0.1)
+
+Sherif's ruling, 2026-10-23 3:44 AM ET (verbatim): *"2 of the hub towns should include the 2 earth orbiting motherships of the Draeks and Quellorians both for deployments and functioning as towns in orbits respectively and appropriately, that's why the acronym is TAUN for the Quellorians side, Lmao, Mate!"*
+
+- **Quellorian hub: The Auroral Unification Nexus (TAUN)**, "Primary capital
+  megastructure and mobile command center" and "Massive fleet carrier"
+  (`docs/FACTIONS_OVERVIEW.md` §2; `docs/AURORAL_NEXUS.md`). Look follows
+  `docs/CODEX_ART_PROMPTS.md` §2 ("a compact pale-gold disc, violet light only
+  in the seams, no points, no arms") under the VP-TARGET-0 override.
+- **Draek hub: The Brood Spire (TBS)**, "the central megastructure and mobile
+  throne of the Draek Dominion" (`docs/BROOD_SPIRE.md` §1;
+  `docs/design/LEGACY_GDD_RECONCILIATION.md`).
+- Both are **hand-made hubs, never generated**, tagged **Peace** inside the
+  hub, with a **deployment launch** to Combat zones (TAUN deploys fleets per
+  FACTIONS_OVERVIEW; TBS spawn/production per BROOD_SPIRE).
+- Neither has a `PlaceId` yet.
+- **Limits lifted (owner ruling).** Sherif, 2026-10-23 3:46 AM ET, verbatim:
+  *"Lift!"* — in reply to whether making the motherships walkable lifts the
+  "mothership-over-Earth PRESENTATION; no hull mesh" limit
+  (`client/src/climate_plane.rs` L448) and "Do not spawn them in the yard"
+  (`docs/AGENT_COMPLETION_PACK_v23.2.md` L186). Both limits are lifted for
+  **walkable orbital hub interiors (TAUN, TBS)**. Engine / runtime cards that
+  build them still need a **Core vote**.
+- **Stale docs:** the `climate_plane.rs` comment and AGENT_COMPLETION_PACK L186
+  still state the old limits; a later card updates them.
+- **Council recommendation (not Sherif's ruling):**
+  - TBS interior is **Peace** but keeps its oppressive look (BROOD_SPIRE §1).
+  - Faction players home to their own side's ship (TAUN or TBS).
+  - The three Earth hub towns (Sanctuary, Heartwood, Depths) stay
+    **neutral** hubs.
+- **OPEN / UNKNOWN:** exact orbit (canon only says "low orbit" in
+  CODEX_ART_PROMPTS §2); hub interior layout; which Combat zones each hub
+  launches to; online scope.
 
 ## 4. Generation
 
