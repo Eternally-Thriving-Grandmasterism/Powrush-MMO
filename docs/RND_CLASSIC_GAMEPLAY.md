@@ -15,6 +15,12 @@ Sherif Botros, 2026-10-23 3:53 AM ET, verbatim:
 
 How we apply it: every shortlisted item has a **Fun** line and a **Real-world skill** line. The skill lines are **design intent only**. We make no claim of proven learning outcomes; any such claim would need real playtesting and evidence first.
 
+Sherif Botros, 2026-10-23 3:54 AM ET, verbatim:
+
+> "Also include fun without education, Lmao, Mates!"
+
+So the real-world skill lines are **optional, never required**. A feature can exist purely because it is fun. See "Just for fun (no lesson)" below.
+
 ## Ground rules
 
 - **Inspiration only.** We take design ideas, never names, assets, code, music, UI layouts or trademarks. Every adopted mechanic gets a Powrush-native name and look (the painted powrush.com style).
@@ -102,6 +108,19 @@ Source: https://en.wikipedia.org/wiki/Star_Control_II
 10. **Gentle living world.** *Fun:* coming back to a world that moved on in small, charming ways. *Real-world skill:* patience and noticing change over time, with no pressure to be always on.
 
 Considered and set aside for now: Test Drive's police chase (it needs vehicles and combat-adjacent pressure) and Ace of Aces/Star Control melee duels (deferred until combat design exists, then strong candidates for readable 1v1 duels in Combat zones).
+
+## Just for fun (no lesson): council recommendations, pending Sherif's OK
+
+These are pure play, with no skill goal attached. TOLC still applies: everything is earned in play or free, with no loot boxes, no FOMO timers, no pay-to-win and no copied names or assets.
+
+| # | Idea | Inspiration (verified above) | Powrush mapping | Effort | Core vote? |
+|---|---|---|---|---|---|
+| F1 | **Skiff rally**: time-trial races, with ghost replays of your own best run | Test Drive (Accolade) racing | Hover-skiff circuits around the Brood Spire and TAUN hull, with offline ghosts saved locally. | M | Yes (save, physics) |
+| F2 | **Silly-physics stunts**: bouncy mushrooms, gust vents, ragdoll tumbles | Accolade-era arcade play (general inspiration) | Heartwood bounce-caps and Threshold wind-vents in Peace zones. You can't take damage, only laugh. | S | No |
+| F3 | **Secret rooms and easter eggs**: hidden nooks with jokes and painted vignettes | Era tradition of hidden content (general inspiration; no specific game claimed) | Hand-placed secrets in all 4 Places and both hubs, logged in a "Curiosities" ledger page. | S | No |
+| F4 | **Emotes and dances**: free gestures, group dances, sit by the fire | MMO social play, e.g. Ultima Online (inspiration only) | Sanctuary campfire circle, plus Draek and Quellorian dance styles. All are free to unlock in play. | S | Yes (animation assets) |
+| F5 | **Little companions**: a harmless critter that follows you and reacts | Original Powrush idea (no direct classic source; flagged honestly) | Befriend a Depths glow-moth or a Heartwood burrower with food. It does nothing useful and is just cute. | M | Yes (save, AI) |
+| F6 | **Goofy hats and Hub minigames**: crafted silly hats, plus a timing-swing "skystone toss" golf-like minigame | Mean 18 / Jack Nicklaus three-click swing (Accolade) | Crafted hats with painted art (no AI crests, no flags). Skystone toss courses on the orbital hubs' outer decks. | M | No |
 
 ## 4. Next steps (if Sherif approves)
 
