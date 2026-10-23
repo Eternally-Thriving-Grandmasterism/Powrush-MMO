@@ -19,19 +19,23 @@ Sherif Botros, 2026-10-23 4:00 AM ET, verbatim:
 
 > "Let's make a card limit so we don't have feature creep like hearthstone too many cards and league of legends too many heroes to have a real meta to allow skilled players near 100% win like Starcraft 2 fairplay instead of praying to RNGeezus for luck, Lmao, Mates!"
 
-Council design. The exact numbers are a **council proposal** pending Sherif's OK.
+Council design. The 64 cap and the 8×8 structure are Sherif's rulings. The family split is a **council proposal** pending Sherif's OK.
 
 ### Hard pool cap
 
-- **Proposed cap: 72 cards in total, and the game can never hold more.**
-  - Draek: 20.
-  - Quellorian: 20.
-  - Places: 24 (4 Places × 6).
-  - Neutral, including companion allies: 8.
-- **Why 72:** it's small enough that every player can learn every card, so matches are decided by skill, not by unfamiliar cards.
-  - By contrast, Hearthstone has built up thousands of collectible cards over its expansions, and League of Legends has well over 150 champions. **UNKNOWN**: we didn't verify the exact current counts this pass.
-  - 72 still gives each faction enough room for 2–3 distinct strategies.
-- **Replace, never add.** A new card enters only by replacing an existing card in the same slot. The total is fixed at 72, and the replaced card goes into an archive so it can still be played casually.
+- **Hard cap: 64 cards in total, and the game can never hold more.** This is Sherif's ruling, 2026-10-23 4:04 AM ET, verbatim: "64 (8 families of 8)".
+- **Structure (ruled): 8 families of 8 cards each.**
+- **Family list (council proposal, pending Sherif's OK). Chosen option, 2 + 2 + 4:**
+  - **Draek:** 2 families (16 cards), the Brood and the Spire-forge.
+  - **Quellorian:** 2 families (16 cards), the TAUN Stewards and the Lightwardens.
+  - **Places:** 4 families (32 cards), one each for Sanctuary, Heartwood, Threshold and Depths.
+  - Neutral cards are folded into the Place families. For example, companion allies live where they belong: the glow-moth in Depths and the burrower in Heartwood.
+  - *Why this option:* it maps one-to-one onto the 4 hand-made Places players already know, gives both peoples equal weight, and needs no separate "neutral" category to learn.
+- **Alternative (not chosen), 2 + 2 + 3 + 1:** 2 Draek, 2 Quellorian, 3 Place families, and 1 Neutral family for companions and wanderers. Its downside is that one Place would have to share a family or be left out.
+- **Why 64 and families of 8:**
+  - Working memory is usually estimated at about 4 chunks (Cowan 2001, https://doi.org/10.1017/S0140525X01003922) up to 7±2 (Miller 1956, https://doi.org/10.1037/h0043158). Families of 8 cards, in 8 families, keep the whole pool learnable as chunks.
+  - By contrast, Hearthstone launched with about 378 collectible cards (133 Basic + 245 Expert), per https://liquipedia.net/hearthstone/Card_Set (we didn't re-check the figure this pass), and it has grown much larger since. League of Legends has well over 150 champions (**UNKNOWN**: we didn't verify the exact current count).
+- **Replace, never add.** A new card enters only by replacing an existing card in the same slot. The total is fixed at 64 (each family stays at 8), and the replaced card goes into an archive so it can still be played casually.
 - **No power creep.** A replacement must pass the same balance tests as the card it replaces.
 
 ### Skill-first, low-RNG rules
@@ -89,7 +93,7 @@ Council design. The exact numbers are a **council proposal** pending Sherif's OK
 1. **How you get cards:** as loot from zones and set-pieces (deterministic first-clear drops plus visible drop tables), as gifts from companions, from **crafting** cards at a scribe's table using harvested inks and pigments (this ties into the ledger economy), and from quests. No random paid packs.
 2. **Play:** short duels (5–10 minutes) against AI opponents at hub tables first, offline. PvP comes later, once networking exists. You can use pre-built starter decks or build your own.
 3. **Trading:** uses the same safe-trade path as companions: offline gift letters now, two-sided escrow with a preview later.
-4. **Fairness:** the shared core set within the 72-card cap means any deck can compete. There's an optional "table draft" mode where everyone builds from the same pool.
+4. **Fairness:** the shared core set within the 64-card cap means any deck can compete. There's an optional "table draft" mode where everyone builds from the same pool.
 5. **Fun:** table banter from NPC players, painted animated cards, and a hub tournament ladder that awards trophies only.
 6. **Optional real-world skills** (design intent only, no proven outcomes claimed): probability, planning ahead, and resource management.
 
@@ -98,7 +102,7 @@ Council design. The exact numbers are a **council proposal** pending Sherif's OK
 | Card | Scope | Effort | Core vote? |
 |---|---|---|---|
 | CARD-1 | Rules engine (pure Rust, tests) + RON card schema | M | No |
-| CARD-2 | Core set within the hard cap of 72 (council proposal): Draek 20, Quellorian 20, Places 24, Neutral 8 | M | Yes (art assets, cap) |
+| CARD-2 | Core set: hard cap of 64, 8 families × 8 (Sherif's ruling); families 2 Draek + 2 Quellorian + 4 Places (council proposal) | M | Yes (art assets, cap) |
 | CARD-2b | Fixed or player-chosen draws, no random effects, visible pre-match seed | S | No |
 | CARD-2c | Mirror mode + automated AI balance tests and win-rate band in CI | M | No |
 | CARD-2d | Offline ranked AI tiers + local skill rating | M | Yes (save) |

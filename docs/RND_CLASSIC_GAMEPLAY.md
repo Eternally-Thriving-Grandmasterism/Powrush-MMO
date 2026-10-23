@@ -38,7 +38,7 @@ Council application to the whole game. These are **design goals, not guarantees*
    - Combat abilities per kit.
    - Item sets.
 
-   New content **replaces or rotates within the cap** rather than piling up. The card game's 72-card cap is the model (see [`CARD_GAME_DESIGN.md`](CARD_GAME_DESIGN.md)).
+   New content **replaces or rotates within the cap** rather than piling up. The card game's 64-card cap (8 families of 8, Sherif's ruling, 2026-10-23 4:04 AM ET) is the model (see [`CARD_GAME_DESIGN.md`](CARD_GAME_DESIGN.md)).
 2. **Skill first, minimal hidden RNG.**
    - Odds are visible wherever chance exists.
    - No random critical hits deciding fights.
