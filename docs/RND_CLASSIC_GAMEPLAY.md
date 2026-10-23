@@ -123,6 +123,11 @@ These are pure play, with no skill goal attached. TOLC still applies: everything
 | F5 | **Little companions**: a harmless critter that follows you and reacts | Original Powrush idea (no direct classic source; flagged honestly) | Befriend a Depths glow-moth or a Heartwood burrower with food. It does nothing useful and is just cute. Expanded in [`COMPANIONS_DESIGN.md`](COMPANIONS_DESIGN.md) (COMP-0, pending Sherif's OK). | M | Yes (save, AI) |
 | F6 | **Goofy hats and Hub minigames**: crafted silly hats, plus a timing-swing "skystone toss" golf-like minigame | Mean 18 / Jack Nicklaus three-click swing (Accolade) | Crafted hats with painted art (no AI crests, no flags). Skystone toss courses on the orbital hubs' outer decks. | M | No |
 
+## Related designs
+
+- Companions: [`COMPANIONS_DESIGN.md`](COMPANIONS_DESIGN.md) (COMP-0, pending Sherif's OK).
+- Collectible duel card game: [`CARD_GAME_DESIGN.md`](CARD_GAME_DESIGN.md) (CARD-0, pending Sherif's OK).
+
 ## 4. Next steps
 
 1. Sherif approved the lists ("Approved.", 2026-10-23 3:55 AM ET). Each build card still has to pass the council gates.
