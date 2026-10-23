@@ -18,7 +18,12 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest]
+        # Linux leg is pinned to ubuntu-24.04 (not ubuntu-latest) so the
+        # packaged powrush-client binary links against glibc 2.39, matching
+        # the clean-boot runner's ubuntu:24.04 container. ubuntu-latest has
+        # started migrating to a newer image with glibc 2.43, which the
+        # clean-boot container can't satisfy (see CI-GLIBC-PIN-1).
+        os: [ubuntu-24.04, windows-latest]
     steps:
       - uses: actions/checkout@v4
 
