@@ -24,7 +24,7 @@ Consequence:
 
 ## 2. Reference games (inspiration only)
 
-No names, assets or mechanics are copied. Only widely known public facts:
+Only common genre patterns (acts, waypoints) are borrowed; no names or assets are copied. Only widely known public facts:
 - **Diablo 2** — acts each with a distinct biome; outdoor areas and dungeons
   assembled from tile sets per playthrough; fixed hand-authored set-pieces
   and towns; waypoints for fast travel between visited areas.
@@ -34,11 +34,13 @@ No names, assets or mechanics are copied. Only widely known public facts:
 
 ## 3. Shape of the world
 
+> **Status of §3–§5:** council proposals pending council / Core review (one biome per act, waypoints, room-graph / tile generation, hubs always Peace / never generated, seed + edits + version save). Only Peace + Combat zones (§1) and the two reference games (§2) are Sherif's rulings.
+
 - **Biome per act.** Each act has one biome with its own tile kit and reuses
   the existing Place mood from `client/src/climate_plane.rs` (fog / tint /
   weather beds) per PLACE_DRESS_SPEC. Act list and order: **OPEN**.
-- **Hub towns = existing hand-made Places** (Sanctuary, Heartwood, Threshold, Depths; PLACES_BIBLE Heartwood rings L28 for Threshold;
-  `shared/hex_travel.rs` `PlaceId` has only Sanctuary / Heartwood / Depths — Threshold has no PlaceId yet). Hubs are never generated.
+- **Hub towns = existing hand-made Places** (Sanctuary, Heartwood, Depths). Threshold is not a hub town: in code it is a Heartwood roof shelf, not a PlaceId (`client/src/hex_travel.rs` L115; `shared/threshold_shelf.rs`; PLACES_BIBLE Heartwood rings L28);
+  `shared/hex_travel.rs` `PlaceId` has only Sanctuary / Heartwood / Depths. Hubs are never generated.
   Market is not a Place (PLACES_BIBLE).
 - **Generated zones** hang off a hub. Each zone = seeded room graph + tiles.
 
@@ -70,6 +72,7 @@ Look stays within ART_BIBLE and the visual-pass order on TARGET_BOARD
 ## 6. OPEN — pending Sherif
 
 - Acts and biome order.
+- Act structure (how many acts, what an act is).
 - New Places, e.g. the Cydruid stalactite city (PLAYABLE_RACES; no PlaceId yet).
 - Shared world seed vs per-character seed; whether zones re-roll.
 - Loot rarity vs crafting-first economy.
@@ -81,7 +84,7 @@ Look stays within ART_BIBLE and the visual-pass order on TARGET_BOARD
 | Card | Scope | Core vote |
 |---|---|---|
 | PGEN-1 | Pure seeded room-graph + edge-matching tile stitch in `shared/`, `layout_hash` tests | **yes** |
-| PGEN-2 | One Depths-biome tile kit, one Peace zone below Depths behind a flag, wired to `climate_plane` | **yes** (runtime) |
+| PGEN-2 | One Depths-biome tile kit, one Peace zone below Depths behind a feature flag, wired to `climate_plane` | **yes** (runtime) |
 | PGEN-3 | Waypoint save flag + Places-plate entry; seed+edits+version save | **yes** (persist schema) |
 
 Combat spawns follow after an enemy-design card (not numbered here).
