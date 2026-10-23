@@ -14,16 +14,16 @@ Add further plates by name + URL as cards cite them.
 ## Target goals
 - **Palette:** lively valley colour, sky blues, golden-hour warms, one bold accent per place (earth tone: open question — site "muted earth" vs bible "no brown/beige earth").
 - **Golden-hour light:** low warm sun, long soft shadows, warm/cool split.
-- **Aerial haze:** distance desaturates to blue; behind plates, never through type.
+- **Aerial haze (pending Q3):** distance desaturates to blue; behind plates, never through type.
 - **Layered blue mountains:** 3+ silhouette depth bands.
 - **Terraces:** stepped, readable terrain shelves.
 - **Water:** falls, pools, reflective surfaces ("water is a bath").
-- **Dense vegetation:** layered foliage, canopy breakup.
+- **Dense vegetation (pending Q4):** layered foliage, canopy breakup.
 - **Warm lamps:** emissive points against cool dusk; glow = Use.
 
 ## Presets
 - **Low / Medium:** strict frame-time budgets (budgets to be set per card), gameplay readability first; no effect may obscure plates, Use glow or Mute-safety.
-- **High / Ultra:** beauty as far as Bevy 0.20 allows — SSAO, SSR, TAA, volumetric/atmospheric fog, environment-map lighting, dense vegetation. Ultra is added by **VP-ULTRA-1**.
+- **High / Ultra:** beauty as far as Bevy 0.20 (client crate; host and divine-module remain on 0.14 — Core to rule which crate visual cards target) allows — SSAO, SSR, TAA, volumetric/atmospheric fog, environment-map lighting, dense vegetation. Ultra is added by **VP-ULTRA-1**.
 
 ## Ordered card plan
 Acceptance for every card: before/after **Low + Medium** shots in `docs/visual-pass/<card>/` plus a side-by-side vs a named plate (High/Ultra shots too where the card touches them). **Every render card needs Core's vote.**
@@ -44,4 +44,4 @@ Acceptance for every card: before/after **Low + Medium** shots in `docs/visual-p
 | 12 | VP-VFX-1 | capped Tend/Flow VFX | 12 |
 | 13 | VP-ULTRA-1 | Ultra preset: SSAO, SSR, TAA, volumetric fog, env lighting, max vegetation (after quick wins) | 13 |
 
-**Beauty per millisecond ranking** (estimate; re-rank with measured GPU ms after each card): AIR-1 > LIGHT-1 > SKY-2 > AA-1 > MAT-1 > GLOW-1 > TERRAIN-1 > AO-1 > WATER-1 > VEG-1 > CHAR-1 > VFX-1 > ULTRA-1. Cheap fullscreen/lighting changes first; geometry- and screen-space-heavy work later and gated to High/Ultra.
+**Beauty per millisecond ranking** (estimate; re-rank with measured GPU ms after each card): AIR-1 > LIGHT-1 > SKY-2 > AA-1 > MAT-1 > GLOW-1 > TERRAIN-1 > AO-1 > WATER-1 > VEG-1 > CHAR-1 > VFX-1 > ULTRA-1. Cheap fullscreen/lighting changes first; geometry- and screen-space-heavy work later and limited to High/Ultra.
