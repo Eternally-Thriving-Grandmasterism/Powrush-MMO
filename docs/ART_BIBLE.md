@@ -5,7 +5,7 @@ No certification / AGSi warranty / legal-product claims.
 **Law:** Glow is the Use target. Fog is weather. The week is the bill. Art that hides the bill is vetoed.
 See also: PHYSICS_GRAPHICS_CANON.md, AUDIO_DIRECTION.md, IMAGINE_TRAILER_PACK.md, DRIVE_LORE_ADAPTATION.md.
 
-Site paintings: [`CODEX_ART_PROMPTS.md`](CODEX_ART_PROMPTS.md). CODEX only. A teal cave reused for every people is a defect. CODEX look source only: Drive folder `1Bqt2osAm1-6bXEB4U_RNo5Qd_4q58liv` ("Corrected Powrush Art") — painterly-photoreal, ivory, champagne gold, lavender, violet, warm lamps, expressive faces when people are the subject. Content still comes only from this file and [`CODEX_ART_PROMPTS.md`](CODEX_ART_PROMPTS.md). HANDS stays the gritty low-poly lane and is not the site-painting look.
+Site paintings: [`CODEX_ART_PROMPTS.md`](CODEX_ART_PROMPTS.md). CODEX only. A teal cave reused for every people is a defect. CODEX look source only: Drive folder `1Bqt2osAm1-6bXEB4U_RNo5Qd_4q58liv` ("Corrected Powrush Art") — painterly-photoreal, ivory, champagne gold, lavender, violet, warm lamps, expressive faces when people are the subject. Content still comes only from this file and [`CODEX_ART_PROMPTS.md`](CODEX_ART_PROMPTS.md). HANDS now pushes toward the powrush.com painted look (see Direction override below).
 Rejected plates are not refs. Drive folder `1T4Gpg1anyid9-mh88p2xX-ZNZbEGuFLm` is a discard. Cite [`CODEX_ART_PROMPTS.md`](CODEX_ART_PROMPTS.md).
 
 ## Two lanes
@@ -15,11 +15,24 @@ Rejected plates are not refs. Drive folder `1T4Gpg1anyid9-mh88p2xX-ZNZbEGuFLm` i
 | HANDS | play-offline / store | `P-##` |
 | CODEX | lore paintings / trailer coda | `C-##` |
 
-Do not fuse. Mothership bay in a HANDS still is a defect.
+Lanes stay tagged, but the look now converges: **HANDS pushes toward the powrush.com painted look.** Content separation stays — mothership bay in a HANDS still is a defect.
+
+### Direction override (VP-TARGET-0)
+
+Source: Sherif Botros, 2026-10-23 1:47 AM ET, verbatim: *"Override the art bible and push the game toward the painted site look"*; follow-up: *"Maximally."* This replaces the former "not the site-painting look / Do not fuse" rule. Targets and card plan: [`visual-pass/TARGET_BOARD.md`](visual-pass/TARGET_BOARD.md).
+
+Unchanged: no art reuse across sites (site plates are look targets, never shipped assets); Sherif's four custom Ra-Thor/Grok images and videos are off-limits; CODEX_ART_PROMPTS.md remains the source for new art content; Fog is weather; particle caps; no second Camera3d.
+
+Open council questions (not resolved here):
+1. Site caption says "muted earth, plus one bold accent colour for each place" vs VISUAL-PASS-1 (a) "no brown or beige earth". Which wins for HANDS?
+2. "Gritty low-poly volume" (One shader family) vs painted look — keep low-poly silhouettes with painterly light/material, or raise geometry density?
+3. Atmospheric/volumetric haze (aerial perspective) vs "Climate fog behind plates, never through type" / "Fog is weather" — is distance haze allowed as constant atmosphere or only as weather?
+4. Dense vegetation/High–Ultra effects vs particle caps and "Grove light opt-in" — do caps scale per preset?
+5. CODEX look source (ivory, champagne gold, lavender) vs site blue-mountain/golden-hour palette for HANDS.
 
 ## One shader family
 
-Gritty low-poly volume, high-detail light. Lively valley colour + one biome accent (council ruling VISUAL-PASS-1 (a), 2026-10-04: no brown or beige earth).
+Gritty low-poly volume, high-detail light (under review: see open question 2; direction is toward the painted site look). Lively valley colour + one biome accent (council ruling VISUAL-PASS-1 (a), 2026-10-04: no brown or beige earth).
 Climate fog behind plates, never through type. Node glow = Use. Lamp disk empty.
 Water is a bath. Particles: Tend/Flow dust only, capped, off with Mute.
 No second Camera3d. Grove light opt-in.
