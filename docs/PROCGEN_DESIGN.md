@@ -20,7 +20,6 @@ Consequence:
   `docs/DRAEK_FLEET_AI_SYSTEMS.md`, `docs/DRAEK_FLEET_AI_BEHAVIOR_PATTERNS.md`,
   `docs/QUELLORIAN_RESONANCE_AI_SYSTEMS.md`,
   `docs/QUELLORIAN_RESONANCE_AI_BEHAVIOR_PATTERNS.md`.
-- Hub towns are always Peace.
 
 ## 2. Reference games (inspiration only)
 
@@ -41,6 +40,7 @@ Only common genre patterns (acts, waypoints) are borrowed; no names or assets ar
   weather beds) per PLACE_DRESS_SPEC. Act list and order: **OPEN**.
 - **Hub towns = existing hand-made Places** (Sanctuary, Heartwood, Depths). Threshold is not a hub town: in code it is a Heartwood roof shelf, not a PlaceId (`client/src/hex_travel.rs` L115; `shared/threshold_shelf.rs`; PLACES_BIBLE Heartwood rings L28);
   `shared/hex_travel.rs` `PlaceId` has only Sanctuary / Heartwood / Depths. Hubs are never generated.
+- Hub towns are always Peace.
   Market is not a Place (PLACES_BIBLE).
 - **Generated zones** hang off a hub. Each zone = seeded room graph + tiles.
 
