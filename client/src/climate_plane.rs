@@ -445,7 +445,9 @@ fn look_fog(look: ClimateLook) -> ArrivalFog {
 
 /// CARD L7 — fog keyed by PeopleLanding from existing [`look_for`] only.
 /// Ambrosian keeps SanctuarySkyYard family, brighter / thinner (high).
-/// mothership-over-Earth PRESENTATION; no hull mesh.
+/// mothership-over-Earth PRESENTATION; no hull mesh. Sherif's 3:46 AM ET
+/// 2026-10-23 ruling, "Lift!", allows walkable orbital hub interiors for TAUN
+/// and TBS (The Brood Spire) only.
 pub fn arrival_fog_for_landing(landing: PeopleLanding) -> ArrivalFog {
     let look = look_for(dress_realm_for_place(landing.place_id()));
     match landing {
