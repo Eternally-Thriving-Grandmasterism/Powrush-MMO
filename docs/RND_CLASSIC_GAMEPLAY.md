@@ -22,6 +22,34 @@ Sherif Botros, 2026-10-23 3:54 AM ET, verbatim:
 
 So the real-world skill lines are **optional, never required**. A feature can exist purely because it is fun. See "Just for fun (no lesson)" below.
 
+## Game-wide fair-play rules (Sherif's ruling)
+
+Sherif Botros, 2026-10-23, verbatim:
+
+> 4:00 AM ET: "Let's make a card limit so we don't have feature creep like hearthstone too many cards and league of legends too many heroes to have a real meta to allow skilled players near 100% win like Starcraft 2 fairplay instead of praying to RNGeezus for luck, Lmao, Mates!"
+>
+> 4:01 AM ET: "Some of these apply beyond the card games"
+
+Council application to the whole game. These are **design goals, not guarantees**, and the exact caps are council proposals pending Sherif's OK.
+
+1. **Content caps, no bloat.** Each of these is a curated, capped roster:
+   - Playable peoples and classes.
+   - Companion species.
+   - Combat abilities per kit.
+   - Item sets.
+
+   New content **replaces or rotates within the cap** rather than piling up. The card game's 72-card cap is the model (see [`CARD_GAME_DESIGN.md`](CARD_GAME_DESIGN.md)).
+2. **Skill first, minimal hidden RNG.**
+   - Odds are visible wherever chance exists.
+   - No random critical hits deciding fights.
+   - Combat rules are deterministic where practical (fixed damage, readable telegraphs).
+3. **Procgen randomness is for layout only.** Seeds may shape maps, rooms and resource placement (see `docs/PROCGEN_DESIGN.md`, PR #757). They never decide the outcome of a fair duel or a ranked contest.
+4. **Open information.** Stats, recipes, drop tables and inheritance odds can all be seen in-game. No hidden values to grind.
+5. **Mirror fairness and balance tests.** Fair duels offer mirror or equal-kit modes. Automated AI-sim balance tests keep each faction or kit within a win-rate band.
+6. **Cross-references.**
+   - Companions: breeding surprises are cosmetic only, and traits and odds are shown in advance (see [`COMPANIONS_DESIGN.md`](COMPANIONS_DESIGN.md)).
+   - Procgen: layout seeds are fine.
+
 ## Ground rules
 
 - **Inspiration only.** We take design ideas, never names, assets, code, music, UI layouts or trademarks. Every adopted mechanic gets a Powrush-native name and look (the painted powrush.com style).

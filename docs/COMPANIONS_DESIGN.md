@@ -9,6 +9,12 @@ Inspiration only: no names, creatures, assets, code or trademarks are copied fro
 
 The design rules from earlier rulings still apply: aim for maximal fun; real-world skill lines are optional and never required; pure fun is welcome; TOLC (mercy, no dark patterns, no loot boxes, FOMO or pay-to-win); offline-by-default; Bevy 0.20.
 
+Fair-play note: this design follows the game-wide fair-play rules in [`RND_CLASSIC_GAMEPLAY.md`](RND_CLASSIC_GAMEPLAY.md#game-wide-fair-play-rules-sherifs-ruling):
+- A capped, curated species roster.
+- Visible traits and odds.
+- Breeding surprises are cosmetic only.
+- Companions are side-grades that never decide a fair duel.
+
 ## 1. Research (cited; **UNKNOWN** where we couldn't confirm)
 
 How we sourced this: we read the ARK imprinting page in full while writing this. The other claims come from the pages cited and from well-documented community knowledge, and we did not re-read each of those pages this pass. Anything marked UNKNOWN is uncertain and shouldn't be cited as fact.
