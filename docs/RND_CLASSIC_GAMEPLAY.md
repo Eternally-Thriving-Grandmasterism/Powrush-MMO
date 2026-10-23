@@ -1,6 +1,7 @@
 # R&D: Classic Gameplay Lessons for Powrush-MMO
 
-Status: **DRAFT. Council recommendations, pending Sherif's OK.** Nothing here is a ruling. Nothing here has been voted on.
+Status: **APPROVED BY SHERIF.** The 10 ranked items and F1–F6 are approved. Sherif Botros, 2026-10-23 3:55 AM ET, verbatim: "Approved."
+Each build card still has to pass the council gates, including a Core vote wherever one is flagged. Items marked "considered and set aside" stay dropped.
 Scope: docs only. No code, assets or schema changes.
 
 ## The ask (Sherif Botros, 2026-10-23 3:50 AM ET, verbatim)
@@ -79,7 +80,7 @@ Source: https://en.wikipedia.org/wiki/Star_Control_II
 - **Core (runtime cost):** "Core vote needed" means the item touches the save format, the simulation tick, or the asset pipeline budget.
 - **TOLC exclusions:** We dropped Star Control II's doom clock as a pressure mechanic (FOMO-adjacent). We also dropped loot-box-style randomized rewards, timed exclusives and grind-gated progress. The world clock only survives as an *optional, gentle* living-world idea.
 
-## 3. Ranked shortlist: council recommendations, pending Sherif's OK
+## 3. Ranked shortlist: approved by Sherif ("Approved.", 2026-10-23 3:55 AM ET)
 
 | # | Mechanic (Powrush-native working name) | Inspiration | Maps to Powrush | Effort | Core vote? | Risk |
 |---|---|---|---|---|---|---|
@@ -109,7 +110,7 @@ Source: https://en.wikipedia.org/wiki/Star_Control_II
 
 Considered and set aside for now: Test Drive's police chase (it needs vehicles and combat-adjacent pressure) and Ace of Aces/Star Control melee duels (deferred until combat design exists, then strong candidates for readable 1v1 duels in Combat zones).
 
-## Just for fun (no lesson): council recommendations, pending Sherif's OK
+## Just for fun (no lesson): approved by Sherif ("Approved.", 2026-10-23 3:55 AM ET)
 
 These are pure play, with no skill goal attached. TOLC still applies: everything is earned in play or free, with no loot boxes, no FOMO timers, no pay-to-win and no copied names or assets.
 
@@ -122,9 +123,9 @@ These are pure play, with no skill goal attached. TOLC still applies: everything
 | F5 | **Little companions**: a harmless critter that follows you and reacts | Original Powrush idea (no direct classic source; flagged honestly) | Befriend a Depths glow-moth or a Heartwood burrower with food. It does nothing useful and is just cute. | M | Yes (save, AI) |
 | F6 | **Goofy hats and Hub minigames**: crafted silly hats, plus a timing-swing "skystone toss" golf-like minigame | Mean 18 / Jack Nicklaus three-click swing (Accolade) | Crafted hats with painted art (no AI crests, no flags). Skystone toss courses on the orbital hubs' outer decks. | M | No |
 
-## 4. Next steps (if Sherif approves)
+## 4. Next steps
 
-1. Sherif picks or reorders items.
+1. Sherif approved the lists ("Approved.", 2026-10-23 3:55 AM ET). Each build card still has to pass the council gates.
 2. Clerk writes per-item design stubs in `docs/`.
 3. Core votes on the save, tick and asset items (1, 3, 5, 6, 8, 10).
 4. Hands prototypes item 4 (S effort) first as a low-risk test.
