@@ -13,6 +13,47 @@ How we read it: we took **"payable" as "playable"**. Whether there should be a *
 
 We recommend an in-world collectible duel card game, played at tables in the hub towns (the Draek Brood Spire and the Quellorian TAUN) and in Sanctuary.
 
+## Card cap and skill-first rule (Sherif's ruling)
+
+Sherif Botros, 2026-10-23 4:00 AM ET, verbatim:
+
+> "Let's make a card limit so we don't have feature creep like hearthstone too many cards and league of legends too many heroes to have a real meta to allow skilled players near 100% win like Starcraft 2 fairplay instead of praying to RNGeezus for luck, Lmao, Mates!"
+
+Council design. The exact numbers are a **council proposal** pending Sherif's OK.
+
+### Hard pool cap
+
+- **Proposed cap: 72 cards in total, and the game can never hold more.**
+  - Draek: 20.
+  - Quellorian: 20.
+  - Places: 24 (4 Places × 6).
+  - Neutral, including companion allies: 8.
+- **Why 72:** it's small enough that every player can learn every card, so matches are decided by skill, not by unfamiliar cards.
+  - By contrast, Hearthstone has built up thousands of collectible cards over its expansions, and League of Legends has well over 150 champions. **UNKNOWN**: we didn't verify the exact current counts this pass.
+  - 72 still gives each faction enough room for 2–3 distinct strategies.
+- **Replace, never add.** A new card enters only by replacing an existing card in the same slot. The total is fixed at 72, and the replaced card goes into an archive so it can still be played casually.
+- **No power creep.** A replacement must pass the same balance tests as the card it replaces.
+
+### Skill-first, low-RNG rules
+
+- **Open information:** both players' decks are public lists, and there's a shared visible card pool.
+- **Draws are fixed or chosen by the player.** Each player arranges their deck order before the match (or chooses each draw from their next three cards). There is no random shuffle in ranked play.
+- **No random effects:** no random damage, no random targets and no "discover a random card".
+- **Seeded randomness only where it can't be avoided:** for example, who goes first. Even then it is shared, visible and announced ahead (a pre-match seed both players see), and the second player gets a small compensation.
+- **Mirror-match fairness:**
+  - Ranked play offers a mode where both players use the same faction or deck.
+  - Automated balance tests run simulated AI matches, and every faction's win rate must stay within a set band.
+  - Faction-vs-faction matchups are tracked in CI.
+
+### Ranked skill, offline first
+
+- Ranked skill is measured first against AI tiers, offline (for example Novice, Adept, Master and Grandmaster). Each tier is a fixed, documented AI.
+- A skill rating is kept locally. Player-vs-player ladders come after networking.
+
+### Honesty note
+
+"Skilled players near 100% win" is a **design goal, not a guarantee**. Fixed draws and open information shrink luck a lot, but in any game against a thinking opponent the outcome stays uncertain. StarCraft II is cited **only as inspiration** for the feeling that skill decides the match. We copy nothing from it.
+
 ## 1. Research (cited; **UNKNOWN** where we couldn't confirm)
 
 - **Hearthstone** (Blizzard Entertainment, 2014), https://en.wikipedia.org/wiki/Hearthstone:
@@ -48,7 +89,7 @@ We recommend an in-world collectible duel card game, played at tables in the hub
 1. **How you get cards:** as loot from zones and set-pieces (deterministic first-clear drops plus visible drop tables), as gifts from companions, from **crafting** cards at a scribe's table using harvested inks and pigments (this ties into the ledger economy), and from quests. No random paid packs.
 2. **Play:** short duels (5–10 minutes) against AI opponents at hub tables first, offline. PvP comes later, once networking exists. You can use pre-built starter decks or build your own.
 3. **Trading:** uses the same safe-trade path as companions: offline gift letters now, two-sided escrow with a preview later.
-4. **Fairness:** the shared core set means any deck can compete. There's an optional "table draft" mode where everyone builds from the same pool.
+4. **Fairness:** the shared core set within the 72-card cap means any deck can compete. There's an optional "table draft" mode where everyone builds from the same pool.
 5. **Fun:** table banter from NPC players, painted animated cards, and a hub tournament ladder that awards trophies only.
 6. **Optional real-world skills** (design intent only, no proven outcomes claimed): probability, planning ahead, and resource management.
 
@@ -57,7 +98,10 @@ We recommend an in-world collectible duel card game, played at tables in the hub
 | Card | Scope | Effort | Core vote? |
 |---|---|---|---|
 | CARD-1 | Rules engine (pure Rust, tests) + RON card schema | M | No |
-| CARD-2 | Core set: ~40 cards across Draek, Quellorian and Places | M | Yes (art assets) |
+| CARD-2 | Core set within the hard cap of 72 (council proposal): Draek 20, Quellorian 20, Places 24, Neutral 8 | M | Yes (art assets, cap) |
+| CARD-2b | Fixed or player-chosen draws, no random effects, visible pre-match seed | S | No |
+| CARD-2c | Mirror mode + automated AI balance tests and win-rate band in CI | M | No |
+| CARD-2d | Offline ranked AI tiers + local skill rating | M | Yes (save) |
 | CARD-3 | AI opponent + hub table scene | M | No |
 | CARD-4 | Collection in the save + loot/craft sources | M | Yes (save) |
 | CARD-5 | Scribe crafting (ledger tie-in) | S | No |
