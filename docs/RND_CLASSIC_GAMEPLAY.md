@@ -7,6 +7,14 @@ Scope: docs only. No code, assets or schema changes.
 
 > "Tons of ancient games from Accolade and similar had amazing gameplay which most people never got to experience. Let's conduct R&D to enhance the Powrush-MMO gaming overall experience, because it'll offer something most people never had or may be nostalgic for if they did, and also, is so different than current games which seem like slop, Mate, all thoughtfully, wisely and creatively with Rathor.ai full TOLCing, properly and respectively!"
 
+## Design principle (Sherif's ruling)
+
+Sherif Botros, 2026-10-23 3:53 AM ET, verbatim:
+
+> "When designing after research, aim for maximal fun, and transferable skills as well as useful ideas to enhance end-users overall better problem solving skills and useful techniques to properly apply on reality with finesse to thrive with positive emotions maximally overall, Mates!"
+
+How we apply it: every shortlisted item has a **Fun** line and a **Real-world skill** line. The skill lines are **design intent only**. We make no claim of proven learning outcomes; any such claim would need real playtesting and evidence first.
+
 ## Ground rules
 
 - **Inspiration only.** We take design ideas, never names, assets, code, music, UI layouts or trademarks. Every adopted mechanic gets a Powrush-native name and look (the painted powrush.com style).
@@ -79,6 +87,19 @@ Source: https://en.wikipedia.org/wiki/Star_Control_II
 | 8 | **Your vessel is your home**: an upgradable personal craft | Star Control II flagship upgrades | A personal skiff or chamber docked at the Spire or TAUN, upgraded with crafted parts. It's a cosmetic and utility home, not a power ladder. | M | Yes (save/assets) | Becoming a grind treadmill; cap the upgrades. |
 | 9 | **Many ways to thrive**: plural endgame goals | Civilization's multiple victory paths | Recognise mastery in craft, cartography, diplomacy, stewardship or (later) combat. No single "best" path. | S (docs/design) | No | It needs the other systems first. |
 | 10 | **Gentle living world**: the world turns while you rest | Star Control II world clock (softened) | Seasons and NPC routines advance in game time, never punishing absence and never using missed-event FOMO. | M | Yes (sim tick) | Drifting toward FOMO; a TOLC review is required. |
+
+### Fun and real-world skill per item (design intent, not proven outcomes)
+
+1. **Virtue Path.** *Fun:* the world noticing your kindness feels personal and surprising. *Real-world skill:* empathy and ethical reasoning, from weighing dilemmas where every choice has a cost.
+2. **Voices of the Spire and TAUN.** *Fun:* the detective joy of piecing together hints from strange, funny characters. *Real-world skill:* active listening and inference, from reading between the lines and checking a claim against a second source.
+3. **Hearth hub and wild descent.** *Fun:* the risk-and-reward thrill of venturing out and coming home safe. *Real-world skill:* planning and risk assessment, from packing, choosing when to turn back and judging what you can handle.
+4. **Three-beat craft timing.** *Fun:* the satisfying "click" of nailing a rhythm. *Real-world skill:* rhythm, focus and calm under light pressure, plus the habit of practising for steady improvement.
+5. **Standing with Houses.** *Fun:* doors opening because people trust you. *Real-world skill:* negotiation and reputation management, from fair dealing, keeping promises and seeing other parties' interests.
+6. **Shape the land, not the people.** *Fun:* the cozy pleasure of watching a grove and its settlers flourish. *Real-world skill:* systems thinking, from seeing how small changes ripple outward (water, growth, community).
+7. **Steward mode.** *Fun:* running your own little shop and watching it hum. *Real-world skill:* basic budgeting, pricing and reading customer feedback.
+8. **Your vessel is your home.** *Fun:* making a space that is truly yours. *Real-world skill:* goal-setting and resource planning, from saving and choosing what to build first.
+9. **Many ways to thrive.** *Fun:* the freedom to master what you love. *Real-world skill:* self-knowledge, from finding the strengths you want to grow and seeing that there are many valid ways to succeed.
+10. **Gentle living world.** *Fun:* coming back to a world that moved on in small, charming ways. *Real-world skill:* patience and noticing change over time, with no pressure to be always on.
 
 Considered and set aside for now: Test Drive's police chase (it needs vehicles and combat-adjacent pressure) and Ace of Aces/Star Control melee duels (deferred until combat design exists, then strong candidates for readable 1v1 duels in Combat zones).
 
