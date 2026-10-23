@@ -38,7 +38,7 @@ No names, assets or mechanics are copied. Only widely known public facts:
   the existing Place mood from `client/src/climate_plane.rs` (fog / tint /
   weather beds) per PLACE_DRESS_SPEC. Act list and order: **OPEN**.
 - **Hub towns = existing hand-made Places** (Sanctuary, Heartwood, Threshold, Depths; PLACES_BIBLE Heartwood rings L28 for Threshold;
-  `shared/hex_travel.rs` `PlaceId` has only Sanctuary / Heartwood / Depths — Threshold has no PlaceId yet and shares Heartwood's save). Hubs are never generated.
+  `shared/hex_travel.rs` `PlaceId` has only Sanctuary / Heartwood / Depths — Threshold has no PlaceId yet). Hubs are never generated.
   Market is not a Place (PLACES_BIBLE).
 - **Generated zones** hang off a hub. Each zone = seeded room graph + tiles.
 
