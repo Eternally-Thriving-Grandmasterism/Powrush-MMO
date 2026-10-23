@@ -56,9 +56,9 @@ Sherif's ruling, 2026-10-23 3:44 AM ET (verbatim): *"2 of the hub towns should i
 - **Draek hub: The Brood Spire (TBS)**, "the central megastructure and mobile
   throne of the Draek Dominion" (`docs/BROOD_SPIRE.md` §1;
   `docs/design/LEGACY_GDD_RECONCILIATION.md`).
-- Both are **hand-made hubs, never generated**, tagged **Peace** inside the
-  hub, with a **deployment launch** to Combat zones (TAUN deploys fleets per
-  FACTIONS_OVERVIEW; TBS spawn/production per BROOD_SPIRE).
+- Both are **hand-made hubs, never generated**, with a **deployment launch**
+  to Combat zones (TAUN deploys fleets per FACTIONS_OVERVIEW; TBS
+  spawn/production per BROOD_SPIRE).
 - Neither has a `PlaceId` yet.
 - **Limits lifted (owner ruling).** Sherif, 2026-10-23 3:46 AM ET, verbatim:
   *"Lift!"* — in reply to whether making the motherships walkable lifts the
@@ -67,9 +67,9 @@ Sherif's ruling, 2026-10-23 3:44 AM ET (verbatim): *"2 of the hub towns should i
   (`docs/AGENT_COMPLETION_PACK_v23.2.md` L186). Both limits are lifted for
   **walkable orbital hub interiors (TAUN, TBS)**. Engine / runtime cards that
   build them still need a **Core vote**.
-- **Stale docs:** the `climate_plane.rs` comment and AGENT_COMPLETION_PACK L186
-  still state the old limits; a later card updates them.
 - **Council recommendation (not Sherif's ruling):**
+  - **Proposal:** tag both hubs **Peace** inside the hub. Not part of
+    Sherif's ruling; open for a Core vote.
   - TBS interior is **Peace** but keeps its oppressive look (BROOD_SPIRE §1).
   - Faction players home to their own side's ship (TAUN or TBS).
   - The three Earth hub towns (Sanctuary, Heartwood, Depths) stay

@@ -183,7 +183,7 @@ Origin of a resource is observation + tend. Week = tons + restored. House week =
 
 ### 4.6 Great conflict, well-scale
 
-Quellorian/Ambrosian harmony vs Draek consumption **is** flow vs extract-only. TAUN and Brood Spire are that choice wearing ships. Do not spawn them in the yard.
+Quellorian/Ambrosian harmony vs Draek consumption **is** flow vs extract-only. TAUN and Brood Spire are that choice wearing ships. Do not spawn them in the yard, except as allowed by Sherif's 3:46 AM ET 2026-10-23 ruling, "Lift!", which allows walkable orbital hub interiors for TAUN and TBS (The Brood Spire) only.
 
 ---
 
