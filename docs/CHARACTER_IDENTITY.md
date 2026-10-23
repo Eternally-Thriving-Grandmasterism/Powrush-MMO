@@ -46,8 +46,8 @@ Every change is bench work with materials and time, fails softly, wears, and is 
 Guild tabards and banners use the house heraldry editor (FACTION_HERALDRY §3 and §4): curated original library, rule of tincture, 3:1 contrast, 32 px preview, motto filter. `src/guild.rs` gains a crest recipe reference (HER-2). Shared guild banners and the report queue wait for "online yes".
 
 ## 7. Out of scope
-- **Real-world flags: out.** Steward ruling 2026-10-23: no real-world flags for now. FACTION_HERALDRY's refusal of real-world marks and national arms stands. IP-based flag assignment was considered and rejected by the councils for accuracy, privacy and harassment reasons.
-- **AI-generated crests (Grok Imagine via Rathor.ai): deferred, pending Sherif.** Undecided: whether, pricing, cost, moderation and online sync. Nothing is built until the steward rules.
+- **Real-world flags: out.** Sherif's own ruling, 2026-10-23 2:51 AM ET, verbatim: *"I figured, but worth considering, because people love their loyalty symbols. However, they will likely cause problems. So let's skip anything harmful like that, and also, the AI generated stuff can be skipped and left for much later due to unnecessary feature creep complexity over a minor gain."* FACTION_HERALDRY's refusal of real-world marks and national arms stands. Rationale: the councils earlier rejected IP-based flag assignment for accuracy, privacy and harassment reasons.
+- **AI-generated crests (Grok Imagine via Rathor.ai): skipped until much later per Sherif's 2:51 AM ruling** (feature-creep complexity over a minor gain). Nothing is built.
 - Transmog, wardrobe, cosmetic shop, AH, RMT, uploaded images, sockets while Online is grey.
 
 ## 8. Card plan (ordered, one concern each)
@@ -66,4 +66,4 @@ Guild tabards and banners use the house heraldry editor (FACTION_HERALDRY §3 an
 Frame-time budgets per card are not yet set (TARGET_BOARD): **UNKNOWN**, to be set on each card.
 
 ## 9. Steward-only
-AI crests (whether, pricing); any new canon beyond the cited docs; Online light; public claims and publishing; ART_BIBLE open questions.
+Revisiting AI crests (skipped until much later); any new canon beyond the cited docs; Online light; public claims and publishing; ART_BIBLE open questions.
