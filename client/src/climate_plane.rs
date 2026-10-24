@@ -112,6 +112,14 @@
  * Update, not [`FogWriteSet`]. The lived UI camera copies that `hdr` in the
  * same Update, after this set. No `FogSettings` write. No `GlobalAmbientLight` write.
  *
+ * CARD VP-AIR-1 — aerial perspective. [`aerial_haze_for`] pulls the open
+ * Sanctuary yard's `fog_start` (and on High / Ultra `fog_end`) in, so the
+ * conifer belt and valley floor fade toward the cool fog colour with distance
+ * while the peaks keep their silhouette. Mobile and Low return [`None`]: the
+ * dressed bed is untouched. [`fog_bed_for`] applies it inside the one
+ * [`FogWriteSet::PlaceBed`] writer, so no new fog writer is added. Other
+ * Places keep their close FLESH fog.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
@@ -701,6 +709,37 @@ fn high_depths_fog_end(start: f32, end: f32) -> f32 {
     (end * HIGH_DEPTHS_FOG_END_MUL).max(start + 8.0)
 }
 
+/// CARD VP-AIR-1 — open-yard aerial haze distances (m) for one graphics tier.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct AerialHaze {
+    /// Fog begins here. Always past the camera-to-well reach (~24 m with the
+    /// yard camera), so the well, nodes and Use glow stay unfogged.
+    pub fog_start: f32,
+    /// Full-fog horizon. Kept past the mountain ring (340..430 m) so peaks
+    /// stay layered silhouettes, not a flat wash.
+    pub fog_end: f32,
+}
+
+const AERIAL_HAZE_MEDIUM: AerialHaze = AerialHaze {
+    fog_start: 28.0,
+    fog_end: 600.0,
+};
+const AERIAL_HAZE_HIGH: AerialHaze = AerialHaze {
+    fog_start: 24.0,
+    fog_end: 480.0,
+};
+
+/// Open-yard aerial haze per tier. Mobile and Low are [`None`] (disabled; the
+/// dressed bed holds). Medium is a gentle veil. High and Ultra are fuller
+/// (Ultra keeps High's haze until VP-ULTRA-1).
+pub const fn aerial_haze_for(preset: GraphicsPreset) -> Option<AerialHaze> {
+    match preset {
+        GraphicsPreset::Mobile | GraphicsPreset::Low => None,
+        GraphicsPreset::Medium => Some(AERIAL_HAZE_MEDIUM),
+        GraphicsPreset::High | GraphicsPreset::Ultra => Some(AERIAL_HAZE_HIGH),
+    }
+}
+
 /// Place fog bed for a Comfort graphics tier.
 ///
 /// Wraps [`weather_bed_for`] with `preset.weather_fidelity()`. Mobile and Low
@@ -712,6 +751,9 @@ fn high_depths_fog_end(start: f32, end: f32) -> f32 {
 /// `preset.weather_fidelity()`. High and Ultra do too, except
 /// [`PlaceMood::DepthsWetStone`]: that cavern pulls `fog_end` closer
 /// (VISUAL_TARGET L176). Colours, `fog_start`, breath, and `bed_density` stay.
+/// CARD VP-AIR-1: the open Sanctuary yard ([`PlaceMood::SanctuarySkyYard`])
+/// takes [`aerial_haze_for`] distances on Medium, High and Ultra; Mobile and
+/// Low keep the dressed bed.
 pub fn fog_bed_for(realm: Option<u8>, preset: GraphicsPreset) -> WeatherBed {
     let mut bed = weather_bed_for(realm, preset.weather_fidelity());
     if preset == GraphicsPreset::Mobile {
@@ -721,6 +763,12 @@ pub fn fog_bed_for(realm: Option<u8>, preset: GraphicsPreset) -> WeatherBed {
         && bed.mood == PlaceMood::DepthsWetStone
     {
         bed.fog_end = high_depths_fog_end(bed.fog_start, bed.fog_end);
+    }
+    if bed.mood == PlaceMood::SanctuarySkyYard {
+        if let Some(haze) = aerial_haze_for(preset) {
+            bed.fog_start = haze.fog_start;
+            bed.fog_end = haze.fog_end;
+        }
     }
     bed
 }
@@ -3236,6 +3284,47 @@ mod tests {
         );
     }
 
+    /// CARD VP-AIR-1 — the live PlaceBed writer lands the haze on the world
+    /// camera fog and follows a preset change; Low stays the dressed bed.
+    #[test]
+    fn breathe_weather_bed_applies_aerial_haze_and_follows_preset() {
+        use shared::local_settings::LocalSettings;
+
+        let mut app = App::new();
+        app.init_resource::<Time>();
+        app.init_resource::<WeatherBandCoupling>();
+        app.insert_resource(GlobalAmbientLight::default());
+        app.insert_resource(SoftPlayerRealm { current: Some(0) });
+        let mut inner = LocalSettings::default();
+        inner.set_graphics_preset(GraphicsPreset::Low);
+        app.insert_resource(LocalSettingsState { inner, dirty: false });
+        app.add_systems(Update, breathe_weather_bed);
+        let cam = app
+            .world_mut()
+            .spawn((Camera3d::default(), DistanceFog::default()))
+            .id();
+
+        let fog_start = |app: &App| match app.world().entity(cam).get::<DistanceFog>().unwrap().falloff
+        {
+            FogFalloff::Linear { start, .. } => start,
+            _ => panic!("fog stays linear"),
+        };
+        app.update();
+        assert_eq!(fog_start(&app), look_for(Some(0)).fog_start);
+
+        for preset in [GraphicsPreset::Medium, GraphicsPreset::High, GraphicsPreset::Low] {
+            app.world_mut()
+                .resource_mut::<LocalSettingsState>()
+                .inner
+                .set_graphics_preset(preset);
+            app.update();
+            let want = aerial_haze_for(preset)
+                .map(|h| h.fog_start)
+                .unwrap_or(look_for(Some(0)).fog_start);
+            assert!((fog_start(&app) - want).abs() < 0.01, "{preset:?}");
+        }
+    }
+
     #[derive(Resource, Default)]
     struct FogWriteTape(Vec<&'static str>);
 
@@ -3332,7 +3421,8 @@ mod tests {
 
     /// CARD FOG-TIER-1 — Low / Medium / High / Ultra stay the fidelity bed.
     /// CARD FOG-HIGH-DEPTH-1 skips only Depths (Some(3)) × High and × Ultra,
-    /// where `fog_end` is closer. Every other pair stays byte-identical.
+    /// where `fog_end` is closer. CARD VP-AIR-1 skips the open Sanctuary yard
+    /// where [`aerial_haze_for`] is `Some`. Every other pair stays byte-identical.
     #[test]
     fn fog_bed_for_low_medium_high_ultra_matches_weather_bed_for() {
         let tiers = [
@@ -3345,6 +3435,11 @@ mod tests {
             for preset in tiers {
                 if realm == Some(3)
                     && matches!(preset, GraphicsPreset::High | GraphicsPreset::Ultra)
+                {
+                    continue;
+                }
+                if place_mood_for(realm) == PlaceMood::SanctuarySkyYard
+                    && aerial_haze_for(preset).is_some()
                 {
                     continue;
                 }
@@ -3378,6 +3473,7 @@ mod tests {
     }
 
     /// CARD FOG-HIGH-DEPTH-1 — only Depths × High/Ultra `fog_end` moves.
+    /// CARD VP-AIR-1 — and the open Sanctuary yard where haze is `Some`.
     /// Mobile still sets `breath_amp` to 0 on the Low bed.
     #[test]
     fn fog_bed_for_moves_only_depths_high_ultra_fog_end() {
@@ -3391,7 +3487,17 @@ mod tests {
                 }
                 let depths_high = realm == Some(3)
                     && matches!(preset, GraphicsPreset::High | GraphicsPreset::Ultra);
-                if depths_high {
+                let hazed = place_mood_for(realm) == PlaceMood::SanctuarySkyYard
+                    && aerial_haze_for(preset).is_some();
+                if hazed {
+                    let haze = aerial_haze_for(preset).unwrap();
+                    assert_eq!(got.fog_start, haze.fog_start, "{realm:?} {preset:?}");
+                    assert_eq!(got.fog_end, haze.fog_end, "{realm:?} {preset:?}");
+                    let mut same = got;
+                    same.fog_start = baseline.fog_start;
+                    same.fog_end = baseline.fog_end;
+                    assert_eq!(same, baseline, "{realm:?} {preset:?}");
+                } else if depths_high {
                     assert_eq!(
                         got.fog_end,
                         high_depths_fog_end(baseline.fog_start, baseline.fog_end),
@@ -3403,6 +3509,72 @@ mod tests {
                 } else {
                     assert_eq!(got, baseline, "{realm:?} {preset:?}");
                 }
+            }
+        }
+    }
+
+    /// CARD VP-AIR-1 — preset-to-haze mapping. Mobile and Low off; Medium a
+    /// gentle veil; High and Ultra fuller. All five presets.
+    #[test]
+    fn aerial_haze_for_scales_by_preset_and_low_is_off() {
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(aerial_haze_for(GraphicsPreset::Mobile), None);
+        assert_eq!(aerial_haze_for(GraphicsPreset::Low), None);
+        let medium = aerial_haze_for(GraphicsPreset::Medium).expect("Medium has haze");
+        let high = aerial_haze_for(GraphicsPreset::High).expect("High has haze");
+        let ultra = aerial_haze_for(GraphicsPreset::Ultra).expect("Ultra has haze");
+        assert_eq!(high, ultra);
+        assert!(high.fog_start < medium.fog_start, "High fades in sooner");
+        assert!(high.fog_end < medium.fog_end, "High horizon is closer");
+    }
+
+    /// CARD VP-AIR-1 — every tier's haze keeps the well unfogged and the
+    /// mountain ring layered, and is a real ramp.
+    #[test]
+    fn aerial_haze_distances_protect_well_and_peaks() {
+        let dressed = look_for(Some(0));
+        for preset in GraphicsPreset::ALL {
+            let Some(haze) = aerial_haze_for(preset) else {
+                continue;
+            };
+            assert!(haze.fog_start >= 24.0, "{preset:?} would fog the well");
+            assert!(haze.fog_start < dressed.fog_start, "{preset:?} adds haze");
+            assert!(haze.fog_end > crate::sky_backdrop::PEAK_R_MAX, "{preset:?}");
+            assert!(haze.fog_end > haze.fog_start + 8.0, "{preset:?}");
+        }
+    }
+
+    /// CARD VP-AIR-1 — Sanctuary: Mobile / Low keep the dressed bed, Medium /
+    /// High / Ultra take the haze. Colour, breath and density never move.
+    /// Other Places keep their close FLESH fog on every tier.
+    #[test]
+    fn fog_bed_for_sanctuary_haze_by_preset_other_places_unchanged() {
+        let dressed = look_for(Some(0));
+        for realm in [None, Some(0)] {
+            for preset in GraphicsPreset::ALL {
+                let got = fog_bed_for(realm, preset);
+                match aerial_haze_for(preset) {
+                    Some(haze) => {
+                        assert_eq!(got.fog_start, haze.fog_start, "{realm:?} {preset:?}");
+                        assert_eq!(got.fog_end, haze.fog_end, "{realm:?} {preset:?}");
+                    }
+                    None => {
+                        assert_eq!(got.fog_start, dressed.fog_start, "{realm:?} {preset:?}");
+                        assert_eq!(got.fog_end, dressed.fog_end, "{realm:?} {preset:?}");
+                    }
+                }
+                let base = weather_bed_for(realm, preset.weather_fidelity());
+                assert_eq!(got.fog, base.fog, "{realm:?} {preset:?}");
+                assert_eq!(got.bed_density, base.bed_density, "{realm:?} {preset:?}");
+                assert_eq!(got.breath_hz, base.breath_hz, "{realm:?} {preset:?}");
+            }
+        }
+        for realm in [Some(1), Some(2), Some(4)] {
+            for preset in GraphicsPreset::ALL {
+                let got = fog_bed_for(realm, preset);
+                let base = weather_bed_for(realm, preset.weather_fidelity());
+                assert_eq!(got.fog_start, base.fog_start, "{realm:?} {preset:?}");
+                assert_eq!(got.fog_end, base.fog_end, "{realm:?} {preset:?}");
             }
         }
     }
