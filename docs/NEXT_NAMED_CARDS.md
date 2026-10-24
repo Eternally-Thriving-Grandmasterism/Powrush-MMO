@@ -9,7 +9,7 @@ Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb �
 Online grey. No OFFER NEXT. Do not invent PATHS. Standing Next is [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). Do not copy a second queue.
 Bevy pin 0.20. BEVY-CLIMB climbing one minor per card (Sherif GO 2026-10-09).
 
-Fetch `origin/main`. Grok Hands cook Grok 4.7 Extra High (non-fast); fallback 4.7 High. One CARD then stop. Never Fast / Codex / GPT / Claude / Auto / Composer. No direct push to `main`. No `client/**` outside a named CARD. Do not invent PATHS. Do not invent playtest minutes. Do not invent the next unlock.
+Fetch `origin/main`. Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available. One CARD then stop. No direct push to `main`. No `client/**` outside a named CARD. Do not invent PATHS. Do not invent playtest minutes. Do not invent the next unlock.
 
 ## Spent cooks (do not rebuild)
 

@@ -27,7 +27,7 @@ Default play: `cargo run -p powrush-client`. Contact: [info@Rathor.ai](mailto:in
 | Seat | Does | Does not |
 |------|------|----------|
 | **Steward (Sherif)** | Steers STEER and **HOLD**. One-liner, then continue or stop. Fills **felt** playtest blanks when he chooses. | Rubber-stamp AUTO. Merge law changes without a HOLD ticket. |
-| **Powrush Cursor / Hands** | Codes **this** repo on a feature branch. One slice per PR. Fills the ballot. If Next already names PATHS, opens the next CARD without a new steward brief. **Grok Hands cook only** (Grok 4.7 High / 4.6 High). PR footer stays Grok family. | Push `main`. Edit Ra-Thor. Enable Title Online. Add a listen or public bind. Retag `playable-preview`. Touch Pages / Deployments / Secrets. Cook on Codex / GPT / Claude / Auto / Composer / Grok Fast. |
+| **Powrush Cursor / Hands** | Codes **this** repo on a feature branch. One slice per PR. Fills the ballot. If Next already names PATHS, opens the next CARD without a new steward brief. **Model:** Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available. (Old Grok-only rule was temporary; retired by Sherif 2026-10-24.) | Push `main`. Edit Ra-Thor. Enable Title Online. Add a listen or public bind. Retag `playable-preview`. Touch Pages / Deployments / Secrets. |
 | **Ra-Thor Cursor** | Lattice only (Ra-Thor repo). May **read** `data/powrush_lived_tick.json`. | Drive WASD. Drive Title Online. Drive this repo’s slice PRs. Drive keys. |
 | **Grok Bots** | Design + machine QA tape + **one** feature-branch PR via GitHub. Still no direct push to `main`. `patsgi-auto` only when ballot is AUTO and deny-list clean. | Push `main` directly. Invent PATHS. Light Online. |
 
@@ -67,4 +67,3 @@ Feature branch. Fill the ballot. Label `patsgi-auto` only when the court verdict
 - Retag `playable-preview`.
 - Touch GitHub Pages, Deployments, or Secrets.
 - Invent PATHS · Online lit · Steam · `.glb` · reopen #459 · OFFER NEXT · Always-allow · `server/` unpark · MESH without Core PATHS · `client/**` edits outside a Core-named CARD · new files beyond Core-named PATHS.
-- Codex / GPT / Claude / Auto / Composer / Grok Fast footer on Hands cook PRs.
