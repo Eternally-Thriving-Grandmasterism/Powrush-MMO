@@ -5,7 +5,7 @@
 **Contact:** info@Rathor.ai  
 **Pattern:** Ra-Thor `docs/AGENT_RUN_BRIEF.md` (merged #504 / `bf44300a`), adapted to this seat. The **outer loop does not write code**. This file is the inner-loop contract.
 
-Cursor / PATSAGi inner-loop agents start here. **Fetch `origin/main` at the start of every seat**, then use that tip SHA. Fill every section. Then implement **one slice**. Do not interview for a new brief when [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) Next already names exact PATHS. Do not clone or edit Ra-Thor. Do not start a lattice seat from this repo. **Grok Hands cook only** — cite [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md); no Codex/GPT/Claude/Auto/Composer/Grok Fast. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3.
+Cursor / PATSAGi inner-loop agents start here. **Fetch `origin/main` at the start of every seat**, then use that tip SHA. Fill every section. Then implement **one slice**. Do not interview for a new brief when [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) Next already names exact PATHS. Do not clone or edit Ra-Thor. Do not start a lattice seat from this repo. **Model:** Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. (Old Grok-only rule was temporary; retired by Sherif 2026-10-24.) Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3.
 
 **Tip (fetch first):** `022de354193eaf3dc626405a311672a6d56a3baa` (short `022de35`) — CARD TODO-SYNC on `main` (#496). Always `git fetch origin main` before branching.
 
@@ -421,7 +421,7 @@ Paste a new “worked example” **above** this template (or replace section A).
 - Remember: **Ra-Thor is a separate repo.** Do not clone or edit it from this seat.
 - Remember: **Powrush-MMO-Simulator is a third repo.** Do not fold the player loop into either sibling.
 - Two agents, one file, same day → second **reviews**; does not STOP the first unless HOLD-deny (CARD Q3).
-- Fetch `origin/main` each seat. Grok Hands cook only. Continue Next only when PATHS are already named.
+- Fetch `origin/main` each seat. Use Grok or Claude (or other approved models), whichever is strongest for the task. Continue Next only when PATHS are already named.
 
 ### 5. HOLD
 

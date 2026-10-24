@@ -1,5 +1,7 @@
 # CURSOR GROK MODEL SEAT — 2026-09-22
 
+> **RETIRED 2026-10-24 by Sherif.** This Grok-only rule was temporary (non-Grok credits had run out). Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task.
+
 **Steward:** remaining Cursor team/account credits for non-Grok models are spent. **5x Grok usage** is what is left for ~2–3 weeks. Contact info@Rathor.ai.
 
 Cursor cloud agents (the ones that opened #482 / #483) stay allowed. They must pick a **Grok-family** model. They must not pick Codex, GPT, Claude/Fable, or Auto-that-routes-off-Grok.
