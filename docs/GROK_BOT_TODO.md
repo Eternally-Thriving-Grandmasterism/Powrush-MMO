@@ -345,7 +345,7 @@ Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/s
 
 NEVER: race lobby · five-gate Title · gold · XP HUD · Market · Unreal.
 
-Grok Hands cook Grok 4.7 Extra High (non-fast); fallback 4.7 High. Never Fast / Codex / GPT / Claude / Auto / Composer. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
+Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 
 ## Gaps @ tip 2c084e71
 
@@ -365,4 +365,4 @@ Listed, not queued.
 
 ## Refuses this turn
 
-Online freestyle · Market · AH · gold · XP/second HUD · skill-tree as law · NFT · drones · Quellorian dump · Cargo · sockets · Always-allow · invent screenshots · Title race select · race lobby · Sky until online yes · live Earth API · invent Hands PATHS · invent PATHS · OFFER NEXT · binary Drive/demo dump · binary `.glb` dump · reopen Wave C · Comfort Ultra · UI Drive freestyle · Hands UI freestyle · Reserve-cue freestyle · invent minutes · invent ticks · Steam partner from bot · retag · Hands mesh without Core CARD + exact PATHS · reopen #459 · `server/` unpark · MESH without Core PATHS · `client/**` outside Core-named CARD · Codex / GPT / Claude / Auto / Composer / Grok Fast Hands cook · direct push to `main`.
+Online freestyle · Market · AH · gold · XP/second HUD · skill-tree as law · NFT · drones · Quellorian dump · Cargo · sockets · Always-allow · invent screenshots · Title race select · race lobby · Sky until online yes · live Earth API · invent Hands PATHS · invent PATHS · OFFER NEXT · binary Drive/demo dump · binary `.glb` dump · reopen Wave C · Comfort Ultra · UI Drive freestyle · Hands UI freestyle · Reserve-cue freestyle · invent minutes · invent ticks · Steam partner from bot · retag · Hands mesh without Core CARD + exact PATHS · reopen #459 · `server/` unpark · MESH without Core PATHS · `client/**` outside Core-named CARD · direct push to `main`.

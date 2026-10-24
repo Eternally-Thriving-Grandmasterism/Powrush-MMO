@@ -4,7 +4,7 @@
 
 **Contact:** [info@Rathor.ai](mailto:info@Rathor.ai). Design tick, not a Cargo bump.
 
-When Grokbots tokens return, fetch `origin/main` first. Cook this file in order. One CARD / one PR / Dual squash / next. Grok 4.7 Extra High (non-fast); fallback 4.7 High. Never Fast / Codex / GPT / Claude / Auto / Composer.
+When Grokbots tokens return, fetch `origin/main` first. Cook this file in order. One CARD / one PR / Dual squash / next. Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available.
 
 Online grey. Peak memory: walked · tended · week was the bill · yard remembered.
 

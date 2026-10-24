@@ -5,7 +5,7 @@
 Climb is live: one minor per card (Sherif GO 2026-10-09).
 
 Title Online grey. Floor `2163551`. Tag `playable-preview` `11c577e`. Workspace `21.88.0`.
-Model seat: Grok 4.7 High / 4.6 High only (`docs/CURSOR_GROK_MODEL_SEAT.md`).
+Model seat: Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available.
 
 ## Decision (locked)
 
@@ -33,7 +33,7 @@ Clerk or Hands may check, at most once per heartbeat day:
 2. Tip `client/Cargo.toml` still says `bevy = "0.14"` (or 0.14.x).
 3. Core gate is green on tip (`shared` + `rsil-identity` + `powrush-client --lib`).
 4. 0 open feature PRs in flight (heartbeat-fix PR may finish first).
-5. Footer model is Grok 4.7/4.6 High — not Codex / GPT / Claude / RC-chasing Auto.
+5. Footer model: Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available.
 
 If 0.20 is still **rc** or only 0.19.x exists → chat `BEVY-CLIMB HOLD · pin 0.14` · no PR.
 

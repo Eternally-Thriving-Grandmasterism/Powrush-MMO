@@ -33,7 +33,7 @@ If you change one element, re-check the other three. Sim ≠ camera. Client came
 - No gold, Market, ticker, XP, daily login, loot box, season pass.
 - No fifth PlaceId. Cut rooms beat new acts.
 - `capture: none` stays honest. Do not invent steward minutes.
-- Grok 4.7 Extra High (non-fast). Fallback 4.7 High. Never Fast / Codex / GPT / Claude / Auto.
+- Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available.
 - One PATH set. One PR. Do not squash. Do not push main.
 
 ## Subject bank (law, not a cook list)

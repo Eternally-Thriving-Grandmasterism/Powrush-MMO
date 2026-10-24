@@ -2,7 +2,7 @@
 
 **CARD Q4 HOUR-TWO-TAPE** · tip `40e6692f` · design tick · not a Cargo bump  
 **Named by:** [`NEXT_NAMED_CARDS.md`](NEXT_NAMED_CARDS.md) §1 · court [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q4  
-**Model seat:** [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md) — Grok 4.7 High · Hands cook only  
+**Model seat:** [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md) (retired 2026-10-24) — Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available.  
 **Contact:** info@Rathor.ai · Independent of xAI. No certification / AGSi warranty.
 
 Machine column only. Cite for tape content: [`FIRST_HOUR_PLAYTEST.md`](FIRST_HOUR_PLAYTEST.md) · [`HOUR_TWO_PLAYTEST.md`](HOUR_TWO_PLAYTEST.md) · `client/src/lib.rs` (`q0_*` · `q1_*`).  
