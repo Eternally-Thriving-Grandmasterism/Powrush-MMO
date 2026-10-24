@@ -7,6 +7,7 @@
 //! reduced motion / rumble → LocalFeedbackFeel (camera punch scale + rumble gate).
 //! colorblind_wells → LocalColorblindWells (shape tokens beside B2 word captions).
 //! Comfort Graphics L/M/H → LocalMeshLodFeel (MESH-PERSONA-HANDS + PLACE-LOD; one plate).
+//! CARD VP-AA-1 — the same preset picks FXAA (Mobile/Low) or SMAA (Medium+) on the world camera.
 //! No Online socket toggle. LAN off (default) opens nothing; loopback is 127.0.0.1 only.
 //! `hud_preset` in the same `powrush_settings.json` seeds [`crate::hud_presets::ActiveHudPreset`]
 //! at boot. Missing, unreadable, or unknown loads classic. HUD-tab rows save that field.
@@ -14,6 +15,8 @@
 //! · [`docs/ART_BIBLE.md`] · [`docs/ASSET_BUDGET_COURT.md`] @ `5eff19c`.
 //! Contact: info@Rathor.ai
 
+use bevy::anti_alias::fxaa::Fxaa;
+use bevy::anti_alias::smaa::{Smaa, SmaaPreset};
 use bevy::input::gamepad::GamepadRumbleRequest;
 use bevy::prelude::*;
 
@@ -216,6 +219,67 @@ impl LocalMeshLodFeel {
     }
 }
 
+/// CARD VP-AA-1 — post-process anti-aliasing baseline on the world camera.
+/// Bevy's bundled FXAA / SMAA only; both need `Msaa::Off`, which the world
+/// camera already sets. TAA stays with VP-ULTRA-1.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AntiAliasKind {
+    Fxaa,
+    Smaa,
+}
+
+/// Mobile matches Low (FXAA); Medium is SMAA; High and Ultra keep Medium's
+/// SMAA until VP-ULTRA-1.
+pub const fn anti_alias_for(preset: GraphicsPreset) -> AntiAliasKind {
+    match preset {
+        GraphicsPreset::Mobile | GraphicsPreset::Low => AntiAliasKind::Fxaa,
+        GraphicsPreset::Medium | GraphicsPreset::High | GraphicsPreset::Ultra => {
+            AntiAliasKind::Smaa
+        }
+    }
+}
+
+/// The one SMAA quality used on every tier that runs SMAA.
+const SMAA_PRESET: SmaaPreset = SmaaPreset::Medium;
+
+/// Keeps every [`Camera3d`] on the AA kind of the active graphics preset.
+/// The other kind is removed on a preset change; a camera already in the
+/// right state is left alone. The lived UI camera is a `Camera2d` and is
+/// never touched. Missing settings stay Medium.
+fn sync_anti_alias(
+    mut commands: Commands,
+    settings: Option<Res<LocalSettingsState>>,
+    cameras: Query<(Entity, Option<&Fxaa>, Option<&Smaa>), With<Camera3d>>,
+) {
+    let preset = settings
+        .as_ref()
+        .map(|state| state.inner.graphics_preset)
+        .unwrap_or(GraphicsPreset::Medium);
+    let kind = anti_alias_for(preset);
+    for (entity, fxaa, smaa) in &cameras {
+        match kind {
+            AntiAliasKind::Fxaa => {
+                if fxaa.is_none() {
+                    commands.entity(entity).insert(Fxaa::default());
+                }
+                if smaa.is_some() {
+                    commands.entity(entity).remove::<Smaa>();
+                }
+            }
+            AntiAliasKind::Smaa => {
+                if smaa.map_or(true, |have| have.preset != SMAA_PRESET) {
+                    commands.entity(entity).insert(Smaa {
+                        preset: SMAA_PRESET,
+                    });
+                }
+                if fxaa.is_some() {
+                    commands.entity(entity).remove::<Fxaa>();
+                }
+            }
+        }
+    }
+}
+
 pub struct LocalSettingsPlugin;
 
 impl Plugin for LocalSettingsPlugin {
@@ -229,7 +293,14 @@ impl Plugin for LocalSettingsPlugin {
             .init_resource::<LocalMeshLodFeel>()
             .add_message::<HudLayoutCommand>()
             .add_systems(Startup, seed_runtime_from_settings)
-            .add_systems(Update, (apply_local_settings_runtime, persist_dirty_settings))
+            .add_systems(
+                Update,
+                (
+                    apply_local_settings_runtime,
+                    persist_dirty_settings,
+                    sync_anti_alias,
+                ),
+            )
             .add_systems(
                 Update,
                 hud_preset_row_clicks.before(crate::hud_presets::apply_hud_layout_commands),
@@ -476,6 +547,66 @@ mod tests {
 
         s.colorblind_wells = "off".into();
         assert!(!LocalColorblindWells::from_settings(&s).show_shapes);
+    }
+
+    #[test]
+    fn anti_alias_kind_follows_graphics_preset() {
+        assert_eq!(anti_alias_for(GraphicsPreset::Mobile), AntiAliasKind::Fxaa);
+        assert_eq!(anti_alias_for(GraphicsPreset::Low), AntiAliasKind::Fxaa);
+        assert_eq!(anti_alias_for(GraphicsPreset::Medium), AntiAliasKind::Smaa);
+        assert_eq!(anti_alias_for(GraphicsPreset::High), AntiAliasKind::Smaa);
+        assert_eq!(anti_alias_for(GraphicsPreset::Ultra), AntiAliasKind::Smaa);
+    }
+
+    #[test]
+    fn sync_anti_alias_swaps_kind_on_world_camera_only() {
+        let mut app = App::new();
+        let mut state = LocalSettingsState {
+            inner: LocalSettings::peace_defaults(),
+            dirty: false,
+        };
+        state.inner.set_graphics_preset(GraphicsPreset::Medium);
+        app.insert_resource(state)
+            .add_systems(Update, sync_anti_alias);
+        let world_cam = app.world_mut().spawn(Camera3d::default()).id();
+        let ui_cam = app.world_mut().spawn(Camera2d).id();
+
+        let kinds = |app: &App, e: Entity| {
+            let e = app.world().entity(e);
+            (e.contains::<Fxaa>(), e.contains::<Smaa>())
+        };
+
+        app.update();
+        assert_eq!(kinds(&app, world_cam), (false, true));
+        assert!(app.world().entity(world_cam).get::<Smaa>().unwrap().preset == SmaaPreset::Medium);
+        assert_eq!(kinds(&app, ui_cam), (false, false));
+
+        for (preset, want) in [
+            (GraphicsPreset::Low, (true, false)),
+            (GraphicsPreset::Mobile, (true, false)),
+            (GraphicsPreset::High, (false, true)),
+            (GraphicsPreset::Low, (true, false)),
+            (GraphicsPreset::Ultra, (false, true)),
+        ] {
+            app.world_mut()
+                .resource_mut::<LocalSettingsState>()
+                .inner
+                .set_graphics_preset(preset);
+            app.update();
+            assert_eq!(kinds(&app, world_cam), want, "{preset:?}");
+            assert_eq!(kinds(&app, ui_cam), (false, false), "{preset:?}");
+        }
+    }
+
+    #[test]
+    fn sync_anti_alias_without_settings_defaults_to_medium_smaa() {
+        let mut app = App::new();
+        app.add_systems(Update, sync_anti_alias);
+        let cam = app.world_mut().spawn(Camera3d::default()).id();
+        app.update();
+        let cam = app.world().entity(cam);
+        assert!(cam.contains::<Smaa>());
+        assert!(!cam.contains::<Fxaa>());
     }
 
     #[test]
