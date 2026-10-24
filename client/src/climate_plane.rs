@@ -120,11 +120,24 @@
  * [`FogWriteSet::PlaceBed`] writer, so no new fog writer is added. Other
  * Places keep their close FLESH fog.
  *
+ * CARD VP-LIGHT-1 — golden-hour sun and preset shadows. [`SANCTUARY_SUN`]
+ * sits low and warm (angle and colour). Lux stays in the readable daylight
+ * band. [`sun_shadow_for`] scales the shadow maps: Mobile and Low off,
+ * Medium a shorter cascade, High and Ultra a fuller set (Ultra matches
+ * High). [`sync_sun_shadows`] writes that plan onto the directional light
+ * and [`DirectionalLightShadowMap`] from the active graphics preset.
+ * Missing settings stay Medium. [`WORLD_TONEMAPPING`] stays AgX.
+ * [`world_color_grading`] adds a hair of warmth and a little highlight
+ * gain. The lived UI camera stays bare. Not in [`FogWriteSet`].
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
 use bevy::post_process::bloom::Bloom;
-use bevy::light::{FogVolume, VolumetricFog, VolumetricLight};
+use bevy::light::{
+    CascadeShadowConfig, CascadeShadowConfigBuilder, DirectionalLightShadowMap, FogVolume,
+    VolumetricFog, VolumetricLight,
+};
 use bevy::pbr::{DistanceFog, FogFalloff};
 use bevy::prelude::*;
 
@@ -859,29 +872,36 @@ pub fn bloom_for(preset: GraphicsPreset) -> Option<Bloom> {
     })
 }
 
-/// CARD VP-GRADE-1 — the one Sanctuary sun. `main.rs`
-/// `spawn_sun_and_camera` and the [`spawn_climate_place`] fallback both
-/// spawn through [`spawn_sanctuary_sun_once`], so colour, lux, direction,
-/// and shadows have this single source.
+/// CARD VP-GRADE-1 — the one Sanctuary sun. CARD VP-LIGHT-1 retunes the
+/// angle and colour to golden hour. `main.rs` `spawn_sun_and_camera` and
+/// the [`spawn_climate_place`] fallback both spawn through
+/// [`spawn_sanctuary_sun_once`], so colour, lux, direction, and the
+/// spawn-time shadow flag have this single source. Live shadow quality
+/// follows [`sun_shadow_for`].
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct SanctuarySun {
-    /// Sun colour. A clean, very slightly warm white so the green valley
-    /// and blue haze stay lively, not beige.
+    /// Sun colour. Luminous gold: red above green above blue. Not noon
+    /// white, and not a beige material.
     pub color: Color,
-    /// Direct light in lux.
+    /// Direct light in lux. Stays in Bevy's readable daylight band so Low
+    /// (no bloom) still reads the yard. The low angle makes the long shadows.
     pub illuminance: f32,
     /// Sun position. The sun looks at the yard origin from here.
     pub position: Vec3,
-    /// On: one shadow map, as the tip `main.rs` sun had on every preset. The
-    /// sky dome is `NotShadowCaster`, so it does not shadow the yard.
+    /// On at spawn. [`sync_sun_shadows`] turns the maps off for Mobile and
+    /// Low and keeps them on from Medium up. The sky dome is
+    /// `NotShadowCaster`, so it does not shadow the yard.
     pub shadows_enabled: bool,
 }
 
-/// CARD VP-GRADE-1 — Sanctuary sun values (see [`SanctuarySun`]).
+/// CARD VP-LIGHT-1 — Sanctuary sun. Position (36, 10, 14) is about 14.5°
+/// above the horizon, so a standing form throws a long yard shadow.
+/// Colour is luminous gold. Lux stays 12_000 (the VP-GRADE-1 daylight
+/// band, not the 400 lux clear-sunrise constant).
 pub const SANCTUARY_SUN: SanctuarySun = SanctuarySun {
-    color: Color::srgb(1.0, 0.98, 0.94),
+    color: Color::srgb(1.0, 0.81, 0.55),
     illuminance: 12_000.0,
-    position: Vec3::new(8.0, 18.0, 8.0),
+    position: Vec3::new(36.0, 10.0, 14.0),
     shadows_enabled: true,
 };
 
@@ -925,6 +945,115 @@ pub fn spawn_sanctuary_sun_once(commands: &mut Commands) {
     });
 }
 
+/// CARD VP-LIGHT-1 — shadow quality for one graphics tier.
+///
+/// Mobile and Low turn maps off (the yard stays readable without the
+/// cascade cost). Medium is a shorter two-cascade map. High and Ultra
+/// share a fuller four-cascade set. Ultra matches High.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct SunShadowPlan {
+    /// Shadow maps on this tier.
+    pub enabled: bool,
+    /// Edge of each cascade, in texels. Power of two.
+    pub map_size: usize,
+    /// Cascade count. One when the maps are off.
+    pub cascades: usize,
+    /// Far bound of the last cascade, in metres.
+    pub maximum_distance: f32,
+}
+
+const SUN_SHADOW_OFF: SunShadowPlan = SunShadowPlan {
+    enabled: false,
+    map_size: 512,
+    cascades: 1,
+    maximum_distance: 32.0,
+};
+const SUN_SHADOW_MEDIUM: SunShadowPlan = SunShadowPlan {
+    enabled: true,
+    map_size: 1024,
+    cascades: 2,
+    maximum_distance: 48.0,
+};
+const SUN_SHADOW_HIGH: SunShadowPlan = SunShadowPlan {
+    enabled: true,
+    map_size: 2048,
+    cascades: 4,
+    maximum_distance: 96.0,
+};
+
+const SUN_SHADOW_MIN_DISTANCE: f32 = 0.1;
+const SUN_SHADOW_FIRST_CASCADE: f32 = 12.0;
+const SUN_SHADOW_OVERLAP: f32 = 0.2;
+
+/// Shadow plan for a Comfort graphics tier. Mobile matches Low (off).
+/// Ultra matches High.
+pub const fn sun_shadow_for(preset: GraphicsPreset) -> SunShadowPlan {
+    match preset {
+        GraphicsPreset::Mobile | GraphicsPreset::Low => SUN_SHADOW_OFF,
+        GraphicsPreset::Medium => SUN_SHADOW_MEDIUM,
+        GraphicsPreset::High | GraphicsPreset::Ultra => SUN_SHADOW_HIGH,
+    }
+}
+
+/// Cascade setup for [`sun_shadow_for`]. The first cascade ends at 12 m
+/// so the yard keeps texel density. One cascade (maps off) ignores that
+/// and uses [`SunShadowPlan::maximum_distance`] as its only bound.
+pub fn cascade_shadow_for(plan: SunShadowPlan) -> CascadeShadowConfig {
+    CascadeShadowConfigBuilder {
+        num_cascades: plan.cascades,
+        minimum_distance: SUN_SHADOW_MIN_DISTANCE,
+        maximum_distance: plan.maximum_distance,
+        first_cascade_far_bound: SUN_SHADOW_FIRST_CASCADE,
+        overlap_proportion: SUN_SHADOW_OVERLAP,
+    }
+    .into()
+}
+
+fn cascade_matches(config: &CascadeShadowConfig, plan: SunShadowPlan) -> bool {
+    let far_ok = config
+        .bounds
+        .last()
+        .is_some_and(|far| (*far - plan.maximum_distance).abs() < 1.0e-3);
+    config.bounds.len() == plan.cascades
+        && (config.overlap_proportion - SUN_SHADOW_OVERLAP).abs() < 1.0e-5
+        && (config.minimum_distance - SUN_SHADOW_MIN_DISTANCE).abs() < 1.0e-5
+        && far_ok
+}
+
+/// CARD VP-LIGHT-1 — keep the directional sun on [`sun_shadow_for`].
+///
+/// Writes `shadow_maps_enabled`, the cascade config, and, when Bevy's
+/// light plugin has inserted it, [`DirectionalLightShadowMap::size`].
+/// Does not move the sun and does not retint it: pose and colour stay
+/// [`SANCTUARY_SUN`]. Missing settings stay Medium. Not in [`FogWriteSet`].
+/// Runs before [`sync_ultra_volumetric`] so Ultra sees the shadow flag
+/// in the same frame. No `FogSettings` write. No `GlobalAmbientLight` write.
+/// The lived UI camera is not a light and is never touched.
+fn sync_sun_shadows(
+    settings: Option<Res<LocalSettingsState>>,
+    mut lights: Query<(&mut DirectionalLight, &mut CascadeShadowConfig)>,
+    mut shadow_map: Option<ResMut<DirectionalLightShadowMap>>,
+) {
+    let preset = settings
+        .as_ref()
+        .map(|state| state.inner.graphics_preset)
+        .unwrap_or(GraphicsPreset::Medium);
+    let plan = sun_shadow_for(preset);
+    if let Some(map) = shadow_map.as_mut() {
+        if map.size != plan.map_size {
+            map.size = plan.map_size;
+        }
+    }
+    for (mut light, mut config) in &mut lights {
+        if light.shadow_maps_enabled != plan.enabled {
+            light.shadow_maps_enabled = plan.enabled;
+        }
+        if !cascade_matches(&config, plan) {
+            *config = cascade_shadow_for(plan);
+        }
+    }
+}
+
 /// CARD VP-GRADE-1 — world camera tonemapper. Was Bevy 0.14.2's default
 /// `TonyMcMapface` (no explicit value on the tip world camera). AgX is
 /// neutral with little hue shift, so the blue sky stays blue and the green
@@ -945,17 +1074,24 @@ pub const WORLD_GRADE_SATURATION: f32 = 1.12;
 pub const WORLD_GRADE_MIDTONE_CONTRAST: f32 = 1.06;
 /// CARD VP-GRADE-1 — shadow lift. Keeps the conifer belt green, not black.
 pub const WORLD_GRADE_SHADOW_LIFT: f32 = 0.01;
+/// CARD VP-LIGHT-1 — white-balance warmth (CIE 1931 x). Small on purpose:
+/// the sun colour is the gold, and the sky-blue ambient stays the cool side
+/// of the split. A larger shift would pull the haze toward beige.
+pub const WORLD_GRADE_TEMPERATURE: f32 = 0.015;
+/// CARD VP-LIGHT-1 — highlight gain. Sunlit edges lift a little. Shadows
+/// and midtones stay at gain 1 so shaded ground keeps the cool ambient.
+pub const WORLD_GRADE_HIGHLIGHT_GAIN: f32 = 1.05;
 
 /// CARD VP-GRADE-1 — the world camera [`ColorGrading`](bevy::render::view::ColorGrading).
-/// Bright, lively blue-sky valley: colour back after AgX, a touch of
-/// midtone contrast, a hair of shadow lift. No exposure, temperature, tint,
-/// or hue shift, so nothing drifts brown or beige. World camera only; the lived UI
-/// camera stays bare.
+/// CARD VP-LIGHT-1 — same AgX grade, plus a hair of warmth and a little
+/// highlight gain toward the painted golden-hour valley. No exposure, tint,
+/// or hue shift. World camera only; the lived UI camera stays bare.
 pub fn world_color_grading() -> bevy::render::view::ColorGrading {
     use bevy::render::view::{ColorGrading, ColorGradingGlobal, ColorGradingSection};
     ColorGrading {
         global: ColorGradingGlobal {
             post_saturation: WORLD_GRADE_POST_SATURATION,
+            temperature: WORLD_GRADE_TEMPERATURE,
             ..default()
         },
         shadows: ColorGradingSection {
@@ -970,6 +1106,7 @@ pub fn world_color_grading() -> bevy::render::view::ColorGrading {
         },
         highlights: ColorGradingSection {
             saturation: WORLD_GRADE_SATURATION,
+            gain: WORLD_GRADE_HIGHLIGHT_GAIN,
             ..default()
         },
     }
@@ -1103,6 +1240,7 @@ impl Plugin for ClimatePlanePlugin {
                         .after(breathe_weather_bed)
                         .in_set(FogWriteSet::ArrivalBeat),
                     update_climate_chip,
+                    sync_sun_shadows.before(sync_ultra_volumetric),
                     sync_ultra_volumetric,
                     sync_tier_bloom.in_set(TierBloomSet),
                 ),
@@ -4044,17 +4182,27 @@ mod tests {
     }
 
     /// CARD VP-GRADE-1 — the one sun source is pinned.
+    /// CARD VP-LIGHT-1 — that source is now the low golden-hour sun.
     #[test]
     fn vp_grade_sanctuary_sun_source_is_pinned() {
         assert_eq!(SANCTUARY_SUN.illuminance, 12_000.0);
-        // On (Core ruling); the dome is NotShadowCaster (sky_backdrop).
+        // Spawn-time flag stays on. Mobile and Low turn maps off in sync.
+        // The dome is NotShadowCaster (sky_backdrop).
         assert!(SANCTUARY_SUN.shadows_enabled);
-        assert_eq!(SANCTUARY_SUN.position, Vec3::new(8.0, 18.0, 8.0));
-        assert_eq!(SANCTUARY_SUN.color, Color::srgb(1.0, 0.98, 0.94));
-        // Clean white, a hair warm: not the old beige-warm fallback tint.
+        assert_eq!(SANCTUARY_SUN.position, Vec3::new(36.0, 10.0, 14.0));
+        assert_eq!(SANCTUARY_SUN.color, Color::srgb(1.0, 0.81, 0.55));
         let c = SANCTUARY_SUN.color.to_srgba();
-        assert!(c.red >= c.green && c.green >= c.blue);
-        assert!(c.blue >= 0.92, "sun drifts beige: {c:?}");
+        assert!(c.red > c.green && c.green > c.blue, "sun colour {c:?}");
+        assert!(
+            (0.50..=0.62).contains(&c.blue) && c.green > 0.75,
+            "sun is not luminous gold: {c:?}"
+        );
+        let horizontal = SANCTUARY_SUN.position.xz().length();
+        let elevation_deg = SANCTUARY_SUN.position.y.atan2(horizontal).to_degrees();
+        assert!(
+            (10.0..20.0).contains(&elevation_deg),
+            "sun elevation {elevation_deg} is not golden-hour low"
+        );
         let light = SANCTUARY_SUN.directional_light();
         assert_eq!(light.color, SANCTUARY_SUN.color);
         assert_eq!(light.illuminance, SANCTUARY_SUN.illuminance);
@@ -4063,6 +4211,133 @@ mod tests {
         assert_eq!(tf.translation, SANCTUARY_SUN.position);
         let toward_origin = (Vec3::ZERO - SANCTUARY_SUN.position).normalize();
         assert!(tf.forward().as_vec3().dot(toward_origin) > 0.9999);
+    }
+
+    /// CARD VP-LIGHT-1 — preset-to-shadow mapping. Mobile and Low off;
+    /// Medium a shorter map; High and Ultra fuller and equal. All five presets.
+    #[test]
+    fn vp_light_shadow_plan_scales_by_preset_and_low_is_off() {
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        let mobile = sun_shadow_for(GraphicsPreset::Mobile);
+        let low = sun_shadow_for(GraphicsPreset::Low);
+        let medium = sun_shadow_for(GraphicsPreset::Medium);
+        let high = sun_shadow_for(GraphicsPreset::High);
+        let ultra = sun_shadow_for(GraphicsPreset::Ultra);
+        assert_eq!(mobile, low);
+        assert!(!low.enabled);
+        assert!(medium.enabled && high.enabled);
+        assert_eq!(high, ultra);
+        assert!(low.map_size < medium.map_size && medium.map_size < high.map_size);
+        assert!(low.cascades < medium.cascades && medium.cascades < high.cascades);
+        assert!(low.maximum_distance < medium.maximum_distance);
+        assert!(medium.maximum_distance < high.maximum_distance);
+        for plan in [low, medium, high] {
+            assert!(plan.map_size.is_power_of_two(), "{plan:?}");
+            let cascade = cascade_shadow_for(plan);
+            assert_eq!(cascade.bounds.len(), plan.cascades, "{plan:?}");
+            let far = cascade.bounds.last().copied().unwrap();
+            assert!((far - plan.maximum_distance).abs() < 1.0e-3, "{plan:?} far {far}");
+            assert!((0.0..1.0).contains(&cascade.overlap_proportion));
+            assert!(cascade.minimum_distance > 0.0);
+        }
+    }
+
+    fn shadow_row(app: &mut App) -> (DirectionalLight, Transform, CascadeShadowConfig, usize) {
+        let size = app.world().resource::<DirectionalLightShadowMap>().size;
+        let world = app.world_mut();
+        let mut q = world.query::<(&DirectionalLight, &Transform, &CascadeShadowConfig)>();
+        let mut rows: Vec<_> = q
+            .iter(world)
+            .map(|(light, tf, cascade)| (light.clone(), *tf, cascade.clone()))
+            .collect();
+        assert_eq!(rows.len(), 1, "one sanctuary sun");
+        let (light, tf, cascade) = rows.pop().unwrap();
+        (light, tf, cascade, size)
+    }
+
+    /// CARD VP-LIGHT-1 — missing settings stay Medium: maps on, medium size.
+    #[test]
+    fn vp_light_sync_without_settings_uses_medium_shadows() {
+        let mut app = climate_startup_app();
+        app.insert_resource(DirectionalLightShadowMap { size: 8192 });
+        app.update();
+        let plan = sun_shadow_for(GraphicsPreset::Medium);
+        let (light, tf, cascade, size) = shadow_row(&mut app);
+        assert!(light.shadow_maps_enabled);
+        assert_eq!(size, plan.map_size);
+        assert_eq!(cascade.bounds.len(), plan.cascades);
+        assert_eq!(light.color, SANCTUARY_SUN.color);
+        assert_eq!(tf, SANCTUARY_SUN.transform());
+    }
+
+    /// CARD VP-LIGHT-1 — a preset change rewrites maps, cascades, and the
+    /// shadow-map edge. Pose and colour stay the golden-hour sun. Ultra
+    /// keeps a shadowed sun so volumetric light can attach; Low drops both.
+    #[test]
+    fn vp_light_sync_applies_shadow_plan_and_keeps_sun_pose() {
+        use shared::local_settings::LocalSettings;
+
+        let mut app = climate_startup_app();
+        app.insert_resource(DirectionalLightShadowMap { size: 8192 });
+        app.insert_resource(LocalSettingsState {
+            inner: LocalSettings::default(),
+            dirty: false,
+        });
+        app.world_mut().spawn((Camera3d::default(), Msaa::Off));
+        app.update();
+
+        let assert_plan = |app: &mut App, preset: GraphicsPreset| {
+            let plan = sun_shadow_for(preset);
+            let (light, tf, cascade, size) = shadow_row(app);
+            assert_eq!(light.shadow_maps_enabled, plan.enabled, "{preset:?}");
+            assert_eq!(size, plan.map_size, "{preset:?}");
+            assert_eq!(cascade.bounds.len(), plan.cascades, "{preset:?}");
+            assert_eq!(light.color, SANCTUARY_SUN.color, "{preset:?}");
+            assert_eq!(light.illuminance, SANCTUARY_SUN.illuminance, "{preset:?}");
+            assert_eq!(tf, SANCTUARY_SUN.transform(), "{preset:?}");
+        };
+
+        assert_plan(&mut app, GraphicsPreset::Medium);
+        for preset in [
+            GraphicsPreset::Low,
+            GraphicsPreset::Mobile,
+            GraphicsPreset::High,
+            GraphicsPreset::Ultra,
+            GraphicsPreset::Medium,
+            GraphicsPreset::Low,
+        ] {
+            app.world_mut()
+                .resource_mut::<LocalSettingsState>()
+                .inner
+                .set_graphics_preset(preset);
+            app.update();
+            assert_plan(&mut app, preset);
+        }
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .set_graphics_preset(GraphicsPreset::Ultra);
+        app.update();
+        let world = app.world_mut();
+        let mut lights = world.query::<(&DirectionalLight, Option<&VolumetricLight>)>();
+        let rows: Vec<_> = lights
+            .iter(world)
+            .map(|(light, volumetric)| (light.shadow_maps_enabled, volumetric.is_some()))
+            .collect();
+        assert_eq!(rows, vec![(true, true)], "Ultra shadowed sun with volumetric");
+
+        app.world_mut()
+            .resource_mut::<LocalSettingsState>()
+            .inner
+            .set_graphics_preset(GraphicsPreset::Low);
+        app.update();
+        let (light, _, _, size) = shadow_row(&mut app);
+        assert!(!light.shadow_maps_enabled);
+        assert_eq!(size, sun_shadow_for(GraphicsPreset::Low).map_size);
+        let world = app.world_mut();
+        let mut volumetric = world.query_filtered::<(), With<VolumetricLight>>();
+        assert_eq!(volumetric.iter(world).count(), 0, "Low drops volumetric");
     }
 
     fn sun_lights(app: &mut App) -> Vec<(DirectionalLight, Transform)> {
@@ -4184,9 +4459,13 @@ mod tests {
         assert_eq!(WORLD_GRADE_SATURATION, 1.12);
         assert_eq!(WORLD_GRADE_MIDTONE_CONTRAST, 1.06);
         assert_eq!(WORLD_GRADE_SHADOW_LIFT, 0.01);
+        assert_eq!(WORLD_GRADE_TEMPERATURE, 0.015);
+        assert_eq!(WORLD_GRADE_HIGHLIGHT_GAIN, 1.05);
         assert_eq!(grade.global.post_saturation, WORLD_GRADE_POST_SATURATION);
         assert_eq!(grade.midtones.contrast, WORLD_GRADE_MIDTONE_CONTRAST);
         assert_eq!(grade.shadows.lift, WORLD_GRADE_SHADOW_LIFT);
+        assert_eq!(grade.global.temperature, WORLD_GRADE_TEMPERATURE);
+        assert_eq!(grade.highlights.gain, WORLD_GRADE_HIGHLIGHT_GAIN);
         // Subtle: AgX colour back, not neon; a touch of contrast; no exposure.
         assert!((1.0..=1.6).contains(&grade.global.post_saturation));
         assert!((1.0..=1.08).contains(&grade.midtones.contrast));
@@ -4196,15 +4475,17 @@ mod tests {
         assert_eq!(grade.midtones.lift, 0.0);
         assert_eq!(grade.highlights.lift, 0.0);
         assert_eq!(grade.global.exposure, 0.0);
-        // No colour cast: nothing pushes toward brown / beige.
-        assert_eq!(grade.global.temperature, 0.0);
+        // Hair of warmth only. Tint and hue stay put so the sky does not go beige.
+        assert!((0.01..=0.04).contains(&grade.global.temperature));
+        assert!((1.0..=1.08).contains(&grade.highlights.gain));
+        assert_eq!(grade.shadows.gain, 1.0);
+        assert_eq!(grade.midtones.gain, 1.0);
         assert_eq!(grade.global.tint, 0.0);
         assert_eq!(grade.global.hue, 0.0);
         for section in grade.all_sections() {
             assert_eq!(section.saturation, WORLD_GRADE_SATURATION);
             assert!((1.0..=1.15).contains(&section.saturation));
             assert_eq!(section.gamma, 1.0);
-            assert_eq!(section.gain, 1.0);
         }
     }
 
