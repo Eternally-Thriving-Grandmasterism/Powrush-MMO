@@ -1,6 +1,6 @@
 # CURSOR GROK MODEL SEAT — 2026-09-22
 
-> **RETIRED 2026-10-24 by Sherif.** This Grok-only rule was temporary (non-Grok credits had run out). Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task.
+> **RETIRED 2026-10-24 by Sherif.** This Grok-only rule was temporary (non-Grok credits had run out). Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available.
 
 **Steward:** remaining Cursor team/account credits for non-Grok models are spent. **5x Grok usage** is what is left for ~2–3 weeks. Contact info@Rathor.ai.
 

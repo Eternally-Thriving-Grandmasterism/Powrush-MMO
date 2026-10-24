@@ -5,7 +5,7 @@ Tip `5084ce9f` (`5084ce9f94163021901cbd5ef161fac321fbcd24`) — spent #596 throu
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
 
-**Model:** Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. (Old Grok-only rule was temporary; retired by Sherif 2026-10-24.) Grok Bots may open **one** feature-branch PR; never push `main` directly. One card in flight. Title Online stays grey.
+**Model:** Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available. (Old Grok-only rule was temporary; retired by Sherif 2026-10-24.) Grok Bots may open **one** feature-branch PR; never push `main` directly. One card in flight. Title Online stays grey.
 
 ## Closed / landed (do not rebuild)
 
