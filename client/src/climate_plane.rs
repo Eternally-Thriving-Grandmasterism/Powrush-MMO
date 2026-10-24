@@ -130,15 +130,32 @@
  * [`world_color_grading`] adds a hair of warmth and a little highlight
  * gain. The lived UI camera stays bare. Not in [`FogWriteSet`].
  *
+ * CARD VP-AO-1 — screen-space ambient occlusion on High and Ultra.
+ * [`ssao_for`] is [`Some`] on those tiers and [`None`] on Mobile, Low, and
+ * Medium, so the lower tiers do not pay for the depth or normal prepass.
+ * Ultra matches High (same radius, same quality). The heavier
+ * [`ScreenSpaceAmbientOcclusionQualityLevel::Ultra`] sample count stays
+ * out of this card. [`sync_tier_ssao`] writes that plan onto every world
+ * [`Camera3d`] from the active graphics preset and removes the prepass
+ * when the plan is off. Missing settings stay Medium (occlusion off).
+ * Bevy 0.20's component tunes radius and thickness, not a separate
+ * intensity. Radius sits under the crate default so creases darken and
+ * plates, the Use glow, and Mute-safety cues stay readable. The lived UI
+ * camera is a [`Camera2d`] and is never touched. Not in [`FogWriteSet`].
+ * No `FogSettings` write. No `GlobalAmbientLight` write.
+ *
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
+use bevy::core_pipeline::prepass::{DepthPrepass, NormalPrepass};
 use bevy::post_process::bloom::Bloom;
 use bevy::light::{
     CascadeShadowConfig, CascadeShadowConfigBuilder, DirectionalLightShadowMap, FogVolume,
     VolumetricFog, VolumetricLight,
 };
-use bevy::pbr::{DistanceFog, FogFalloff};
+use bevy::pbr::{
+    DistanceFog, FogFalloff, ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel,
+};
 use bevy::prelude::*;
 
 use shared::local_settings::{GraphicsPreset, WeatherFidelity};
@@ -872,6 +889,33 @@ pub fn bloom_for(preset: GraphicsPreset) -> Option<Bloom> {
     })
 }
 
+/// CARD VP-AO-1 — contact radius in view-space metres.
+///
+/// Bevy's default is `0.5 * 1.457` (0.7285). This sits under that so
+/// occlusion stays in creases (feet, stone bases) and does not halo
+/// across a plate, the Use glow, or a Mute-safety read.
+const SSAO_RADIUS: f32 = 0.62;
+/// Bevy's default object thickness. Not raised: a thicker shell would
+/// darken thin plates and the Use glow.
+const SSAO_THICKNESS: f32 = 0.25;
+
+/// Screen-space ambient occlusion for a Comfort graphics tier.
+///
+/// [`Some`] on High and Ultra. Ultra matches High. Mobile, Low, and Medium
+/// return [`None`], so their frame budgets stay untouched.
+/// [`ScreenSpaceAmbientOcclusionQualityLevel::Ultra`] (the heavy sample
+/// count) is not selected.
+pub const fn ssao_for(preset: GraphicsPreset) -> Option<ScreenSpaceAmbientOcclusion> {
+    match preset {
+        GraphicsPreset::High | GraphicsPreset::Ultra => Some(ScreenSpaceAmbientOcclusion {
+            quality_level: ScreenSpaceAmbientOcclusionQualityLevel::High,
+            radius: SSAO_RADIUS,
+            constant_object_thickness: SSAO_THICKNESS,
+        }),
+        GraphicsPreset::Mobile | GraphicsPreset::Low | GraphicsPreset::Medium => None,
+    }
+}
+
 /// CARD VP-GRADE-1 — the one Sanctuary sun. CARD VP-LIGHT-1 retunes the
 /// angle and colour to golden hour. `main.rs` `spawn_sun_and_camera` and
 /// the [`spawn_climate_place`] fallback both spawn through
@@ -1243,6 +1287,7 @@ impl Plugin for ClimatePlanePlugin {
                     sync_sun_shadows.before(sync_ultra_volumetric),
                     sync_ultra_volumetric,
                     sync_tier_bloom.in_set(TierBloomSet),
+                    sync_tier_ssao,
                 ),
             );
     }
@@ -1480,6 +1525,66 @@ fn sync_tier_bloom(
             }
             if existing.is_some() {
                 commands.entity(entity).remove::<Bloom>();
+            }
+        }
+    }
+}
+
+/// CARD VP-AO-1 — High and Ultra insert [`ScreenSpaceAmbientOcclusion`] on
+/// every [`Camera3d`], plus the depth and normal prepass that pass needs.
+/// Mobile, Low, and Medium remove the occlusion component and those
+/// prepasses. A camera already on the plan is left alone, so a steady
+/// Medium or Low frame queues no command. A [`Camera2d`] is never touched.
+/// Missing settings stay Medium (occlusion off). Writes no [`FogSettings`]
+/// and no [`GlobalAmbientLight`]. Not in [`FogWriteSet`].
+fn sync_tier_ssao(
+    mut commands: Commands,
+    settings: Option<Res<LocalSettingsState>>,
+    cameras: Query<
+        (
+            Entity,
+            Option<&ScreenSpaceAmbientOcclusion>,
+            Has<DepthPrepass>,
+            Has<NormalPrepass>,
+        ),
+        With<Camera3d>,
+    >,
+) {
+    let preset = settings
+        .as_ref()
+        .map(|state| state.inner.graphics_preset)
+        .unwrap_or(GraphicsPreset::Medium);
+    if let Some(ssao) = ssao_for(preset) {
+        for (entity, existing, depth, normal) in &cameras {
+            let needs_ssao = existing.is_none_or(|have| have != &ssao);
+            if !needs_ssao && depth && normal {
+                continue;
+            }
+            let mut cmds = commands.entity(entity);
+            if needs_ssao {
+                cmds.insert(ssao.clone());
+            }
+            if !depth {
+                cmds.insert(DepthPrepass);
+            }
+            if !normal {
+                cmds.insert(NormalPrepass);
+            }
+        }
+    } else {
+        for (entity, existing, depth, normal) in &cameras {
+            if existing.is_none() && !depth && !normal {
+                continue;
+            }
+            let mut cmds = commands.entity(entity);
+            if existing.is_some() {
+                cmds.remove::<ScreenSpaceAmbientOcclusion>();
+            }
+            if depth {
+                cmds.remove::<DepthPrepass>();
+            }
+            if normal {
+                cmds.remove::<NormalPrepass>();
             }
         }
     }
@@ -4590,6 +4695,300 @@ mod tests {
         assert_eq!(bloom.expect("Ultra bloom").intensity, LIGHT_BLOOM_INTENSITY);
     }
 
+    /// CARD VP-AO-1 — Some only on High and Ultra, and those two match.
+    /// Radius stays under Bevy's 0.7285 default. Thickness stays the crate
+    /// default. All five presets.
+    #[test]
+    fn vp_ao_ssao_for_high_and_ultra_only_radius_under_default() {
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        let high = ssao_for(GraphicsPreset::High).expect("High");
+        let ultra = ssao_for(GraphicsPreset::Ultra).expect("Ultra");
+        assert_eq!(high, ultra);
+        assert_eq!(
+            high.quality_level,
+            ScreenSpaceAmbientOcclusionQualityLevel::High
+        );
+        assert_ne!(
+            high.quality_level,
+            ScreenSpaceAmbientOcclusionQualityLevel::Ultra
+        );
+        assert_eq!(high.radius, SSAO_RADIUS);
+        assert_eq!(high.constant_object_thickness, SSAO_THICKNESS);
+        assert!(SSAO_RADIUS > 0.0);
+        // Bevy's documented default radius is 0.5 * 1.457.
+        assert!(
+            SSAO_RADIUS < 0.7285,
+            "radius {SSAO_RADIUS} is not under Bevy's default"
+        );
+        assert_eq!(SSAO_THICKNESS, 0.25);
+        for preset in [
+            GraphicsPreset::Mobile,
+            GraphicsPreset::Low,
+            GraphicsPreset::Medium,
+        ] {
+            assert!(ssao_for(preset).is_none(), "{preset:?}");
+        }
+    }
+
+    /// CARD VP-AO-1 — High inserts occlusion and the prepass. Medium and Low
+    /// remove all three. A second High frame does not reinsert. A Camera2d
+    /// is left alone. Missing settings stay Medium (occlusion off), and a
+    /// pre-inserted prepass is stripped so that tier does not keep the cost.
+    #[test]
+    fn vp_ao_sync_inserts_on_high_and_strips_prepass_on_medium() {
+        use shared::local_settings::LocalSettings;
+
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins);
+        app.insert_resource(LocalSettingsState {
+            inner: LocalSettings::default(),
+            dirty: false,
+        });
+        app.add_systems(Update, sync_tier_ssao);
+        let world_cam = app.world_mut().spawn((Camera3d::default(), Msaa::Off)).id();
+        let ui_cam = app.world_mut().spawn((Camera2d, Msaa::Off)).id();
+
+        let set = |app: &mut App, preset: GraphicsPreset| {
+            app.world_mut()
+                .resource_mut::<LocalSettingsState>()
+                .inner
+                .set_graphics_preset(preset);
+            app.update();
+        };
+
+        app.update();
+        assert!(app.world().get::<ScreenSpaceAmbientOcclusion>(world_cam).is_none());
+        assert!(app.world().get::<DepthPrepass>(world_cam).is_none());
+        assert!(app.world().get::<NormalPrepass>(world_cam).is_none());
+        assert!(app.world().get::<ScreenSpaceAmbientOcclusion>(ui_cam).is_none());
+
+        set(&mut app, GraphicsPreset::High);
+        let world = app.world().entity(world_cam);
+        let ssao = world.get::<ScreenSpaceAmbientOcclusion>().expect("High ssao");
+        assert_eq!(ssao.radius, SSAO_RADIUS);
+        assert!(world.get::<DepthPrepass>().is_some());
+        assert!(world.get::<NormalPrepass>().is_some());
+        assert!(app.world().get::<ScreenSpaceAmbientOcclusion>(ui_cam).is_none());
+        assert!(app.world().get::<DepthPrepass>(ui_cam).is_none());
+
+        app.update();
+        assert!(!app
+            .world()
+            .entity(world_cam)
+            .get_ref::<ScreenSpaceAmbientOcclusion>()
+            .unwrap()
+            .is_added());
+
+        set(&mut app, GraphicsPreset::Medium);
+        assert!(app.world().get::<ScreenSpaceAmbientOcclusion>(world_cam).is_none());
+        assert!(app.world().get::<DepthPrepass>(world_cam).is_none());
+        assert!(app.world().get::<NormalPrepass>(world_cam).is_none());
+
+        set(&mut app, GraphicsPreset::Ultra);
+        assert_eq!(
+            app.world()
+                .get::<ScreenSpaceAmbientOcclusion>(world_cam)
+                .expect("Ultra matches High")
+                .radius,
+            SSAO_RADIUS
+        );
+        assert!(app.world().get::<DepthPrepass>(world_cam).is_some());
+
+        set(&mut app, GraphicsPreset::Low);
+        assert!(app.world().get::<ScreenSpaceAmbientOcclusion>(world_cam).is_none());
+        assert!(app.world().get::<DepthPrepass>(world_cam).is_none());
+        assert!(app.world().get::<NormalPrepass>(world_cam).is_none());
+
+        set(&mut app, GraphicsPreset::Mobile);
+        assert!(app.world().get::<ScreenSpaceAmbientOcclusion>(world_cam).is_none());
+        assert!(app.world().get::<DepthPrepass>(world_cam).is_none());
+
+        let mut bare = App::new();
+        bare.add_plugins(MinimalPlugins);
+        bare.add_systems(Update, sync_tier_ssao);
+        let cam = bare
+            .world_mut()
+            .spawn((
+                Camera3d::default(),
+                Msaa::Off,
+                ScreenSpaceAmbientOcclusion::default(),
+                DepthPrepass,
+                NormalPrepass,
+            ))
+            .id();
+        bare.update();
+        assert!(bare.world().get::<ScreenSpaceAmbientOcclusion>(cam).is_none());
+        assert!(bare.world().get::<DepthPrepass>(cam).is_none());
+        assert!(bare.world().get::<NormalPrepass>(cam).is_none());
+    }
+
+    /// CARD VP-AO-1 — registered on Update, not in FogWriteSet.
+    #[test]
+    fn vp_ao_sync_is_registered_outside_fog_write_set() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, ClimatePlanePlugin));
+        let schedule = app
+            .world()
+            .resource::<Schedules>()
+            .get(Update)
+            .expect("Update schedule");
+        let graph = schedule.graph();
+        let key = system_key_matching(graph, sync_tier_ssao)
+            .expect("ClimatePlanePlugin did not register sync_tier_ssao");
+        for label in system_parent_labels(graph, key) {
+            assert!(!label.contains("FogWriteSet"), "sync_tier_ssao landed in {label}");
+        }
+    }
+
+    /// Lavapipe stills for VP-AO-1. Not part of the headless gate (`--ignored`).
+    /// Low and Medium stay without occlusion. High is shot with the component
+    /// stripped, then with [`ssao_for`] applied.
+    #[test]
+    #[ignore = "lavapipe screenshot; DISPLAY and VK_ICD_FILENAMES"]
+    fn vp_ao_lavapipe_low_medium_and_high_with_and_without() {
+        use crate::living_practice_loop::SoftPlayerRealm;
+        use crate::ui_above_world::UiAboveWorldPlugin;
+        use shared::local_settings::LocalSettings;
+
+        let mut settings = LocalSettings::default();
+        settings.set_graphics_preset(GraphicsPreset::Low);
+        let mut app = App::new();
+        app.add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        resolution: (640u32, 360u32).into(),
+                        title: "vp-ao-1".into(),
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .disable::<bevy::audio::AudioPlugin>()
+                .disable::<bevy::winit::WinitPlugin>(),
+        )
+        .add_plugins({
+            let mut winit = bevy::winit::WinitPlugin::default();
+            winit.run_on_any_thread = true;
+            winit
+        })
+        .init_resource::<SoftPlayerRealm>()
+        .insert_resource(LocalSettingsState {
+            inner: settings,
+            dirty: false,
+        })
+        .insert_resource(AoHold { show: false })
+        .insert_resource(AoProbe::new())
+        .add_plugins((UiAboveWorldPlugin, ClimatePlanePlugin))
+        .add_systems(
+            Update,
+            (
+                hold_ao_off_when_capture_asks.after(sync_tier_ssao),
+                drive_ao_probe.after(hold_ao_off_when_capture_asks),
+            ),
+        );
+
+        let cube = {
+            let mut meshes = app.world_mut().resource_mut::<Assets<Mesh>>();
+            meshes.add(Cuboid::new(1.1, 1.1, 1.1))
+        };
+        let plate = {
+            let mut meshes = app.world_mut().resource_mut::<Assets<Mesh>>();
+            meshes.add(Cuboid::new(0.12, 1.4, 0.9))
+        };
+        let glow = {
+            let mut meshes = app.world_mut().resource_mut::<Assets<Mesh>>();
+            meshes.add(Sphere::new(0.28))
+        };
+        let stone = {
+            let mut materials = app.world_mut().resource_mut::<Assets<StandardMaterial>>();
+            materials.add(StandardMaterial {
+                base_color: Color::srgb(0.55, 0.58, 0.62),
+                perceptual_roughness: 0.9,
+                ..default()
+            })
+        };
+        let readable = {
+            let mut materials = app.world_mut().resource_mut::<Assets<StandardMaterial>>();
+            materials.add(StandardMaterial {
+                base_color: Color::srgb(0.93, 0.91, 0.84),
+                perceptual_roughness: 0.45,
+                ..default()
+            })
+        };
+        let well = {
+            let mut materials = app.world_mut().resource_mut::<Assets<StandardMaterial>>();
+            materials.add(StandardMaterial {
+                base_color: Color::srgb(0.86, 0.66, 0.29),
+                emissive: LinearRgba::new(6.0, 2.4, 0.4, 1.0),
+                ..default()
+            })
+        };
+        app.world_mut().spawn((
+            Camera3d::default(),
+            Camera {
+                order: crate::ui_above_world::WORLD_CAMERA_ORDER,
+                ..default()
+            },
+            Transform::from_xyz(1.55, 0.95, 2.15)
+                .looking_at(Vec3::new(0.05, 0.28, 0.05), Vec3::Y),
+            Msaa::Off,
+        ));
+        app.world_mut().spawn((
+            Mesh3d(cube),
+            MeshMaterial3d(stone),
+            Transform::from_xyz(0.0, 0.55, 0.0),
+        ));
+        app.world_mut().spawn((
+            Mesh3d(plate),
+            MeshMaterial3d(readable),
+            Transform::from_xyz(-1.15, 0.7, -0.35),
+        ));
+        app.world_mut().spawn((
+            Mesh3d(glow),
+            MeshMaterial3d(well),
+            Transform::from_xyz(1.25, 0.4, 0.45),
+        ));
+
+        let slots = app.world().resource::<AoProbe>().slots.clone();
+        app.run();
+
+        let slots = slots.lock().expect("ao slots");
+        let low = slots.low.clone().expect("Low frame");
+        let medium = slots.medium.clone().expect("Medium frame");
+        let high_off = slots.high_off.clone().expect("High without AO");
+        let high_on = slots.high_on.clone().expect("High with AO");
+        assert!(!low.ssao && !low.depth && !low.normal, "Low paid for a prepass");
+        assert!(!medium.ssao && !medium.depth && !medium.normal, "Medium paid for a prepass");
+        assert!(!high_off.ssao && !high_off.depth, "High-without still had occlusion");
+        assert!(high_on.ssao && high_on.depth && high_on.normal, "High-with missing occlusion");
+        assert_eq!(high_on.radius, Some(SSAO_RADIUS));
+        save_probe_png(&low.image, "vp-ao-1-low.png");
+        save_probe_png(&medium.image, "vp-ao-1-medium.png");
+        save_probe_png(&high_off.image, "vp-ao-1-high-without-ao.png");
+        save_probe_png(&high_on.image, "vp-ao-1-high-with-ao.png");
+        let low_rgb = mean_rgb(&low.image);
+        let medium_rgb = mean_rgb(&medium.image);
+        let off_rgb = mean_rgb(&high_off.image);
+        let on_rgb = mean_rgb(&high_on.image);
+        let diff = mean_abs_rgb(&high_off.image, &high_on.image);
+        let crush = off_rgb.3 - on_rgb.3;
+        let stats = format!(
+            "low {low_rgb:?}\nmedium {medium_rgb:?}\nhigh_without {off_rgb:?}\nhigh_with {on_rgb:?}\nmean_abs {diff:.3}\nluma_drop {crush:.3}\n"
+        );
+        let dir = std::env::var("SHOT_DIR").unwrap_or_else(|_| "/opt/cursor/artifacts".into());
+        std::fs::write(std::path::Path::new(&dir).join("vp-ao-1-stats.txt"), &stats)
+            .expect("stats");
+        eprintln!("{stats}");
+        assert!(
+            diff > 0.15,
+            "High with AO matched High without (mean abs {diff:.3})"
+        );
+        assert!(
+            crush < 28.0,
+            "AO crushed the High frame (luma drop {crush:.1})"
+        );
+    }
+
     /// Lavapipe one-frame. Not part of the headless gate (`--ignored`).
     /// High: UI plate over a non-blank world, both cameras HDR.
     /// Ultra: volumetric fog still on the world camera, plate still over the world.
@@ -4871,4 +5270,225 @@ fn save_probe_png(image: &bevy::image::Image, name: &str) {
         .to_rgb8()
         .save(&path)
         .unwrap_or_else(|err| panic!("save {}: {err}", path.display()));
+}
+
+#[cfg(test)]
+#[derive(Clone)]
+struct AoShot {
+    image: bevy::image::Image,
+    ssao: bool,
+    depth: bool,
+    normal: bool,
+    radius: Option<f32>,
+}
+
+#[cfg(test)]
+struct AoSlots {
+    low: Option<AoShot>,
+    medium: Option<AoShot>,
+    high_off: Option<AoShot>,
+    high_on: Option<AoShot>,
+}
+
+#[cfg(test)]
+#[derive(Resource)]
+struct AoHold {
+    show: bool,
+}
+
+#[cfg(test)]
+#[derive(Resource)]
+struct AoProbe {
+    tx: std::sync::mpsc::Sender<bevy::image::Image>,
+    rx: std::sync::Mutex<std::sync::mpsc::Receiver<bevy::image::Image>>,
+    frames: u32,
+    phase: u8,
+    requested: bool,
+    slots: std::sync::Arc<std::sync::Mutex<AoSlots>>,
+}
+
+#[cfg(test)]
+impl AoProbe {
+    fn new() -> Self {
+        let (tx, rx) = std::sync::mpsc::channel();
+        Self {
+            tx,
+            rx: std::sync::Mutex::new(rx),
+            frames: 0,
+            phase: 0,
+            requested: false,
+            slots: std::sync::Arc::new(std::sync::Mutex::new(AoSlots {
+                low: None,
+                medium: None,
+                high_off: None,
+                high_on: None,
+            })),
+        }
+    }
+}
+
+/// Test-only. Runs after [`sync_tier_ssao`] so a High frame can be shot
+/// with the component removed, then with it left on.
+#[cfg(test)]
+fn hold_ao_off_when_capture_asks(
+    mut commands: Commands,
+    hold: Res<AoHold>,
+    cameras: Query<Entity, With<Camera3d>>,
+) {
+    if hold.show {
+        return;
+    }
+    for entity in &cameras {
+        commands.entity(entity).remove::<(
+            ScreenSpaceAmbientOcclusion,
+            DepthPrepass,
+            NormalPrepass,
+        )>();
+    }
+}
+
+#[cfg(test)]
+fn drive_ao_probe(
+    mut commands: Commands,
+    mut probe: ResMut<AoProbe>,
+    mut settings: ResMut<LocalSettingsState>,
+    mut hold: ResMut<AoHold>,
+    windows: Query<Entity, With<bevy::window::PrimaryWindow>>,
+    world_cams: Query<
+        (
+            Option<&ScreenSpaceAmbientOcclusion>,
+            Has<DepthPrepass>,
+            Has<NormalPrepass>,
+        ),
+        With<Camera3d>,
+    >,
+    mut exit: MessageWriter<AppExit>,
+) {
+    // Phase 0 waits out lavapipe shader compile. A sky-clear frame is
+    // discarded below so Low is not shot before the yard is on screen.
+    let warmup = match probe.phase {
+        0 => 120,
+        3 => 100,
+        _ => 48,
+    };
+    probe.frames += 1;
+    if probe.frames >= warmup && !probe.requested {
+        if let Ok(window) = windows.single() {
+            probe.requested = true;
+            let tx = probe.tx.clone();
+            commands
+                .spawn(bevy::render::view::window::screenshot::Screenshot::window(window))
+                .observe(
+                    move |trigger: On<bevy::render::view::window::screenshot::ScreenshotCaptured>| {
+                        let _ = tx.send(trigger.event().image.clone());
+                    },
+                );
+        }
+    }
+    let received = probe.rx.lock().expect("ao inbox").try_recv().ok();
+    if let Some(image) = received {
+        if shot_is_clear_sky(&image) {
+            if probe.frames > 500 {
+                panic!("phase {} stayed on the clear sky", probe.phase);
+            }
+            probe.requested = false;
+            return;
+        }
+        let (ssao, depth, normal) = world_cams.single().expect("world camera");
+        let shot = AoShot {
+            image,
+            ssao: ssao.is_some(),
+            depth,
+            normal,
+            radius: ssao.map(|have| have.radius),
+        };
+        let mut slots = probe.slots.lock().expect("ao slots");
+        match probe.phase {
+            0 => slots.low = Some(shot),
+            1 => slots.medium = Some(shot),
+            2 => slots.high_off = Some(shot),
+            _ => slots.high_on = Some(shot),
+        }
+        drop(slots);
+        probe.phase += 1;
+        probe.frames = 0;
+        probe.requested = false;
+        hold.show = false;
+        match probe.phase {
+            1 => settings.inner.set_graphics_preset(GraphicsPreset::Medium),
+            2 => settings.inner.set_graphics_preset(GraphicsPreset::High),
+            3 => hold.show = true,
+            _ => {
+                exit.write(AppExit::Success);
+            }
+        }
+    } else if probe.frames > 500 {
+        panic!("screenshot did not arrive in phase {}", probe.phase);
+    }
+}
+
+/// True when the frame is still the Sanctuary clear colour. Lavapipe's first
+/// frames present that sky before the world pass is ready.
+#[cfg(test)]
+fn shot_is_clear_sky(image: &bevy::image::Image) -> bool {
+    let pixels = image.data.as_deref().unwrap_or(&[]);
+    if pixels.len() < 64 {
+        return true;
+    }
+    let mut sky = 0u32;
+    let mut n = 0u32;
+    for px in pixels.chunks_exact(4) {
+        let (r, _, b) = rgb_of(image, px);
+        n += 1;
+        if b > r + 40.0 && b > 160.0 {
+            sky += 1;
+        }
+    }
+    n > 0 && sky * 100 / n > 80
+}
+
+#[cfg(test)]
+fn rgb_of(image: &bevy::image::Image, px: &[u8]) -> (f32, f32, f32) {
+    use bevy::render::render_resource::TextureFormat;
+    match image.texture_descriptor.format {
+        TextureFormat::Rgba8Unorm | TextureFormat::Rgba8UnormSrgb => {
+            (px[0] as f32, px[1] as f32, px[2] as f32)
+        }
+        TextureFormat::Bgra8Unorm | TextureFormat::Bgra8UnormSrgb => {
+            (px[2] as f32, px[1] as f32, px[0] as f32)
+        }
+        other => panic!("unexpected screenshot format {other:?}"),
+    }
+}
+
+#[cfg(test)]
+fn mean_rgb(image: &bevy::image::Image) -> (f32, f32, f32, f32) {
+    let pixels = image.data.as_deref().expect("screenshot pixels");
+    let mut n = 0.0f32;
+    let mut rgb = [0.0f32; 3];
+    for px in pixels.chunks_exact(4) {
+        let (r, g, b) = rgb_of(image, px);
+        rgb[0] += r;
+        rgb[1] += g;
+        rgb[2] += b;
+        n += 1.0;
+    }
+    let (r, g, b) = (rgb[0] / n, rgb[1] / n, rgb[2] / n);
+    (r, g, b, 0.2126 * r + 0.7152 * g + 0.0722 * b)
+}
+
+#[cfg(test)]
+fn mean_abs_rgb(a: &bevy::image::Image, b: &bevy::image::Image) -> f32 {
+    let pa = a.data.as_deref().expect("a");
+    let pb = b.data.as_deref().expect("b");
+    assert_eq!(pa.len(), pb.len(), "shot size");
+    let mut n = 0.0f32;
+    let mut acc = 0.0f32;
+    for (xa, xb) in pa.chunks_exact(4).zip(pb.chunks_exact(4)) {
+        let (ar, ag, ab) = rgb_of(a, xa);
+        let (br, bg, bb) = rgb_of(b, xb);
+        acc += (ar - br).abs() + (ag - bg).abs() + (ab - bb).abs();
+        n += 3.0;
+    }
+    acc / n
 }
