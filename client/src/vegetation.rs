@@ -37,6 +37,7 @@ pub const YARD_CLEAR: f32 = 8.0;
 pub const CAMERA_XZ: Vec2 = Vec2::new(0.0, 14.0);
 pub const CAMERA_CLEAR: f32 = 3.5;
 /// Sit just above the yard plate (`y = 0`) and the valley floor (`y = -0.02`).
+/// On a lower VP-TERRAIN-1 shelf, [`seated_y`] adds the shelf drop.
 const GROUND_LIFT: f32 = 0.03;
 /// Trunk prototype height, metres. The canopy base overlaps the top.
 pub const TRUNK_HEIGHT: f32 = 1.35;
@@ -327,14 +328,19 @@ pub fn vegetation_instances(plants: &[VegPlant]) -> Vec<VegInstance> {
     let mut out = Vec::with_capacity(plants.len() * 2);
     for plant in plants {
         match plant.kind {
-            VegKind::Tuft => push_instance(plant, VegPart::Tuft, GROUND_LIFT, &mut out),
-            VegKind::Shrub => push_instance(plant, VegPart::Shrub, GROUND_LIFT, &mut out),
+            VegKind::Tuft => {
+                push_instance(plant, VegPart::Tuft, seated_y(plant.x, plant.z), &mut out)
+            }
+            VegKind::Shrub => {
+                push_instance(plant, VegPart::Shrub, seated_y(plant.x, plant.z), &mut out)
+            }
             VegKind::Tree => {
-                push_instance(plant, VegPart::Trunk, GROUND_LIFT, &mut out);
+                let ground = seated_y(plant.x, plant.z);
+                push_instance(plant, VegPart::Trunk, ground, &mut out);
                 push_instance(
                     plant,
                     VegPart::Canopy,
-                    GROUND_LIFT + TRUNK_HEIGHT * plant.scale * CANOPY_SIT,
+                    ground + TRUNK_HEIGHT * plant.scale * CANOPY_SIT,
                     &mut out,
                 );
             }
@@ -365,6 +371,12 @@ pub fn instance_batches(instances: &[VegInstance]) -> Vec<VegBatch> {
     }
     batches.sort_by_key(|batch| (batch.key.part as u8, batch.key.lod as u8));
     batches
+}
+
+/// World Y of a plant base. Court and yard stay at [`GROUND_LIFT`].
+/// A lower shelf keeps the same gap above its tread.
+fn seated_y(x: f32, z: f32) -> f32 {
+    GROUND_LIFT + crate::terrain::shelf_offset(x, z)
 }
 
 fn push_instance(plant: &VegPlant, part: VegPart, y: f32, out: &mut Vec<VegInstance>) {
@@ -886,6 +898,78 @@ mod tests {
                 }
             }
         }
+    }
+
+    #[test]
+    fn plants_sit_on_the_shaped_surface() {
+        use crate::terrain::{play_footprint, shelf_offset, COURT_RADIUS, PLAY_FLOOR_Y};
+
+        for preset in GraphicsPreset::ALL {
+            let plants = vegetation_plants(preset);
+            let instances = vegetation_instances(&plants);
+            assert_eq!(instances.len() as u32, vegetation_plan(preset).instances());
+            for inst in &instances {
+                let ground = seated_y(inst.translation.x, inst.translation.z);
+                match inst.part {
+                    VegPart::Tuft | VegPart::Shrub | VegPart::Trunk => {
+                        assert!(
+                            (inst.translation.y - ground).abs() < 1.0e-4,
+                            "{preset:?} {:?} {}",
+                            inst.part,
+                            inst.translation.y
+                        );
+                    }
+                    VegPart::Canopy => {
+                        let canopy = ground + TRUNK_HEIGHT * inst.scale * CANOPY_SIT;
+                        assert!(
+                            (inst.translation.y - canopy).abs() < 1.0e-4,
+                            "{preset:?} canopy {}",
+                            inst.translation.y
+                        );
+                    }
+                }
+                if play_footprint(inst.translation.x, inst.translation.z) {
+                    let base = match inst.part {
+                        VegPart::Canopy => {
+                            inst.translation.y - TRUNK_HEIGHT * inst.scale * CANOPY_SIT
+                        }
+                        _ => inst.translation.y,
+                    };
+                    assert!(
+                        (base - GROUND_LIFT).abs() < 1.0e-4,
+                        "{preset:?} footprint plant moved"
+                    );
+                }
+            }
+            // Cheap reaches stay inside the court, so the old lift holds.
+            if matches!(
+                preset,
+                GraphicsPreset::Mobile | GraphicsPreset::Low | GraphicsPreset::Medium
+            ) {
+                assert!(vegetation_plan(preset).reach < COURT_RADIUS);
+                assert!(instances.iter().all(|inst| {
+                    let base = match inst.part {
+                        VegPart::Canopy => {
+                            inst.translation.y - TRUNK_HEIGHT * inst.scale * CANOPY_SIT
+                        }
+                        _ => inst.translation.y,
+                    };
+                    (base - GROUND_LIFT).abs() < 1.0e-4
+                }));
+            }
+        }
+
+        let ultra = field(GraphicsPreset::Ultra);
+        assert!(ultra.iter().any(|inst| {
+            let r = Vec2::new(inst.translation.x, inst.translation.z).length();
+            r > COURT_RADIUS && shelf_offset(inst.translation.x, inst.translation.z) < -0.5
+        }));
+        assert!(ultra
+            .iter()
+            .any(|inst| { inst.part == VegPart::Trunk && inst.translation.y < GROUND_LIFT - 0.5 }));
+        // The drop is the shelf, not a new floor height on the yard.
+        assert_eq!(seated_y(0.0, 0.0), GROUND_LIFT);
+        assert!(seated_y(COURT_RADIUS + 2.0, 0.0) < PLAY_FLOOR_Y);
     }
 
     #[test]

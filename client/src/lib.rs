@@ -60,6 +60,7 @@ pub mod player_lineage;
 pub mod living_ecology;
 pub mod painterly_mat;
 pub mod sky_backdrop;
+pub mod terrain;
 pub mod vegetation;
 pub mod living_body;
 pub mod living_freshness;
