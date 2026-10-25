@@ -58,6 +58,7 @@ pub mod first_whisper;
 pub mod local_human_sim;
 pub mod player_lineage;
 pub mod living_ecology;
+pub mod painterly_mat;
 pub mod sky_backdrop;
 pub mod living_body;
 pub mod living_freshness;
@@ -174,6 +175,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(net_mode::NetModePlugin);
         app.add_plugins(climate_script::ClimateScriptPlugin);
         app.add_plugins(climate_plane::ClimatePlanePlugin);
+        app.add_plugins(painterly_mat::PainterlyPlugin);
         app.add_plugins(sky_backdrop::SkyBackdropPlugin);
         app.add_plugins(light_gen::LightGenPlugin);
         app.add_plugins(living_ecology::LivingEcologyPlugin);
