@@ -338,7 +338,11 @@ pub fn conifer_spots(seed: u32, count: usize) -> Vec<(Vec3, f32)> {
             let a = rng.next_f32() * TAU;
             let r = CONIFER_R_MIN + rng.next_f32() * (CONIFER_R_MAX - CONIFER_R_MIN);
             let s = 0.9 + rng.next_f32() * 1.6;
-            (Vec3::new(a.cos() * r, 0.0, a.sin() * r), s)
+            let x = a.cos() * r;
+            let z = a.sin() * r;
+            // CARD VP-TERRAIN-1 — the court offset is 0, so yard trees stay.
+            // Trees past the court sit on the shelf under them.
+            (Vec3::new(x, shelf_drop(x, z), z), s)
         })
         .collect()
 }
@@ -426,10 +430,12 @@ pub fn ridge_meshes() -> (Option<Mesh>, Option<Mesh>) {
     let mut rng = Rng::new(0x9E37_79B9);
     let peaks = ring_peaks();
     let rock = merged(peaks.iter().map(|p| {
+        let x = p.angle.cos() * p.radius;
+        let z = p.angle.sin() * p.radius;
         faceted_mountain(&mut rng, p.base, p.height).transformed_by(Transform::from_xyz(
-            p.angle.cos() * p.radius,
-            0.0,
-            p.angle.sin() * p.radius,
+            x,
+            shelf_drop(x, z),
+            z,
         ))
     }));
     let snow = merged(peaks.iter().filter(|p| p.snow_capped()).map(|p| {
@@ -439,10 +445,12 @@ pub fn ridge_meshes() -> (Option<Mesh>, Option<Mesh>) {
         });
         cap.duplicate_vertices();
         cap.compute_flat_normals();
+        let x = p.angle.cos() * p.radius;
+        let z = p.angle.sin() * p.radius;
         cap.transformed_by(Transform::from_xyz(
-            p.angle.cos() * p.radius,
-            p.height * 0.86,
-            p.angle.sin() * p.radius,
+            x,
+            p.height * 0.86 + shelf_drop(x, z),
+            z,
         ))
     }));
     (rock, snow)
@@ -473,12 +481,18 @@ pub fn belt_meshes(count: usize) -> (Option<Mesh>, Option<Mesh>) {
     (bark, needle)
 }
 
+/// Court drop is 0, so a prop on the old floor does not move. A lower
+/// shelf shifts the prop with the tread.
+fn shelf_drop(x: f32, z: f32) -> f32 {
+    crate::terrain::shelf_offset(x, z)
+}
+
 pub struct SkyBackdropPlugin;
 
 impl Plugin for SkyBackdropPlugin {
     fn build(&self, app: &mut App) {
         app.add_systems(Startup, spawn_sky_backdrop)
-            .add_systems(Update, show_backdrop_for_realm);
+            .add_systems(Update, (show_backdrop_for_realm, sync_terrace_mesh));
     }
 }
 
@@ -562,14 +576,13 @@ fn spawn_sky_backdrop(
     };
     // CARD VP-MAT-1 — valley earth hue stays. Bark stays. Foliage, ridge,
     // and snow take the painterly ramp. Bands stay the VP-SKY-2 flat colour.
+    // CARD VP-TERRAIN-1 — the floor is stepped shelves. Heights are world Y
+    // (the court is GROUND_Y). Segments follow the preset.
     spawn(
-        Plane3d::default()
-            .mesh()
-            .size(GROUND_SIZE, GROUND_SIZE)
-            .build(),
+        crate::terrain::terrace_mesh(crate::terrain::terrain_plan(preset)),
         lit(VALLEY_EARTH, 0.95),
         SkyBackdropPart::Ground,
-        Transform::from_xyz(0.0, GROUND_Y, 0.0),
+        Transform::IDENTITY,
         None,
     );
     let (rock, snow) = ridge_meshes();
@@ -625,13 +638,7 @@ fn spawn_sky_backdrop(
     ] {
         let (bark, needle) = belt_meshes(count);
         if let Some(m) = bark {
-            spawn(
-                m,
-                lit(CONIFER_BARK, 0.9),
-                part,
-                Transform::IDENTITY,
-                None,
-            );
+            spawn(m, lit(CONIFER_BARK, 0.9), part, Transform::IDENTITY, None);
         }
         if let Some(mut m) = needle {
             crate::painterly_mat::paint_height_ramp(
@@ -657,19 +664,53 @@ fn spawn_sky_backdrop(
             );
         }
     }
-    for index in 0..SILHOUETTE_BAND_COUNT {
+    for (index, radius) in BAND_RADIUS.iter().enumerate() {
         let color = silhouette_band_srgb(index);
         commands.spawn((
             (
                 Mesh3d(meshes.add(silhouette_band_mesh(index))),
                 MeshMaterial3d(materials.add(silhouette_material(color))),
-                Transform::IDENTITY,
+                Transform::from_xyz(0.0, shelf_drop(*radius, 0.0), 0.0),
             ),
             SkyBackdropPart::Band(index as u8),
             Name::new("VP-SKY-2 band"),
             bevy::light::NotShadowCaster,
             bevy::light::NotShadowReceiver,
         ));
+    }
+}
+
+/// Rim segments follow the graphics preset. The shelf heights do not,
+/// so a tier change only retessellates the same steps.
+fn sync_terrace_mesh(
+    settings: Option<Res<LocalSettingsState>>,
+    meshes: Option<ResMut<Assets<Mesh>>>,
+    mut stamped: Local<Option<GraphicsPreset>>,
+    grounds: Query<(&SkyBackdropPart, &Mesh3d)>,
+) {
+    let Some(mut meshes) = meshes else {
+        return;
+    };
+    let preset = settings
+        .as_ref()
+        .map(|state| state.inner.graphics_preset)
+        .unwrap_or(GraphicsPreset::Medium);
+    if *stamped == Some(preset) {
+        return;
+    }
+    *stamped = Some(preset);
+    let mut built = Some(crate::terrain::terrace_mesh(crate::terrain::terrain_plan(
+        preset,
+    )));
+    for (part, mesh) in &grounds {
+        if *part != SkyBackdropPart::Ground {
+            continue;
+        }
+        if let Some(mut asset) = meshes.get_mut(&mesh.0) {
+            if let Some(next) = built.take() {
+                *asset = next;
+            }
+        }
     }
 }
 
@@ -904,6 +945,45 @@ mod tests {
             &spots[..LOW_CONIFER_COUNT],
             &conifer_spots(CONIFER_SEED, LOW_CONIFER_COUNT)[..]
         );
+        let mut on_a_lower_shelf = 0;
+        for (p, _) in &spots {
+            let drop = crate::terrain::shelf_offset(p.x, p.z);
+            assert!((p.y - drop).abs() < 1.0e-4, "belt y {}", p.y);
+            if crate::terrain::play_footprint(p.x, p.z) {
+                assert_eq!(p.y, 0.0);
+            }
+            if drop < -0.5 {
+                on_a_lower_shelf += 1;
+            }
+        }
+        assert!(on_a_lower_shelf > 0, "belt never reaches a shelf");
+    }
+
+    #[test]
+    fn ridge_feet_follow_the_shelf() {
+        let (rock, snow) = ridge_meshes();
+        let rock = rock.expect("rock");
+        let drop = crate::terrain::shelf_offset(PEAK_R_MIN, 0.0);
+        assert!(drop < -1.0, "peaks stand past the court");
+        let positions = rock
+            .attribute(Mesh::ATTRIBUTE_POSITION)
+            .and_then(|values| values.as_float3())
+            .unwrap();
+        let min_y = positions.iter().map(|p| p[1]).fold(f32::MAX, f32::min);
+        // Faceted base ring is authored at local y = -2, then seated.
+        assert!(
+            (min_y - (-2.0 + drop)).abs() < 1.0e-3,
+            "min {min_y} drop {drop}"
+        );
+        let snow = snow.expect("snow");
+        let snow_y = snow
+            .attribute(Mesh::ATTRIBUTE_POSITION)
+            .and_then(|values| values.as_float3())
+            .unwrap()
+            .iter()
+            .map(|p| p[1])
+            .fold(f32::MAX, f32::min);
+        assert!(snow_y > min_y, "snow cap stays above the seated foot");
     }
 
     #[test]
@@ -1001,6 +1081,12 @@ mod tests {
             if *part == SkyBackdropPart::Ground {
                 assert_eq!(c, earth, "VP-MAT-1 leaves valley earth");
                 assert_eq!(material.perceptual_roughness, 0.95);
+                let verts = meshes.get(mesh).unwrap().count_vertices();
+                assert_eq!(
+                    verts,
+                    crate::terrain::terrain_plan(preset).vertices() as usize,
+                    "{preset:?} ground is the terrace mesh"
+                );
             }
             if matches!(part, SkyBackdropPart::BeltFull | SkyBackdropPart::BeltLow) {
                 assert!(
