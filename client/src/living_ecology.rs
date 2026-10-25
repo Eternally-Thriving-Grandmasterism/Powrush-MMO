@@ -210,19 +210,44 @@ fn spawn_ecology(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
+    settings: Option<Res<crate::local_settings::LocalSettingsState>>,
+    mut ramps: Option<ResMut<crate::painterly_mat::PainterlyRampMeshes>>,
 ) {
+    let preset = settings
+        .as_ref()
+        .map(|s| s.inner.graphics_preset)
+        .unwrap_or(shared::local_settings::GraphicsPreset::Medium);
+    // CARD VP-MAT-1 — trunk wood stays the earth hue. Canopy walks toward
+    // lively valley green with the cheap height ramp.
+    const YARD_LEAF: [f32; 3] = [0.10, 0.32, 0.16];
     let trunk = meshes.add(Cylinder::new(0.22, 2.4));
-    let canopy = meshes.add(Cone { radius: 1.05, height: 2.6 });
+    let mut canopy_mesh = Mesh::from(Cone {
+        radius: 1.05,
+        height: 2.6,
+    });
+    crate::painterly_mat::paint_height_ramp(
+        &mut canopy_mesh,
+        &crate::painterly_mat::painterly_shade(
+            crate::painterly_mat::PainterlyRole::Foliage,
+            preset,
+        ),
+    );
+    let canopy = meshes.add(canopy_mesh);
+    crate::painterly_mat::remember_ramp(
+        &mut ramps,
+        &canopy,
+        crate::painterly_mat::PainterlyRole::Foliage,
+    );
     let wood = materials.add(StandardMaterial {
         base_color: Color::srgb(0.28, 0.18, 0.10),
         perceptual_roughness: 0.9,
         ..default()
     });
-    let leaf = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.10, 0.32, 0.16),
-        perceptual_roughness: 0.7,
-        ..default()
-    });
+    let leaf = materials.add(crate::painterly_mat::painterly_material(
+        crate::painterly_mat::PainterlyRole::Foliage,
+        YARD_LEAF,
+        preset,
+    ));
     let tree_spots = [
         Vec3::new(-5.2, 1.2, -2.4),
         Vec3::new(-6.4, 1.2, 2.8),
@@ -246,6 +271,10 @@ fn spawn_ecology(
                 Transform::from_translation(pos + Vec3::Y * 1.35),
             ),
             EcologyProp { kind: PropKind::Tree },
+            crate::painterly_mat::PainterlyMat {
+                role: crate::painterly_mat::PainterlyRole::Foliage,
+                authored: YARD_LEAF,
+            },
         ));
     }
 

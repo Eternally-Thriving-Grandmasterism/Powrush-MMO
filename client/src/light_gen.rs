@@ -173,43 +173,80 @@ fn ensure_atlas_when_light(
     atlas: Option<Res<LightGenAtlas>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    settings: Option<Res<crate::local_settings::LocalSettingsState>>,
+    mut ramps: Option<ResMut<crate::painterly_mat::PainterlyRampMeshes>>,
 ) {
     if !door.is_light() || atlas.is_some() {
         return;
     }
-    insert_atlas(&mut commands, &mut meshes, &mut materials);
+    insert_atlas(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        settings.as_deref(),
+        &mut ramps,
+    );
 }
 
 fn insert_atlas(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    settings: Option<&crate::local_settings::LocalSettingsState>,
+    ramps: &mut Option<ResMut<crate::painterly_mat::PainterlyRampMeshes>>,
 ) {
+    let preset = settings
+        .map(|s| s.inner.graphics_preset)
+        .unwrap_or(shared::local_settings::GraphicsPreset::Medium);
+    // CARD VP-MAT-1 — wood and stone hues stay. Leaf and bush take the
+    // valley green and the cheap height ramp.
+    const GEN_LEAF: [f32; 3] = [0.14, 0.40, 0.18];
+    const GEN_BUSH: [f32; 3] = [0.18, 0.36, 0.16];
+    let mut canopy = Mesh::from(Sphere::new(0.72));
+    let mut bush = Mesh::from(Sphere::new(0.32));
+    let foliage = crate::painterly_mat::painterly_shade(
+        crate::painterly_mat::PainterlyRole::Foliage,
+        preset,
+    );
+    crate::painterly_mat::paint_height_ramp(&mut canopy, &foliage);
+    crate::painterly_mat::paint_height_ramp(&mut bush, &foliage);
+    let canopy = meshes.add(canopy);
+    let bush = meshes.add(bush);
+    crate::painterly_mat::remember_ramp(
+        ramps,
+        &canopy,
+        crate::painterly_mat::PainterlyRole::Foliage,
+    );
+    crate::painterly_mat::remember_ramp(
+        ramps,
+        &bush,
+        crate::painterly_mat::PainterlyRole::Foliage,
+    );
     commands.insert_resource(LightGenAtlas {
         trunk: meshes.add(Cylinder::new(0.18, 2.0)),
-        canopy: meshes.add(Sphere::new(0.72)),
+        canopy,
         rock: meshes.add(Sphere::new(0.38)),
-        bush: meshes.add(Sphere::new(0.32)),
+        bush,
         wood: materials.add(StandardMaterial {
             base_color: Color::srgb(0.26, 0.16, 0.09),
             perceptual_roughness: 0.92,
             ..default()
         }),
-        leaf: materials.add(StandardMaterial {
-            base_color: Color::srgb(0.14, 0.40, 0.18),
-            perceptual_roughness: 0.72,
-            ..default()
-        }),
+        leaf: materials.add(crate::painterly_mat::painterly_material(
+            crate::painterly_mat::PainterlyRole::Foliage,
+            GEN_LEAF,
+            preset,
+        )),
         stone: materials.add(StandardMaterial {
             base_color: Color::srgb(0.30, 0.28, 0.26),
             perceptual_roughness: 0.95,
             ..default()
         }),
-        bush_mat: materials.add(StandardMaterial {
-            base_color: Color::srgb(0.18, 0.36, 0.16),
-            perceptual_roughness: 0.85,
-            ..default()
-        }),
+        bush_mat: materials.add(crate::painterly_mat::painterly_material(
+            crate::painterly_mat::PainterlyRole::Foliage,
+            GEN_BUSH,
+            preset,
+        )),
     });
 }
 
@@ -218,11 +255,19 @@ fn prepare_atlas(
     door: Res<LightGenDoor>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    settings: Option<Res<crate::local_settings::LocalSettingsState>>,
+    mut ramps: Option<ResMut<crate::painterly_mat::PainterlyRampMeshes>>,
 ) {
     if !door.is_light() {
         return;
     }
-    insert_atlas(&mut commands, &mut meshes, &mut materials);
+    insert_atlas(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        settings.as_deref(),
+        &mut ramps,
+    );
 }
 
 fn sync_scatter(
@@ -348,7 +393,7 @@ fn sync_scatter(
                 Vec3::splat(spot.scale),
             ),
         };
-        commands.spawn((
+        let mut entity = commands.spawn((
             (
                 Mesh3d(mesh),
                 MeshMaterial3d(material),
@@ -358,6 +403,18 @@ fn sync_scatter(
             HexScatter,
             Name::new("LightGenProp"),
         ));
+        // CARD VP-MAT-1 — canopy and bush only. Wood and stone stay earth.
+        let authored = match spot.kind {
+            ScatterKind::Canopy => Some([0.14, 0.40, 0.18]),
+            ScatterKind::Bush => Some([0.18, 0.36, 0.16]),
+            ScatterKind::Trunk | ScatterKind::Rock => None,
+        };
+        if let Some(authored) = authored {
+            entity.insert(crate::painterly_mat::PainterlyMat {
+                role: crate::painterly_mat::PainterlyRole::Foliage,
+                authored,
+            });
+        }
     }
 
     spawned.seed = Some(seed);
