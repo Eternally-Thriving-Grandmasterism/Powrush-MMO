@@ -8,18 +8,25 @@
 //! of draws.
 //!
 //! Shown only in the Sanctuary (`SoftPlayerRealm.current` None or Some(0)).
-//! Per preset ([`backdrop_plan`]): Mobile keeps only the valley floor; Low
-//! adds the mountain ring and a 64-tree belt; Medium and up add the dome and
-//! the full 200-tree belt. At most 6 draws on every preset. The clear colour
-//! carries the sky where the dome is off. Writes no `FogSettings`. No bloom,
-//! tonemap, layout or HUD change.
+//! Per preset ([`backdrop_plan`]): every Sanctuary tier draws the gradient
+//! dome. Mobile keeps the floor plus one silhouette band. Low adds the
+//! mountain ring, a 64-tree belt, and two bands. Medium and up keep the full
+//! 200-tree belt. High and Ultra draw three or more bands. At most 11 draws
+//! on any preset. Writes no `FogSettings`. No bloom, tonemap, layout or HUD
+//! change.
+//!
+//! CARD VP-SKY-2 — the dome runs from the VP-LIGHT-1 golden-hour sun colour
+//! at the horizon to a cool blue zenith. In front of the rocky ring, flat
+//! unlit silhouette bands step toward the VP-AIR-1 haze blue as they recede.
+//! Low uses fewer bands than Medium. The bands cast no shadow and sit past
+//! the conifer belt, so the yard, the Use glow, and screen plates stay clear.
 //! Contact: info@Rathor.ai
 
 use std::f32::consts::TAU;
 
-use bevy::prelude::*;
 use bevy::asset::RenderAssetUsages;
 use bevy::mesh::{Indices, PrimitiveTopology};
+use bevy::prelude::*;
 
 use shared::local_settings::GraphicsPreset;
 
@@ -44,15 +51,32 @@ pub const CONIFER_COUNT: usize = 200;
 /// Low preset belt: the first 64 trees of the same seeded belt.
 pub const LOW_CONIFER_COUNT: usize = 64;
 /// Draw budget for the whole backdrop on any preset.
-pub const MAX_BACKDROP_DRAWS: usize = 6;
+/// Dome, floor, ridge rock, ridge snow, belt bark, belt needle, and up to
+/// five silhouette bands.
+pub const MAX_BACKDROP_DRAWS: usize = 11;
+/// CARD VP-SKY-2 — distant silhouette bands. Index 0 is the nearest.
+pub const SILHOUETTE_BAND_COUNT: usize = 5;
+/// Segments around one band. One mesh, one draw.
+const BAND_SEGMENTS: u32 = 80;
 const CONIFER_SEED: u32 = 0x1234_5678;
 pub const CONIFER_R_MIN: f32 = 30.0;
 pub const CONIFER_R_MAX: f32 = 150.0;
 
-/// Sky dome stops (sRGB): zenith, horizon, below-horizon.
-pub const SKY_ZENITH: [f32; 3] = [0.16, 0.36, 0.78];
-pub const SKY_HORIZON: [f32; 3] = [0.78, 0.86, 0.96];
-pub const SKY_BELOW: [f32; 3] = [0.62, 0.70, 0.80];
+/// Sky dome stops (sRGB).
+/// CARD VP-SKY-2 — zenith is the cool high. Horizon is the VP-LIGHT-1 sun
+/// (`SANCTUARY_SUN` sRGB 1.00, 0.81, 0.55): warm low, red then green then blue.
+pub const SKY_ZENITH: [f32; 3] = [0.18, 0.36, 0.74];
+pub const SKY_HORIZON: [f32; 3] = [1.00, 0.81, 0.55];
+pub const SKY_BELOW: [f32; 3] = [0.62, 0.48, 0.34];
+/// CARD VP-SKY-2 — open-yard haze the bands walk toward. Same sRGB as
+/// `SANCTUARY_VALLEY_FOG` (VP-AIR-1 / VP-SKY-1). Not a second fog writer.
+pub const AERIAL_HAZE_SRGB: [f32; 3] = [0.70, 0.79, 0.90];
+/// Band distance (m), nearest first. Past the conifer belt, in front of the
+/// rocky ring, so the yard and the well stay in front of every band.
+pub const BAND_RADIUS: [f32; 5] = [180.0, 230.0, 275.0, 310.0, 335.0];
+/// Ridge height (m), nearest first. Farther crests stand taller so each
+/// paler band clears the skyline of the one in front.
+pub const BAND_PEAK: [f32; 5] = [24.0, 42.0, 62.0, 78.0, 92.0];
 /// Same valley earth as the Sanctuary plate (climate_plane SANCTUARY_VALLEY_EARTH).
 pub const VALLEY_EARTH: [f32; 3] = [0.33, 0.40, 0.20];
 pub const RIDGE_ROCK: [f32; 3] = [0.36, 0.36, 0.50];
@@ -70,6 +94,8 @@ pub enum SkyBackdropPart {
     BeltFull,
     /// Low belt ([`LOW_CONIFER_COUNT`] trees), Low only.
     BeltLow,
+    /// Distant flat silhouette. Index 0 is nearest.
+    Band(u8),
 }
 
 /// What the backdrop draws for one realm and preset.
@@ -79,21 +105,36 @@ pub struct BackdropPlan {
     pub ground: bool,
     pub peaks: usize,
     pub conifers: usize,
+    /// Nearest [`bands`] silhouettes. High and Ultra are at least 3.
+    pub bands: usize,
 }
 
 impl BackdropPlan {
-    pub const NONE: Self = Self { dome: false, ground: false, peaks: 0, conifers: 0 };
+    pub const NONE: Self = Self {
+        dome: false,
+        ground: false,
+        peaks: 0,
+        conifers: 0,
+        bands: 0,
+    };
 
     /// Draw calls: dome, ground, ridge rock + snow (one each), belt bark +
-    /// needle (one each).
+    /// needle (one each), plus one draw per silhouette band.
     pub fn draws(&self) -> usize {
         let ridge = if self.peaks > 0 {
-            let snow = ring_peaks().iter().take(self.peaks).any(|p| p.snow_capped());
+            let snow = ring_peaks()
+                .iter()
+                .take(self.peaks)
+                .any(|p| p.snow_capped());
             1 + usize::from(snow)
         } else {
             0
         };
-        usize::from(self.dome) + usize::from(self.ground) + ridge + if self.conifers > 0 { 2 } else { 0 }
+        usize::from(self.dome)
+            + usize::from(self.ground)
+            + ridge
+            + if self.conifers > 0 { 2 } else { 0 }
+            + self.bands
     }
 
     pub fn shows(&self, part: SkyBackdropPart) -> bool {
@@ -103,7 +144,23 @@ impl BackdropPlan {
             SkyBackdropPart::Ridge => self.peaks > 0,
             SkyBackdropPart::BeltFull => self.conifers == CONIFER_COUNT,
             SkyBackdropPart::BeltLow => self.conifers == LOW_CONIFER_COUNT,
+            SkyBackdropPart::Band(index) => (index as usize) < self.bands,
         }
+    }
+}
+
+/// How many silhouette bands a tier draws.
+///
+/// Mobile is one. Low is two (fewer than the card's three). Medium is the
+/// three the card names. High and Ultra add farther, paler bands. Ultra
+/// keeps the full set.
+pub const fn silhouette_band_count(preset: GraphicsPreset) -> usize {
+    match preset {
+        GraphicsPreset::Mobile => 1,
+        GraphicsPreset::Low => 2,
+        GraphicsPreset::Medium => 3,
+        GraphicsPreset::High => 4,
+        GraphicsPreset::Ultra => SILHOUETTE_BAND_COUNT,
     }
 }
 
@@ -112,16 +169,81 @@ pub fn backdrop_plan(realm: Option<u8>, preset: GraphicsPreset) -> BackdropPlan 
     if !matches!(realm, None | Some(0)) {
         return BackdropPlan::NONE;
     }
+    let bands = silhouette_band_count(preset);
     match preset {
-        GraphicsPreset::Mobile => BackdropPlan { dome: false, ground: true, peaks: 0, conifers: 0 },
+        GraphicsPreset::Mobile => BackdropPlan {
+            dome: true,
+            ground: true,
+            peaks: 0,
+            conifers: 0,
+            bands,
+        },
         GraphicsPreset::Low => BackdropPlan {
-            dome: false,
+            dome: true,
             ground: true,
             peaks: PEAK_COUNT,
             conifers: LOW_CONIFER_COUNT,
+            bands,
         },
-        _ => BackdropPlan { dome: true, ground: true, peaks: PEAK_COUNT, conifers: CONIFER_COUNT },
+        _ => BackdropPlan {
+            dome: true,
+            ground: true,
+            peaks: PEAK_COUNT,
+            conifers: CONIFER_COUNT,
+            bands,
+        },
     }
+}
+
+/// Flat sRGB for silhouette `index` (0 = nearest).
+///
+/// Farther bands are lighter, less saturated, and a wider blue-red gap, and
+/// they sit closer to [`AERIAL_HAZE_SRGB`]. Blue leads on every band.
+pub fn silhouette_band_srgb(index: usize) -> [f32; 3] {
+    let last = (SILHOUETTE_BAND_COUNT - 1) as f32;
+    let t = (index.min(SILHOUETTE_BAND_COUNT - 1) as f32) / last;
+    [0.22 + 0.30 * t, 0.30 + 0.34 * t, 0.44 + 0.36 * t]
+}
+
+fn band_ridge_height(index: usize, angle: f32, peak: f32) -> f32 {
+    let phase = index as f32 * 1.7;
+    let n = (angle * 3.0 + phase).sin() * 0.50
+        + (angle * 5.0 + phase * 2.1).sin() * 0.30
+        + (angle * 11.0 + phase * 0.6).sin() * 0.20;
+    let u = (n * 0.5 + 0.5).clamp(0.0, 1.0);
+    let foot = peak * 0.12;
+    foot + (peak - foot) * u
+}
+
+/// One distant ridgeline: a vertical ring, flat shaded, no texture.
+pub fn silhouette_band_mesh(index: usize) -> Mesh {
+    let radius = BAND_RADIUS[index];
+    let peak = BAND_PEAK[index];
+    let n = BAND_SEGMENTS;
+    let mut positions = Vec::with_capacity(n as usize * 6);
+    for i in 0..n {
+        let a0 = i as f32 / n as f32 * TAU;
+        let a1 = (i + 1) as f32 / n as f32 * TAU;
+        let h0 = band_ridge_height(index, a0, peak);
+        let h1 = band_ridge_height(index, a1, peak);
+        let p0 = [a0.cos() * radius, -2.0, a0.sin() * radius];
+        let p1 = [a1.cos() * radius, -2.0, a1.sin() * radius];
+        let t0 = [a0.cos() * radius, h0, a0.sin() * radius];
+        let t1 = [a1.cos() * radius, h1, a1.sin() * radius];
+        for p in [p0, t0, t1, p0, t1, p1] {
+            positions.push(p);
+        }
+    }
+    let count = positions.len() as u32;
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
+    mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
+    mesh.insert_indices(Indices::U32((0..count).collect()));
+    mesh.duplicate_vertices();
+    mesh.compute_flat_normals();
+    mesh
 }
 
 /// One mountain in the ring.
@@ -163,6 +285,16 @@ pub fn backdrop_visible(realm: Option<u8>, preset: GraphicsPreset, part: SkyBack
     backdrop_plan(realm, preset).shows(part)
 }
 
+/// How far `h` (dome y / radius, 0 at the horizon) has climbed toward the zenith.
+///
+/// Smoothstep over the lower half of the dome. A yard camera looks only a
+/// little above the horizon, so the warm stop has to hold through that band
+/// and the cool stop has to arrive before the top of that frame.
+fn sky_climb(h: f32) -> f32 {
+    let x = (h / 0.50).clamp(0.0, 1.0);
+    x * x * (3.0 - 2.0 * x)
+}
+
 /// Dome colour (sRGB) at normalised height `h` in -1.0..=1.0.
 pub fn dome_color_at(h: f32) -> [f32; 3] {
     let lerp = |a: [f32; 3], b: [f32; 3], t: f32| {
@@ -174,7 +306,7 @@ pub fn dome_color_at(h: f32) -> [f32; 3] {
         ]
     };
     if h >= 0.0 {
-        lerp(SKY_HORIZON, SKY_ZENITH, h.min(1.0).powf(0.55))
+        lerp(SKY_HORIZON, SKY_ZENITH, sky_climb(h.min(1.0)))
     } else {
         lerp(SKY_HORIZON, SKY_BELOW, -h)
     }
@@ -188,7 +320,12 @@ pub fn ring_peaks() -> Vec<Peak> {
             let radius = PEAK_R_MIN + (PEAK_R_MAX - PEAK_R_MIN) * ((i * 7 % 5) as f32 / 4.0);
             let height = PEAK_H_MIN + (PEAK_H_MAX - PEAK_H_MIN) * ((i * 11 % 7) as f32 / 6.0);
             let base = 60.0 + 30.0 * ((i * 5 % 4) as f32 / 3.0);
-            Peak { angle, radius, height, base }
+            Peak {
+                angle,
+                radius,
+                height,
+                base,
+            }
         })
         .collect()
 }
@@ -217,7 +354,11 @@ pub fn gradient_dome(radius: f32) -> Mesh {
     let cols: Vec<[f32; 4]> = m
         .attribute(Mesh::ATTRIBUTE_POSITION)
         .and_then(|a| a.as_float3())
-        .map(|ps| ps.iter().map(|p| srgb_to_linear(dome_color_at(p[1] / radius))).collect())
+        .map(|ps| {
+            ps.iter()
+                .map(|p| srgb_to_linear(dome_color_at(p[1] / radius)))
+                .collect()
+        })
         .unwrap_or_default();
     m.insert_attribute(Mesh::ATTRIBUTE_COLOR, cols);
     m
@@ -252,12 +393,17 @@ pub fn faceted_mountain(rng: &mut Rng, base: f32, height: f32) -> Mesh {
     let mut positions: Vec<[f32; 3]> = Vec::with_capacity(n * 9);
     for i in 0..n {
         let j = (i + 1) % n;
-        for p in [ring[i], mid[i], ring[j], ring[j], mid[i], mid[j], mid[i], apex, mid[j]] {
+        for p in [
+            ring[i], mid[i], ring[j], ring[j], mid[i], mid[j], mid[i], apex, mid[j],
+        ] {
             positions.push(p.into());
         }
     }
     let count = positions.len() as u32;
-    let mut mesh = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
+    let mut mesh = Mesh::new(
+        PrimitiveTopology::TriangleList,
+        RenderAssetUsages::default(),
+    );
     mesh.insert_attribute(Mesh::ATTRIBUTE_POSITION, positions);
     mesh.insert_indices(Indices::U32((0..count).collect()));
     mesh.duplicate_vertices();
@@ -280,11 +426,17 @@ pub fn ridge_meshes() -> (Option<Mesh>, Option<Mesh>) {
     let mut rng = Rng::new(0x9E37_79B9);
     let peaks = ring_peaks();
     let rock = merged(peaks.iter().map(|p| {
-        faceted_mountain(&mut rng, p.base, p.height)
-            .transformed_by(Transform::from_xyz(p.angle.cos() * p.radius, 0.0, p.angle.sin() * p.radius))
+        faceted_mountain(&mut rng, p.base, p.height).transformed_by(Transform::from_xyz(
+            p.angle.cos() * p.radius,
+            0.0,
+            p.angle.sin() * p.radius,
+        ))
     }));
     let snow = merged(peaks.iter().filter(|p| p.snow_capped()).map(|p| {
-        let mut cap = Mesh::from(Cone { radius: p.base * 0.22, height: p.height * 0.22 });
+        let mut cap = Mesh::from(Cone {
+            radius: p.base * 0.22,
+            height: p.height * 0.22,
+        });
         cap.duplicate_vertices();
         cap.compute_flat_normals();
         cap.transformed_by(Transform::from_xyz(
@@ -309,8 +461,13 @@ pub fn belt_meshes(count: usize) -> (Option<Mesh>, Option<Mesh>) {
         (0..3).map(move |k| {
             let y = (1.6 + k as f32 * 0.9) * *s;
             let sc = *s * (1.0 - k as f32 * 0.25);
-            Mesh::from(Cone { radius: 1.1, height: 2.2 })
-                .transformed_by(Transform::from_translation(*p + Vec3::Y * y).with_scale(Vec3::splat(sc)))
+            Mesh::from(Cone {
+                radius: 1.1,
+                height: 2.2,
+            })
+            .transformed_by(
+                Transform::from_translation(*p + Vec3::Y * y).with_scale(Vec3::splat(sc)),
+            )
         })
     }));
     (bark, needle)
@@ -329,6 +486,19 @@ fn lit(c: [f32; 3], roughness: f32) -> StandardMaterial {
     StandardMaterial {
         base_color: Color::srgb(c[0], c[1], c[2]),
         perceptual_roughness: roughness,
+        ..default()
+    }
+}
+
+/// CARD VP-SKY-2 — flat colour, no sun tint, no distance-fog wash.
+/// The depth step is baked (see [`silhouette_band_srgb`]), so Low, which
+/// has no aerial fog, still reads the same blue recession as Medium.
+fn silhouette_material(c: [f32; 3]) -> StandardMaterial {
+    StandardMaterial {
+        base_color: Color::srgb(c[0], c[1], c[2]),
+        unlit: true,
+        fog_enabled: false,
+        cull_mode: None,
         ..default()
     }
 }
@@ -373,17 +543,30 @@ fn spawn_sky_backdrop(
         ));
     };
     spawn(
-        Plane3d::default().mesh().size(GROUND_SIZE, GROUND_SIZE).build(),
+        Plane3d::default()
+            .mesh()
+            .size(GROUND_SIZE, GROUND_SIZE)
+            .build(),
         lit(VALLEY_EARTH, 0.95),
         SkyBackdropPart::Ground,
         Transform::from_xyz(0.0, GROUND_Y, 0.0),
     );
     let (rock, snow) = ridge_meshes();
     if let Some(m) = rock {
-        spawn(m, lit(RIDGE_ROCK, 1.0), SkyBackdropPart::Ridge, Transform::IDENTITY);
+        spawn(
+            m,
+            lit(RIDGE_ROCK, 1.0),
+            SkyBackdropPart::Ridge,
+            Transform::IDENTITY,
+        );
     }
     if let Some(m) = snow {
-        spawn(m, lit(RIDGE_SNOW, 0.8), SkyBackdropPart::Ridge, Transform::IDENTITY);
+        spawn(
+            m,
+            lit(RIDGE_SNOW, 0.8),
+            SkyBackdropPart::Ridge,
+            Transform::IDENTITY,
+        );
     }
     for (count, part) in [
         (CONIFER_COUNT, SkyBackdropPart::BeltFull),
@@ -396,6 +579,20 @@ fn spawn_sky_backdrop(
         if let Some(m) = needle {
             spawn(m, lit(CONIFER_NEEDLE, 0.8), part, Transform::IDENTITY);
         }
+    }
+    for index in 0..SILHOUETTE_BAND_COUNT {
+        let color = silhouette_band_srgb(index);
+        commands.spawn((
+            (
+                Mesh3d(meshes.add(silhouette_band_mesh(index))),
+                MeshMaterial3d(materials.add(silhouette_material(color))),
+                Transform::IDENTITY,
+            ),
+            SkyBackdropPart::Band(index as u8),
+            Name::new("VP-SKY-2 band"),
+            bevy::light::NotShadowCaster,
+            bevy::light::NotShadowReceiver,
+        ));
     }
 }
 
@@ -431,17 +628,167 @@ mod tests {
         c[0] >= c[1] && c[1] >= c[2] && (c[0] - c[2]) >= 0.03
     }
 
+    fn warmth(c: [f32; 3]) -> f32 {
+        c[0] - c[2]
+    }
+
+    fn saturation(c: [f32; 3]) -> f32 {
+        let mx = c[0].max(c[1]).max(c[2]);
+        let mn = c[0].min(c[1]).min(c[2]);
+        if mx <= 1.0e-6 {
+            0.0
+        } else {
+            (mx - mn) / mx
+        }
+    }
+
+    fn luminance(c: [f32; 3]) -> f32 {
+        (c[0] + c[1] + c[2]) / 3.0
+    }
+
+    fn haze_distance(c: [f32; 3]) -> f32 {
+        let d = [
+            c[0] - AERIAL_HAZE_SRGB[0],
+            c[1] - AERIAL_HAZE_SRGB[1],
+            c[2] - AERIAL_HAZE_SRGB[2],
+        ];
+        (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt()
+    }
+
+    /// CARD VP-SKY-2 — horizon matches the golden-hour sun (warm, red leads).
+    /// Zenith is the cool blue. Warmth falls as the sample climbs.
     #[test]
-    fn dome_is_blue_from_horizon_to_zenith_and_never_brown() {
-        let zen = dome_color_at(1.0);
+    fn gradient_is_warm_low_and_cool_high() {
+        let sun = crate::climate_plane::SANCTUARY_SUN.color.to_srgba();
         let hor = dome_color_at(0.0);
-        assert!(zen[2] > zen[1] && zen[1] > zen[0]);
-        assert!(hor[2] > hor[1] && hor[1] > hor[0]);
-        assert!(zen[2] - zen[0] > hor[2] - hor[0], "zenith is the deeper blue");
-        for i in -10..=10 {
-            let c = dome_color_at(i as f32 / 10.0);
-            assert!(!is_brownish(c), "dome at {i} reads brown: {c:?}");
-            assert!(c[2] >= 0.75);
+        let zen = dome_color_at(1.0);
+        assert!((hor[0] - sun.red).abs() < 1.0e-4, "horizon red {hor:?}");
+        assert!((hor[1] - sun.green).abs() < 1.0e-4, "horizon green {hor:?}");
+        assert!((hor[2] - sun.blue).abs() < 1.0e-4, "horizon blue {hor:?}");
+        assert!(hor[0] > hor[1] && hor[1] > hor[2], "warm low {hor:?}");
+        assert!(zen[2] > zen[1] && zen[1] > zen[0], "cool high {zen:?}");
+        assert!(warmth(hor) > warmth(zen));
+        assert!(zen[2] > hor[2], "zenith carries more blue");
+        let mut prev = warmth(hor);
+        for i in 1..=8 {
+            let c = dome_color_at(i as f32 / 8.0);
+            let w = warmth(c);
+            assert!(w <= prev + 1.0e-4, "warmth rose at step {i}: {c:?}");
+            prev = w;
+        }
+        assert!(!is_brownish(zen), "zenith {zen:?}");
+    }
+
+    /// CARD VP-SKY-2 — each step away is less saturated, a wider blue-red
+    /// gap, lighter, and closer to the VP-AIR-1 haze.
+    #[test]
+    fn bands_get_bluer_and_desaturated_with_depth() {
+        assert!(SILHOUETTE_BAND_COUNT >= 3);
+        let colors: Vec<_> = (0..SILHOUETTE_BAND_COUNT)
+            .map(silhouette_band_srgb)
+            .collect();
+        for (i, c) in colors.iter().enumerate() {
+            assert!(c[2] > c[1] && c[1] > c[0], "band {i} is not blue {c:?}");
+        }
+        for w in colors.windows(2) {
+            let (near, far) = (w[0], w[1]);
+            assert!(
+                saturation(far) < saturation(near) - 0.01,
+                "sat {near:?} -> {far:?}"
+            );
+            assert!(
+                far[2] - far[0] > near[2] - near[0],
+                "blue-red {near:?} -> {far:?}"
+            );
+            assert!(luminance(far) > luminance(near));
+            assert!(haze_distance(far) < haze_distance(near));
+        }
+    }
+
+    /// Low uses fewer than three. Medium is the three the card names.
+    /// High and Ultra are three or more, and they do not drop bands.
+    #[test]
+    fn preset_band_counts() {
+        assert_eq!(GraphicsPreset::ALL.len(), 5);
+        assert_eq!(silhouette_band_count(GraphicsPreset::Mobile), 1);
+        assert_eq!(silhouette_band_count(GraphicsPreset::Low), 2);
+        assert_eq!(silhouette_band_count(GraphicsPreset::Medium), 3);
+        assert_eq!(silhouette_band_count(GraphicsPreset::High), 4);
+        assert_eq!(silhouette_band_count(GraphicsPreset::Ultra), 5);
+        assert!(silhouette_band_count(GraphicsPreset::Low) < 3);
+        assert!(silhouette_band_count(GraphicsPreset::Medium) >= 3);
+        assert!(silhouette_band_count(GraphicsPreset::High) >= 3);
+        assert!(silhouette_band_count(GraphicsPreset::Ultra) >= 3);
+        assert!(
+            silhouette_band_count(GraphicsPreset::Low)
+                < silhouette_band_count(GraphicsPreset::Medium)
+        );
+        assert!(
+            silhouette_band_count(GraphicsPreset::Medium)
+                <= silhouette_band_count(GraphicsPreset::High)
+        );
+        for preset in GraphicsPreset::ALL {
+            let plan = backdrop_plan(Some(0), preset);
+            assert_eq!(plan.bands, silhouette_band_count(preset));
+            assert!(plan.dome, "{preset:?} keeps the gradient");
+            assert!((1..=SILHOUETTE_BAND_COUNT).contains(&plan.bands));
+        }
+        assert!(backdrop_visible(
+            Some(0),
+            GraphicsPreset::Low,
+            SkyBackdropPart::Band(0)
+        ));
+        assert!(backdrop_visible(
+            Some(0),
+            GraphicsPreset::Low,
+            SkyBackdropPart::Band(1)
+        ));
+        assert!(!backdrop_visible(
+            Some(0),
+            GraphicsPreset::Low,
+            SkyBackdropPart::Band(2)
+        ));
+        assert!(backdrop_visible(
+            Some(0),
+            GraphicsPreset::Medium,
+            SkyBackdropPart::Band(2)
+        ));
+        assert!(!backdrop_visible(
+            Some(0),
+            GraphicsPreset::Medium,
+            SkyBackdropPart::Band(3)
+        ));
+        assert!(backdrop_visible(
+            Some(0),
+            GraphicsPreset::Ultra,
+            SkyBackdropPart::Band(4)
+        ));
+        assert!(!backdrop_visible(
+            Some(1),
+            GraphicsPreset::Ultra,
+            SkyBackdropPart::Band(0)
+        ));
+    }
+
+    #[test]
+    fn bands_sit_past_the_yard_and_in_front_of_the_peak_ring() {
+        assert_eq!(BAND_RADIUS.len(), SILHOUETTE_BAND_COUNT);
+        assert_eq!(BAND_PEAK.len(), SILHOUETTE_BAND_COUNT);
+        for i in 0..SILHOUETTE_BAND_COUNT {
+            assert!(BAND_RADIUS[i] > CONIFER_R_MAX, "band {i} covers the belt");
+            assert!(
+                BAND_RADIUS[i] < PEAK_R_MIN,
+                "band {i} sits inside the rocky ring"
+            );
+            assert!(BAND_RADIUS[i] + BAND_PEAK[i] < DOME_RADIUS);
+            let mesh = silhouette_band_mesh(i);
+            assert_eq!(mesh.count_vertices(), BAND_SEGMENTS as usize * 6);
+        }
+        for w in BAND_RADIUS.windows(2) {
+            assert!(w[1] > w[0]);
+        }
+        for w in BAND_PEAK.windows(2) {
+            assert!(w[1] > w[0], "farther crest clears the nearer skyline");
         }
     }
 
@@ -465,11 +812,21 @@ mod tests {
         assert_eq!(spots.len(), CONIFER_COUNT);
         for (p, s) in &spots {
             let r = Vec2::new(p.x, p.z).length();
-            assert!(r >= CONIFER_R_MIN - 0.01 && r <= CONIFER_R_MAX + 0.01, "r {r}");
+            assert!(
+                r >= CONIFER_R_MIN - 0.01 && r <= CONIFER_R_MAX + 0.01,
+                "r {r}"
+            );
             assert!((0.9..=2.5).contains(s));
         }
-        assert_eq!(spots, conifer_spots(CONIFER_SEED, CONIFER_COUNT), "deterministic");
-        assert_eq!(&spots[..LOW_CONIFER_COUNT], &conifer_spots(CONIFER_SEED, LOW_CONIFER_COUNT)[..]);
+        assert_eq!(
+            spots,
+            conifer_spots(CONIFER_SEED, CONIFER_COUNT),
+            "deterministic"
+        );
+        assert_eq!(
+            &spots[..LOW_CONIFER_COUNT],
+            &conifer_spots(CONIFER_SEED, LOW_CONIFER_COUNT)[..]
+        );
     }
 
     #[test]
@@ -480,7 +837,11 @@ mod tests {
         let snow = snow.expect("snow");
         let bark = bark.expect("bark");
         let needle = needle.expect("needle");
-        let one_tier = Mesh::from(Cone { radius: 1.1, height: 2.2 }).count_vertices();
+        let one_tier = Mesh::from(Cone {
+            radius: 1.1,
+            height: 2.2,
+        })
+        .count_vertices();
         assert_eq!(needle.count_vertices(), one_tier * 3 * CONIFER_COUNT);
         let one_trunk = Mesh::from(Cylinder::new(0.18, 1.2)).count_vertices();
         assert_eq!(bark.count_vertices(), one_trunk * CONIFER_COUNT);
@@ -517,12 +878,24 @@ mod tests {
             .insert_resource(SoftPlayerRealm { current: Some(0) });
         let mut inner = LocalSettings::default();
         inner.set_graphics_preset(preset);
-        app.insert_resource(LocalSettingsState { inner, dirty: false });
+        app.insert_resource(LocalSettingsState {
+            inner,
+            dirty: false,
+        });
         app.add_plugins(SkyBackdropPlugin);
         app.update();
-        let one_tier = Mesh::from(Cone { radius: 1.1, height: 2.2 }).count_vertices();
+        let one_tier = Mesh::from(Cone {
+            radius: 1.1,
+            height: 2.2,
+        })
+        .count_vertices();
         let world = app.world_mut();
-        let mut q = world.query::<(&SkyBackdropPart, &Visibility, &Mesh3d, &MeshMaterial3d<StandardMaterial>)>();
+        let mut q = world.query::<(
+            &SkyBackdropPart,
+            &Visibility,
+            &Mesh3d,
+            &MeshMaterial3d<StandardMaterial>,
+        )>();
         let rows: Vec<_> = q
             .iter(world)
             .filter(|(_, v, _, _)| **v != Visibility::Hidden)
@@ -534,7 +907,8 @@ mod tests {
         let mut ridge = false;
         for (part, mesh, mat) in &rows {
             let c = mats.get(mat).unwrap().base_color.to_srgba();
-            let needle = Color::srgb(CONIFER_NEEDLE[0], CONIFER_NEEDLE[1], CONIFER_NEEDLE[2]).to_srgba();
+            let needle =
+                Color::srgb(CONIFER_NEEDLE[0], CONIFER_NEEDLE[1], CONIFER_NEEDLE[2]).to_srgba();
             if matches!(part, SkyBackdropPart::BeltFull | SkyBackdropPart::BeltLow) && c == needle {
                 conifers += meshes.get(mesh).unwrap().count_vertices() / (one_tier * 3);
             }
@@ -544,49 +918,82 @@ mod tests {
     }
 
     #[test]
-    fn preset_mobile_is_floor_only() {
+    fn preset_mobile_is_gradient_floor_and_one_band() {
         let plan = backdrop_plan(Some(0), GraphicsPreset::Mobile);
-        assert!(!plan.dome && plan.ground);
-        assert_eq!((plan.peaks, plan.conifers, plan.draws()), (0, 0, 1));
-        assert_eq!(visible_for(GraphicsPreset::Mobile), (1, 0, false));
+        assert!(plan.dome && plan.ground);
+        assert_eq!(
+            (plan.peaks, plan.conifers, plan.bands, plan.draws()),
+            (0, 0, 1, 3)
+        );
+        assert_eq!(visible_for(GraphicsPreset::Mobile), (3, 0, false));
     }
 
     #[test]
-    fn preset_low_keeps_ring_drops_dome_and_caps_belt_at_64() {
+    fn preset_low_shows_gradient_ring_and_two_bands() {
         let plan = backdrop_plan(Some(0), GraphicsPreset::Low);
-        assert!(!plan.dome && plan.ground);
-        assert_eq!((plan.peaks, plan.conifers, plan.draws()), (30, 64, 5));
+        assert!(plan.dome && plan.ground);
+        assert_eq!(
+            (plan.peaks, plan.conifers, plan.bands, plan.draws()),
+            (30, 64, 2, 8)
+        );
         assert!(plan.conifers <= 64);
-        assert_eq!(visible_for(GraphicsPreset::Low), (5, 64, true));
+        assert!(plan.bands < 3);
+        assert_eq!(visible_for(GraphicsPreset::Low), (8, 64, true));
     }
 
     #[test]
-    fn preset_medium_full_valley_in_six_draws() {
+    fn preset_medium_full_valley_and_three_bands() {
         let plan = backdrop_plan(Some(0), GraphicsPreset::Medium);
         assert!(plan.dome && plan.ground);
-        assert_eq!((plan.peaks, plan.conifers, plan.draws()), (30, 200, 6));
-        assert_eq!(visible_for(GraphicsPreset::Medium), (6, 200, true));
+        assert_eq!(
+            (plan.peaks, plan.conifers, plan.bands, plan.draws()),
+            (30, 200, 3, 9)
+        );
+        assert_eq!(visible_for(GraphicsPreset::Medium), (9, 200, true));
     }
 
     #[test]
-    fn preset_high_full_valley_in_six_draws() {
+    fn preset_high_full_valley_and_four_bands() {
         let plan = backdrop_plan(Some(0), GraphicsPreset::High);
-        assert_eq!((plan.dome, plan.peaks, plan.conifers, plan.draws()), (true, 30, 200, 6));
-        assert_eq!(visible_for(GraphicsPreset::High), (6, 200, true));
+        assert_eq!(
+            (
+                plan.dome,
+                plan.peaks,
+                plan.conifers,
+                plan.bands,
+                plan.draws()
+            ),
+            (true, 30, 200, 4, 10)
+        );
+        assert!(plan.bands >= 3);
+        assert_eq!(visible_for(GraphicsPreset::High), (10, 200, true));
     }
 
     #[test]
-    fn preset_ultra_full_valley_in_six_draws() {
+    fn preset_ultra_full_valley_and_five_bands() {
         let plan = backdrop_plan(Some(0), GraphicsPreset::Ultra);
-        assert_eq!((plan.dome, plan.peaks, plan.conifers, plan.draws()), (true, 30, 200, 6));
-        assert_eq!(visible_for(GraphicsPreset::Ultra), (6, 200, true));
+        assert_eq!(
+            (
+                plan.dome,
+                plan.peaks,
+                plan.conifers,
+                plan.bands,
+                plan.draws()
+            ),
+            (true, 30, 200, 5, 11)
+        );
+        assert!(plan.bands >= 3);
+        assert_eq!(visible_for(GraphicsPreset::Ultra), (11, 200, true));
     }
 
     #[test]
     fn every_preset_within_draw_budget() {
         assert_eq!(GraphicsPreset::ALL.len(), 5);
         for preset in GraphicsPreset::ALL {
-            assert!(backdrop_plan(Some(0), preset).draws() <= MAX_BACKDROP_DRAWS, "{preset:?}");
+            assert!(
+                backdrop_plan(Some(0), preset).draws() <= MAX_BACKDROP_DRAWS,
+                "{preset:?}"
+            );
         }
     }
 
@@ -604,12 +1011,17 @@ mod tests {
     fn valley_colours_are_lively_not_brown() {
         assert!(VALLEY_EARTH[1] > VALLEY_EARTH[0] && VALLEY_EARTH[1] > VALLEY_EARTH[2]);
         assert!(CONIFER_NEEDLE[1] > CONIFER_NEEDLE[0] && CONIFER_NEEDLE[1] > CONIFER_NEEDLE[2]);
-        assert!(RIDGE_ROCK[2] > RIDGE_ROCK[0], "ridge leans blue-violet, not beige");
+        assert!(
+            RIDGE_ROCK[2] > RIDGE_ROCK[0],
+            "ridge leans blue-violet, not beige"
+        );
         assert!(!is_brownish(RIDGE_SNOW));
     }
 
     /// CARD VP-GRADE-1 — on Medium the dome is shown and carries
-    /// `NotShadowCaster` + `NotShadowReceiver`; no other part does.
+    /// `NotShadowCaster` + `NotShadowReceiver`. CARD VP-SKY-2 — the silhouette
+    /// bands do too, so a low sun does not paint the yard with their shadow.
+    /// Ground, ridge, and belt stay shadow-capable.
     #[test]
     fn vp_grade_medium_dome_casts_and_receives_no_shadow() {
         use bevy::light::{NotShadowCaster, NotShadowReceiver};
@@ -628,7 +1040,10 @@ mod tests {
             .insert_resource(SoftPlayerRealm { current: Some(0) });
         let mut inner = LocalSettings::default();
         inner.set_graphics_preset(GraphicsPreset::Medium);
-        app.insert_resource(LocalSettingsState { inner, dirty: false });
+        app.insert_resource(LocalSettingsState {
+            inner,
+            dirty: false,
+        });
         app.add_plugins(SkyBackdropPlugin);
         app.update();
         let world = app.world_mut();
@@ -639,24 +1054,302 @@ mod tests {
             Option<&NotShadowReceiver>,
         )>();
         let mut domes = 0;
+        let mut bands = 0;
         for (part, vis, caster, receiver) in q.iter(world) {
-            if *part == SkyBackdropPart::Dome {
-                domes += 1;
-                assert_ne!(*vis, Visibility::Hidden, "Medium shows the dome");
-                assert!(caster.is_some(), "dome carries NotShadowCaster (casts no shadow)");
-                assert!(receiver.is_some(), "dome carries NotShadowReceiver (receives no shadow)");
-            } else {
-                assert!(caster.is_none() && receiver.is_none(), "{part:?} tagged");
+            match part {
+                SkyBackdropPart::Dome => {
+                    domes += 1;
+                    assert_ne!(*vis, Visibility::Hidden, "Medium shows the dome");
+                    assert!(caster.is_some(), "dome carries NotShadowCaster");
+                    assert!(receiver.is_some(), "dome carries NotShadowReceiver");
+                }
+                SkyBackdropPart::Band(_) => {
+                    bands += 1;
+                    assert!(caster.is_some(), "band carries NotShadowCaster");
+                    assert!(receiver.is_some(), "band carries NotShadowReceiver");
+                }
+                _ => {
+                    assert!(caster.is_none() && receiver.is_none(), "{part:?} tagged");
+                }
             }
         }
         assert_eq!(domes, 1);
+        assert_eq!(bands, SILHOUETTE_BAND_COUNT);
     }
 
     #[test]
     fn plugin_is_safe_headless() {
         let mut app = App::new();
-        app.add_plugins(MinimalPlugins).add_plugins(SkyBackdropPlugin);
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(SkyBackdropPlugin);
         app.update();
         app.update();
     }
+
+    /// Lavapipe stills for VP-SKY-2. Not part of the headless gate (`--ignored`).
+    /// Same yard follow pose, Low then Medium. A readable plate and the warm
+    /// well sit in front of the rings so a band that drew over them would cover
+    /// those pixels.
+    #[test]
+    #[ignore = "lavapipe screenshot; DISPLAY and VK_ICD_FILENAMES"]
+    fn vp_sky_2_lavapipe_low_and_medium_yard() {
+        use shared::local_settings::LocalSettings;
+
+        let mut settings = LocalSettings::default();
+        settings.set_graphics_preset(GraphicsPreset::Low);
+        let mut app = App::new();
+        app.add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window {
+                        resolution: (1280u32, 800u32).into(),
+                        title: "vp-sky-2".into(),
+                        ..default()
+                    }),
+                    ..default()
+                })
+                .disable::<bevy::audio::AudioPlugin>()
+                .disable::<bevy::winit::WinitPlugin>(),
+        )
+        .add_plugins({
+            let mut winit = bevy::winit::WinitPlugin::default();
+            winit.run_on_any_thread = true;
+            winit
+        })
+        .insert_resource(SoftPlayerRealm { current: Some(0) })
+        .insert_resource(LocalSettingsState {
+            inner: settings,
+            dirty: false,
+        })
+        .insert_resource(GlobalAmbientLight {
+            color: Color::srgb(0.70, 0.80, 1.0),
+            brightness: 250.0,
+            ..default()
+        })
+        .insert_resource(ClearColor(crate::climate_plane::sky_for(
+            Some(0),
+            GraphicsPreset::Low,
+        )))
+        .insert_resource(SkyProbe::new())
+        .add_plugins(SkyBackdropPlugin)
+        .add_systems(Update, drive_sky_probe);
+
+        let plate = {
+            let mut meshes = app.world_mut().resource_mut::<Assets<Mesh>>();
+            meshes.add(Cuboid::new(1.15, 1.45, 0.08))
+        };
+        let glow = {
+            let mut meshes = app.world_mut().resource_mut::<Assets<Mesh>>();
+            meshes.add(Sphere::new(0.42))
+        };
+        let readable = {
+            let mut materials = app.world_mut().resource_mut::<Assets<StandardMaterial>>();
+            materials.add(StandardMaterial {
+                base_color: Color::srgb(0.93, 0.91, 0.84),
+                perceptual_roughness: 0.45,
+                ..default()
+            })
+        };
+        let well = {
+            let mut materials = app.world_mut().resource_mut::<Assets<StandardMaterial>>();
+            materials.add(StandardMaterial {
+                base_color: Color::srgb(0.86, 0.66, 0.29),
+                emissive: LinearRgba::new(6.0, 2.4, 0.4, 1.0),
+                ..default()
+            })
+        };
+        app.world_mut().spawn((
+            Camera3d::default(),
+            Camera {
+                order: 0,
+                ..default()
+            },
+            crate::climate_plane::WORLD_TONEMAPPING,
+            crate::climate_plane::world_color_grading(),
+            Transform::from_xyz(0.0, 3.25, 6.4).looking_at(Vec3::new(0.0, 5.2, -28.0), Vec3::Y),
+            bevy::render::view::Msaa::Off,
+            yard_distance_fog(GraphicsPreset::Low),
+        ));
+        app.world_mut().spawn((
+            crate::climate_plane::SANCTUARY_SUN.bundle(),
+            Name::new("SanctuarySun"),
+        ));
+        app.world_mut().spawn((
+            Mesh3d(plate),
+            MeshMaterial3d(readable),
+            Transform::from_xyz(-2.4, 1.35, 3.4).looking_at(Vec3::new(0.0, 3.25, 6.4), Vec3::Y),
+        ));
+        app.world_mut().spawn((
+            Mesh3d(glow),
+            MeshMaterial3d(well),
+            Transform::from_xyz(0.35, 0.7, 1.2),
+        ));
+
+        let slots = app.world().resource::<SkyProbe>().slots.clone();
+        app.run();
+
+        let slots = slots.lock().expect("sky slots");
+        let low = slots.low.clone().expect("Low frame");
+        let medium = slots.medium.clone().expect("Medium frame");
+        let prefix = std::env::var("SHOT_PREFIX").unwrap_or_else(|_| "vp-sky-2".into());
+        save_sky_png(&low, &format!("{prefix}-low.png"));
+        save_sky_png(&medium, &format!("{prefix}-medium.png"));
+    }
+}
+
+#[cfg(test)]
+fn yard_distance_fog(preset: GraphicsPreset) -> bevy::pbr::DistanceFog {
+    let bed = crate::climate_plane::fog_bed_for(Some(0), preset);
+    bevy::pbr::DistanceFog {
+        color: bed.fog,
+        falloff: bevy::pbr::FogFalloff::Linear {
+            start: bed.fog_start,
+            end: bed.fog_end,
+        },
+        ..default()
+    }
+}
+
+#[cfg(test)]
+#[derive(Resource)]
+struct SkyProbe {
+    tx: std::sync::mpsc::Sender<bevy::image::Image>,
+    rx: std::sync::Mutex<std::sync::mpsc::Receiver<bevy::image::Image>>,
+    frames: u32,
+    phase: u8,
+    requested: bool,
+    slots: std::sync::Arc<std::sync::Mutex<SkySlots>>,
+}
+
+#[cfg(test)]
+struct SkySlots {
+    low: Option<bevy::image::Image>,
+    medium: Option<bevy::image::Image>,
+}
+
+#[cfg(test)]
+impl SkyProbe {
+    fn new() -> Self {
+        let (tx, rx) = std::sync::mpsc::channel();
+        Self {
+            tx,
+            rx: std::sync::Mutex::new(rx),
+            frames: 0,
+            phase: 0,
+            requested: false,
+            slots: std::sync::Arc::new(std::sync::Mutex::new(SkySlots {
+                low: None,
+                medium: None,
+            })),
+        }
+    }
+}
+
+#[cfg(test)]
+fn drive_sky_probe(
+    mut commands: Commands,
+    mut probe: ResMut<SkyProbe>,
+    mut settings: ResMut<LocalSettingsState>,
+    mut clear: ResMut<ClearColor>,
+    mut fogs: Query<&mut bevy::pbr::DistanceFog>,
+    windows: Query<Entity, With<bevy::window::PrimaryWindow>>,
+    mut exit: MessageWriter<AppExit>,
+) {
+    let warmup = if probe.phase == 0 { 100 } else { 48 };
+    probe.frames += 1;
+    if probe.frames >= warmup && !probe.requested {
+        if let Ok(window) = windows.single() {
+            probe.requested = true;
+            let tx = probe.tx.clone();
+            commands
+                .spawn(bevy::render::view::window::screenshot::Screenshot::window(
+                    window,
+                ))
+                .observe(
+                    move |trigger: On<
+                        bevy::render::view::window::screenshot::ScreenshotCaptured,
+                    >| {
+                        let _ = tx.send(trigger.event().image.clone());
+                    },
+                );
+        }
+    }
+    let received = probe.rx.lock().expect("sky inbox").try_recv().ok();
+    if let Some(image) = received {
+        if sky_shot_is_blank(&image) {
+            if probe.frames > 500 {
+                panic!("phase {} stayed blank", probe.phase);
+            }
+            probe.requested = false;
+            return;
+        }
+        let mut slots = probe.slots.lock().expect("sky slots");
+        if probe.phase == 0 {
+            slots.low = Some(image);
+            drop(slots);
+            settings.inner.set_graphics_preset(GraphicsPreset::Medium);
+            clear.0 = crate::climate_plane::sky_for(Some(0), GraphicsPreset::Medium);
+            let fog = yard_distance_fog(GraphicsPreset::Medium);
+            for mut have in &mut fogs {
+                *have = fog.clone();
+            }
+            probe.phase = 1;
+            probe.frames = 0;
+            probe.requested = false;
+        } else {
+            slots.medium = Some(image);
+            drop(slots);
+            exit.write(AppExit::Success);
+        }
+    } else if probe.frames > 500 {
+        panic!("screenshot did not arrive in phase {}", probe.phase);
+    }
+}
+
+#[cfg(test)]
+fn sky_shot_is_blank(image: &bevy::image::Image) -> bool {
+    let pixels = image.data.as_deref().unwrap_or(&[]);
+    if pixels.len() < 64 {
+        return true;
+    }
+    let mut n = 0.0f32;
+    let mut mean = 0.0f32;
+    let mut moment = 0.0f32;
+    for px in pixels.chunks_exact(4) {
+        let (r, g, b) = sky_rgb_of(image, px);
+        let luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+        n += 1.0;
+        let delta = luma - mean;
+        mean += delta / n;
+        moment += delta * (luma - mean);
+    }
+    n < 10.0 || moment / n < 40.0
+}
+
+#[cfg(test)]
+fn sky_rgb_of(image: &bevy::image::Image, px: &[u8]) -> (f32, f32, f32) {
+    use bevy::render::render_resource::TextureFormat;
+    match image.texture_descriptor.format {
+        TextureFormat::Rgba8Unorm | TextureFormat::Rgba8UnormSrgb => {
+            (px[0] as f32, px[1] as f32, px[2] as f32)
+        }
+        TextureFormat::Bgra8Unorm | TextureFormat::Bgra8UnormSrgb => {
+            (px[2] as f32, px[1] as f32, px[0] as f32)
+        }
+        other => panic!("unexpected screenshot format {other:?}"),
+    }
+}
+
+#[cfg(test)]
+fn save_sky_png(image: &bevy::image::Image, name: &str) {
+    let dir = std::env::var("SHOT_DIR").unwrap_or_else(|_| "/opt/cursor/artifacts".into());
+    let path = std::path::Path::new(&dir).join(name);
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let dynamic = image.clone().try_into_dynamic().expect("dynamic image");
+    dynamic
+        .to_rgb8()
+        .save(&path)
+        .unwrap_or_else(|err| panic!("save {}: {err}", path.display()));
 }
