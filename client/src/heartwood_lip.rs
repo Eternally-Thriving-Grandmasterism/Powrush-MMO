@@ -18,11 +18,14 @@ use shared::threshold_shelf::{
     THRESHOLD_SHELF_CENTER, THRESHOLD_SHELF_SIZE,
 };
 
+use shared::local_settings::GraphicsPreset;
+
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::hex_travel::HexTravelState;
 use crate::human_presence::SoftPresence;
 use crate::input::PlayerInput;
 use crate::lived_hour_bind::LivedHourBind;
+use crate::local_settings::LocalSettingsState;
 
 const STAND_HEIGHT: f32 = 0.90;
 
@@ -87,6 +90,7 @@ fn sync_heartwood_lip(
             With<ThresholdPeaceOrb>,
         )>,
     >,
+    settings: Option<Res<LocalSettingsState>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
 ) {
@@ -184,18 +188,18 @@ fn sync_heartwood_lip(
         Name::new("ThresholdPeaceNode"),
     ));
 
+    let preset = settings
+        .as_ref()
+        .map(|state| state.inner.graphics_preset)
+        .unwrap_or(GraphicsPreset::Medium);
     commands.spawn((
         (
             Mesh3d(meshes.add(Cylinder::new(WATER_POND_RADIUS, 0.04))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgba(0.06, 0.24, 0.28, 0.78),
-                perceptual_roughness: 0.48,
-                metallic: 0.02,
-                ..default()
-            })),
+            MeshMaterial3d(materials.add(crate::water::bath_material(preset))),
             Transform::from_xyz(WATER_POND_CENTER[0], 0.01, WATER_POND_CENTER[1]),
         ),
         HeartwoodWater,
+        crate::water::BathMark,
         Name::new("HeartwoodBath"),
     ));
 
