@@ -14,6 +14,7 @@ use bevy::prelude::*;
 use shared::local_settings::GraphicsPreset;
 
 use crate::local_settings::LocalSettingsState;
+use crate::mercy_harvest_nodes::MercyHarvestNode;
 use crate::world_answer::{AnswerKind, WorldAnswer};
 
 /// Mobile: off.
@@ -29,6 +30,98 @@ pub const VFX_BURST_TEND: usize = 6;
 pub const VFX_BURST_FLOW: usize = 10;
 pub const VFX_LIFE_TEND_SECS: f32 = 1.6;
 pub const VFX_LIFE_FLOW_SECS: f32 = 2.2;
+
+/// Mote mesh radius (world units).
+pub const VFX_MOTE_RADIUS: f32 = 0.09;
+/// Harvest-node (Use glow) sphere radius at scale 1 (`mercy_harvest_nodes`).
+pub const GLOW_BASE_RADIUS: f32 = 0.48;
+/// Clearance kept around every glow, as a multiple of its drawn radius.
+pub const GLOW_CLEARANCE_FACTOR: f32 = 1.6;
+/// Rise speeds (world units / s).
+pub const VFX_RISE_TEND: f32 = 0.6;
+pub const VFX_RISE_FLOW: f32 = 0.9;
+
+/// A Use-glow source: world centre and clearance radius (already padded).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct GlowClear {
+    pub center: Vec3,
+    pub radius: f32,
+}
+
+/// Clearance sphere for a harvest-node glow drawn at `scale`.
+pub fn glow_clear(center: Vec3, scale: f32) -> GlowClear {
+    GlowClear {
+        center,
+        radius: GLOW_BASE_RADIUS * scale.max(0.0) * GLOW_CLEARANCE_FACTOR,
+    }
+}
+
+/// True when a mote at `p`, seen from `eye`, keeps clear of the glow on screen:
+/// the angular gap between the mote and the glow centre exceeds both angular
+/// radii (mote + padded glow). Screen-space, so a near mote can never sit
+/// over a far glow. Glows behind the eye are ignored.
+pub fn mote_clear_of(eye: Vec3, p: Vec3, glow: GlowClear) -> bool {
+    let to_m = p - eye;
+    let to_g = glow.center - eye;
+    let (dm, dg) = (to_m.length(), to_g.length());
+    if dg <= glow.radius || dm <= f32::EPSILON {
+        return dg > glow.radius && dm > f32::EPSILON; // eye inside a glow: nothing is clear
+    }
+    let gap = to_m.angle_between(to_g);
+    let ang_g = (glow.radius / dg).clamp(-1.0, 1.0).asin();
+    let ang_m = (VFX_MOTE_RADIUS / dm).clamp(-1.0, 1.0).asin();
+    gap > ang_g + ang_m
+}
+
+/// Whole rising path (start → start + up·rise·life) stays clear of every glow.
+pub fn mote_path_clear(eye: Vec3, start: Vec3, rise_total: f32, glows: &[GlowClear]) -> bool {
+    const STEPS: usize = 32;
+    (0..=STEPS).all(|k| {
+        let p = start + Vec3::Y * rise_total * (k as f32 / STEPS as f32);
+        glows.iter().all(|g| mote_clear_of(eye, p, *g))
+    })
+}
+
+/// Pure placement: up to `n` mote starts in the lower view band, beside centre,
+/// each with a whole path clear of every glow. Blocked slots are skipped
+/// (shifted to the next candidate); never more than `n`.
+pub fn plan_mote_starts(
+    eye: Vec3,
+    forward: Vec3,
+    right: Vec3,
+    cam_up: Vec3,
+    n: usize,
+    rise_total: f32,
+    glows: &[GlowClear],
+) -> Vec<Vec3> {
+    let mut out = Vec::with_capacity(n);
+    if n == 0 {
+        return out;
+    }
+    // Candidate slots: preferred band first, then lower / wider / nearer fallbacks.
+    const DEPTHS: [f32; 2] = [4.5, 3.4];
+    const DROPS: [f32; 3] = [1.1, 1.45, 0.8];
+    const LATERAL: [f32; 8] = [0.9, 1.15, 1.4, 1.65, 1.9, 2.2, 2.5, 2.8];
+    'outer: for depth in DEPTHS {
+        for drop in DROPS {
+            let origin = eye + forward * depth - cam_up * drop;
+            for (j, lat) in LATERAL.iter().enumerate() {
+                for side in [-1.0f32, 1.0] {
+                    let p = origin + right * side * *lat + Vec3::Y * (0.02 * j as f32);
+                    if mote_path_clear(eye, p, rise_total, glows)
+                        && out.iter().all(|q: &Vec3| q.distance(p) > 2.0 * VFX_MOTE_RADIUS)
+                    {
+                        out.push(p);
+                        if out.len() == n {
+                            break 'outer;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    out
+}
 
 /// Hard ceiling on live motes for a preset.
 pub const fn vfx_cap(preset: GraphicsPreset) -> usize {
@@ -88,6 +181,7 @@ fn spawn_tend_flow_motes(
     settings: Option<Res<LocalSettingsState>>,
     cameras: Query<&GlobalTransform, With<Camera3d>>,
     live: Query<(), With<TendFlowMote>>,
+    glows: Query<&GlobalTransform, With<MercyHarvestNode>>,
     meshes: Option<ResMut<Assets<Mesh>>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
     mut assets: ResMut<MoteAssets>,
@@ -110,7 +204,7 @@ fn spawn_tend_flow_motes(
 
     if let (Some(mut meshes), Some(mut materials)) = (meshes, materials) {
         if assets.mesh.is_none() {
-            assets.mesh = Some(meshes.add(Sphere::new(0.09).mesh().ico(1).unwrap()));
+            assets.mesh = Some(meshes.add(Sphere::new(VFX_MOTE_RADIUS).mesh().ico(1).unwrap()));
             assets.tend = Some(materials.add(StandardMaterial {
                 base_color: Color::srgb(1.0, 0.82, 0.45),
                 emissive: LinearRgba::rgb(2.2, 1.5, 0.55),
@@ -126,29 +220,33 @@ fn spawn_tend_flow_motes(
         }
     }
 
-    // Lower third of the view, to either side of centre.
-    let (origin, right, up) = cameras
+    let rise = if flow { VFX_RISE_FLOW } else { VFX_RISE_TEND };
+    let life = if flow { VFX_LIFE_FLOW_SECS } else { VFX_LIFE_TEND_SECS };
+    let clears: Vec<GlowClear> = glows
         .iter()
-        .next()
-        .map(|cam| {
-            let fwd = cam.forward().as_vec3();
-            (
-                cam.translation() + fwd * 4.5 - cam.up().as_vec3() * 1.1,
-                cam.right().as_vec3(),
-                Vec3::Y,
-            )
+        .map(|g| {
+            let (scale, _, t) = g.to_scale_rotation_translation();
+            glow_clear(t, scale.max_element())
         })
-        .unwrap_or((Vec3::ZERO, Vec3::X, Vec3::Y));
-
-    debug!(target: "powrush::vfx", ?preset, n, ?origin, "tend/flow motes");
-    for i in 0..n {
-        let t = i as f32 / n.max(1) as f32;
-        let side = if i % 2 == 0 { -1.0 } else { 1.0 };
-        let pos = origin + right * side * (0.9 + 0.9 * t) + up * (0.15 * t);
+        .collect();
+    let cam = cameras.iter().next().copied().unwrap_or_default();
+    let starts = plan_mote_starts(
+        cam.translation(),
+        cam.forward().as_vec3(),
+        cam.right().as_vec3(),
+        cam.up().as_vec3(),
+        n,
+        rise * life,
+        &clears,
+    );
+    debug!(target: "powrush::vfx", ?preset, n, placed = starts.len(), "tend/flow motes");
+    let count = starts.len();
+    for (i, pos) in starts.into_iter().enumerate() {
+        let t = i as f32 / count.max(1) as f32;
         let mote = TendFlowMote {
             age: 0.0,
-            life: if flow { VFX_LIFE_FLOW_SECS } else { VFX_LIFE_TEND_SECS },
-            rise: if flow { 0.9 } else { 0.6 },
+            life,
+            rise,
             base_scale: 1.0 - 0.3 * t,
         };
         let mut e = commands.spawn((mote, Transform::from_translation(pos), Visibility::default()));
@@ -249,6 +347,54 @@ mod tests {
                 assert_eq!(peak, 0, "Mobile is off");
             }
         }
+    }
+
+    #[test]
+    fn motes_never_land_inside_a_glow_clearance() {
+        let eye = Vec3::new(0.0, 3.0, 8.0);
+        let mut seed = 0x9e3779b9u32;
+        let mut rnd = || {
+            seed ^= seed << 13;
+            seed ^= seed >> 17;
+            seed ^= seed << 5;
+            (seed as f32 / u32::MAX as f32) * 2.0 - 1.0
+        };
+        let mut placed_total = 0;
+        for case in 0..400 {
+            let look = Vec3::new(rnd() * 2.0, -0.4 + rnd() * 0.3, -1.0).normalize();
+            let tf = Transform::from_translation(eye).looking_to(look, Vec3::Y);
+            let (fwd, right, up) = (tf.forward().as_vec3(), tf.right().as_vec3(), tf.up().as_vec3());
+            // Glows scattered in the lower view, including right where the band sits.
+            let glows: Vec<GlowClear> = (0..1 + case % 4)
+                .map(|_| {
+                    let c = eye + fwd * (3.0 + 6.0 * rnd().abs()) + right * rnd() * 3.0 - up * (0.6 + rnd().abs());
+                    glow_clear(c, 0.9 + 0.4 * rnd().abs())
+                })
+                .collect();
+            for (rise, n) in [(VFX_RISE_TEND * VFX_LIFE_TEND_SECS, VFX_BURST_TEND), (VFX_RISE_FLOW * VFX_LIFE_FLOW_SECS, VFX_BURST_FLOW)] {
+                let starts = plan_mote_starts(eye, fwd, right, up, n, rise, &glows);
+                assert!(starts.len() <= n);
+                placed_total += starts.len();
+                for p in starts {
+                    for k in 0..=32 {
+                        let q = p + Vec3::Y * rise * k as f32 / 32.0;
+                        for g in &glows {
+                            assert!(q.distance(g.center) > g.radius, "inside world clearance");
+                            assert!(mote_clear_of(eye, q, *g), "overlaps glow on screen");
+                        }
+                    }
+                }
+            }
+        }
+        assert!(placed_total > 0, "placement still draws motes");
+    }
+
+    #[test]
+    fn mote_over_a_glow_is_rejected() {
+        let eye = Vec3::ZERO;
+        let g = glow_clear(Vec3::new(0.0, 0.0, -8.0), 1.0);
+        assert!(!mote_clear_of(eye, Vec3::new(0.0, 0.0, -4.0), g));
+        assert!(mote_clear_of(eye, Vec3::new(3.0, 0.0, -4.0), g));
     }
 
     #[test]

@@ -24,6 +24,15 @@ effect is triggered with real key presses on the existing bindings (E tap → Ta
 
 Per fire: Tend ≤ 6 motes / 1.6 s, Flow ≤ 10 motes / 2.2 s, always clamped to the cap.
 
+## Glow clearance
+
+Motes never sit over a Use glow. Every `MercyHarvestNode` is a glow source with a clearance
+sphere of `GLOW_BASE_RADIUS` (0.48) × its drawn scale × `GLOW_CLEARANCE_FACTOR` (1.6).
+`plan_mote_starts` only accepts a slot whose **whole rising path** is clear of every
+glow in screen space (`mote_clear_of`: the angular gap to the glow centre must exceed the
+padded glow's angular radius plus the mote's). Blocked slots shift to the next candidate
+(wider, lower or nearer in the band) and are skipped if none is clear. The cap is unchanged.
+
 ## Before / after — Low and Medium
 
 | Preset · action | Before | After |
@@ -56,10 +65,12 @@ Mean of the last 10 Bevy `frame_time` lines per run (window includes the Tend + 
 
 | Preset | Before | After | Budget |
 |---|---|---|---|
-| Low | 45.8 ms | 48.1 ms | ≤ 50 ms |
-| Medium | 93.9 ms | 95.6 ms | ≤ 100 ms |
-| High | 218.8 ms | 237.0 ms | none (beauty tier, capped) |
-| Ultra | 357.8 ms | 403.3 ms | none (beauty tier, capped) |
+| Low | 45.8 ms | 45.1 ms | ≤ 50 ms |
+| Medium | 93.9 ms | 92.3 ms¹ | ≤ 100 ms |
+| High | 218.8 ms | 223.9 ms | none (beauty tier, capped) |
+| Ultra | 357.8 ms | 446.7 ms | none (beauty tier, capped) |
+
+¹ The committed Medium after shots come from this run. Two other Medium after runs on the same head read 106.5 ms and 112.9 ms while the shared box was under load (load average ≈ 6). Placement runs only on a Tend or Flow fire, so per-frame cost is unchanged.
 
 High / Ultra runs used longer settle waits (slower software frames), so their before/after
 deltas include run-to-run noise.
