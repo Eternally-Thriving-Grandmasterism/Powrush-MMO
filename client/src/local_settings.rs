@@ -19,6 +19,9 @@
 
 use bevy::anti_alias::fxaa::Fxaa;
 use bevy::anti_alias::smaa::{Smaa, SmaaPreset};
+use bevy::anti_alias::taa::TemporalAntiAliasing;
+use bevy::core_pipeline::prepass::MotionVectorPrepass;
+use bevy::render::camera::{MipBias, TemporalJitter};
 use bevy::core_pipeline::prepass::{DeferredPrepass, DepthPrepass};
 use bevy::input::gamepad::GamepadRumbleRequest;
 use bevy::pbr::ScreenSpaceReflections;
@@ -230,16 +233,22 @@ impl LocalMeshLodFeel {
 pub enum AntiAliasKind {
     Fxaa,
     Smaa,
+    /// CARD VP-ULTRA-1 — Ultra swaps SMAA for TAA. Never both on one camera.
+    Taa,
 }
 
-/// Mobile matches Low (FXAA); Medium is SMAA; High and Ultra keep Medium's
-/// SMAA until VP-ULTRA-1.
+/// CARD VP-ULTRA-1 — the AA kind Ultra runs instead of High's SMAA. One AA
+/// path per camera: Ultra picks TAA and SMAA stays off (no stacking).
+pub const ULTRA_ANTI_ALIAS: AntiAliasKind = AntiAliasKind::Taa;
+
+/// Mobile matches Low (FXAA); Medium and High are SMAA; Ultra is
+/// [`ULTRA_ANTI_ALIAS`] (TAA, VP-ULTRA-1). The lived UI is a separate
+/// `Camera2d`, so TAA never touches type.
 pub const fn anti_alias_for(preset: GraphicsPreset) -> AntiAliasKind {
     match preset {
         GraphicsPreset::Mobile | GraphicsPreset::Low => AntiAliasKind::Fxaa,
-        GraphicsPreset::Medium | GraphicsPreset::High | GraphicsPreset::Ultra => {
-            AntiAliasKind::Smaa
-        }
+        GraphicsPreset::Medium | GraphicsPreset::High => AntiAliasKind::Smaa,
+        GraphicsPreset::Ultra => ULTRA_ANTI_ALIAS,
     }
 }
 
@@ -356,14 +365,27 @@ fn sync_screen_space_reflections(
 fn sync_anti_alias(
     mut commands: Commands,
     settings: Option<Res<LocalSettingsState>>,
-    cameras: Query<(Entity, Option<&Fxaa>, Option<&Smaa>), With<Camera3d>>,
+    cameras: Query<
+        (Entity, Option<&Fxaa>, Option<&Smaa>, Has<TemporalAntiAliasing>),
+        With<Camera3d>,
+    >,
 ) {
     let preset = settings
         .as_ref()
         .map(|state| state.inner.graphics_preset)
         .unwrap_or(GraphicsPreset::Medium);
     let kind = anti_alias_for(preset);
-    for (entity, fxaa, smaa) in &cameras {
+    for (entity, fxaa, smaa, taa) in &cameras {
+        if kind != AntiAliasKind::Taa && taa {
+            // TAA's required jitter / mip bias / motion vectors go with it.
+            // The depth prepass belongs to VP-AO-1 / VP-WATER-1 and stays theirs.
+            commands.entity(entity).remove::<(
+                TemporalAntiAliasing,
+                TemporalJitter,
+                MipBias,
+                MotionVectorPrepass,
+            )>();
+        }
         match kind {
             AntiAliasKind::Fxaa => {
                 if fxaa.is_none() {
@@ -381,6 +403,17 @@ fn sync_anti_alias(
                 }
                 if fxaa.is_some() {
                     commands.entity(entity).remove::<Fxaa>();
+                }
+            }
+            AntiAliasKind::Taa => {
+                if !taa {
+                    commands.entity(entity).insert(TemporalAntiAliasing::default());
+                }
+                if fxaa.is_some() {
+                    commands.entity(entity).remove::<Fxaa>();
+                }
+                if smaa.is_some() {
+                    commands.entity(entity).remove::<Smaa>();
                 }
             }
         }
@@ -663,7 +696,7 @@ mod tests {
         assert_eq!(anti_alias_for(GraphicsPreset::Low), AntiAliasKind::Fxaa);
         assert_eq!(anti_alias_for(GraphicsPreset::Medium), AntiAliasKind::Smaa);
         assert_eq!(anti_alias_for(GraphicsPreset::High), AntiAliasKind::Smaa);
-        assert_eq!(anti_alias_for(GraphicsPreset::Ultra), AntiAliasKind::Smaa);
+        assert_eq!(anti_alias_for(GraphicsPreset::Ultra), AntiAliasKind::Taa);
     }
 
     #[test]
@@ -683,6 +716,7 @@ mod tests {
             let e = app.world().entity(e);
             (e.contains::<Fxaa>(), e.contains::<Smaa>())
         };
+        let taa = |app: &App, e: Entity| app.world().entity(e).contains::<TemporalAntiAliasing>();
 
         app.update();
         assert_eq!(kinds(&app, world_cam), (false, true));
@@ -694,7 +728,10 @@ mod tests {
             (GraphicsPreset::Mobile, (true, false)),
             (GraphicsPreset::High, (false, true)),
             (GraphicsPreset::Low, (true, false)),
-            (GraphicsPreset::Ultra, (false, true)),
+            (GraphicsPreset::Ultra, (false, false)),
+            (GraphicsPreset::High, (false, true)),
+            (GraphicsPreset::Ultra, (false, false)),
+            (GraphicsPreset::Medium, (false, true)),
         ] {
             app.world_mut()
                 .resource_mut::<LocalSettingsState>()
@@ -702,6 +739,12 @@ mod tests {
                 .set_graphics_preset(preset);
             app.update();
             assert_eq!(kinds(&app, world_cam), want, "{preset:?}");
+            assert_eq!(taa(&app, world_cam), preset == GraphicsPreset::Ultra, "{preset:?} TAA");
+            assert!(!taa(&app, ui_cam), "{preset:?} UI camera never gets TAA");
+            if preset != GraphicsPreset::Ultra {
+                let e = app.world().entity(world_cam);
+                assert!(!e.contains::<MotionVectorPrepass>() && !e.contains::<TemporalJitter>());
+            }
             assert_eq!(kinds(&app, ui_cam), (false, false), "{preset:?}");
         }
     }
