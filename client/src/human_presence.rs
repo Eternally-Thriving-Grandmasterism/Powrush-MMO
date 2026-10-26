@@ -292,6 +292,41 @@ pub fn silhouette() -> Silhouette {
     }
 }
 
+/// CARD VP-CHAR-1 — character dress/material response per preset so the
+/// person sits in the shipped golden-hour grade (VP-LIGHT-1 / VP-GRADE-1)
+/// instead of reading flat. Material only: no rig, anim, VFX, light or bloom.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct CharacterMaterialPlan {
+    /// Cloth/body (also the skin-tone head — one family so lineage tint holds).
+    pub cloth_roughness: f32,
+    /// Cloth Fresnel reflectance: low so the grade's warm key wraps softly.
+    pub cloth_reflectance: f32,
+    /// Accent (hand gold) metal response.
+    pub accent_metallic: f32,
+    pub accent_roughness: f32,
+}
+
+/// Low/Medium stay cheap and readable: non-metal accent so the Use/Mute
+/// emissive read is never darkened. High/Ultra carry a real metal accent.
+pub const fn character_material_plan(preset: GraphicsPreset) -> CharacterMaterialPlan {
+    match preset {
+        GraphicsPreset::Mobile | GraphicsPreset::Low | GraphicsPreset::Medium => {
+            CharacterMaterialPlan {
+                cloth_roughness: 0.86,
+                cloth_reflectance: 0.30,
+                accent_metallic: 0.0,
+                accent_roughness: 0.42,
+            }
+        }
+        GraphicsPreset::High | GraphicsPreset::Ultra => CharacterMaterialPlan {
+            cloth_roughness: 0.82,
+            cloth_reflectance: 0.35,
+            accent_metallic: 0.65,
+            accent_roughness: 0.30,
+        },
+    }
+}
+
 /// Comfort MeshLodPlan → lived stacked-capsule detail scale.
 pub fn presence_lod_scale(preset: GraphicsPreset) -> f32 {
     mesh_lod::lived_presence_detail_scale(&mesh_lod::plan_for_preset(preset))
@@ -667,15 +702,18 @@ fn spawn_human_presence(
     );
     // One material family for every part, so the lineage tint still paints the
     // whole person from the root handle.
+    let mat_plan = character_material_plan(preset);
     let earth = materials.add(StandardMaterial {
         base_color: BODY_EARTH,
-        perceptual_roughness: 0.74,
+        perceptual_roughness: mat_plan.cloth_roughness,
+        reflectance: mat_plan.cloth_reflectance,
         ..default()
     });
     let accent = materials.add(StandardMaterial {
         base_color: SANCTUARY_GOLD,
         emissive: LinearRgba::from(SANCTUARY_GOLD) * 0.25,
-        perceptual_roughness: 0.42,
+        perceptual_roughness: mat_plan.accent_roughness,
+        metallic: mat_plan.accent_metallic,
         ..default()
     });
     let hips = meshes.add(Capsule3d::new(HIP_R, HIP_LEN));
@@ -1826,6 +1864,53 @@ pub fn presence_copy_is_honest(s: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn vp_char_1_low_medium_accent_non_metal_keeps_use_mute_readable() {
+        for p in [GraphicsPreset::Mobile, GraphicsPreset::Low, GraphicsPreset::Medium] {
+            let m = super::character_material_plan(p);
+            assert_eq!(m.accent_metallic, 0.0);
+            assert!(m.cloth_roughness >= 0.8);
+        }
+        // Use/Mute glow range unchanged: rest floor and full-Use ceiling.
+        assert!((super::accent_glow(0.0, 0.0, 0.0) - 0.25).abs() < 1e-6);
+        assert!(super::accent_glow(1.0, 1.0, 0.0) > 1.0);
+    }
+
+    #[test]
+    fn vp_char_1_high_ultra_richer_metal_only_on_accent() {
+        for p in [GraphicsPreset::High, GraphicsPreset::Ultra] {
+            let m = super::character_material_plan(p);
+            assert!(m.accent_metallic > 0.5 && m.accent_metallic <= 1.0);
+            assert!(m.accent_roughness < 0.42);
+        }
+        assert_eq!(
+            super::character_material_plan(GraphicsPreset::High),
+            super::character_material_plan(GraphicsPreset::Ultra),
+            "no Ultra-only stack"
+        );
+    }
+
+    #[test]
+    fn vp_char_1_silhouette_contrast_and_values_in_range() {
+        for p in [
+            GraphicsPreset::Mobile,
+            GraphicsPreset::Low,
+            GraphicsPreset::Medium,
+            GraphicsPreset::High,
+            GraphicsPreset::Ultra,
+        ] {
+            let m = super::character_material_plan(p);
+            for v in [m.cloth_roughness, m.cloth_reflectance, m.accent_roughness] {
+                assert!((0.0..=1.0).contains(&v));
+            }
+            // Cloth stays rougher than the accent so the gold hand pops.
+            assert!(m.cloth_roughness > m.accent_roughness);
+        }
+        let body = super::BODY_EARTH.to_srgba();
+        let gold = super::SANCTUARY_GOLD.to_srgba();
+        assert!(gold.red - body.red > 0.5, "accent vs body value contrast");
+    }
+
     use super::*;
     use crate::local_settings::LocalSettingsState;
     use shared::local_settings::{LocalSettings, PeaceKey};
