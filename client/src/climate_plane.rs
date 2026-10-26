@@ -826,6 +826,34 @@ const LIGHT_BLOOM_INTENSITY: f32 = 0.12;
 /// never a haze. Half of High's [`LIGHT_BLOOM_INTENSITY`].
 const MEDIUM_BLOOM_INTENSITY: f32 = 0.06;
 
+/// CARD VP-GLOW-1 — the one bloom (LIGHT-BLOOM-1 / VP-BLOOM-MED-1) gains a
+/// soft prefilter knee so only HDR-bright texels feed it: the warm lamps, the
+/// Use glow and the sun disc. Lit plates, type and the Mute-safety read sit
+/// under the knee and stay crisp. Same component, same cameras, no second bloom.
+pub const GLOW_BLOOM_THRESHOLD: f32 = 0.9;
+/// CARD VP-GLOW-1 — knee softness (0 hard cut, 1 fully soft).
+pub const GLOW_BLOOM_THRESHOLD_SOFTNESS: f32 = 0.4;
+
+/// CARD VP-GLOW-1 — warm lamp tint on the well emissive (Sanctuary and
+/// Heartwood). Red lifted, blue held back: the lamp reads amber-gold under
+/// AgX instead of washing to white. Depths keeps its cold well.
+pub const WARM_LAMP_TINT: LinearRgba = LinearRgba::new(1.18, 0.96, 0.66, 1.0);
+
+/// CARD VP-GLOW-1 — emissive for a well lamp at `mul`. Sanctuary and Heartwood
+/// get [`WARM_LAMP_TINT`]; Depths stays `base * mul` (the one cold Use glow).
+pub fn warm_lamp_emissive(place: PlaceId, base: Color, mul: f32) -> LinearRgba {
+    let lin = LinearRgba::from(base) * mul;
+    match place {
+        PlaceId::Sanctuary | PlaceId::Heartwood => LinearRgba::new(
+            lin.red * WARM_LAMP_TINT.red,
+            lin.green * WARM_LAMP_TINT.green,
+            lin.blue * WARM_LAMP_TINT.blue,
+            1.0,
+        ),
+        PlaceId::Depths => lin.with_alpha(1.0),
+    }
+}
+
 /// Camera fog plus the localized volume that replaced `max_depth` in Bevy 0.15.
 pub struct UltraVolumetric {
     pub camera: VolumetricFog,
@@ -874,19 +902,19 @@ pub fn ultra_volumetric_for(preset: GraphicsPreset) -> Option<UltraVolumetric> {
 /// Cite [`docs/VISUAL_TARGET.md`] L224 (Medium gentle glow), L225 (High
 /// `BloomSettings`) and L226 (Ultra sun bloom).
 pub fn bloom_for(preset: GraphicsPreset) -> Option<Bloom> {
-    if preset == GraphicsPreset::Medium {
-        return Some(Bloom {
-            intensity: MEDIUM_BLOOM_INTENSITY,
-            ..Bloom::NATURAL
-        });
-    }
-    if preset != GraphicsPreset::High && preset != GraphicsPreset::Ultra {
-        return None;
-    }
-    Some(Bloom {
-        intensity: LIGHT_BLOOM_INTENSITY,
+    let intensity = match preset {
+        GraphicsPreset::Medium => MEDIUM_BLOOM_INTENSITY,
+        GraphicsPreset::High | GraphicsPreset::Ultra => LIGHT_BLOOM_INTENSITY,
+        _ => return None,
+    };
+    // CARD VP-GLOW-1 — the knee extends the one bloom; nothing else changes.
+    let mut bloom = Bloom {
+        intensity,
         ..Bloom::NATURAL
-    })
+    };
+    bloom.prefilter.threshold = GLOW_BLOOM_THRESHOLD;
+    bloom.prefilter.threshold_softness = GLOW_BLOOM_THRESHOLD_SOFTNESS;
+    Some(bloom)
 }
 
 /// CARD VP-AO-1 — contact radius in view-space metres.
@@ -1514,7 +1542,10 @@ fn sync_tier_bloom(
             if !has_hdr {
                 commands.entity(entity).insert(bevy::camera::Hdr);
             }
-            if existing.map_or(true, |have| have.intensity != bloom.intensity) {
+            if existing.map_or(true, |have| {
+                have.intensity != bloom.intensity
+                    || have.prefilter.threshold != bloom.prefilter.threshold
+            }) {
                 commands.entity(entity).insert(bloom.clone());
             }
         }
@@ -4059,18 +4090,42 @@ mod tests {
                 );
                 assert_eq!(bloom.high_pass_frequency, natural.high_pass_frequency);
                 assert_eq!(bloom.composite_mode, natural.composite_mode);
-                assert_eq!(
-                    bloom.prefilter.threshold,
-                    natural.prefilter.threshold
-                );
+                // CARD VP-GLOW-1 — the one bloom gains a knee; lamps feed it.
+                assert_eq!(bloom.prefilter.threshold, GLOW_BLOOM_THRESHOLD);
                 assert_eq!(
                     bloom.prefilter.threshold_softness,
-                    natural.prefilter.threshold_softness
+                    GLOW_BLOOM_THRESHOLD_SOFTNESS
                 );
             } else {
                 assert!(got.is_none(), "{preset:?}");
             }
         }
+    }
+
+    /// CARD VP-GLOW-1 — warm lamps: Sanctuary / Heartwood lift red over blue,
+    /// keep the lamp at least as bright as before (Use glow legible); Depths
+    /// stays the plain cold well. Low and Mobile still pay for no bloom.
+    #[test]
+    fn vp_glow_warm_lamp_keeps_use_glow_legible() {
+        for (place, base) in [
+            (PlaceId::Sanctuary, SANCTUARY_WELL_GOLD),
+            (PlaceId::Heartwood, HEARTWOOD_AMBER_LAMP),
+        ] {
+            let plain = LinearRgba::from(base) * 3.0;
+            let warm = warm_lamp_emissive(place, base, 3.0);
+            assert!(warm.red > plain.red && warm.blue < plain.blue, "{place:?}");
+            assert!(warm.red >= warm.green && warm.green >= warm.blue, "{place:?}");
+            let lum = |c: LinearRgba| 0.2126 * c.red + 0.7152 * c.green + 0.0722 * c.blue;
+            assert!(lum(warm) >= lum(plain) * 0.97, "{place:?} lamp dimmed");
+        }
+        let cold = Color::srgb(0.2, 0.7, 0.8);
+        assert_eq!(
+            warm_lamp_emissive(PlaceId::Depths, cold, 2.0),
+            (LinearRgba::from(cold) * 2.0).with_alpha(1.0)
+        );
+        assert!(GLOW_BLOOM_THRESHOLD > 0.0 && GLOW_BLOOM_THRESHOLD_SOFTNESS < 1.0);
+        assert!(bloom_for(GraphicsPreset::Low).is_none());
+        assert!(bloom_for(GraphicsPreset::Mobile).is_none());
     }
 
     /// CARD LIGHT-BLOOM-1 — High inserts hdr + BloomSettings. Low removes both.
