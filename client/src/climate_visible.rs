@@ -202,7 +202,9 @@ fn paint_nodes_from_hour(
         let mul = state.glow_mul();
         let (emissive_mul, intensity, range) = well_glow(place, mul, node.pulse);
         if let Some(mut mat) = materials.get_mut(handle) {
-            mat.emissive = LinearRgba::from(mat.base_color) * emissive_mul;
+            // CARD VP-GLOW-1 — warm lamp on the one well glow (Depths stays cold).
+            mat.emissive =
+                crate::climate_plane::warm_lamp_emissive(place, mat.base_color, emissive_mul);
         }
         if let Some(children) = children {
             for child in children.iter() {
