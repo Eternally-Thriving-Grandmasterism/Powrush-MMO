@@ -65,6 +65,12 @@
  * visible). The following eligible frame grabs again. mouse_look off leaves
  * the RMB orbit and the cursor untouched.
  *
+ * CARD CAM-RAW (PLAYTEST-CAM-1) — `raw_look` (default off) gives 1:1 look:
+ * `follow_camera` uses a lerp weight of 1 instead of the follow-lerp
+ * smoothing, so the camera lands on the orbit target the same frame. Orbit
+ * input is already raw per-pixel and is not changed. The pitch clamp stays.
+ * Pinned by `look_follow_t_raw_skips_smoothing`.
+ *
  * CARD CAM-COLLIDE-1 — after `follow_camera`, one mesh ray from the follow
  * pivot toward the camera. A closer hit snaps the camera to hit − margin,
  * never under the floor, so the lens does not sit inside a wall. No hit
@@ -1523,6 +1529,7 @@ fn stick_look_delta(
         sensitivity: look_sens,
         invert_y,
         mouse_look: false,
+        raw_look: false,
     }
     .apply_delta(raw_dx, raw_dy)
 }
@@ -1601,6 +1608,15 @@ fn follow_lerp_t(dt: f32) -> f32 {
     }
 }
 
+/// CARD CAM-RAW — raw look drops the follow-lerp smoothing (weight 1).
+fn look_follow_t(dt: f32, raw_look: bool) -> f32 {
+    if raw_look {
+        1.0
+    } else {
+        follow_lerp_t(dt)
+    }
+}
+
 /// Time and the pad query share one param. `follow_camera` is already at
 /// Bevy's 16-parameter ceiling.
 #[derive(SystemParam)]
@@ -1628,6 +1644,7 @@ fn follow_camera(
     cursors: Query<&CursorOptions, With<PrimaryWindow>>,
 ) {
     let dt = clock.time.delta_secs();
+    let raw_look = look.raw_look;
     // CARD CAM-MOUSE-ORBIT-1 — same yard gate as STILL-BEFORE-YARD-1.
     if orbit_input_open(door.as_deref(), house.as_deref()) {
         let pixels_per_line = scroll_px.map(|px| **px).unwrap_or(ORBIT_PIXELS_PER_LINE);
@@ -1666,7 +1683,7 @@ fn follow_camera(
     } else {
         presence.position + Vec3::Y * (follow_look_height_for_realm(realm.and_then(|r| r.current)) + look_lift)
     };
-    let follow_t = follow_lerp_t(dt);
+    let follow_t = look_follow_t(dt, raw_look);
     for mut cam in &mut cams {
         cam.translation = cam.translation.lerp(desired, follow_t);
         cam.look_at(look, Vec3::Y);
@@ -3583,6 +3600,7 @@ mod tests {
             sensitivity: 2.0,
             invert_y: false,
             mouse_look: false,
+            raw_look: false,
         });
         {
             let world = app.world_mut();
@@ -3622,6 +3640,7 @@ mod tests {
             sensitivity: 1.0,
             invert_y: true,
             mouse_look: false,
+            raw_look: false,
         });
         {
             let world = app.world_mut();
@@ -3727,6 +3746,7 @@ mod tests {
             sensitivity: 1.0,
             invert_y: false,
             mouse_look: false,
+            raw_look: false,
         };
         let plain = orbit_after(look, true, false, Vec2::new(30.0, 20.0));
         assert!((plain.yaw - (-30.0 * ORBIT_YAW_PER_PX)).abs() < 1e-4);
@@ -3762,6 +3782,7 @@ mod tests {
             sensitivity: 1.0,
             invert_y: false,
             mouse_look: false,
+            raw_look: false,
         };
         let mut up = FollowOrbit::default();
         let buttons = ButtonInput::default();
@@ -3843,6 +3864,7 @@ mod tests {
             sensitivity: 1.0,
             invert_y: false,
             mouse_look,
+            raw_look: false,
         }
     }
 
@@ -3867,6 +3889,15 @@ mod tests {
     }
 
     /// Grab only when mouse-look is on, in the yard, menu closed, HUD edit off, focused.
+    /// CARD CAM-RAW — raw look is 1:1 (weight 1); off keeps the follow lerp.
+    #[test]
+    fn look_follow_t_raw_skips_smoothing() {
+        let dt = 1.0 / 60.0;
+        assert!((look_follow_t(dt, true) - 1.0).abs() < f32::EPSILON);
+        assert!((look_follow_t(dt, false) - follow_lerp_t(dt)).abs() < f32::EPSILON);
+        assert!((look_follow_t(dt, false) - FOLLOW_LERP_AT_60).abs() < 1e-5);
+    }
+
     #[test]
     fn mouse_look_grab_eligible_only_in_open_focused_yard() {
         assert!(mouse_look_grab_eligible(true, true, false, false, true));

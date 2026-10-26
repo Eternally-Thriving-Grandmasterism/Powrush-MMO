@@ -6,7 +6,7 @@
 //! Graphics preset · Mesh LOD · Weather fidelity (EARTH-CLIMATE) · Comfort graphics banner · Reduced motion · Rumble ·
 //! Colorblind wells · LAN · Controls (I0) · HUD layout preset (`hud_preset`) ·
 //! movement preset (`control_preset`, Modern default) ·
-//! mouse look (`mouse_look`, default off).
+//! mouse look (`mouse_look`, default on) · raw look (`raw_look`, default off).
 //! Defaults = Peace hour / Peace desktop (sticks auto-off for mouse Title).
 //! Mute on pause plate = same MasterMute flag.
 //! Online stays grey — no settings toggle binds a socket / POWRUSH_NET=on.
@@ -418,9 +418,18 @@ pub struct LocalSettings {
     #[serde(default = "default_control_preset")]
     pub control_preset: String,
     /// CARD CAM-MOUSELOOK-1A. Camera turns without holding the right button.
-    /// Default off. An old `powrush_settings.json` with no field stays off.
-    #[serde(default)]
+    /// PLAYTEST-CAM-1: default on. An old `powrush_settings.json` with no
+    /// field loads on; an explicitly stored `false` stays off.
+    #[serde(default = "default_mouse_look")]
     pub mouse_look: bool,
+    /// CARD CAM-RAW (PLAYTEST-CAM-1). 1:1 look: the follow camera skips its
+    /// follow-lerp smoothing. Default off. Missing field loads off.
+    #[serde(default)]
+    pub raw_look: bool,
+}
+
+fn default_mouse_look() -> bool {
+    true
 }
 
 fn default_look() -> f32 {
@@ -582,7 +591,8 @@ impl Default for LocalSettings {
             show_use_prompt: true,
             hud_preset: default_hud_preset(),
             control_preset: default_control_preset(),
-            mouse_look: false,
+            mouse_look: true,
+            raw_look: false,
         }
     }
 }
@@ -1041,9 +1051,14 @@ impl LocalSettings {
         self.invert_y = !self.invert_y;
     }
 
-    /// CARD CAM-MOUSELOOK-1A. Flips optional mouse-look. Default is off.
+    /// CARD CAM-MOUSELOOK-1A. Flips optional mouse-look. Default is on (PLAYTEST-CAM-1).
     pub fn toggle_mouse_look(&mut self) {
         self.mouse_look = !self.mouse_look;
+    }
+
+    /// CARD CAM-RAW (PLAYTEST-CAM-1). Flips raw 1:1 look. Default is off.
+    pub fn toggle_raw_look(&mut self) {
+        self.raw_look = !self.raw_look;
     }
 
     pub fn toggle_hide_slabs(&mut self) {
@@ -1129,7 +1144,8 @@ mod tests {
         assert!((s.look_sensitivity - DEFAULT_LOOK_SENSITIVITY).abs() < f32::EPSILON);
         assert!(!s.mute);
         assert!(!s.invert_y);
-        assert!(!s.mouse_look);
+        assert!(s.mouse_look);
+        assert!(!s.raw_look);
         assert!(!s.hide_slabs);
         assert!((s.brightness - DEFAULT_BRIGHTNESS).abs() < f32::EPSILON);
         assert!((s.text_scale - DEFAULT_TEXT_SCALE).abs() < f32::EPSILON);
@@ -1860,30 +1876,57 @@ mod tests {
         assert_eq!(switched.control_preset_hint(), "A/D strafe");
     }
 
-    /// CARD CAM-MOUSELOOK-1A — an old file with no field loads off.
-    /// Toggling on, saving, and loading again round-trips.
+    /// CARD CAM-MOUSELOOK-1A / PLAYTEST-CAM-1 — an old file with no field
+    /// loads the new default (on). An explicitly stored `false` stays off.
     #[test]
-    fn mouse_look_missing_loads_off_and_round_trips() {
+    fn mouse_look_missing_loads_on_and_explicit_false_round_trips() {
         let legacy = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false}"#;
         let old = LocalSettings::from_json(legacy).unwrap();
-        assert!(!old.mouse_look);
+        assert!(old.mouse_look);
         assert!((old.look_sensitivity - 1.0).abs() < f32::EPSILON);
         assert!(!old.invert_y);
 
+        let stored_off = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"mouse_look":false}"#;
+        let off_file = LocalSettings::from_json(stored_off).unwrap();
+        assert!(!off_file.mouse_look);
+
         let mut switched = LocalSettings::peace_defaults();
-        assert!(!switched.mouse_look);
-        switched.toggle_mouse_look();
         assert!(switched.mouse_look);
+        switched.toggle_mouse_look();
+        assert!(!switched.mouse_look);
         let saved = switched.to_json().unwrap();
-        assert!(saved.contains("\"mouse_look\": true"));
+        assert!(saved.contains("\"mouse_look\": false"));
         let loaded = LocalSettings::from_json(&saved).unwrap();
-        assert!(loaded.mouse_look);
+        assert!(!loaded.mouse_look);
         assert_eq!(loaded, switched);
         switched.toggle_mouse_look();
-        assert!(!switched.mouse_look);
-        let off = switched.to_json().unwrap();
-        let loaded_off = LocalSettings::from_json(&off).unwrap();
-        assert!(!loaded_off.mouse_look);
+        assert!(switched.mouse_look);
+        let on = switched.to_json().unwrap();
+        let loaded_on = LocalSettings::from_json(&on).unwrap();
+        assert!(loaded_on.mouse_look);
+    }
+
+    /// CARD CAM-RAW (PLAYTEST-CAM-1) — missing loads off; stored true and
+    /// stored false round-trip.
+    #[test]
+    fn raw_look_missing_loads_off_and_round_trips() {
+        let legacy = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false}"#;
+        let old = LocalSettings::from_json(legacy).unwrap();
+        assert!(!old.raw_look);
+
+        let mut s = LocalSettings::peace_defaults();
+        assert!(!s.raw_look);
+        s.toggle_raw_look();
+        assert!(s.raw_look);
+        let saved = s.to_json().unwrap();
+        assert!(saved.contains("\"raw_look\": true"));
+        let loaded = LocalSettings::from_json(&saved).unwrap();
+        assert!(loaded.raw_look);
+        assert_eq!(loaded, s);
+        s.toggle_raw_look();
+        let off = s.to_json().unwrap();
+        assert!(off.contains("\"raw_look\": false"));
+        assert!(!LocalSettings::from_json(&off).unwrap().raw_look);
     }
 
 }

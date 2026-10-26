@@ -364,6 +364,7 @@ mod tests {
             sensitivity: 1.0,
             invert_y: false,
             mouse_look: true,
+            raw_look: false,
         });
         grabbed.world_mut().spawn((
             Window::default(),
@@ -386,6 +387,7 @@ mod tests {
             sensitivity: 1.0,
             invert_y: false,
             mouse_look: true,
+            raw_look: false,
         });
         free.world_mut().spawn((
             Window::default(),
