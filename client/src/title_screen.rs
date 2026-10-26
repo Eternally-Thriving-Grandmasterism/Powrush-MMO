@@ -6799,8 +6799,8 @@ mod tests {
         assert_eq!(look_btn_label(&s), "Look · 1.00");
         assert_eq!(mute_btn_label(&s), "Mute · off");
         assert_eq!(invert_btn_label(&s), "Invert-Y · off");
-        assert!(!s.mouse_look);
-        assert_eq!(mouse_look_btn_label(&s), "Mouse look · off");
+        assert!(s.mouse_look);
+        assert_eq!(mouse_look_btn_label(&s), "Mouse look · on");
         assert_eq!(hide_slabs_btn_label(&s), "Hide guidance · off");
         assert_eq!(brightness_btn_label(&s), "Brightness · 1.00");
         assert_eq!(text_scale_btn_label(&s), "Text scale · 1.00 · Standard");
@@ -7381,20 +7381,21 @@ mod tests {
         assert_eq!(lan_btn_label(&back), "LAN · loopback");
     }
 
-    /// CARD CAM-MOUSELOOK-1B — label copy is "Mouse look · off/on". Invert-Y stays put.
+    /// CARD CAM-MOUSELOOK-1B — label copy is "Mouse look · on/off". Default on
+    /// (PLAYTEST-CAM-1). Invert-Y stays put.
     #[test]
-    fn mouse_look_label_reads_off_then_on() {
+    fn mouse_look_label_reads_on_then_off() {
         let mut s = LocalSettings::peace_defaults();
-        assert!(!s.mouse_look);
-        assert_eq!(mouse_look_btn_label(&s), "Mouse look · off");
-        assert_eq!(invert_btn_label(&s), "Invert-Y · off");
-        s.toggle_mouse_look();
         assert!(s.mouse_look);
         assert_eq!(mouse_look_btn_label(&s), "Mouse look · on");
+        assert_eq!(invert_btn_label(&s), "Invert-Y · off");
+        s.toggle_mouse_look();
+        assert!(!s.mouse_look);
+        assert_eq!(mouse_look_btn_label(&s), "Mouse look · off");
         assert!(!s.invert_y);
         assert_eq!(invert_btn_label(&s), "Invert-Y · off");
         s.toggle_mouse_look();
-        assert_eq!(mouse_look_btn_label(&s), "Mouse look · off");
+        assert_eq!(mouse_look_btn_label(&s), "Mouse look · on");
     }
 
     /// Writes Pressed in the same frame, ahead of `local_settings_clicks`.
@@ -7457,21 +7458,21 @@ mod tests {
                     SettingsMouseLookLabel,
                 ))
                 .id();
-            assert!(!app.world().resource::<LocalSettingsState>().inner.mouse_look);
+            assert!(app.world().resource::<LocalSettingsState>().inner.mouse_look);
             // The press system writes Pressed in this frame, before the click
             // system. A label-query conflict (B0001) panics while initializing.
             app.update();
             let settings = &app.world().resource::<LocalSettingsState>().inner;
-            assert!(settings.mouse_look);
+            assert!(!settings.mouse_look);
             assert!(!settings.invert_y);
             assert!(!settings.mute);
             assert_eq!(
                 app.world().get::<Text>(text_entity).unwrap().as_str(),
-                "Mouse look · on"
+                "Mouse look · off"
             );
             let path = dir.join(shared::user_persist::persist_file_name(SETTINGS_PATH));
             let raw = std::fs::read_to_string(&path).expect("settings persisted");
-            assert!(raw.contains("\"mouse_look\": true"));
+            assert!(raw.contains("\"mouse_look\": false"));
             assert!(raw.contains("\"invert_y\": false"));
             assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         }));

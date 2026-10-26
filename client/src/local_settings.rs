@@ -69,8 +69,10 @@ impl LocalSettingsState {
 pub struct LocalLookFeel {
     pub sensitivity: f32,
     pub invert_y: bool,
-    /// CARD CAM-MOUSELOOK-1A. Default off. Filled from `LocalSettings`.
+    /// CARD CAM-MOUSELOOK-1A. Default on (PLAYTEST-CAM-1). Filled from `LocalSettings`.
     pub mouse_look: bool,
+    /// CARD CAM-RAW. Default off. Filled from `LocalSettings`.
+    pub raw_look: bool,
 }
 
 impl Default for LocalLookFeel {
@@ -86,6 +88,7 @@ impl LocalLookFeel {
             sensitivity: s.look_sensitivity,
             invert_y: s.invert_y,
             mouse_look: s.mouse_look,
+            raw_look: s.raw_look,
         }
     }
 
@@ -587,24 +590,39 @@ mod tests {
             sensitivity: 2.0,
             invert_y: true,
             mouse_look: false,
+            raw_look: false,
         };
         let (dx, dy) = feel.apply_delta(1.0, 3.0);
         assert!((dx - 2.0).abs() < f32::EPSILON);
         assert!((dy - (-6.0)).abs() < f32::EPSILON);
     }
 
-    /// CARD CAM-MOUSELOOK-1A — `from_settings` copies the flag. Default stays off.
+    /// CARD CAM-MOUSELOOK-1A — `from_settings` copies the flag. Default is on (PLAYTEST-CAM-1).
     #[test]
     fn look_feel_copies_mouse_look_from_settings() {
-        let off = LocalLookFeel::from_settings(&LocalSettings::peace_defaults());
-        assert!(!off.mouse_look);
-        assert!(!LocalLookFeel::default().mouse_look);
-        let mut on = LocalSettings::peace_defaults();
-        on.toggle_mouse_look();
-        let feel = LocalLookFeel::from_settings(&on);
-        assert!(feel.mouse_look);
-        assert!((feel.sensitivity - off.sensitivity).abs() < f32::EPSILON);
-        assert_eq!(feel.invert_y, off.invert_y);
+        let on = LocalLookFeel::from_settings(&LocalSettings::peace_defaults());
+        assert!(on.mouse_look);
+        assert!(LocalLookFeel::default().mouse_look);
+        let mut off = LocalSettings::peace_defaults();
+        off.toggle_mouse_look();
+        let feel = LocalLookFeel::from_settings(&off);
+        assert!(!feel.mouse_look);
+        assert!((feel.sensitivity - on.sensitivity).abs() < f32::EPSILON);
+        assert_eq!(feel.invert_y, on.invert_y);
+    }
+
+    /// CARD CAM-RAW — `from_settings` copies `raw_look`. Default stays off.
+    #[test]
+    fn look_feel_copies_raw_look_from_settings() {
+        let base = LocalLookFeel::from_settings(&LocalSettings::peace_defaults());
+        assert!(!base.raw_look);
+        assert!(!LocalLookFeel::default().raw_look);
+        let mut raw = LocalSettings::peace_defaults();
+        raw.toggle_raw_look();
+        let feel = LocalLookFeel::from_settings(&raw);
+        assert!(feel.raw_look);
+        assert_eq!(feel.mouse_look, base.mouse_look);
+        assert_eq!(feel.invert_y, base.invert_y);
     }
 
     #[test]
