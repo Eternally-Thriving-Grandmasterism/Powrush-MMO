@@ -63,14 +63,21 @@ Plate referenced by URL only (not committed).
 
 Mean of the last 10 Bevy `frame_time` lines per run (window includes the Tend + Flow fires).
 
-| Preset | Before | After | Budget |
+| Preset | Before (median) | After (median) | Budget |
 |---|---|---|---|
-| Low | 45.8 ms | 45.1 ms | ≤ 50 ms |
-| Medium | 93.9 ms | 92.3 ms¹ | ≤ 100 ms |
-| High | 218.8 ms | 223.9 ms | none (beauty tier, capped) |
-| Ultra | 357.8 ms | 446.7 ms | none (beauty tier, capped) |
+| Low | 42.8 ms | 46.2 ms | ≤ 50 ms ✅ |
+| Medium | 99.1 ms | 89.6 ms | ≤ 100 ms ✅ |
+| High | 218.8 ms | 223.9 ms | none (beauty tier, capped; single run) |
+| Ultra | 357.8 ms | 446.7 ms | none (beauty tier, capped; single run) |
 
-¹ The committed Medium after shots come from this run. Two other Medium after runs on the same head read 106.5 ms and 112.9 ms while the shared box was under load (load average ≈ 6). Placement runs only on a Tend or Flow fire, so per-frame cost is unchanged.
+Low / Medium: 3 + 3 runs, interleaved before, after, before, after, before, after. Each run used a fresh settings dir with Tend + Flow firing, and each started only when the 1-min load average was < 2.5 (8 cores). Before = `bc9bf930`, after = `a4c6333f`.
+
+| Run | Medium before | Medium after | Low before | Low after |
+|---|---|---|---|---|
+| 1 | 108.0 ms (load 2.22) | 94.2 ms (load 2.39) | 40.8 ms (load 2.20) | 46.2 ms (load 2.48) |
+| 2 | 99.1 ms (load 2.32) | 86.1 ms (load 2.21) | 42.9 ms (load 2.29) | 44.6 ms (load 2.42) |
+| 3 | 96.6 ms (load 2.35) | 89.6 ms (load 2.23) | 42.8 ms (load 2.14) | 46.8 ms (load 2.30) |
+
 
 High / Ultra runs used longer settle waits (slower software frames), so their before/after
 deltas include run-to-run noise.
