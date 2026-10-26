@@ -234,6 +234,15 @@ mod tests {
         assert_eq!(anti_alias_for(h), AntiAliasKind::Smaa, "High AA unchanged");
         assert_eq!(anti_alias_for(u), AntiAliasKind::Taa, "one AA path on Ultra");
 
+        // High pinned byte-for-byte to main (VP-AO-1 / VP-WATER-1 values).
+        assert_eq!(sh, bevy::pbr::ScreenSpaceAmbientOcclusion {
+            quality_level: Q::High,
+            radius: 0.62,
+            constant_object_thickness: 0.25,
+        });
+        assert_eq!((rh.linear_steps, rh.bisection_steps, rh.use_secant, rh.thickness), (6, 2, false, 0.25));
+        assert_eq!((vh.tufts, vh.shrubs, vh.trees, vh.reach), (280, 72, 28, 48.0));
+
         // Lower tiers pinned.
         for (p, aa, haze, tufts) in [
             (GraphicsPreset::Mobile, AntiAliasKind::Fxaa, None, 16),
