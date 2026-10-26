@@ -8,6 +8,8 @@
 //! colorblind_wells → LocalColorblindWells (shape tokens beside B2 word captions).
 //! Comfort Graphics L/M/H → LocalMeshLodFeel (MESH-PERSONA-HANDS + PLACE-LOD; one plate).
 //! CARD VP-AA-1 — the same preset picks FXAA (Mobile/Low) or SMAA (Medium+) on the world camera.
+//! CARD VP-WATER-1 — High and Ultra add Bevy's `ScreenSpaceReflections` on that camera.
+//! Mobile, Low, and Medium do not. The water mesh and its fresnel live in `water`.
 //! No Online socket toggle. LAN off (default) opens nothing; loopback is 127.0.0.1 only.
 //! `hud_preset` in the same `powrush_settings.json` seeds [`crate::hud_presets::ActiveHudPreset`]
 //! at boot. Missing, unreadable, or unknown loads classic. HUD-tab rows save that field.
@@ -17,7 +19,9 @@
 
 use bevy::anti_alias::fxaa::Fxaa;
 use bevy::anti_alias::smaa::{Smaa, SmaaPreset};
+use bevy::core_pipeline::prepass::{DeferredPrepass, DepthPrepass};
 use bevy::input::gamepad::GamepadRumbleRequest;
+use bevy::pbr::ScreenSpaceReflections;
 use bevy::prelude::*;
 
 use shared::local_settings::{GraphicsPreset, LocalSettings, MeshLod};
@@ -242,6 +246,109 @@ pub const fn anti_alias_for(preset: GraphicsPreset) -> AntiAliasKind {
 /// The one SMAA quality used on every tier that runs SMAA.
 const SMAA_PRESET: SmaaPreset = SmaaPreset::Medium;
 
+/// CARD VP-WATER-1 — screen-space reflections on High and Ultra only.
+///
+/// Mobile, Low, and Medium stay off, so they grow no depth or deferred
+/// prepass from this card. The component is Bevy's built-in
+/// [`ScreenSpaceReflections`]. `ssr_render_node` is left alone.
+pub const fn ssr_enabled(preset: GraphicsPreset) -> bool {
+    matches!(preset, GraphicsPreset::High | GraphicsPreset::Ultra)
+}
+
+/// Settings for the tiers that run SSR. High marches fewer steps than Ultra.
+/// `None` on Mobile, Low, and Medium.
+pub fn ssr_for(preset: GraphicsPreset) -> Option<ScreenSpaceReflections> {
+    match preset {
+        GraphicsPreset::High => Some(ScreenSpaceReflections {
+            min_perceptual_roughness: 0.08..0.12,
+            max_perceptual_roughness: 0.55..0.6,
+            thickness: 0.25,
+            linear_steps: 6,
+            linear_march_exponent: 1.0,
+            edge_fadeout: 0.0..0.08,
+            bisection_steps: 2,
+            use_secant: false,
+        }),
+        GraphicsPreset::Ultra => Some(ScreenSpaceReflections {
+            min_perceptual_roughness: 0.08..0.12,
+            max_perceptual_roughness: 0.55..0.6,
+            thickness: 0.25,
+            linear_steps: 10,
+            linear_march_exponent: 1.0,
+            edge_fadeout: 0.0..0.08,
+            bisection_steps: 4,
+            use_secant: true,
+        }),
+        GraphicsPreset::Mobile | GraphicsPreset::Low | GraphicsPreset::Medium => None,
+    }
+}
+
+fn ssr_same(have: &ScreenSpaceReflections, want: &ScreenSpaceReflections) -> bool {
+    have.linear_steps == want.linear_steps
+        && have.bisection_steps == want.bisection_steps
+        && have.use_secant == want.use_secant
+        && have.thickness == want.thickness
+        && have.linear_march_exponent == want.linear_march_exponent
+        && have.min_perceptual_roughness == want.min_perceptual_roughness
+        && have.max_perceptual_roughness == want.max_perceptual_roughness
+        && have.edge_fadeout == want.edge_fadeout
+}
+
+/// High and Ultra insert [`ScreenSpaceReflections`] on every [`Camera3d`],
+/// plus the depth and deferred prepasses that pass needs. Mobile, Low, and
+/// Medium remove the component and those prepasses. A camera already on the
+/// plan is left alone. The lived UI camera is a `Camera2d` and is never
+/// touched. Missing settings stay Medium (SSR off).
+fn sync_screen_space_reflections(
+    mut commands: Commands,
+    settings: Option<Res<LocalSettingsState>>,
+    cameras: Query<
+        (
+            Entity,
+            Option<&ScreenSpaceReflections>,
+            Has<DeferredPrepass>,
+            Has<DepthPrepass>,
+            Has<bevy::core_pipeline::prepass::NormalPrepass>,
+        ),
+        With<Camera3d>,
+    >,
+) {
+    let preset = settings
+        .as_ref()
+        .map(|state| state.inner.graphics_preset)
+        .unwrap_or(GraphicsPreset::Medium);
+    if let Some(want) = ssr_for(preset) {
+        for (entity, have, deferred, _depth, _normal) in &cameras {
+            let fresh = have.is_none_or(|have| !ssr_same(have, &want));
+            if fresh {
+                commands
+                    .entity(entity)
+                    .insert((want.clone(), DeferredPrepass, DepthPrepass));
+            } else if !deferred {
+                commands.entity(entity).insert(DeferredPrepass);
+            }
+        }
+    } else {
+        for (entity, have, deferred, depth, normal) in &cameras {
+            if have.is_none() && !deferred && !depth {
+                continue;
+            }
+            let mut cmds = commands.entity(entity);
+            if have.is_some() {
+                cmds.remove::<ScreenSpaceReflections>();
+            }
+            if deferred {
+                cmds.remove::<DeferredPrepass>();
+            }
+            // VP-AO-1 owns the depth prepass while its normal prepass is on.
+            // With that pair absent, a leftover depth buffer is this card's.
+            if depth && !normal {
+                cmds.remove::<DepthPrepass>();
+            }
+        }
+    }
+}
+
 /// Keeps every [`Camera3d`] on the AA kind of the active graphics preset.
 /// The other kind is removed on a preset change; a camera already in the
 /// right state is left alone. The lived UI camera is a `Camera2d` and is
@@ -299,6 +406,7 @@ impl Plugin for LocalSettingsPlugin {
                     apply_local_settings_runtime,
                     persist_dirty_settings,
                     sync_anti_alias,
+                    sync_screen_space_reflections,
                 ),
             )
             .add_systems(
@@ -595,6 +703,59 @@ mod tests {
             app.update();
             assert_eq!(kinds(&app, world_cam), want, "{preset:?}");
             assert_eq!(kinds(&app, ui_cam), (false, false), "{preset:?}");
+        }
+    }
+
+    #[test]
+    fn ssr_camera_follows_preset_and_skips_the_ui_camera() {
+        let mut app = App::new();
+        let mut state = LocalSettingsState {
+            inner: LocalSettings::peace_defaults(),
+            dirty: false,
+        };
+        state.inner.set_graphics_preset(GraphicsPreset::Medium);
+        app.insert_resource(state)
+            .add_systems(Update, sync_screen_space_reflections);
+        let world_cam = app.world_mut().spawn(Camera3d::default()).id();
+        let ui_cam = app.world_mut().spawn(Camera2d).id();
+
+        let flags = |app: &App, entity: Entity| {
+            let entity = app.world().entity(entity);
+            (
+                entity.get::<ScreenSpaceReflections>().map(|ssr| ssr.linear_steps),
+                entity.contains::<DeferredPrepass>(),
+                entity.contains::<DepthPrepass>(),
+            )
+        };
+
+        app.update();
+        assert_eq!(flags(&app, world_cam), (None, false, false));
+        assert_eq!(flags(&app, ui_cam), (None, false, false));
+        let mut cameras = app.world_mut().query::<&Camera3d>();
+        assert_eq!(cameras.iter(app.world()).count(), 1);
+
+        for (preset, steps) in [
+            (GraphicsPreset::Low, None),
+            (GraphicsPreset::Mobile, None),
+            (GraphicsPreset::High, Some(6)),
+            (GraphicsPreset::Medium, None),
+            (GraphicsPreset::Ultra, Some(10)),
+            (GraphicsPreset::High, Some(6)),
+            (GraphicsPreset::Low, None),
+        ] {
+            app.world_mut()
+                .resource_mut::<LocalSettingsState>()
+                .inner
+                .set_graphics_preset(preset);
+            app.update();
+            assert_eq!(
+                flags(&app, world_cam),
+                (steps, steps.is_some(), steps.is_some()),
+                "{preset:?}"
+            );
+            assert_eq!(flags(&app, ui_cam), (None, false, false), "{preset:?}");
+            let mut cameras = app.world_mut().query::<&Camera3d>();
+            assert_eq!(cameras.iter(app.world()).count(), 1, "{preset:?}");
         }
     }
 
