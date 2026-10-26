@@ -70,6 +70,7 @@ pub mod companion_bond;
 pub mod flow_weather;
 pub mod abundance_journey_echo;
 pub mod world_answer;
+pub mod tend_flow_vfx;
 pub mod lattice_flow_share;
 pub mod climate_plane;
 pub mod light_gen;
@@ -191,6 +192,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(companion_bond::CompanionBondPlugin);
         app.add_plugins(harvest_feel::HarvestFeelPlugin);
         app.add_plugins(world_answer::WorldAnswerPlugin);
+        app.add_plugins(tend_flow_vfx::TendFlowVfxPlugin);
         app.add_plugins(first_harvest_epiphany::FirstHarvestEpiphanyPlugin);
         // After FirstHarvest so the same-frame well Use credits the sting.
         app.add_plugins(peace_audio::PeaceAudioPlugin);
