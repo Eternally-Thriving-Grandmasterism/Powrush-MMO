@@ -64,3 +64,21 @@ Values are ms, with the 1-min load at run start in parentheses. Low, Medium and 
 | SMAA instead of TAA | 493.6 ms | ≈ 0 (noise; TAA ≤ SMAA here) |
 
 No single feature costs more than High's whole frame (188–221 ms).
+
+## TAA in motion (Core must-fix, #775 comment 6426459148)
+
+These are real Ultra captures (TAA) taken during motion with the same harness, using key presses only (`/workspace/ultra-motion.sh`). For each case, three frames were grabbed about 167 ms apart. Ultra on lavapipe runs at about 450 ms per frame, so consecutive grabs often land on the same game frame. The two strafe frames committed here are consecutive *distinct* game frames.
+
+| Case | Frame |
+|---|---|
+| Strafe (hold D), harvest-node glows in frame, frame A | ![](motion-ultra-strafe-a.png) |
+| Strafe, next distinct game frame B (camera moved) | ![](motion-ultra-strafe-b.png) |
+| Flow motes rising (E tap, E hold, `1`), glows in frame | ![](motion-ultra-flow-motes.png) |
+| Tend motes at the end of their rise (small gold dots), after hold-E Tend | ![](motion-ultra-tend-motes.png) |
+| High (SMAA) reference, same strafe | ![](motion-high-smaa-strafe.png) |
+
+I inspected these at full resolution, with 2× crops around the glows, the motes and the UI panels.
+
+**Verdict: in these mid-motion Ultra frames TAA leaves no visible trail, ghost or halo on the Use glow, the Tend/Flow motes or the UI. Glow and mote edges stay as crisp as the High SMAA reference, and UI text is sharp because the lived UI draws on the separate `Camera2d`, which has no TAA.** No code gate was needed.
+
+Caveat: lavapipe's slow frame rate means TAA history is blended across large per-frame motion steps. On a GPU at high fps, ghosting would show differently, if at all.
