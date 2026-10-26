@@ -133,9 +133,8 @@
  * CARD VP-AO-1 — screen-space ambient occlusion on High and Ultra.
  * [`ssao_for`] is [`Some`] on those tiers and [`None`] on Mobile, Low, and
  * Medium, so the lower tiers do not pay for the depth or normal prepass.
- * Ultra matches High (same radius, same quality). The heavier
- * [`ScreenSpaceAmbientOcclusionQualityLevel::Ultra`] sample count stays
- * out of this card. [`sync_tier_ssao`] writes that plan onto every world
+ * Ultra keeps High's radius; VP-ULTRA-1 raises Ultra to the
+ * [`ScreenSpaceAmbientOcclusionQualityLevel::Ultra`] sample count. [`sync_tier_ssao`] writes that plan onto every world
  * [`Camera3d`] from the active graphics preset and removes the prepass
  * when the plan is off. Missing settings stay Medium (occlusion off).
  * Bevy 0.20's component tunes radius and thickness, not a separate
@@ -758,15 +757,23 @@ const AERIAL_HAZE_HIGH: AerialHaze = AerialHaze {
     fog_start: 24.0,
     fog_end: 480.0,
 };
+/// CARD VP-ULTRA-1 — Ultra extends High's aerial haze range: same veil
+/// starting a little further out (well / Use glow stay clear), full fog
+/// pushed further past the mountain ring so peaks layer deeper.
+pub const AERIAL_HAZE_ULTRA: AerialHaze = AerialHaze {
+    fog_start: 26.0,
+    fog_end: 560.0,
+};
 
 /// Open-yard aerial haze per tier. Mobile and Low are [`None`] (disabled; the
 /// dressed bed holds). Medium is a gentle veil. High and Ultra are fuller
-/// (Ultra keeps High's haze until VP-ULTRA-1).
+/// (Ultra extends the range, [`AERIAL_HAZE_ULTRA`], VP-ULTRA-1).
 pub const fn aerial_haze_for(preset: GraphicsPreset) -> Option<AerialHaze> {
     match preset {
         GraphicsPreset::Mobile | GraphicsPreset::Low => None,
         GraphicsPreset::Medium => Some(AERIAL_HAZE_MEDIUM),
-        GraphicsPreset::High | GraphicsPreset::Ultra => Some(AERIAL_HAZE_HIGH),
+        GraphicsPreset::High => Some(AERIAL_HAZE_HIGH),
+        GraphicsPreset::Ultra => Some(AERIAL_HAZE_ULTRA),
     }
 }
 
@@ -927,16 +934,27 @@ const SSAO_RADIUS: f32 = 0.62;
 /// darken thin plates and the Use glow.
 const SSAO_THICKNESS: f32 = 0.25;
 
+/// CARD VP-AO-1 — High's SSAO sample quality.
+pub const SSAO_QUALITY_HIGH: ScreenSpaceAmbientOcclusionQualityLevel =
+    ScreenSpaceAmbientOcclusionQualityLevel::High;
+/// CARD VP-ULTRA-1 — Ultra raises the same one SSAO pass to Bevy's Ultra
+/// sample count. Same radius and thickness; no second AO pass.
+pub const SSAO_QUALITY_ULTRA: ScreenSpaceAmbientOcclusionQualityLevel =
+    ScreenSpaceAmbientOcclusionQualityLevel::Ultra;
+
 /// Screen-space ambient occlusion for a Comfort graphics tier.
 ///
-/// [`Some`] on High and Ultra. Ultra matches High. Mobile, Low, and Medium
-/// return [`None`], so their frame budgets stay untouched.
-/// [`ScreenSpaceAmbientOcclusionQualityLevel::Ultra`] (the heavy sample
-/// count) is not selected.
+/// [`Some`] on High and Ultra: one pass, same radius and thickness; Ultra
+/// raises the sample quality to [`SSAO_QUALITY_ULTRA`] (VP-ULTRA-1). Mobile,
+/// Low, and Medium return [`None`], so their frame budgets stay untouched.
 pub const fn ssao_for(preset: GraphicsPreset) -> Option<ScreenSpaceAmbientOcclusion> {
     match preset {
         GraphicsPreset::High | GraphicsPreset::Ultra => Some(ScreenSpaceAmbientOcclusion {
-            quality_level: ScreenSpaceAmbientOcclusionQualityLevel::High,
+            quality_level: if matches!(preset, GraphicsPreset::Ultra) {
+                SSAO_QUALITY_ULTRA
+            } else {
+                SSAO_QUALITY_HIGH
+            },
             radius: SSAO_RADIUS,
             constant_object_thickness: SSAO_THICKNESS,
         }),
@@ -3797,7 +3815,9 @@ mod tests {
         let medium = aerial_haze_for(GraphicsPreset::Medium).expect("Medium has haze");
         let high = aerial_haze_for(GraphicsPreset::High).expect("High has haze");
         let ultra = aerial_haze_for(GraphicsPreset::Ultra).expect("Ultra has haze");
-        assert_eq!(high, ultra);
+        // VP-ULTRA-1: Ultra extends High's range (never shorter).
+        assert_eq!(ultra, AERIAL_HAZE_ULTRA);
+        assert!(ultra.fog_start >= high.fog_start && ultra.fog_end > high.fog_end);
         assert!(high.fog_start < medium.fog_start, "High fades in sooner");
         assert!(high.fog_end < medium.fog_end, "High horizon is closer");
     }
@@ -4758,7 +4778,10 @@ mod tests {
         assert_eq!(GraphicsPreset::ALL.len(), 5);
         let high = ssao_for(GraphicsPreset::High).expect("High");
         let ultra = ssao_for(GraphicsPreset::Ultra).expect("Ultra");
-        assert_eq!(high, ultra);
+        // VP-ULTRA-1: same one pass; Ultra only raises the sample quality.
+        assert_eq!(ultra.radius, high.radius);
+        assert_eq!(ultra.constant_object_thickness, high.constant_object_thickness);
+        assert_eq!(ultra.quality_level, SSAO_QUALITY_ULTRA);
         assert_eq!(
             high.quality_level,
             ScreenSpaceAmbientOcclusionQualityLevel::High
@@ -4843,7 +4866,7 @@ mod tests {
         assert_eq!(
             app.world()
                 .get::<ScreenSpaceAmbientOcclusion>(world_cam)
-                .expect("Ultra matches High")
+                .expect("Ultra keeps SSAO")
                 .radius,
             SSAO_RADIUS
         );

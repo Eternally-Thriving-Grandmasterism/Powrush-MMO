@@ -73,6 +73,7 @@ pub mod world_answer;
 pub mod tend_flow_vfx;
 pub mod lattice_flow_share;
 pub mod climate_plane;
+pub mod ultra_env;
 pub mod light_gen;
 pub mod hands_memory;
 pub mod foundation_lattice;
@@ -179,6 +180,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(net_mode::NetModePlugin);
         app.add_plugins(climate_script::ClimateScriptPlugin);
         app.add_plugins(climate_plane::ClimatePlanePlugin);
+        app.add_plugins(ultra_env::UltraEnvPlugin);
         app.add_plugins(painterly_mat::PainterlyPlugin);
         app.add_plugins(sky_backdrop::SkyBackdropPlugin);
         app.add_plugins(vegetation::VegetationPlugin);
