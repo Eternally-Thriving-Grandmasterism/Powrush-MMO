@@ -114,6 +114,7 @@ use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, CursorOptions, PrimaryWindow};
 
 use crate::companion_bond::CompanionBond;
+use crate::vegetation::{CamTrunk, TrunkFadeCache};
 use crate::hour_sacred::PeopleLanding;
 use crate::input::PlayerInput;
 use crate::title_screen::{HouseLabel, LaunchDoor};
@@ -1807,15 +1808,22 @@ fn pull_camera_from_walls(
     children: Query<&Children>,
     mut cams: Query<&mut Transform, With<Camera3d>>,
     mut body: Local<Vec<Entity>>,
+    (trunks, mut trunk_mats, mut fade, mut occluding): (Query<(), With<CamTrunk>>, TrunkMats, FadeRes, Local<Vec<Entity>>),
 ) {
+    occluding.clear();
     if door.as_deref().copied() != Some(LaunchDoor::InYard) {
+        // CARD PT-CAM-TRUNK-1 A3 — leaving the yard still restores faded trunks.
+        fade_occluding_trunks(&occluding, &mut trunk_mats, &mut fade);
         return;
     }
     body.clear();
     for root in &roots {
         extend_presence_body(root, &children, &mut body);
     }
-    let filter = |entity: Entity| follow_ray_keeps_entity(entity, body.as_slice());
+    // CARD PT-CAM-TRUNK-1 A1 — trunks leave the pull ray in the filter, so a wall behind one still pulls.
+    let filter = |entity: Entity| follow_ray_keeps_entity(entity, body.as_slice()) && !trunks.contains(entity);
+    let trunk_filter = |entity: Entity| trunks.contains(entity);
+    let trunk_settings = MeshRayCastSettings::default().with_filter(&trunk_filter).never_early_exit();
     let settings = MeshRayCastSettings::default()
         .with_filter(&filter)
         .with_visibility(RayCastVisibility::Visible)
@@ -1839,10 +1847,52 @@ fn pull_camera_from_walls(
                 .map(|(_, hit)| hit.distance)
                 .find(|distance| distance.is_finite() && *distance < current)
         };
+        let ray = Ray3d::new(pivot, direction);
+        let hits = ray_cast.cast_ray(ray, &trunk_settings).iter().filter(|(_, hit)| hit.distance < current);
+        occluding.extend(hits.map(|(entity, _)| *entity));
         let resolved = pulled_camera_distance(current, hit);
         let distance = camera_distance_after_pull(current, resolved, dt);
         if (distance - current).abs() > f32::EPSILON {
             cam.translation = pivot + *direction * distance;
+        }
+    }
+    fade_occluding_trunks(&occluding, &mut trunk_mats, &mut fade);
+}
+
+/// CARD PT-CAM-TRUNK-1 T-b — faded trunk alpha. Playtest-tunable placeholder.
+const TRUNK_FADE_ALPHA: f32 = 0.35;
+
+/// CARD PT-CAM-TRUNK-1 H-T2 — the original handle a faded trunk gets back on restore.
+#[derive(Component)]
+struct TrunkFaded(Handle<StandardMaterial>);
+
+type TrunkMats<'w, 's> = Query<'w, 's, (Entity, &'static mut MeshMaterial3d<StandardMaterial>, Option<&'static TrunkFaded>), With<CamTrunk>>;
+type FadeRes<'w, 's> = (Option<ResMut<'w, Assets<StandardMaterial>>>, Option<ResMut<'w, TrunkFadeCache>>, Commands<'w, 's>);
+
+/// CARD PT-CAM-TRUNK-1 T-b — occluding trunks swap to a cached Blend clone; others get their original back.
+/// Shared materials are never mutated. No-op without `Assets<StandardMaterial>` (A5).
+fn fade_occluding_trunks(occluding: &[Entity], trunk_mats: &mut TrunkMats, fade: &mut FadeRes) {
+    let (Some(materials), Some(cache), commands) = fade else { return };
+    for (entity, mut mat, faded) in trunk_mats.iter_mut() {
+        match (occluding.contains(&entity), faded) {
+            (true, None) => {
+                let src = mat.0.clone();
+                let clone = cache.0.iter().find(|(id, _)| *id == src.id()).map(|(_, h)| h.clone());
+                mat.0 = clone.unwrap_or_else(|| {
+                    let mut faded = materials.get(&src).cloned().unwrap_or_default();
+                    faded.alpha_mode = AlphaMode::Blend;
+                    faded.base_color.set_alpha(TRUNK_FADE_ALPHA);
+                    let handle = materials.add(faded);
+                    cache.0.push((src.id(), handle.clone()));
+                    handle
+                });
+                commands.entity(entity).insert(TrunkFaded(src));
+            }
+            (false, Some(TrunkFaded(original))) => {
+                mat.0 = original.clone();
+                commands.entity(entity).remove::<TrunkFaded>();
+            }
+            _ => {}
         }
     }
 }
@@ -4475,27 +4525,53 @@ mod tests {
         assert!(pos.z < trunk.0.y && pos.y == 0.9, "walked through or moved y: {pos}");
     }
 
-    fn spawn_tree_part(app: &mut App, mesh: Mesh, at: Vec3, half: Vec3) {
+    fn spawn_tree_part(app: &mut App, mesh: Mesh, at: Vec3, half: Vec3) -> Entity {
         let aabb = bevy::camera::primitives::Aabb::from_min_max(-half, half);
         let handle = app.world_mut().resource_mut::<Assets<Mesh>>().add(mesh);
         let (t, vis) = (Transform::from_translation(at), (InheritedVisibility::VISIBLE, ViewVisibility::VISIBLE));
-        app.world_mut().spawn((Mesh3d(handle), t, GlobalTransform::from(t), aabb, vis));
+        app.world_mut().spawn((Mesh3d(handle), t, GlobalTransform::from(t), aabb, vis)).id()
     }
 
-    /// CARD PT-COLLIDE-1 F2 — (a) pivot pressed on a yard trunk, lens behind it: lens stays in front.
+    /// CARD PT-COLLIDE-1 F2 (a) / PT-CAM-TRUNK-1 T-c — pivot pressed on a marked yard trunk, lens
+    /// behind it: the trunk fades to its own Blend clone, the distance holds, and moving away restores it.
     #[test]
-    #[ignore = "PT-CAM-TRUNK-1 (seed, not cut): 0.6 CAM_WALL_FLOOR puts the lens back in the trunk"]
     fn pt_collide_cam_pivot_beside_trunk() {
         let trunk = crate::living_ecology::YARD_TREE_SPOTS[0];
         let mut app = collide_app();
+        app.init_resource::<Assets<StandardMaterial>>().init_resource::<TrunkFadeCache>();
         let mut stand = Vec3::new(trunk.x, STAND, trunk.z - 0.1);
         push_out_of_trunks(&mut stand, [(trunk.xz(), crate::living_ecology::YARD_TRUNK_R)]);
         app.world_mut().resource_mut::<SoftPresence>().position = stand;
-        spawn_tree_part(&mut app, Mesh::from(Cylinder::new(0.22, 2.4)), trunk, Vec3::new(0.22, 1.2, 0.22));
+        let e = spawn_tree_part(&mut app, Mesh::from(Cylinder::new(0.22, 2.4)), trunk, Vec3::new(0.22, 1.2, 0.22));
+        let shared = app.world_mut().resource_mut::<Assets<StandardMaterial>>().add(StandardMaterial::default());
+        app.world_mut().entity_mut(e).insert((CamTrunk, MeshMaterial3d(shared.clone())));
         spawn_follow_cam(&mut app, 4.0);
         app.update();
-        let lens = cam_translation(&mut app);
-        assert!(lens.z < trunk.z - 0.22, "lens {lens} in or past trunk {trunk}");
+        let now = app.world().get::<MeshMaterial3d<StandardMaterial>>(e).unwrap().0.clone();
+        let faded = app.world().resource::<Assets<StandardMaterial>>().get(&now).unwrap();
+        assert!(now != shared && matches!(faded.alpha_mode, AlphaMode::Blend) && faded.base_color.alpha() <= 0.4);
+        assert!((cam_distance_from_pivot(&mut app) - 4.0).abs() < 1e-3, "lens pulled into the trunk");
+        app.world_mut().resource_mut::<SoftPresence>().position.x += 5.0;
+        spawn_follow_cam(&mut app, 4.0);
+        let mut cams = app.world_mut().query_filtered::<Entity, With<Camera3d>>();
+        let old = cams.iter(app.world()).next().unwrap();
+        app.world_mut().despawn(old);
+        app.update();
+        assert_eq!(app.world().get::<MeshMaterial3d<StandardMaterial>>(e).unwrap().0, shared);
+    }
+
+    /// CARD PT-CAM-TRUNK-1 A1 — a wall behind a marked trunk still pulls to hit − margin.
+    #[test]
+    fn pt_cam_trunk_wall_behind_trunk_still_pulls() {
+        let mut app = collide_app();
+        let at = pivot_of(&app) + Vec3::Z * 1.5;
+        let e = spawn_tree_part(&mut app, Mesh::from(Cylinder::new(0.22, 2.4)), at, Vec3::new(0.22, 1.2, 0.22));
+        app.world_mut().entity_mut(e).insert(CamTrunk);
+        spawn_wall(&mut app, 3.0);
+        spawn_follow_cam(&mut app, 6.0);
+        app.update();
+        let want = pulled_camera_distance(6.0, Some(3.0));
+        assert!((cam_distance_from_pivot(&mut app) - want).abs() < 1e-3);
     }
 
     /// CARD PT-COLLIDE-1 F2 — (b) lens inside a yard canopy cone (r 1.05).

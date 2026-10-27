@@ -506,11 +506,20 @@ struct VegMark {
     lod: VegLodTier,
 }
 
+/// CARD PT-CAM-TRUNK-1 T-a — trunk-only marker (yard + field); canopies never carry it.
+#[derive(Component)]
+pub(crate) struct CamTrunk;
+
+/// CARD PT-CAM-TRUNK-1 A2 — one faded clone per source trunk material. Field clones drop in `release`.
+#[derive(Resource, Default)]
+pub(crate) struct TrunkFadeCache(pub(crate) Vec<(AssetId<StandardMaterial>, Handle<StandardMaterial>)>);
+
 pub struct VegetationPlugin;
 
 impl Plugin for VegetationPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<VegHeld>()
+            .init_resource::<TrunkFadeCache>()
             .add_systems(Update, sync_vegetation);
     }
 }
@@ -526,6 +535,7 @@ struct VegCtx<'w, 's> {
     held: ResMut<'w, VegHeld>,
     live: Option<ResMut<'w, VegLive>>,
     existing: Query<'w, 's, Entity, With<VegMark>>,
+    fade: Option<ResMut<'w, TrunkFadeCache>>,
 }
 
 fn sync_vegetation(mut ctx: VegCtx) {
@@ -555,7 +565,7 @@ fn sync_vegetation(mut ctx: VegCtx) {
     }
     let meshes = ctx.meshes.as_mut().unwrap();
     let materials = ctx.materials.as_mut().unwrap();
-    release(meshes, materials, &mut ctx.ramps, &mut ctx.held);
+    release(meshes, materials, &mut ctx.ramps, &mut ctx.held, &mut ctx.fade);
     let trees = vegetation_plants(preset).into_iter().filter(|p| vegetation_shown(realm) && p.kind == VegKind::Tree);
     ctx.commands.insert_resource(FieldTrunks(trees.map(|p| (Vec2::new(p.x, p.z), TRUNK_RADIUS * p.scale)).collect()));
     if vegetation_shown(realm) {
@@ -576,7 +586,12 @@ fn release(
     materials: &mut Assets<StandardMaterial>,
     ramps: &mut Option<ResMut<PainterlyRampMeshes>>,
     held: &mut VegHeld,
+    fade: &mut Option<ResMut<TrunkFadeCache>>,
 ) {
+    if let Some(fade) = fade.as_mut() {
+        let held_ids: Vec<_> = held.materials.iter().map(|handle| handle.id()).collect();
+        fade.0.retain(|(src, faded)| !held_ids.contains(src) || materials.remove(faded).is_none());
+    }
     if let Some(ramps) = ramps.as_mut() {
         let drop_ids: Vec<_> = held.meshes.iter().map(|handle| handle.id()).collect();
         ramps
@@ -634,6 +649,9 @@ fn spawn_field(
                 Name::new("VP-VEG-1"),
                 bevy::light::NotShadowCaster,
             ));
+            if inst.part == VegPart::Trunk {
+                entity.insert(CamTrunk);
+            }
             if part_role(inst.part) == PainterlyRole::Foliage {
                 entity.insert(PainterlyMat {
                     role: PainterlyRole::Foliage,
