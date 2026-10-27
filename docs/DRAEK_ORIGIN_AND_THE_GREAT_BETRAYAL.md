@@ -37,6 +37,8 @@ The Draeks were respected as **wise mediators and patient builders**. Many ensla
 
 ## 3. The Catastrophe — Loss of the Females and the Cloning Imperative
 
+> **Designer-only spoiler note (DRAEK-SECRET-RULE-1).** Not player-facing at start; players discover it through play.
+
 A still-mysterious cosmic event or engineered plague (some Quellorian scholars suspect early Draek experiments gone wrong) wiped out the **entire female Draek population** in a single generation.
 
 With no natural reproduction possible, the surviving males turned to **mass cloning** as the only path to species survival.

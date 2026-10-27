@@ -28,6 +28,8 @@ Long before the cloning catastrophe, the Ambrosians had a peaceful, symbiotic re
 
 When the Draek females were lost and the cloning imperative began, the Ambrosians watched with growing horror. They saw the ethical collapse but chose **calculated detachment** — they believed intervening directly would risk cracking their own lattices and slowing their long-term evolution toward Universal Harmonic Convergence.
 
+> **Designer-only spoiler note (DRAEK-SECRET-RULE-1).** Not player-facing at start; players discover it through play.
+
 This detachment became the original sin of the Ambrosian people.
 
 When the Draeks stole Quellorian resonance technology and twisted it into the Crownstone network, the Ambrosians finally understood the scale of the threat. However, they still refused direct military engagement. Instead, they began quietly feeding high-purity attunement crystals and harmonic data to the Quellorians, Humans, and Cydruids defending Earth.
