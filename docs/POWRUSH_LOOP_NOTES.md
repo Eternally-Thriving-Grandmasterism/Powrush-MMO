@@ -12,6 +12,8 @@
 
 Nothing in these notes removes war, PvP or double agents. They add depth beside them.
 
+North star (Sherif, 2026-10-27 2:52 AM ET; full quote in [COMBAT_AND_PVP §9.1](design/COMBAT_AND_PVP.md)): "we should remember always when designing Powrush-MMO that the ultimate goal is to make our reality better by offering humanity the ultimate sandbox to learn from safe trial and error upwards of global nuclear war and as perfectly utopian as an AGIRBE!"
+
 ---
 
 ## 1. Reframes (optional ideas)
