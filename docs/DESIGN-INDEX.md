@@ -23,6 +23,7 @@ All core systems below are derived from the living Ra-Thor monorepo (https://git
 - [In-game radio — genre stations, per-track licence manifest + CI check design, future procedural/premium slots](design/AUDIO_RADIO_DESIGN.md)
 - [In-game radio unlock quest — equal combat and Engineering paths, account-bound unlock, tradeable blueprint rules + anti-exploit guards, held names](design/AUDIO_RADIO_QUEST_DESIGN.md)
 - [Professions benchmark — WoW TBC, LOTRO, FFXIV, EVE, SWG, Albion, GW2, ARK; teamwork patterns mapped adopt / adapt / skip to the locked rules; Engineering-path proposals](design/PROFESSIONS_BENCHMARK.md)
+- [Logistics and society pillar — TTD/Factorio logistics, group registration + Neutral/Alliance/Dominion stance, four home bases, automation ladder, sabotage attribution, in-world radar unlock; open questions held for Sherif](design/GDD_LOGISTICS_SOCIETY.md)
 
 ## How These Integrate with Current Powrush-MMO
 
