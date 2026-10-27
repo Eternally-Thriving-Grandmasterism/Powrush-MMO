@@ -70,7 +70,7 @@ The choice made in the Crownstone Trilemma is the single largest branching point
 
 | Path                    | Immediate Effect                          | Long-term Diplomatic Consequence                          | RBE Impact                          | Simulation Variables Changed                  |
 |-------------------------|-------------------------------------------|-----------------------------------------------------------|-------------------------------------|-----------------------------------------------|
-| **Destroy**            | Hivemind collapse, feral remnants        | Quellorian moral victory but Draek desperation spikes    | Short-term harmony bonus, long-term scarcity risk | `crownstone_integrity = 0`, `total_corruption += 40` |
+| **Destroy**            | Hivemind collapse; credits roll, play continues (council decision under Sherif's 2:30 AM order; 2:33 canon, CTP §2) | Mature world: "enemies may exist, but the true AGIRBE concept can thrive"; friction from player wars, sabotage, accidents | Short-term harmony bonus | `crownstone_integrity = 0`, `total_corruption += 40` |
 | **Capture & Repurpose**| Hybrid units + Ambrosian attunement      | New "Redemption Alliance" faction emerges                | Major abundance multiplier         | `crownstone_owner = Quellorian`, `harmony += 60` |
 | **Sabotage**           | Slow civil war in Draek Dominion         | Hivelord instability events, possible internal Draek rebellion | Resource node corruption           | `crownstone_corruption_level` rises slowly   |
 
