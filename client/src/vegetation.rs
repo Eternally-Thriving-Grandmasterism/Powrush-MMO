@@ -291,6 +291,8 @@ pub fn prototype_mesh(part: VegPart, segments: u32, preset: GraphicsPreset) -> M
     mesh
 }
 
+/// CARD PT-COLLIDE-1 — field trunk radius at scale 1, same as `VegPart::Trunk` in `veg_mesh`.
+pub const TRUNK_RADIUS: f32 = 0.11;
 /// Deterministic field for `preset`. Same preset, same plants.
 pub fn vegetation_plants(preset: GraphicsPreset) -> Vec<VegPlant> {
     let plan = vegetation_plan(preset);
@@ -322,6 +324,10 @@ pub fn vegetation_plants(preset: GraphicsPreset) -> Vec<VegPlant> {
     );
     out
 }
+
+/// CARD PT-COLLIDE-1 — trunk circles (x/z, radius) of the spawned field; empty when hidden. Read by the push-out.
+#[derive(Resource, Default, Clone, Debug)]
+pub struct FieldTrunks(pub Vec<(Vec2, f32)>);
 
 /// Expand plants into trunk / canopy / tuft / shrub instances.
 pub fn vegetation_instances(plants: &[VegPlant]) -> Vec<VegInstance> {
@@ -550,6 +556,8 @@ fn sync_vegetation(mut ctx: VegCtx) {
     let meshes = ctx.meshes.as_mut().unwrap();
     let materials = ctx.materials.as_mut().unwrap();
     release(meshes, materials, &mut ctx.ramps, &mut ctx.held);
+    let trees = vegetation_plants(preset).into_iter().filter(|p| vegetation_shown(realm) && p.kind == VegKind::Tree);
+    ctx.commands.insert_resource(FieldTrunks(trees.map(|p| (Vec2::new(p.x, p.z), TRUNK_RADIUS * p.scale)).collect()));
     if vegetation_shown(realm) {
         spawn_field(
             meshes,
