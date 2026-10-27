@@ -22,6 +22,7 @@ GREEN-DOCS. One page. Design tick, not a Cargo bump. Workspace `21.88.0`. Floor 
 - **Eve-like uniqueness** = shard / House digests across consented peers (commands, not poses).
 - **Trade** = mercy-gated share of Flow / Reserve / week bill — not WoW auction chrome.
 - **Automated harvest bots / public AH / NFT / gold sink** = refuse until named law.
+- Pointer: Online 2.0 guild-chartered automation (LAYERED §3b) is governed by AUTOMATION-LAW-1, [`design/GDD_LOGISTICS_SOCIETY.md`](design/GDD_LOGISTICS_SOCIETY.md) §4a (AL1). The line above stays for everything else.
 
 ## Cross-links
 
