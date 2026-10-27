@@ -118,7 +118,7 @@ use crate::hud_anchor_registry::{
     action_bar_prompts_showing, r2_yields_to, HudSlab, ACTION_BAR, ID_CARE_PROMPT, ID_CARE_STRIP,
     ID_GUIDANCE,
 };
-use crate::mercy_harvest_nodes::{CareCycleOffer, NearbyMercyNode};
+use crate::mercy_harvest_nodes::{CareCycleOffer, MercyHarvestNode, NearbyMercyNode};
 use crate::title_screen::LaunchDoor;
 use shared::ledger_bind::ContractState;
 use shared::persona::{house_dress_token, is_peace_default_dress, HOUSE_PEOPLE_TINT};
@@ -384,18 +384,18 @@ impl GuidanceObjective {
             GuidanceObjective::MoveAround => "WASD walk · Space jump · Shift sprint",
             GuidanceObjective::ApproachGlowingNode => "Walk to a glow",
             GuidanceObjective::HarvestWithInteract => "E tend the glow",
-            GuidanceObjective::OpenInventory => "I open the satchel · House after allocate",
+            GuidanceObjective::OpenInventory => "I open the satchel · see what you tended",
             GuidanceObjective::ShareAbundance => "R then 1 flow · 2 reserve",
             GuidanceObjective::StepCharter => "Tab the ridge",
             GuidanceObjective::PlantHouse => "Q plant a House stake",
             GuidanceObjective::OpenLedger => "L opens the Ledger",
             GuidanceObjective::BindEscort => "E Bind then escort",
-            GuidanceObjective::HourTwoHeld => "climate on slab · week tons+restored",
+            GuidanceObjective::HourTwoHeld => "Hour two held · the week's tons are restored",
             GuidanceObjective::PlantFabricator => "Q after arrival — plant the fabricator",
             GuidanceObjective::EmbassySeat => "Embassy lamp · E Request seat",
-            GuidanceObjective::HourThreeHeld => "Hour three · the book is yours",
-            GuidanceObjective::FeelFirstEpiphany => "The field answers",
-            GuidanceObjective::MeetCouncilWhisper => "The field answers",
+            GuidanceObjective::HourThreeHeld => "Hour three held · this book is yours to keep",
+            GuidanceObjective::FeelFirstEpiphany => "Keep tending · the field answers you",
+            GuidanceObjective::MeetCouncilWhisper => "Keep tending · the field answers you",
             GuidanceObjective::FreeExploration => "E tend the well · harm stays optional",
         }
     }
@@ -439,6 +439,8 @@ pub struct FirstSessionGuidance {
     pub dismissed: bool,
     pub objective: GuidanceObjective,
     pub harvests_completed: u32,
+    /// CARD PT-QUEST1-1 Q-c — distinct Mercy nodes with `harvests > 0` (H-Q1), not harvest sum.
+    pub nodes_tended: u32,
     pub moved_distance: f32,
     pub inventory_opened: bool,
     pub shared_abundance: bool,
@@ -470,6 +472,7 @@ impl Default for FirstSessionGuidance {
             dismissed: false,
             objective: GuidanceObjective::MoveAround,
             harvests_completed: 0,
+            nodes_tended: 0,
             moved_distance: 0.0,
             inventory_opened: false,
             shared_abundance: false,
@@ -661,7 +664,7 @@ impl FirstSessionGuidance {
         let should_advance = match self.objective {
             GuidanceObjective::MoveAround => self.moved_distance > 4.0,
             GuidanceObjective::ApproachGlowingNode => self.near_glow || self.moved_distance > 12.0,
-            GuidanceObjective::HarvestWithInteract => self.harvests_completed >= 1,
+            GuidanceObjective::HarvestWithInteract => self.nodes_tended >= MERCY_NODES_TO_TEND,
             GuidanceObjective::OpenInventory => self.inventory_opened,
             GuidanceObjective::ShareAbundance => self.shared_abundance,
             GuidanceObjective::StepCharter => self.ridge_stepped || self.house_live,
@@ -904,11 +907,19 @@ fn door_line_on_card(guidance: &FirstSessionGuidance) -> Option<String> {
     door_line_when_cross_possible(guidance)
 }
 
+/// CARD PT-QUEST1-1 Q-c — all three Mercy nodes are tended before the card moves on.
+pub const MERCY_NODES_TO_TEND: u32 = 3;
+
 fn lived_card_line(guidance: &FirstSessionGuidance, place: Option<&str>) -> String {
     if guidance.dismissed {
         return String::new();
     }
-    let spoken = card_line(&spoken_guidance(&guidance.objective, place));
+    let mut spoken = spoken_guidance(&guidance.objective, place);
+    // CARD PT-QUEST1-1 H-Q4 — the 1/3 counter is formatted at draw time; prompt() stays &'static str.
+    if guidance.objective == GuidanceObjective::HarvestWithInteract {
+        spoken = format!("{spoken} · {}/{MERCY_NODES_TO_TEND}", guidance.nodes_tended.min(MERCY_NODES_TO_TEND));
+    }
+    let spoken = card_line(&spoken);
     match door_line_on_card(guidance) {
         Some(door) => format!("{spoken}\n{door}"),
         None => spoken,
@@ -1062,10 +1073,13 @@ pub(crate) fn track_simple_progress_signals(
     embassy: Option<Res<EmbassyYard>>,
     presence: Option<Res<SoftPresence>>,
     mut last_xz: Local<Option<Vec2>>,
+    nodes: Query<&MercyHarvestNode>,
 ) {
     if guidance.dismissed {
         return;
     }
+    let tended = nodes.iter().filter(|node| node.harvests > 0).count() as u32;
+    guidance.nodes_tended = guidance.nodes_tended.max(tended);
 
     if let Some(body) = presence.as_deref() {
         let now = Vec2::new(body.position.x, body.position.z);
@@ -1251,6 +1265,7 @@ mod tests {
         g.near_glow = true;
         g.advance_if_ready();
         assert_eq!(g.objective, GuidanceObjective::HarvestWithInteract);
+        g.nodes_tended = MERCY_NODES_TO_TEND;
         credit_harvest(&mut g);
         assert_eq!(g.objective, GuidanceObjective::OpenInventory);
         g.inventory_opened = true;
@@ -1335,6 +1350,34 @@ mod tests {
         }
     }
 
+    /// CARD PT-QUEST1-1 Q-d — one node tended 3× stays 1/3 (H-Q1); three nodes advance;
+    /// resume still skips step 3 (H-Q2).
+    #[test]
+    fn harvest_step_counts_distinct_nodes_and_resume_skips_it() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).init_resource::<FirstSessionGuidance>();
+        app.init_resource::<ButtonInput<KeyCode>>();
+        app.add_systems(Update, track_simple_progress_signals);
+        app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::HarvestWithInteract;
+        let node = |harvests| MercyHarvestNode { name: "glow", climate_id: 0, vitality: 1.0, harvests, pulse: 0.0 };
+        let first = app.world_mut().spawn(node(0)).id();
+        app.world_mut().spawn_batch([node(0), node(0)]);
+        app.world_mut().get_mut::<MercyHarvestNode>(first).unwrap().harvests = 3;
+        app.update();
+        let g = app.world().resource::<FirstSessionGuidance>();
+        assert_eq!((g.nodes_tended, g.objective.clone()), (1, GuidanceObjective::HarvestWithInteract));
+        assert!(lived_card_line(g, None).contains("E tend the glow · 1/3"));
+        assert_eq!(g.objective.prompt(), "E tend the glow");
+        let mut q = app.world_mut().query::<&mut MercyHarvestNode>();
+        q.iter_mut(app.world_mut()).for_each(|mut n| n.harvests = n.harvests.max(1));
+        app.update();
+        assert_eq!(app.world().resource::<FirstSessionGuidance>().objective, GuidanceObjective::OpenInventory);
+        let mut cold = FirstSessionGuidance { objective: GuidanceObjective::HarvestWithInteract, ..default() };
+        (cold.hour_two_held, cold.house_live) = (true, true);
+        cold.resume_from_pack();
+        assert_eq!(cold.objective, GuidanceObjective::PlantFabricator);
+    }
+
     #[test]
     fn h_dismisses() {
         let mut g = FirstSessionGuidance::default();
@@ -1392,11 +1435,11 @@ mod tests {
     #[test]
     fn playable_loop_soft_cues_stay_quiet() {
         let harvest_next = GuidanceObjective::OpenInventory.prompt();
-        assert!(harvest_next.contains("House"));
+        assert!(!harvest_next.contains("House"));
         assert!(harvest_next.len() < 48);
 
         let hour_two = GuidanceObjective::HourTwoHeld.prompt();
-        assert!(hour_two.contains("climate") || hour_two.contains("week"));
+        assert!(hour_two.contains("week"));
         assert!(hour_two.contains("tons"));
         assert!(!hour_two.to_lowercase().contains("kill"));
         assert!(!hour_two.to_lowercase().contains("lethal"));
@@ -1432,6 +1475,7 @@ mod tests {
         g.advance_if_ready();
         assert_eq!(g.objective, GuidanceObjective::HarvestWithInteract);
         assert!(g.speaks_people_want());
+        g.nodes_tended = MERCY_NODES_TO_TEND;
         credit_harvest(&mut g);
         assert_eq!(g.objective, GuidanceObjective::OpenInventory);
         assert!(!g.objective.is_first_minutes());
@@ -2548,7 +2592,7 @@ mod tests {
         use shared::hex_travel::PlaceId;
 
         let week = GuidanceObjective::HourTwoHeld.prompt();
-        assert_eq!(week, "climate on slab · week tons+restored");
+        assert_eq!(week, "Hour two held · the week's tons are restored");
         assert!(week.contains("week"));
         assert!(week.contains("tons"));
 
@@ -2641,7 +2685,7 @@ mod tests {
             (GuidanceObjective::HarvestWithInteract, "E tend the glow"),
             (
                 GuidanceObjective::OpenInventory,
-                "I open the satchel · House after allocate",
+                "I open the satchel · see what you tended",
             ),
             (
                 GuidanceObjective::ShareAbundance,
@@ -2653,7 +2697,7 @@ mod tests {
             (GuidanceObjective::BindEscort, "E Bind then escort"),
             (
                 GuidanceObjective::HourTwoHeld,
-                "climate on slab · week tons+restored",
+                "Hour two held · the week's tons are restored",
             ),
             (
                 GuidanceObjective::PlantFabricator,
@@ -2665,10 +2709,10 @@ mod tests {
             ),
             (
                 GuidanceObjective::HourThreeHeld,
-                "Hour three · the book is yours",
+                "Hour three held · this book is yours to keep",
             ),
-            (GuidanceObjective::FeelFirstEpiphany, "The field answers"),
-            (GuidanceObjective::MeetCouncilWhisper, "The field answers"),
+            (GuidanceObjective::FeelFirstEpiphany, "Keep tending · the field answers you"),
+            (GuidanceObjective::MeetCouncilWhisper, "Keep tending · the field answers you"),
         ];
         assert_eq!(main.len(), 15);
         for (objective, expected) in main {
@@ -2724,6 +2768,7 @@ mod tests {
         tended.advance_if_ready();
         assert_eq!(tended.objective, GuidanceObjective::HarvestWithInteract);
         assert!(door_line_on_card(&tended).is_none());
+        tended.nodes_tended = MERCY_NODES_TO_TEND;
         credit_harvest(&mut tended);
         assert_eq!(tended.objective, GuidanceObjective::OpenInventory);
         assert!(tended.stays_light_peace());
@@ -2731,7 +2776,7 @@ mod tests {
         assert!(tended.house_dress_token().is_none());
         assert!(door_line_on_card(&tended).is_none());
         let skipped_card = lived_card_line(&tended, None);
-        assert!(skipped_card.contains("I open the satchel · House after allocate"));
+        assert!(skipped_card.contains("I open the satchel · see what you tended"));
         assert!(skipped_card.contains("H hides"));
         assert!(!skipped_card.contains("Sanctuary yard"));
         assert!(!names_key(&skipped_card, e));
@@ -2770,7 +2815,7 @@ mod tests {
         assert!(!door.contains(PeaceKey::Digit1.display_label()));
         assert_eq!(
             GuidanceObjective::OpenInventory.prompt(),
-            "I open the satchel · House after allocate"
+            "I open the satchel · see what you tended"
         );
         assert!(crate::hour_sacred::four_place_landings_only());
         assert_eq!(HOUSE_PEOPLES.len(), 5);
@@ -2792,7 +2837,7 @@ mod tests {
         );
 
         let card = lived_card_line(&ready, None);
-        assert!(card.contains("I open the satchel · House after allocate"));
+        assert!(card.contains("I open the satchel · see what you tended"));
         assert!(card.contains(&door));
         assert!(card.contains("H hides"));
         assert!(!names_key(&card, e));
@@ -2897,12 +2942,13 @@ mod tests {
             guidance.advance_if_ready();
             guidance.near_glow = true;
             guidance.advance_if_ready();
+            guidance.nodes_tended = MERCY_NODES_TO_TEND;
             credit_harvest(&mut guidance);
         }
         app.update();
         let (_, skipped_paint) = guidance_card_section(&mut app);
         assert!(!skipped_paint.contains("Human Sanctuary yard"));
-        assert!(skipped_paint.contains("I open the satchel · House after allocate"));
+        assert!(skipped_paint.contains("I open the satchel · see what you tended"));
         {
             let mut guidance = app.world_mut().resource_mut::<FirstSessionGuidance>();
             guidance.house_live = true;
@@ -2917,7 +2963,7 @@ mod tests {
         assert!(after.contains("Cydruid Heartwood"));
         assert!(after.contains("Quellorian Threshold"));
         assert!(after.contains("Draek Depths"));
-        assert!(after.contains("I open the satchel · House after allocate"));
+        assert!(after.contains("I open the satchel · see what you tended"));
         {
             let mut guidance = app.world_mut().resource_mut::<FirstSessionGuidance>();
             guidance.people_landing = Some(PeopleLanding::SanctuaryYard);
@@ -2927,7 +2973,7 @@ mod tests {
         assert!(!crossed_paint.contains("Human Sanctuary yard"));
         assert!(!names_key(&crossed_paint, e));
         assert!(!names_key(&crossed_paint, q));
-        assert!(crossed_paint.contains("I open the satchel · House after allocate"));
+        assert!(crossed_paint.contains("I open the satchel · see what you tended"));
     }
 
     /// CARD VP-HUD-GOLD-1 — the guidance strip spawns on the title palette:
