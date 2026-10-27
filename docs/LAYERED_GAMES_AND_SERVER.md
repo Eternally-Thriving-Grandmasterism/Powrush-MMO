@@ -130,6 +130,7 @@ Four layers, one economy. Each layer is a game you can play on its own for an ev
 - **Upkeep is the teacher.** Each extractor, depot and route has a running cost in Reserve and a wear rate. An over-extracting chain makes nodes go Stressed, throughput falls, upkeep keeps charging, and the guild learns the RBE lesson at scale: "if you only take, the glow fades."
 - **Throughput is the score that matters:** tons moved per week plus nodes restored, the same \(T_w\) + \(U_w\) family as the House week.
 - **Why it needs the others:** raw care-only inputs from 3a; node rights and corridors from 3c; route passage and blueprints from 3d.
+- **Law:** guild automation is governed by AUTOMATION-LAW-1, [`design/GDD_LOGISTICS_SOCIETY.md`](design/GDD_LOGISTICS_SOCIETY.md) §4a.
 
 ### 3c. Weekly guild war (Conquer Online cadence)
 
