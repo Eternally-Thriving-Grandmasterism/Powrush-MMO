@@ -33,8 +33,12 @@ use crate::local_settings::LocalSettingsState;
 const DROP_SECS: f32 = 0.11;
 const BEAD_LIFE: f32 = 0.72;
 const AWE_SECS: f32 = 5.2;
-const NECTAR_FROM: Vec3 = Vec3::new(-5.2, 1.15, -1.4);
-const NECTAR_TO: Vec3 = Vec3::new(4.6, 1.55, 2.8);
+pub(crate) const NECTAR_FROM: Vec3 = Vec3::new(-5.2, 1.15, -1.4);
+pub(crate) const NECTAR_TO: Vec3 = Vec3::new(4.6, 1.55, 2.8);
+/// CARD PT-PICKUP-1 — nectar push accel (u/s²); 1.15/frame at 60 fps. Playtest-tunable placeholder.
+const NECTAR_ACCEL: f32 = 69.0;
+/// CARD PT-PICKUP-1 — push stops once speed along the current reaches this (u/s). Playtest-tunable placeholder.
+pub(crate) const NECTAR_CAP: f32 = 2.5;
 /// Existing awe line. Absent travel keeps this byte for byte.
 const INHALE_LINE: &str = "solo world inhale";
 
@@ -368,7 +372,8 @@ fn show_nectar(
     }
 }
 
-fn ride_nectar(
+pub(crate) fn ride_nectar(
+    time: Res<Time>,
     realm: Res<SoftPlayerRealm>,
     mut presence: ResMut<SoftPresence>,
 ) {
@@ -384,8 +389,10 @@ fn ride_nectar(
         return;
     }
     let dir = delta.normalize();
-    presence.velocity.x += dir.x * 1.15;
-    presence.velocity.z += dir.z * 1.15;
+    let along = presence.velocity.x * dir.x + presence.velocity.z * dir.z;
+    let add = (NECTAR_ACCEL * time.delta_secs()).min((NECTAR_CAP - along).max(0.0));
+    presence.velocity.x += dir.x * add;
+    presence.velocity.z += dir.z * add;
 }
 
 #[cfg(test)]

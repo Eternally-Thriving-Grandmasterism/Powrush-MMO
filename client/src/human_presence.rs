@@ -4303,6 +4303,23 @@ mod tests {
         assert!(slow < resolved - 0.5, "ease out already sat on the target, got {slow}");
     }
 
+    /// CARD PT-PICKUP-1 H4 — real order (Update push, FixedUpdate locomotion, no wish): 1 s peak matches at 30/144 fps, under cap.
+    #[test]
+    fn nectar_push_matches_30_and_144_fps_under_cap() {
+        use crate::flow_weather::{ride_nectar, NECTAR_CAP, NECTAR_FROM, NECTAR_TO};
+        let peak = |fps: u32| {
+            let (mut app, dir) = (App::new(), (NECTAR_TO - NECTAR_FROM).normalize());
+            app.add_plugins(MinimalPlugins).init_resource::<PlayerInput>().init_resource::<JumpLatch>().init_resource::<SoftPresence>();
+            app.insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) }).insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(1.0 / fps as f64)));
+            app.add_systems(Update, ride_nectar).add_systems(FixedUpdate, apply_locomotion).world_mut().resource_mut::<SoftPresence>().position = (NECTAR_FROM + NECTAR_TO) * 0.5;
+            let along = |app: &mut App| { app.update(); let v = app.world().resource::<SoftPresence>().velocity; v.x * dir.x + v.z * dir.z };
+            ((0..=fps).map(|_| along(&mut app)).fold(0.0f32, f32::max), app.world().resource::<Time<Fixed>>().elapsed_secs())
+        };
+        let ((slow, t30), (fast, t144)) = (peak(30), peak(144));
+        assert!(t30 > 0.9 && t144 > 0.9, "fixed time did not step: {t30} {t144}");
+        assert!((slow - fast).abs() < 0.1 && slow > 2.0 && slow.max(fast) <= NECTAR_CAP + 1e-4, "30 fps {slow} vs 144 fps {fast}");
+    }
+
     fn collide_app() -> App {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
