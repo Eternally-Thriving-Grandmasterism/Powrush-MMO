@@ -271,6 +271,7 @@ fn spawn_ecology(
                 Transform::from_translation(pos),
             ),
             EcologyProp { kind: PropKind::Tree },
+            crate::vegetation::CamTrunk,
         ));
         commands.spawn((
             (
