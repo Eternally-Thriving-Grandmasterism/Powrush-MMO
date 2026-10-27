@@ -385,14 +385,14 @@ impl GuidanceObjective {
             GuidanceObjective::ApproachGlowingNode => "Walk to a glow",
             GuidanceObjective::HarvestWithInteract => "E tend the glow",
             GuidanceObjective::OpenInventory => "I open the satchel · see what you tended",
-            GuidanceObjective::ShareAbundance => "R then 1 flow · 2 reserve",
-            GuidanceObjective::StepCharter => "Tab the ridge",
+            GuidanceObjective::ShareAbundance => "R share · 1 gives to flow, 2 keeps in reserve",
+            GuidanceObjective::StepCharter => "Tab open the chart · then step up the ridge",
             GuidanceObjective::PlantHouse => "Q plant a House stake",
             GuidanceObjective::OpenLedger => "L opens the Ledger",
-            GuidanceObjective::BindEscort => "E Bind then escort",
+            GuidanceObjective::BindEscort => "E bind at the Ledger · then escort to finish",
             GuidanceObjective::HourTwoHeld => "Hour two held · the week's tons are restored",
-            GuidanceObjective::PlantFabricator => "Q after arrival — plant the fabricator",
-            GuidanceObjective::EmbassySeat => "Embassy lamp · E Request seat",
+            GuidanceObjective::PlantFabricator => "Q plant the fabricator · it mends the week",
+            GuidanceObjective::EmbassySeat => "E at the Embassy lamp · request your seat",
             GuidanceObjective::HourThreeHeld => "Hour three held · this book is yours to keep",
             GuidanceObjective::FeelFirstEpiphany => "Keep tending · the field answers you",
             GuidanceObjective::MeetCouncilWhisper => "Keep tending · the field answers you",
@@ -441,6 +441,8 @@ pub struct FirstSessionGuidance {
     pub harvests_completed: u32,
     /// CARD PT-QUEST1-1 Q-c — distinct Mercy nodes with `harvests > 0` (H-Q1), not harvest sum.
     pub nodes_tended: u32,
+    /// CARD PT-QUEST1-1 R1 — Mercy nodes present now; caps the tends step 3 asks for.
+    pub nodes_present: u32,
     pub moved_distance: f32,
     pub inventory_opened: bool,
     pub shared_abundance: bool,
@@ -473,6 +475,7 @@ impl Default for FirstSessionGuidance {
             objective: GuidanceObjective::MoveAround,
             harvests_completed: 0,
             nodes_tended: 0,
+            nodes_present: 0,
             moved_distance: 0.0,
             inventory_opened: false,
             shared_abundance: false,
@@ -495,6 +498,11 @@ impl Default for FirstSessionGuidance {
 }
 
 impl FirstSessionGuidance {
+    /// CARD PT-QUEST1-1 R1 — tends step 3 needs: min(3, nodes present).
+    pub fn nodes_required(&self) -> u32 {
+        MERCY_NODES_TO_TEND.min(self.nodes_present)
+    }
+
     pub fn dismiss(&mut self) {
         self.dismissed = true;
         self.active = false;
@@ -664,7 +672,11 @@ impl FirstSessionGuidance {
         let should_advance = match self.objective {
             GuidanceObjective::MoveAround => self.moved_distance > 4.0,
             GuidanceObjective::ApproachGlowingNode => self.near_glow || self.moved_distance > 12.0,
-            GuidanceObjective::HarvestWithInteract => self.nodes_tended >= MERCY_NODES_TO_TEND,
+            // CARD PT-QUEST1-1 R1 — no nodes present keeps the old one-tend rule (no soft-lock).
+            GuidanceObjective::HarvestWithInteract => match self.nodes_required() {
+                0 => self.harvests_completed >= 1,
+                need => self.nodes_tended >= need,
+            },
             GuidanceObjective::OpenInventory => self.inventory_opened,
             GuidanceObjective::ShareAbundance => self.shared_abundance,
             GuidanceObjective::StepCharter => self.ridge_stepped || self.house_live,
@@ -916,8 +928,9 @@ fn lived_card_line(guidance: &FirstSessionGuidance, place: Option<&str>) -> Stri
     }
     let mut spoken = spoken_guidance(&guidance.objective, place);
     // CARD PT-QUEST1-1 H-Q4 — the 1/3 counter is formatted at draw time; prompt() stays &'static str.
-    if guidance.objective == GuidanceObjective::HarvestWithInteract {
-        spoken = format!("{spoken} · {}/{MERCY_NODES_TO_TEND}", guidance.nodes_tended.min(MERCY_NODES_TO_TEND));
+    let need = guidance.nodes_required();
+    if guidance.objective == GuidanceObjective::HarvestWithInteract && need > 0 {
+        spoken = format!("{spoken} · {}/{need}", guidance.nodes_tended.min(need));
     }
     let spoken = card_line(&spoken);
     match door_line_on_card(guidance) {
@@ -1080,6 +1093,7 @@ pub(crate) fn track_simple_progress_signals(
     }
     let tended = nodes.iter().filter(|node| node.harvests > 0).count() as u32;
     guidance.nodes_tended = guidance.nodes_tended.max(tended);
+    guidance.nodes_present = nodes.iter().count() as u32;
 
     if let Some(body) = presence.as_deref() {
         let now = Vec2::new(body.position.x, body.position.z);
@@ -1265,7 +1279,6 @@ mod tests {
         g.near_glow = true;
         g.advance_if_ready();
         assert_eq!(g.objective, GuidanceObjective::HarvestWithInteract);
-        g.nodes_tended = MERCY_NODES_TO_TEND;
         credit_harvest(&mut g);
         assert_eq!(g.objective, GuidanceObjective::OpenInventory);
         g.inventory_opened = true;
@@ -1284,7 +1297,7 @@ mod tests {
         g.shared_abundance = true;
         g.advance_if_ready();
         assert_eq!(g.objective, GuidanceObjective::StepCharter);
-        assert_eq!(g.objective.prompt(), "Tab the ridge");
+        assert_eq!(g.objective.prompt(), "Tab open the chart · then step up the ridge");
         g.ridge_stepped = true;
         g.advance_if_ready();
         assert_eq!(g.objective, GuidanceObjective::PlantHouse);
@@ -1376,6 +1389,14 @@ mod tests {
         (cold.hour_two_held, cold.house_live) = (true, true);
         cold.resume_from_pack();
         assert_eq!(cold.objective, GuidanceObjective::PlantFabricator);
+        // R1 — two nodes present: counter reads n/2 and tending both advances.
+        let mut two = FirstSessionGuidance { objective: GuidanceObjective::HarvestWithInteract, ..default() };
+        (two.nodes_present, two.nodes_tended) = (2, 1);
+        two.advance_if_ready();
+        assert!(lived_card_line(&two, None).contains("E tend the glow · 1/2"));
+        two.nodes_tended = 2;
+        two.advance_if_ready();
+        assert_eq!(two.objective, GuidanceObjective::OpenInventory);
     }
 
     #[test]
@@ -1475,7 +1496,6 @@ mod tests {
         g.advance_if_ready();
         assert_eq!(g.objective, GuidanceObjective::HarvestWithInteract);
         assert!(g.speaks_people_want());
-        g.nodes_tended = MERCY_NODES_TO_TEND;
         credit_harvest(&mut g);
         assert_eq!(g.objective, GuidanceObjective::OpenInventory);
         assert!(!g.objective.is_first_minutes());
@@ -2689,23 +2709,23 @@ mod tests {
             ),
             (
                 GuidanceObjective::ShareAbundance,
-                "R then 1 flow · 2 reserve",
+                "R share · 1 gives to flow, 2 keeps in reserve",
             ),
-            (GuidanceObjective::StepCharter, "Tab the ridge"),
+            (GuidanceObjective::StepCharter, "Tab open the chart · then step up the ridge"),
             (GuidanceObjective::PlantHouse, "Q plant a House stake"),
             (GuidanceObjective::OpenLedger, "L opens the Ledger"),
-            (GuidanceObjective::BindEscort, "E Bind then escort"),
+            (GuidanceObjective::BindEscort, "E bind at the Ledger · then escort to finish"),
             (
                 GuidanceObjective::HourTwoHeld,
                 "Hour two held · the week's tons are restored",
             ),
             (
                 GuidanceObjective::PlantFabricator,
-                "Q after arrival — plant the fabricator",
+                "Q plant the fabricator · it mends the week",
             ),
             (
                 GuidanceObjective::EmbassySeat,
-                "Embassy lamp · E Request seat",
+                "E at the Embassy lamp · request your seat",
             ),
             (
                 GuidanceObjective::HourThreeHeld,
@@ -2768,7 +2788,6 @@ mod tests {
         tended.advance_if_ready();
         assert_eq!(tended.objective, GuidanceObjective::HarvestWithInteract);
         assert!(door_line_on_card(&tended).is_none());
-        tended.nodes_tended = MERCY_NODES_TO_TEND;
         credit_harvest(&mut tended);
         assert_eq!(tended.objective, GuidanceObjective::OpenInventory);
         assert!(tended.stays_light_peace());
@@ -2913,7 +2932,7 @@ mod tests {
         tended.advance_if_ready();
         assert_eq!(tended.objective, GuidanceObjective::ShareAbundance);
         let later = lived_card_line(&tended, None);
-        assert!(later.contains("R then 1 flow"));
+        assert!(later.contains("R share · 1 gives to flow"));
         assert!(!later.contains("Sanctuary well-from-above"));
 
         let mut ledger = FirstSessionGuidance {
@@ -2942,7 +2961,6 @@ mod tests {
             guidance.advance_if_ready();
             guidance.near_glow = true;
             guidance.advance_if_ready();
-            guidance.nodes_tended = MERCY_NODES_TO_TEND;
             credit_harvest(&mut guidance);
         }
         app.update();

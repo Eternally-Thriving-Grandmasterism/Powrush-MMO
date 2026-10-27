@@ -1586,7 +1586,6 @@ mod tests {
 
         let mut g = FirstSessionGuidance::default();
         g.objective = GuidanceObjective::HarvestWithInteract;
-        g.nodes_tended = crate::first_session_guidance::MERCY_NODES_TO_TEND;
         crate::first_session_guidance::credit_harvest(&mut g);
         assert_eq!(g.objective, GuidanceObjective::OpenInventory);
         assert!(GuidanceObjective::HarvestWithInteract
