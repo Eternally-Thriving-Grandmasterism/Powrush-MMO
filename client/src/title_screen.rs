@@ -1814,7 +1814,7 @@ TextColor(TITLE_TEXT_PRIMARY),
                 comfort.spawn(Node { width: Val::Percent(100.0), column_gap: Val::Px(6.0), align_items: AlignItems::Center, ..default() }).with_children(|row| {
                     spawn_comfort_row(row, "−", SettingsLookDownBtn, Name::new("look −"));
                     let font = TextFont { font_size: FontSize::Px(15.0 / 1.2), ..default() };
-                    row.spawn((Text::new("Mouse sensitivity · 1.00"), font, TextColor(TITLE_BTN_FG), SettingsLookLabel));
+                    row.spawn((Text::new("Mouse sensitivity · 1.00"), font, TextColor(TITLE_BTN_FG), SettingsLookLabel, Node { flex_shrink: 0.0, ..default() }));
                     spawn_comfort_row(row, "+", SettingsLookBtn, Name::new("look +"));
                 });
                 spawn_comfort_row(comfort, "Mute · off", SettingsMuteBtn, SettingsMuteLabel);
