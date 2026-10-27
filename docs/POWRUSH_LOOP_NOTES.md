@@ -74,7 +74,7 @@ If combat is ever lifted, Core's rulings for a Surge horde option are:
 
 **Crownstone ruling (Sherif, 2026-10-27 12:35 AM ET, verbatim):** "There's 1 Crownstone which is what enables the ultimate controller of the hive mind and all below." Recorded only as said: exactly one Crownstone, and it enables the ultimate hive-mind controller over all below.
 
-**Open question for Sherif (recorded, NOT resolved):** where Mindlords sit beneath the Crownstone-enabled controller, relative to the Hivelord and Drainers. This doc does not place them.
+**Mindlord placement: decided by the councils (DRAEK-HIERARCHY), council decision under Sherif's 12:36 AM rule.** The record (P1-P4) is in [`ENSLAVED_MINION_SPECIES.md` §3.1](ENSLAVED_MINION_SPECIES.md#31-draek-mindlords-boss-tier-after-the-minions-fall). Mindlord rank versus the Hivelord's chosen Brood Lords stays open there.
 Hierarchy design rule: see [`ENSLAVED_MINION_SPECIES.md` §3.1](ENSLAVED_MINION_SPECIES.md#31-draek-mindlords-boss-tier-after-the-minions-fall).
 Mindlord detail lives in [`ENSLAVED_MINION_SPECIES.md` §3.1](ENSLAVED_MINION_SPECIES.md#31-draek-mindlords-boss-tier-after-the-minions-fall). Combat stays parked as above; this is a design note only.
 
