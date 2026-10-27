@@ -22,6 +22,7 @@ All core systems below are derived from the living Ra-Thor monorepo (https://git
 - [Server morality — good, evil and double agents, and each server's heaven-to-hell meter](design/SERVER_MORALITY.md)
 - [In-game radio — genre stations, per-track licence manifest + CI check design, future procedural/premium slots](design/AUDIO_RADIO_DESIGN.md)
 - [In-game radio unlock quest — equal combat and Engineering paths, account-bound unlock, tradeable blueprint rules + anti-exploit guards, held names](design/AUDIO_RADIO_QUEST_DESIGN.md)
+- [Professions benchmark — WoW TBC, LOTRO, FFXIV, EVE, SWG, Albion, GW2, ARK; teamwork patterns mapped adopt / adapt / skip to the locked rules; Engineering-path proposals](design/PROFESSIONS_BENCHMARK.md)
 
 ## How These Integrate with Current Powrush-MMO
 
