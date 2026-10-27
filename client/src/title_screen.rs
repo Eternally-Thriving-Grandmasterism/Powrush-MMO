@@ -650,6 +650,9 @@ struct PauseTabPanel(PauseTab);
 
 #[derive(Component)]
 struct SettingsLookBtn;
+/// CARD PT-MOUSE-1 — the − step beside the + (`SettingsLookBtn`) on the Mouse sensitivity row.
+#[derive(Component)]
+struct SettingsLookDownBtn;
 #[derive(Component)]
 struct SettingsMuteBtn;
 #[derive(Component)]
@@ -1807,7 +1810,13 @@ TextColor(TITLE_TEXT_PRIMARY),
                     SettingsGraphicsBtn,
                     SettingsGraphicsLabel,
                 );
-                spawn_comfort_row(comfort, "Look · 1.00", SettingsLookBtn, SettingsLookLabel);
+                // CARD PT-MOUSE-1 — [−] Mouse sensitivity · 1.00 [+], one row over `look_sensitivity`.
+                comfort.spawn(Node { width: Val::Percent(100.0), column_gap: Val::Px(6.0), align_items: AlignItems::Center, ..default() }).with_children(|row| {
+                    spawn_comfort_row(row, "−", SettingsLookDownBtn, Name::new("look −"));
+                    let font = TextFont { font_size: FontSize::Px(15.0 / 1.2), ..default() };
+                    row.spawn((Text::new("Mouse sensitivity · 1.00"), font, TextColor(TITLE_BTN_FG), SettingsLookLabel));
+                    spawn_comfort_row(row, "+", SettingsLookBtn, Name::new("look +"));
+                });
                 spawn_comfort_row(comfort, "Mute · off", SettingsMuteBtn, SettingsMuteLabel);
                 spawn_comfort_row(
                     comfort,
@@ -3294,7 +3303,7 @@ fn on_off(v: bool) -> &'static str {
 }
 
 pub fn look_btn_label(s: &LocalSettings) -> String {
-    format!("Look · {:.2}", s.look_sensitivity)
+    format!("Mouse sensitivity · {:.2}", s.look_sensitivity)
 }
 
 pub fn mute_btn_label(s: &LocalSettings) -> String {
@@ -4056,6 +4065,7 @@ fn local_settings_clicks(
     label: Res<HouseLabel>,
     mut settings: ResMut<LocalSettingsState>,
     look: Query<&Interaction, (Changed<Interaction>, With<SettingsLookBtn>)>,
+    look_down: Query<&Interaction, (Changed<Interaction>, With<SettingsLookDownBtn>)>,
     mute: Query<&Interaction, (Changed<Interaction>, With<SettingsMuteBtn>)>,
     invert: Query<&Interaction, (Changed<Interaction>, With<SettingsInvertBtn>)>,
     mouse_look: Query<&Interaction, (Changed<Interaction>, With<SettingsMouseLookBtn>)>,
@@ -4075,7 +4085,14 @@ fn local_settings_clicks(
     let mut changed = false;
     for i in &look {
         if *i == Interaction::Pressed {
-            settings.inner.bump_look();
+            settings.inner.step_look(true);
+            changed = true;
+        }
+    }
+    // CARD PT-MOUSE-1 — − writes the same field; `changed` runs the same mark_and_persist.
+    for i in &look_down {
+        if *i == Interaction::Pressed {
+            settings.inner.step_look(false);
             changed = true;
         }
     }
@@ -6796,7 +6813,7 @@ mod tests {
         assert!(!s.mute && !s.invert_y && !s.hide_slabs);
         assert!((s.brightness - 1.0).abs() < f32::EPSILON);
         assert!((s.text_scale - 1.0).abs() < f32::EPSILON);
-        assert_eq!(look_btn_label(&s), "Look · 1.00");
+        assert_eq!(look_btn_label(&s), "Mouse sensitivity · 1.00");
         assert_eq!(mute_btn_label(&s), "Mute · off");
         assert_eq!(invert_btn_label(&s), "Invert-Y · off");
         assert!(s.mouse_look);
@@ -7370,7 +7387,7 @@ mod tests {
         assert_eq!(mouse_look_btn_label(&back), "Mouse look · on");
         assert!(back.mouse_look);
         assert_eq!(hide_slabs_btn_label(&back), "Hide guidance · on");
-        assert_eq!(look_btn_label(&back), "Look · 1.50");
+        assert_eq!(look_btn_label(&back), "Mouse sensitivity · 1.50");
         assert_eq!(brightness_btn_label(&back), "Brightness · 1.25");
         assert_eq!(text_scale_btn_label(&back), "Text scale · 1.10 · Comfort");
         assert_eq!(graphics_preset_btn_label(&back), "Graphics · High");

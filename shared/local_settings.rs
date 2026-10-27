@@ -1007,15 +1007,11 @@ impl LocalSettings {
         !self.sprint_mode_is_stick() && !self.sprint_mode_is_trigger()
     }
 
-    /// Cycle look sensitivity up by one step (wraps at max → min).
-    pub fn bump_look(&mut self) {
+    /// CARD PT-MOUSE-1 — step look sensitivity one notch up or down, clamped at min/max (no wrap).
+    pub fn step_look(&mut self, up: bool) {
         self.clamp_look();
-        let next = self.look_sensitivity + LOOK_SENS_STEP;
-        self.look_sensitivity = if next > LOOK_SENS_MAX + 0.001 {
-            LOOK_SENS_MIN
-        } else {
-            (next * 100.0).round() / 100.0
-        };
+        let step = if up { LOOK_SENS_STEP } else { -LOOK_SENS_STEP };
+        self.look_sensitivity = ((self.look_sensitivity + step) * 100.0).round() / 100.0;
         self.clamp_look();
     }
 
@@ -1275,13 +1271,18 @@ mod tests {
     }
 
     #[test]
-    fn bump_look_cycles_within_clamp() {
+    fn step_look_clamps_at_min_and_max_and_persists() {
+        // CARD PT-MOUSE-1 M-c — + at max and − at min stay clamped (no wrap); the value round-trips.
         let mut s = LocalSettings::default();
         assert!((s.look_sensitivity - 1.0).abs() < f32::EPSILON);
-        s.bump_look();
+        s.step_look(true);
         assert!((s.look_sensitivity - 1.25).abs() < 0.01);
         s.look_sensitivity = LOOK_SENS_MAX;
-        s.bump_look();
+        s.step_look(true);
+        assert!((s.look_sensitivity - LOOK_SENS_MAX).abs() < 0.01);
+        s.look_sensitivity = LOOK_SENS_MIN;
+        s.step_look(false);
+        let s = LocalSettings::from_json(&s.to_json().unwrap()).unwrap();
         assert!((s.look_sensitivity - LOOK_SENS_MIN).abs() < 0.01);
     }
 
