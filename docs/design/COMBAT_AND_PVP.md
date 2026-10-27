@@ -200,7 +200,7 @@ Infamy is criminality, stored as an integer 0 to 500.
 - If your highest Temper is 2 or more steps above theirs, multiply by 3.
 - If both gaps apply, multiply by 4. Cap the one kill at +100.
 - Three Clear kills on players 8 or more proficiency below you, inside one real hour: an extra **+50**, and a review-log mark (§16).
-- Decay: **2 per real hour** while you are out of combat and not standing in the lawless deep. Decay pauses for 10 minutes after you hit a Clear player.
+- Decay: **2 per real hour, only while you are online** (N1, §9.2), out of combat and not standing in the lawless deep. Logging off never washes infamy. Decay pauses for 10 minutes after you hit a Clear player.
 - Floor 0. Cap 500.
 
 A good deed lowers infamy when infamy is above 0. The deed is a real verb for a player below proficiency 20 who is not in your guild, not in an allied guild, and not on your friends list: tend a Stressed node of theirs through to Idle, escort them along a corridor they did not start, or hand them a crafted consumable they then use. They confirm with E. You must be within 30 m.
@@ -297,7 +297,11 @@ Conquer Online is a benchmark only: no names, numbers, items or steps are copied
 - **CO5 (council decision):** nothing lets money skip consequences: no bail, no guild-fund cover, no premium buy-back.
 - **CO6 under A12 (council decision):** registered groups keep ally and enemy lists. Each group's laws decide what they mean for its members, but a group's lists never change sentry infamy.
 - **CO4 (council decision):** see §10. War spoils are zero-sum on the one ledger, nothing is created from nothing, and there is no offline version (:40).
-- **OPEN (no numbers):** CO1 under A14 (infamy decay only while online, vs :203); the CO2 debt window; what counts as a valid negotiated return (Conquer has no precedent); jail length and release terms.
+- **OPEN-NUMBERS-1 (council decision under Sherif's 1:58 PM ET order, #738 6449750000; every number is a playtest-tunable placeholder, not Sherif canon).** Sherif, 2026-10-27 1:58 PM ET: "Consult Ra-Thor and the PATSAGi Councils to deliberate and decide everything regarding all of this, Mate: Use Ra-Thor's creativity"
+  - **N1 (closes CO1/A14):** infamy decays only while the player is online (:203, :642). Logging off never washes it.
+  - **N2 (CO2):** each PK opens its own debt for 7 real days, counted in real time so an offline victim is not punished. If it is not resolved, the loot stays where it is, and that PK's valence drop is repaid only by a later jail term or good deed by the PKer. That debt never expires.
+  - **N3 (A21):** a valid negotiated return is a two-party trade, confirmed by both sides at a sentry post's edge and logged (domes and guards refuse Marked, :104, :187), that moves the stolen share back to the victim from the PKer's own ledger. A vigilante may broker it. Valence resets in proportion to the share returned, so a victim may forgive part. It is invalid while the victim is under threat (inside an Aggressor timer or in the lawless deep), and a third party's ledger never counts.
+  - **N4 (A22, A26):** a Marked or Outlaw player is caught when an Apprehend-mode player (:162), a vigilante (CO3, :296), or a sentry kills them in sentry range, or when they surrender at a post. In jail they mine: each ore load repays open debts first, then lowers infamy by 5, separate from the good-deed caps (:208). Release comes once all open debts are paid and infamy is below 100 (leaving Marked, :187). Surrender halves the infamy still above 100. They keep control of their character (R6); logging out pauses the sentence and never shortens it. No bail (CO5).
 
 ---
 
@@ -635,7 +639,7 @@ Numbers only. The rulings above stay if these move.
 - PvP and PvE player health: 200.
 - Aegis: proficiency 12, 8 hours in the wilds or the deep, 14 real days, ends on the first hit dealt.
 - Dome shimmer 15 m. Guard leash 20 m. Homestead work radius 8 m. Spawn calm 8 s and 6 m.
-- Aggressor mark 90 s. Infamy +25, ×3 or ×4 on the gaps, cap +100 per kill, extra +50 on the third low-proficiency kill in an hour. Thresholds 100 and 300. Cap 500. Decay 2 per real hour.
+- Aggressor mark 90 s. Infamy +25, ×3 or ×4 on the gaps, cap +100 per kill, extra +50 on the third low-proficiency kill in an hour. Thresholds 100 and 300. Cap 500. Decay 2 per real hour, online only (N1). PK debt window 7 real days (N2). Jail: −5 infamy per ore load, release below 100 with debts paid (N4).
 - Gap tests: 8 proficiency, 2 Temper steps.
 - Good deed ±8, pair window 7 days, 3 deeds a day, 30 m, 30-day alt exclusion.
 - Invitations: 14 days at 300 infamy or at 200 righteousness. Exit quest 28 days. Censure 7 days. Ascension infamy halved. Re-confirm allegiance in 7 days.
