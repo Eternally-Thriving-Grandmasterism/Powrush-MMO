@@ -205,6 +205,21 @@ impl Plugin for LivingEcologyPlugin {
     }
 }
 
+/// CARD PT-COLLIDE-1 — the five yard tree spots. Spawn and trunk push-out both read this.
+pub const YARD_TREE_SPOTS: [Vec3; 5] = [
+    Vec3::new(-5.2, 1.2, -2.4),
+    Vec3::new(-6.4, 1.2, 2.8),
+    Vec3::new(5.8, 1.2, -4.1),
+    Vec3::new(6.6, 1.2, 3.2),
+    Vec3::new(-3.8, 1.2, 6.0),
+];
+/// CARD PT-COLLIDE-1 — yard trunk radius, same as the trunk `Cylinder` in `spawn_ecology`.
+pub const YARD_TRUNK_R: f32 = 0.22;
+/// CARD PT-COLLIDE-1 — yard trees show in realm 0 and 2, so only there they push.
+pub const fn yard_trees_shown(realm: Option<u8>) -> bool {
+    matches!(realm, None | Some(0) | Some(2))
+}
+
 fn spawn_ecology(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -248,14 +263,7 @@ fn spawn_ecology(
         YARD_LEAF,
         preset,
     ));
-    let tree_spots = [
-        Vec3::new(-5.2, 1.2, -2.4),
-        Vec3::new(-6.4, 1.2, 2.8),
-        Vec3::new(5.8, 1.2, -4.1),
-        Vec3::new(6.6, 1.2, 3.2),
-        Vec3::new(-3.8, 1.2, 6.0),
-    ];
-    for pos in tree_spots {
+    for pos in YARD_TREE_SPOTS {
         commands.spawn((
             (
                 Mesh3d(trunk.clone()),
@@ -429,7 +437,7 @@ fn dress_for_climate(
     };
     for (prop, mut vis) in &mut q {
         let show = match prop.kind {
-            PropKind::Tree => matches!(id, 0 | 2),
+            PropKind::Tree => yard_trees_shown(realm.current),
             PropKind::Stone => matches!(id, 1 | 4),
             PropKind::Deer => matches!(id, 0 | 2),
             PropKind::Crystal => matches!(id, 1 | 4),

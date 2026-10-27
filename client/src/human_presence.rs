@@ -165,6 +165,8 @@ const FOLLOW_LERP_AT_60: f32 = 0.12;
 const CAM_WALL_MARGIN: f32 = 0.3;
 /// CARD CAM-COLLIDE-1 — closest the wall pull may place the camera to the pivot.
 const CAM_WALL_FLOOR: f32 = 0.6;
+/// CARD PT-COLLIDE-1 — player body radius for the trunk push-out. Playtest-tunable placeholder.
+const PLAYER_TRUNK_RADIUS: f32 = 0.3;
 /// Horizontal accel toward wish speed (units/s²).
 pub const MOVE_ACCEL: f32 = 28.0;
 /// Horizontal decel when wish is released — stop-on-release, no ice-skate.
@@ -1179,6 +1181,7 @@ fn apply_locomotion(
     settings: Option<Res<LocalSettingsState>>,
     mut latch: ResMut<JumpLatch>,
     mut presence: ResMut<SoftPresence>,
+    trees: (Option<Res<crate::living_practice_loop::SoftPlayerRealm>>, Option<Res<crate::vegetation::FieldTrunks>>),
 ) {
     // PLAYTEST-STRAFE-FIX-1 — snapshot last tick's end before integrating.
     presence.prev_tick = Some(presence.position);
@@ -1256,12 +1259,28 @@ fn apply_locomotion(
     }
     let velocity = presence.velocity;
     presence.position += velocity * dt;
+    // CARD PT-COLLIDE-1 — trunks push out on x/z, only for the tree set shown in this realm.
+    use crate::living_ecology::{yard_trees_shown, YARD_TREE_SPOTS, YARD_TRUNK_R};
+    let yard = yard_trees_shown(trees.0.and_then(|r| r.current)).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|spot| (spot.xz(), YARD_TRUNK_R));
+    let field = trees.1.iter().flat_map(|f| f.0.iter().copied());
+    push_out_of_trunks(&mut presence.position, yard.chain(field));
     if presence.position.y <= STAND {
         presence.position.y = STAND;
         presence.velocity.y = 0.0;
         presence.grounded = true;
     }
     presence.curr_tick = Some(presence.position);
+}
+
+/// CARD PT-COLLIDE-1 — push `pos` out of each trunk circle on x/z only; `y`, grounded and the jump latch are untouched.
+fn push_out_of_trunks(pos: &mut Vec3, trunks: impl IntoIterator<Item = (Vec2, f32)>) {
+    for (center, radius) in trunks {
+        let (off, reach) = (pos.xz() - center, radius + PLAYER_TRUNK_RADIUS);
+        if off.length_squared() < reach * reach {
+            let out = center + off.try_normalize().unwrap_or(Vec2::X) * reach;
+            (pos.x, pos.z) = (out.x, out.y);
+        }
+    }
 }
 
 /// Latch the existing Peace **E** into a Use read the body can show.
@@ -4427,6 +4446,51 @@ mod tests {
             (got - distance).abs() < 1e-4,
             "door other than InYard pulled the camera to {got}"
         );
+    }
+
+    /// CARD PT-COLLIDE-1 F1 — walking into a trunk stops at its radius on x/z; y untouched.
+    #[test]
+    fn pt_collide_walk_stops_at_trunk_radius() {
+        let trunk = (Vec2::new(1.0, 2.0), 0.22);
+        let mut pos = Vec3::new(1.0, 0.9, 1.0);
+        (0..120).for_each(|_| { pos.z += 0.05; push_out_of_trunks(&mut pos, [trunk]); });
+        assert!((pos.xz().distance(trunk.0) - trunk.1 - PLAYER_TRUNK_RADIUS).abs() < 1e-4, "{pos}");
+        assert!(pos.z < trunk.0.y && pos.y == 0.9, "walked through or moved y: {pos}");
+    }
+
+    fn spawn_tree_part(app: &mut App, mesh: Mesh, at: Vec3, half: Vec3) {
+        let aabb = bevy::camera::primitives::Aabb::from_min_max(-half, half);
+        let handle = app.world_mut().resource_mut::<Assets<Mesh>>().add(mesh);
+        let (t, vis) = (Transform::from_translation(at), (InheritedVisibility::VISIBLE, ViewVisibility::VISIBLE));
+        app.world_mut().spawn((Mesh3d(handle), t, GlobalTransform::from(t), aabb, vis));
+    }
+
+    /// CARD PT-COLLIDE-1 F2 — (a) pivot pressed on a yard trunk, lens behind it: lens stays in front.
+    #[test]
+    #[ignore = "PT-CAM-TRUNK-1 (seed, not cut): 0.6 CAM_WALL_FLOOR puts the lens back in the trunk"]
+    fn pt_collide_cam_pivot_beside_trunk() {
+        let trunk = crate::living_ecology::YARD_TREE_SPOTS[0];
+        let mut app = collide_app();
+        let mut stand = Vec3::new(trunk.x, STAND, trunk.z - 0.1);
+        push_out_of_trunks(&mut stand, [(trunk.xz(), crate::living_ecology::YARD_TRUNK_R)]);
+        app.world_mut().resource_mut::<SoftPresence>().position = stand;
+        spawn_tree_part(&mut app, Mesh::from(Cylinder::new(0.22, 2.4)), trunk, Vec3::new(0.22, 1.2, 0.22));
+        spawn_follow_cam(&mut app, 4.0);
+        app.update();
+        let lens = cam_translation(&mut app);
+        assert!(lens.z < trunk.z - 0.22, "lens {lens} in or past trunk {trunk}");
+    }
+
+    /// CARD PT-COLLIDE-1 F2 — (b) lens inside a yard canopy cone (r 1.05).
+    #[test]
+    fn pt_collide_cam_lens_in_canopy() {
+        let mut app = collide_app();
+        let (canopy, half) = (pivot_of(&app) + Vec3::new(0.0, 0.3, 3.0), Vec3::new(1.05, 1.3, 1.05));
+        spawn_tree_part(&mut app, Mesh::from(Cone { radius: 1.05, height: 2.6 }), canopy, half);
+        spawn_follow_cam(&mut app, 3.0);
+        app.update();
+        let got = cam_distance_from_pivot(&mut app);
+        assert!(got < 3.0 - 1.05 * 0.5, "lens stayed in the canopy at {got}");
     }
 
     fn preset_follow_app(inner: LocalSettings) -> App {
