@@ -66,6 +66,15 @@ If combat is ever lifted, Core's rulings for a Surge horde option are:
 - **A combat run pays no more than a mining run** of equal difficulty and time.
 - **Both share one surge cap.** Fighting does not open a second reward lane.
 
+**Sherif's single-player horde picture (CYDRUID-DRAEK-LORE-1).** Sherif (https://x.com/AlphaProMega/status/1998596460703780956):
+
+> Imagine being a lone Cydruid or a lone Human fighting against hordes of Draeks and their strange, enslaved, alien minions in the single-player experience with Draeks Mindlords eventually coming out to battle after losing all their mind-controlled minions!
+
+**Draek Mindlords (CYDRUID-DRAEK-LORE-1).** A boss tier that comes out to battle only after a Draek force has lost all its mind-controlled minions. Name and trigger are Sherif's; nothing else about Mindlords is set.
+
+**Open question for Sherif (recorded, NOT resolved):** where Mindlords rank against the Hivelord, Crownstone and Drainer hierarchy. This doc does not place them.
+Mindlord detail lives in [`ENSLAVED_MINION_SPECIES.md` §3.1](ENSLAVED_MINION_SPECIES.md#31-draek-mindlords-boss-tier-after-the-minions-fall). Combat stays parked as above; this is a design note only.
+
 ---
 
 ## 4. Gear and build depth

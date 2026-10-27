@@ -28,6 +28,8 @@ Hundreds of Earth years ago, pre-fall Draeks were peaceful traders and technolog
 
 When the Draek females were lost and cloning became the only path to survival, their ethical codes fractured. In desperation, they stole Quellorian resonance technology. This theft is why modern Draek aesthetics and energy patterns **echo corrupted Quellorian elegance** — elegant radial designs twisted into jagged biomechanical consumption.
 
+> **Open question for Sherif (CYDRUID-DRAEK-LORE-1, recorded, NOT resolved).** The "females were lost" reason above is kept as written. Sherif's own post (https://x.com/AlphaProMega/status/1998591933929628004) says the Draeks invaded "...to harvest creatures' flesh for cloning; due to mysterious reasons. (Still unreleased to avoid spoilers.)" Question: does the public "loss of females" stand as a surface reason with a deeper unreleased one, or should the repo stop stating a reason? Until he answers, no doc invents or adds the mysterious reason.
+
 **Human Role in the Current War:**
 - Earth has become a critical battleground.
 - Quellorians actively ally with and protect Human and Cydruid forces on and around Earth.

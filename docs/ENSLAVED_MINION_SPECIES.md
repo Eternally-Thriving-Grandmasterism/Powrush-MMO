@@ -225,6 +225,17 @@ pub struct EnslavedMinionState {
 }
 ```
 
+### 3.1 Draek Mindlords (boss tier after the minions fall)
+
+Sherif (https://x.com/AlphaProMega/status/1998596460703780956):
+
+> Imagine being a lone Cydruid or a lone Human fighting against hordes of Draeks and their strange, enslaved, alien minions in the single-player experience with Draeks Mindlords eventually coming out to battle after losing all their mind-controlled minions!
+
+**Draek Mindlords (CYDRUID-DRAEK-LORE-1).** A boss tier that comes out to battle only after a Draek force has lost all its mind-controlled minions. Name and trigger are Sherif's; nothing else about Mindlords is set.
+
+**Open question for Sherif (recorded, NOT resolved):** where Mindlords rank against the Hivelord, Crownstone and Drainer hierarchy. This doc does not place them.
+Horde-mode framing: [`POWRUSH_LOOP_NOTES.md` §3](POWRUSH_LOOP_NOTES.md#3-horde-fighting-option-beside-mining-design-note-only).
+
 ---
 
 ## 4. Redemption, Rebellion & Narrative Weight
