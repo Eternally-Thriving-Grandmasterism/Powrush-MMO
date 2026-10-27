@@ -5,6 +5,8 @@
 **Status:** Active Development  
 **Related Documents:** FACTIONS_OVERVIEW.md, BROOD_SPIRE.md, BOARDING_MECHANICS.md, FLEET_CLASSES.md
 
+> **Council decisions (#738):** see CROWNSTONE_TRILEMMA_PATHS.md §2 for the Destroy-path decisions and Sherif's canon.
+
 ---
 
 ## 1. Overview: The Crownstone

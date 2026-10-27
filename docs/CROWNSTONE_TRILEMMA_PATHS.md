@@ -33,6 +33,14 @@ This document provides deep narrative, technical, and implementation-ready detai
 
 **Sherif, 2026-10-27 2:33 AM ET:** "Once a Crownstone is destroyed, gameplay continues after credits roll for all connected players at trigger event and then they continue playing. In a mature universe where enemies may exist, but the true AGIRBE concept can thrive and people can let their servers run like the perfect Simcity or similar game, Mate!"
 
+**Sherif, 2026-10-27 2:37 AM ET:** "After credits world should be more fun and exciting than new game plus, because it will be a whole new experience where dealing with mind controlled evil is minimal to zero, still with potential for weekly wars, or more mature deeper collaborative efforts to accelerate thriving and valence scores realistically; which will be, part of the key metrics players Will keep an eye on for winning or dopamine hits basically."
+
+**Sherif, 2026-10-27 2:39 AM ET:** "Make it possible for a player to become corrupt and employ the Crownstone for evil, but make it possible to overtake them, and this only unlocks during the fight and quest against the NPC original hive leader."
+
+**Sherif, 2026-10-27 2:39 AM ET:** "Yes, like the ring from Lord of the Rings."
+
+> **Note:** The ring is a design benchmark only. No Lord of the Rings names, scenes or items are copied.
+
 > **Note:** The "Quellorian forces" framing in the paragraph below is superseded on who takes part: Draek players and Alliance players cooperate. Group size is approximate (about 25 + 25, a ~50-player raid), since Sherif said "maybe".
 
 Per this canon, the Destroy path is:
@@ -44,12 +52,26 @@ Per this canon, the Destroy path is:
 
 Inspiration only (no names, items, steps or mechanics copied): World of Warcraft's AQ40 war effort and the TBC gate opening; Diablo II's Khalim's Flail quest and WoW attunements. Pattern to avoid: Onyxia attunement as a tedious chore.
 
+**Council decisions (council decision under Sherif's 2:30 AM order (#738 6435460534, 3/3)):**
+- **S1:** a four-part [NAME TBD] artifact chain. Each step needs one Draek and one Alliance player.
+  - **A1:** Vrendak's account covers breaking the link only, with no hint at what the harvest is for.
+  - **A3:** the node and the fragment are pieces of the one Crownstone (#787 P4).
+  - **A4:** no "taken safely"; extraction is dangerous (REDEMPTION L212).
+- **S2:** a two-stage war effort leading to the gate event. Runs lower `crownstone_integrity` (CROWNSTONE_QUESTLINE L35). Threshold and run count are placeholders.
+- **S3:** Sabotage and Capture are steps on the way; only Destroy rolls the credits (SERVER_MORALITY L215).
+- **S4:** any Draek players who reach the quest can join. Vrendak's Unbound are one route, not the gate. The truce covers the raid only.
+- **S5:** the after-credits world is a whole new experience, not New Game Plus (2:37 canon). Mind-controlled evil is minimal to zero; weekly wars stay possible. Thriving and valence are key player metrics, realistic and earned (no numbers or formulas here). Rung F's unlock lives here (GDD_LOGISTICS_SOCIETY L145); its law waits on AUTOMATION-LAW-1.
+- **A5:** thriving and valence metrics follow POWRUSH_LOOP_NOTES §5 (L96-104): no pay-to-win, no FOMO timers, no streak punishment, rewards earned by play.
+- **Corrupt bearer (2:39 canon):** a risk window inside the Destroy run only. "NPC original hive leader" may point to the Hivelord (#787 P1, a council decision).
+
 **Pending council decision (#738):**
-- The attunement chain.
-- The war-effort threshold and run count.
-- How the 25 + 25 come together.
-- How Destroy fits with Capture & Repurpose and Sabotage (those paths currently read as Quellorian-only next to this canon; not rewritten here).
-- The post-Crownstone world.
+- How a hive-linked Draek player joins (S4).
+- How Destroy fits with Capture & Repurpose and Sabotage beyond S3 (those paths currently read as Quellorian-only next to this canon; not rewritten here).
+- Corrupt bearer: how corruption is earned or chosen.
+- Corrupt bearer: what a corrupt player can do, and for how long.
+- Corrupt bearer: what "overtake" means.
+- Corrupt bearer: whether the stone passes between players.
+- Corrupt bearer: how it ties to S4.
 
 **Still OPEN:** every raid name, boss, step and stat, and every chain puzzle, artifact name and lesson taught.
 
@@ -72,8 +94,8 @@ This path is framed as the ultimate act of liberation — ending the source of m
 - Brood Spire begins catastrophic structural failure
 
 ### Long-term Consequences
-- Draek remnants become decentralized feral swarms (new persistent threat type)
-- No possibility of redemption or hybrid units
+- Council decision under Sherif's 2:30 AM order: the world continues after credits in a mature universe (see the 2:33 canon in §2); friction comes from player wars, sabotage and accidents
+- Council decision under Sherif's 2:30 AM order: "enemies may exist, but the true AGIRBE concept can thrive" (Sherif, 2:33 AM ET)
 - Significant RBE moral ledger impact: "Genocide of a species?" or "Necessary surgical strike?"
 - Large one-time resource windfall from collapsing Draek consumption economy, but loss of future "redemption" resource streams
 
