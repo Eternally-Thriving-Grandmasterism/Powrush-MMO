@@ -61,7 +61,7 @@ Verdict key: **adopt** = take the pattern as is. **adapt-Powrush-style** = keep 
 
 ### 1.5 Star Wars Galaxies
 
-- Launched with 34 professions; later reduced to nine with crafting as one XP group; Trader was the crafting profession after the change ([Wikipedia: Star Wars Galaxies](https://en.wikipedia.org/wiki/Star_Wars_Galaxies)).
+- Launched with 34 professions; a later revamp used a shorter list (including Trader), with progress split into combat, crafting and entertaining XP groups ([Wikipedia: Star Wars Galaxies](https://en.wikipedia.org/wiki/Star_Wars_Galaxies)).
 - Design aimed at a dynamic economy and "a complicated division of labor"; players made blasters, starships, clothing, armour, food, housing, furniture and droids (same page).
 - Restoration server wiki (community emulator, not the original live game): crafting depends on surveying for resources, resource quality capping the best possible result, and an **experimentation** step that spends points to push stats; a Merchant line builds vendors and advertising ([SWG Restoration wiki: Crafting](https://swgr.org/wiki/crafting/)). Treat details as emulator-era.
 - SWG maker's-mark serials and resource spawns that rotate across planets: **UNVERIFIED** on fetched pages.
