@@ -386,7 +386,7 @@ impl GuidanceObjective {
             GuidanceObjective::HarvestWithInteract => "E tend the glow",
             GuidanceObjective::OpenInventory => "I open the satchel · see what you tended",
             GuidanceObjective::ShareAbundance => "R share · 1 gives to flow, 2 keeps in reserve",
-            GuidanceObjective::StepCharter => "Tab open the chart · then step up the ridge",
+            GuidanceObjective::StepCharter => "Tab once · the ridge opens",
             GuidanceObjective::PlantHouse => "Q plant a House stake",
             GuidanceObjective::OpenLedger => "L opens the Ledger",
             GuidanceObjective::BindEscort => "E bind at the Ledger · then escort to finish",
@@ -1297,7 +1297,7 @@ mod tests {
         g.shared_abundance = true;
         g.advance_if_ready();
         assert_eq!(g.objective, GuidanceObjective::StepCharter);
-        assert_eq!(g.objective.prompt(), "Tab open the chart · then step up the ridge");
+        assert_eq!(g.objective.prompt(), "Tab once · the ridge opens");
         g.ridge_stepped = true;
         g.advance_if_ready();
         assert_eq!(g.objective, GuidanceObjective::PlantHouse);
@@ -2711,7 +2711,7 @@ mod tests {
                 GuidanceObjective::ShareAbundance,
                 "R share · 1 gives to flow, 2 keeps in reserve",
             ),
-            (GuidanceObjective::StepCharter, "Tab open the chart · then step up the ridge"),
+            (GuidanceObjective::StepCharter, "Tab once · the ridge opens"),
             (GuidanceObjective::PlantHouse, "Q plant a House stake"),
             (GuidanceObjective::OpenLedger, "L opens the Ledger"),
             (GuidanceObjective::BindEscort, "E bind at the Ledger · then escort to finish"),
