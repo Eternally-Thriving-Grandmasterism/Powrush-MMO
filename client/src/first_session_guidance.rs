@@ -384,7 +384,7 @@ impl GuidanceObjective {
             GuidanceObjective::MoveAround => "WASD walk · Space jump · Shift sprint",
             GuidanceObjective::ApproachGlowingNode => "Walk to a glow",
             GuidanceObjective::HarvestWithInteract => "E tend the glow",
-            GuidanceObjective::OpenInventory => "I satchel · House after allocate",
+            GuidanceObjective::OpenInventory => "I open the satchel · House after allocate",
             GuidanceObjective::ShareAbundance => "R then 1 flow · 2 reserve",
             GuidanceObjective::StepCharter => "Tab the ridge",
             GuidanceObjective::PlantHouse => "Q plant a House stake",
@@ -2641,7 +2641,7 @@ mod tests {
             (GuidanceObjective::HarvestWithInteract, "E tend the glow"),
             (
                 GuidanceObjective::OpenInventory,
-                "I satchel · House after allocate",
+                "I open the satchel · House after allocate",
             ),
             (
                 GuidanceObjective::ShareAbundance,
@@ -2731,7 +2731,7 @@ mod tests {
         assert!(tended.house_dress_token().is_none());
         assert!(door_line_on_card(&tended).is_none());
         let skipped_card = lived_card_line(&tended, None);
-        assert!(skipped_card.contains("I satchel · House after allocate"));
+        assert!(skipped_card.contains("I open the satchel · House after allocate"));
         assert!(skipped_card.contains("H hides"));
         assert!(!skipped_card.contains("Sanctuary yard"));
         assert!(!names_key(&skipped_card, e));
@@ -2770,7 +2770,7 @@ mod tests {
         assert!(!door.contains(PeaceKey::Digit1.display_label()));
         assert_eq!(
             GuidanceObjective::OpenInventory.prompt(),
-            "I satchel · House after allocate"
+            "I open the satchel · House after allocate"
         );
         assert!(crate::hour_sacred::four_place_landings_only());
         assert_eq!(HOUSE_PEOPLES.len(), 5);
@@ -2792,7 +2792,7 @@ mod tests {
         );
 
         let card = lived_card_line(&ready, None);
-        assert!(card.contains("I satchel · House after allocate"));
+        assert!(card.contains("I open the satchel · House after allocate"));
         assert!(card.contains(&door));
         assert!(card.contains("H hides"));
         assert!(!names_key(&card, e));
@@ -2902,7 +2902,7 @@ mod tests {
         app.update();
         let (_, skipped_paint) = guidance_card_section(&mut app);
         assert!(!skipped_paint.contains("Human Sanctuary yard"));
-        assert!(skipped_paint.contains("I satchel · House after allocate"));
+        assert!(skipped_paint.contains("I open the satchel · House after allocate"));
         {
             let mut guidance = app.world_mut().resource_mut::<FirstSessionGuidance>();
             guidance.house_live = true;
@@ -2917,7 +2917,7 @@ mod tests {
         assert!(after.contains("Cydruid Heartwood"));
         assert!(after.contains("Quellorian Threshold"));
         assert!(after.contains("Draek Depths"));
-        assert!(after.contains("I satchel · House after allocate"));
+        assert!(after.contains("I open the satchel · House after allocate"));
         {
             let mut guidance = app.world_mut().resource_mut::<FirstSessionGuidance>();
             guidance.people_landing = Some(PeopleLanding::SanctuaryYard);
@@ -2927,7 +2927,7 @@ mod tests {
         assert!(!crossed_paint.contains("Human Sanctuary yard"));
         assert!(!names_key(&crossed_paint, e));
         assert!(!names_key(&crossed_paint, q));
-        assert!(crossed_paint.contains("I satchel · House after allocate"));
+        assert!(crossed_paint.contains("I open the satchel · House after allocate"));
     }
 
     /// CARD VP-HUD-GOLD-1 — the guidance strip spawns on the title palette:

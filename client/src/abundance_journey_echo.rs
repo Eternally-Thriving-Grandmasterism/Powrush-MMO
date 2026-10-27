@@ -124,6 +124,19 @@ fn save_blob(json: &str) -> bool {
     }
 }
 
+/// Lines the Journey body shows before the '+N more' hint.
+const JOURNEY_ECHO_SHOWN: usize = 10;
+
+/// CARD PLAYTEST-HUD-COPY-1 — overflow hint when a list is cut short.
+/// Empty when everything fits, so short lists read exactly as before.
+pub(crate) fn more_hint(total: usize, shown: usize) -> String {
+    if total > shown {
+        format!("\n+{} more", total - shown)
+    } else {
+        String::new()
+    }
+}
+
 #[derive(Component)]
 pub struct JourneyEchoRoot;
 
@@ -330,7 +343,7 @@ fn update_echo_body(
         echo.lines
             .iter()
             .rev()
-            .take(10)
+            .take(JOURNEY_ECHO_SHOWN)
             .map(|l| {
                 let mark = match l.kind {
                     JourneyKind::PracticeSeal => "(•)",
@@ -342,6 +355,7 @@ fn update_echo_body(
             })
             .collect::<Vec<_>>()
             .join("\n")
+            + &more_hint(echo.lines.len(), JOURNEY_ECHO_SHOWN)
     };
     for mut text in &mut q {
         **text = body.clone();
@@ -351,6 +365,15 @@ fn update_echo_body(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD PLAYTEST-HUD-COPY-1 — '+N more' only when the list is cut.
+    #[test]
+    fn more_hint_names_hidden_count_only_on_overflow() {
+        assert_eq!(more_hint(0, JOURNEY_ECHO_SHOWN), "");
+        assert_eq!(more_hint(10, JOURNEY_ECHO_SHOWN), "");
+        assert_eq!(more_hint(13, JOURNEY_ECHO_SHOWN), "\n+3 more");
+        assert_eq!(more_hint(9, 8), "\n+1 more");
+    }
 
     /// CARD HUD-ANCHOR-REGISTRY-2B — Journey position is the registry, Style is the coded literal.
     #[test]

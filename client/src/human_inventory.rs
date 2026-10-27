@@ -347,6 +347,16 @@ fn update_watch_strip(
 }
 
 
+/// CARD PLAYTEST-HUD-COPY-1 — one tooltip line for the highlighted satchel item:
+/// what it is and what to do with it. Reuses the plate's own words.
+fn satchel_slot_tooltip(slot: SatchelSlot) -> &'static str {
+    match slot {
+        SatchelSlot::Vitality => "Vitality · grows with each tend (E) · R allocate surplus",
+        SatchelSlot::Harmony => "Harmony · held, not hoarded · R allocate surplus",
+        SatchelSlot::Joy => "Joy · held, not hoarded · R allocate surplus",
+    }
+}
+
 /// MERCY_TEMPER T3 — tool name on the existing I satchel face.
 fn tool_tier_satchel_name(tier: ToolTier) -> &'static str {
     match tier {
@@ -473,14 +483,17 @@ abundance is held, not hoarded
 {} [2] Harmony    {:.1}
 {} [3] Joy        {:.1}
 
-Harvests {}{temper_block}",
+Harvests {}{temper_block}
+
+{}",
         mark(SatchelSlot::Vitality),
         pool.vitality,
         mark(SatchelSlot::Harmony),
         pool.harmony,
         mark(SatchelSlot::Joy),
         pool.joy,
-        pool.harvests
+        pool.harvests,
+        satchel_slot_tooltip(inv.selected)
     );
     for mut text in &mut body {
         if text.as_str() != body_line {
@@ -520,6 +533,21 @@ mod tests {
     use shared::pause_ledger_face::{face_from, face_is_steward_honest, LETHAL_DECLARED_LINE};
     use shared::temper::temper_copy_is_honest;
     use shared::week_audit::WeekAudit;
+
+    /// CARD PLAYTEST-HUD-COPY-1 — every satchel item has a named tooltip line.
+    #[test]
+    fn satchel_tooltip_names_each_item_and_its_use() {
+        for (slot, word) in [
+            (SatchelSlot::Vitality, "Vitality"),
+            (SatchelSlot::Harmony, "Harmony"),
+            (SatchelSlot::Joy, "Joy"),
+        ] {
+            let line = satchel_slot_tooltip(slot);
+            assert!(line.starts_with(word), "{line}");
+            assert!(line.contains("R allocate surplus"), "{line}");
+            assert!(!line.contains('\n'), "one line: {line}");
+        }
+    }
 
     /// CARD HUD-ANCHOR-REGISTRY-2B — Watch and Pickup read the registry.
     /// Satchel stays `bottom: Val::Percent(22.0)` and is not a joiner.

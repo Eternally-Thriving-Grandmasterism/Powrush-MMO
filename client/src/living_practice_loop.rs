@@ -486,6 +486,27 @@ mod tests {
         assert_eq!(loop_.surface.next(), PracticeSurface::PrincipleSealed);
     }
 
+    /// CARD PLAYTEST-HUD-COPY-1 — the strip's three colours (primary, gold flash,
+    /// secondary) each ride on their own words, so no state is colour-only.
+    #[test]
+    fn practice_strip_colour_states_each_carry_words() {
+        let mut loop_ = LivingPracticeLoop::default();
+        loop_.active = true;
+        let working = practice_strip_body(&loop_, 0.0);
+        assert!(working.contains("Caps Across Climates"), "{working}");
+        assert!(working.contains(&format!("(0/{})", loop_.harvests_needed)), "{working}");
+        loop_.celebrate_until = 10.0;
+        let flash = practice_strip_body(&loop_, 1.0);
+        assert!(flash.starts_with("Surface cleared"), "{flash}");
+        loop_.celebrate_until = 0.0;
+        loop_.principle_sealed = true;
+        loop_.surface = PracticeSurface::PrincipleSealed;
+        let sealed = practice_strip_body(&loop_, 1.0);
+        assert!(sealed.contains("same principle across three climates"), "{sealed}");
+        assert_ne!(working, flash);
+        assert_ne!(flash, sealed);
+    }
+
     #[test]
     fn after_seal_line_names_the_well_and_keeps_the_seal() {
         let seal =
