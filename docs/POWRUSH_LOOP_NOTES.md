@@ -72,7 +72,9 @@ If combat is ever lifted, Core's rulings for a Surge horde option are:
 
 **Draek Mindlords (CYDRUID-DRAEK-LORE-1).** A boss tier that comes out to battle only after a Draek force has lost all its mind-controlled minions. Name and trigger are Sherif's; nothing else about Mindlords is set.
 
-**Open question for Sherif (recorded, NOT resolved):** where Mindlords rank against the Hivelord, Crownstone and Drainer hierarchy. This doc does not place them.
+**Crownstone ruling (Sherif, 2026-10-27 12:35 AM ET, verbatim):** "There's 1 Crownstone which is what enables the ultimate controller of the hive mind and all below." Recorded only as said: exactly one Crownstone, and it enables the ultimate hive-mind controller over all below.
+
+**Open question for Sherif (recorded, NOT resolved):** where Mindlords sit beneath the Crownstone-enabled controller, relative to the Hivelord and Drainers. This doc does not place them.
 Mindlord detail lives in [`ENSLAVED_MINION_SPECIES.md` §3.1](ENSLAVED_MINION_SPECIES.md#31-draek-mindlords-boss-tier-after-the-minions-fall). Combat stays parked as above; this is a design note only.
 
 ---
