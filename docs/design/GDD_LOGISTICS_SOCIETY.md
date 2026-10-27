@@ -155,13 +155,18 @@ Online 2.0 only. PvP/Online HOLD is unchanged.
 - **AL1 (council decision, A17):** this law lifts `OFFLINE_ECONOMY_COURT` :24 Online only, and only for guild-chartered automation in LAYERED §3b (:412, :603). Personal bots, companions and outside macros stay refused. Public AH, NFT and gold sink stay refused. Every automated unit is a world object owned by a registered group and shows in the event log.
 - **AL2 (council decision):** care-only stays hands-only (LAYERED :121). Automation cannot Mend a Stressed node, take rare or first samples, or Take at a Glowing node meant for hand care.
 - **AL3 (council decision):** node fatigue limits automation on its own (LAYERED :124-131, :603). Automated take obeys Resting/Stressed and upkeep keeps charging; no separate production cap.
-- **AL4 (council decision, A16):** rung F (:145) runs while owners are offline only with insurance, guards and coverage in place. "Offline" here means the owners are logged off on an Online 2.0 server, never the Offline 1.0 SKU. While they are away the chain stays open to sabotage and accidents under §5 (:151-160) and LAYERED §3g (ruin, not delete, under world_harm_mode), and the group gets reports and alarms (§6).
+- **AL4 (council decision, A16):** rung F (:145) runs while owners are offline only with insurance, guards and coverage in place. "Offline" here means the owners are logged off on an Online 2.0 server, never the Offline 1.0 SKU. While they are away the chain stays open to sabotage and accidents under §5 (:173-184) and LAYERED §3g (ruin, not delete, under world_harm_mode), and the group gets reports and alarms (§6).
 - **AL5 (council decision, A18/A19):** automated output earns group throughput only: no personal Temper/Lumen/Ward, proficiency or ledger standing (:147). Nobody progresses while asleep; no real-money shortcut.
-- **AL6 (PROPOSAL, A18):** each group's charter law governs its own automation: who may write standing orders and who answers for them, building on group-ordered sabotage co-attribution (:160).
+- **AL6 (PROPOSAL, A18):** each group's charter law governs its own automation: who may write standing orders and who answers for them, building on group-ordered sabotage co-attribution (:182).
 - **AL7 (council decision):** rung F's server-wide unlock stays tied to the after-credits world shift (`CROWNSTONE_TRILEMMA_PATHS` :63, S5). Rungs A-E follow the in-world prerequisites in §4.
 - **AL8 (untouched, A16):** offline droids and drones stay refused (LAYERED :444) until Sherif lifts that line himself.
 
-**OPEN (no numbers):** how long offline chains may run; cap and upkeep amounts; insurance terms; alarm delivery. Every name is [NAME TBD].
+**OPEN-NUMBERS-1 (council decision under Sherif's 1:58 PM ET order, quoted in `COMBAT_AND_PVP` §9.2; every number is a playtest-tunable placeholder, not Sherif canon):**
+- **M1:** rung F chains run for up to 72 real hours after the last online member with order rights logs off, then fall to Resting. They are never deleted, and one login restarts them.
+- **M2 (A23):** no separate cap (AL3). Upkeep is 10% of the chain's output per running hour, paid as Reserve repair-rights from the group's Reserve (`CREDIT_RESERVE_LOGISTICS` :24), never a price. At zero Reserve the chain idles to Resting.
+- **M3 (A23):** the group buys cover per chain from Reserve. It repairs sabotage or accident damage up to the chain's build cost in materials, minus a 20% deductible, after §5's automatic repair claim (naive row, :180) has run. It never covers sabotage by the group's own members or ordered by its own officers, and never pays a saboteur's debt (CO5).
+- **M4:** an alarm fires at the depot in-world and on the group minimap where its radar covers the depot (§7), alerts online officers on the guild channel at once (§6), and leaves an event-log report waiting at next login.
+**OPEN (Sherif only):** any alert outside the game (phone push or email). Every name is [NAME TBD].
 
 ---
 
