@@ -106,3 +106,5 @@ Any card that grows out of these notes must keep all of these:
 ---
 
 Online grey · no OFFER NEXT. Contact: [info@Rathor.ai](mailto:info@Rathor.ai).
+
+- Crownstone Destroy path: Sherif's canon (cross-faction Draek + Alliance endgame raid, server-wide achievement) is recorded in CROWNSTONE_TRILEMMA_PATHS.md §2 (CROWNSTONE-QUEST-1).
