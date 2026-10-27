@@ -241,6 +241,7 @@ fn update_soft_bodies(
             .map(|l| format!("· {}", l.text))
             .collect::<Vec<_>>()
             .join("\n")
+            + &crate::abundance_journey_echo::more_hint(echo.lines.len(), 8)
     };
     for mut text in &mut mercy {
         if text.as_str() != mercy_body {
