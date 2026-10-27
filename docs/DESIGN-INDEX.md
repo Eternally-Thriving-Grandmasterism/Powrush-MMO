@@ -21,6 +21,7 @@ All core systems below are derived from the living Ra-Thor monorepo (https://git
 - [Faction leaders — one face for each People, and a figurehead for each grand faction](design/FACTION_LEADERS.md)
 - [Server morality — good, evil and double agents, and each server's heaven-to-hell meter](design/SERVER_MORALITY.md)
 - [In-game radio — genre stations, per-track licence manifest + CI check design, future procedural/premium slots](design/AUDIO_RADIO_DESIGN.md)
+- [In-game radio unlock quest — equal combat and Engineering paths, account-bound unlock, tradeable blueprint rules + anti-exploit guards, held names](design/AUDIO_RADIO_QUEST_DESIGN.md)
 
 ## How These Integrate with Current Powrush-MMO
 
