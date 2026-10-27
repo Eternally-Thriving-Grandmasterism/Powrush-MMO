@@ -77,6 +77,7 @@ If combat is ever lifted, Core's rulings for a Surge horde option are:
 **Mindlord placement: decided by the councils (DRAEK-HIERARCHY), council decision under Sherif's 12:36 AM rule.** The record (P1-P4) is in [`ENSLAVED_MINION_SPECIES.md` §3.1](ENSLAVED_MINION_SPECIES.md#31-draek-mindlords-boss-tier-after-the-minions-fall). Mindlord rank versus the Hivelord's chosen Brood Lords stays open there.
 Hierarchy design rule: see [`ENSLAVED_MINION_SPECIES.md` §3.1](ENSLAVED_MINION_SPECIES.md#31-draek-mindlords-boss-tier-after-the-minions-fall).
 Mindlord detail lives in [`ENSLAVED_MINION_SPECIES.md` §3.1](ENSLAVED_MINION_SPECIES.md#31-draek-mindlords-boss-tier-after-the-minions-fall). Combat stays parked as above; this is a design note only.
+Crownstone Destroy path: Sherif's canon (cross-faction Draek + Alliance endgame raid, server-wide achievement) is recorded in [`CROWNSTONE_TRILEMMA_PATHS.md` §2](CROWNSTONE_TRILEMMA_PATHS.md#2-path-1-destroy-the-crownstone) (CROWNSTONE-QUEST-1).
 
 ---
 
