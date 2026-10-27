@@ -63,15 +63,14 @@ Inspiration only (no names, items, steps or mechanics copied): World of Warcraft
 - **S5:** the after-credits world is a whole new experience, not New Game Plus (2:37 canon). Mind-controlled evil is minimal to zero; weekly wars stay possible. Thriving and valence are key player metrics, realistic and earned (no numbers or formulas here). Rung F's unlock lives here (GDD_LOGISTICS_SOCIETY L145); its law waits on AUTOMATION-LAW-1.
 - **A5:** thriving and valence metrics follow POWRUSH_LOOP_NOTES §5 (L96-104): no pay-to-win, no FOMO timers, no streak punishment, rewards earned by play.
 - **Corrupt bearer (2:39 canon):** a risk window inside the Destroy run only. "NPC original hive leader" may point to the Hivelord (#787 P1, a council decision).
+- **A under A6 (council decision under Sherif's 2:30 AM order):** a hive-linked Draek player has a selfish in-world motive to join: lore says the Hivelord may take any Draek as its next host (THE_HIVELORD :88). This is lore only; no player ever loses control of their character. At the quest door they cut their hive link ([NAME TBD]) and lose hive bonuses as the price. Unbound and redeemed Draeks count too. The server-wide count is a placeholder.
+- **B under A7 and A8 (council decision under Sherif's 2:30 AM order):** the stone can be claimed only while exposed in the original Hivelord fight. The bearer gains power, and corruption and backlash grow the longer they hold it. Others overtake the bearer by force or by deceit, and each new bearer faces the same temptation. The bearer's refusal at the end is mounting corruption and debuffs on the bearer, never the game taking their inputs, so a second player completes the destruction. The ring is a benchmark only. Only Destroy rolls the credits (S3).
+- **R6 (council decision under Sherif's 2:30 AM order):** no loss of character control, ever. The bearer's risk is escalating debuffs and corruption.
+- **R7 (council decision under Sherif's 2:30 AM order):** only a player inside the quest and raid group can claim the stone. If the group wipes or the bearer leaves, the stone drops back into the fight.
 
 **Pending council decision (#738):**
-- How a hive-linked Draek player joins (S4).
 - How Destroy fits with Capture & Repurpose and Sabotage beyond S3 (those paths currently read as Quellorian-only next to this canon; not rewritten here).
-- Corrupt bearer: how corruption is earned or chosen.
 - Corrupt bearer: what a corrupt player can do, and for how long.
-- Corrupt bearer: what "overtake" means.
-- Corrupt bearer: whether the stone passes between players.
-- Corrupt bearer: how it ties to S4.
 
 **Still OPEN:** every raid name, boss, step and stat, and every chain puzzle, artifact name and lesson taught.
 

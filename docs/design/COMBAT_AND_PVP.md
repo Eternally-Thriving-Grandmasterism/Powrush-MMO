@@ -246,10 +246,10 @@ Equipped gear stays on the body in every zone. Ordinary victims do not drop it. 
 | Zone | Equipped | Carried goods | Durability and charges | Proficiency / XP | Where you wake |
 |---|---|---|---|---|---|
 | Dome, core, landing, Aegis | Stays | Stays | Untouched by players | Untouched | You do not die to a player |
-| Contested wilds, victim Clear or Aggressor | Stays | Stays | 2% of a mend cycle nicked, repaired at a bench | Untouched | Your homestead core, else the nearest dome edge, outside the dome |
+| Contested wilds, victim Clear or Aggressor | Stays | Stays (overridden outside protected newbie zones by the 2:41 canon, §9.1) | 2% of a mend cycle nicked, repaired at a bench | Untouched | Your homestead core, else the nearest dome edge, outside the dome |
 | Contested wilds, victim Marked | Stays | 30% chance, one carried stack | Same nick | Untouched | Outside any dome |
 | Contested wilds, victim Outlaw | Stays | 60% chance, one carried stack | Same nick | Untouched | Outside any dome |
-| Lawless deep, Clear or Aggressor | Stays | Stays | Same nick | Untouched | Depths landing |
+| Lawless deep, Clear or Aggressor | Stays | Stays (overridden outside protected newbie zones by the 2:41 canon, §9.1) | Same nick | Untouched | Depths landing |
 | Lawless deep, Marked or Outlaw | Stays | 30% or 60%, one stack | Same nick | Untouched | Depths landing |
 | War instance | Stays | Stays | Charges and durability spend on the map. They do not spend in the Muster Vault | Untouched | Muster Vault, then the next wave |
 | Battleground or Lane Trial | Own gear locked and returned | Own satchel locked and returned | Match kit only | Untouched | Match respawn |
@@ -265,6 +265,25 @@ A disconnect while in player combat leaves the body for 30 s under the same drop
 **Bounties.** Sentries publish a bounty on every Marked or Outlaw player. Claim it by bringing that player to 0 health in the contested wilds or the lawless deep. Duel, war, and battleground kills do not claim it.
 
 Payout posts on the one ledger from source `bounty_claim`: 40 Reserve, plus 10 per 100 infamy, capped at 120. The server emission cap is 2,000 Reserve per week from this source. Past the cap, the claim still logs and pays 0. Once per hunter per outlaw per 24 real hours. No claim on your own account's characters. No claim on a player who was on your friends list or in your guild in the last 30 days.
+
+### 9.1 Open PvP canon (CROWNSTONE-PVP-R3-1)
+
+**Sherif, 2026-10-27 2:41 AM ET:** "Part of the open PVP aspect outside of protected newbie zones is like Conquer Online which allows for PKing to steal loot and exp, but we'll make it more tasteful even if a similar concept erupts between the corrupted."
+
+- **D (council decision under Sherif's 2:30 AM order):** outside protected newbie zones, a PK "steal" takes part of what the victim carries, never equipped gear or progression. The victim wins it back by in-game work, never by paying. The take scales with zone tier and the victim's mark (§7.1 :186-188). Take amounts are OPEN.
+- **R4 under A9 (council decision under Sherif's 2:30 AM order):** the 2:41 canon overrides only the Carried goods cell of the Clear/Aggressor rows at :249 (contested wilds) and :252 (lawless deep): clear victims there lose a partial take, smaller than marked victims. The :248 row and every Equipped and Proficiency / XP cell stay as written.
+- **A13 (council decision under Sherif's 2:30 AM order):** Sherif's "protected newbie zones" are the Faction Sanctuary Dome (:59, §5.1) and the Newcomer Aegis (:57, §5.2) already on main. This closes A9's open question.
+- **R5 (council decision under Sherif's 2:30 AM order):** kills between corrupted players keep :192, so no infamy cost.
+
+**Sherif, 2026-10-27 2:52 AM ET:** "Perhaps they can steal loot, and affect the global valence score luke vigilance improves it and PKers make it worse. Do we have levels like Diablo 2 with talent trees like world of Warcraft? If we already employ levels, then Exp., wouldn't be wrong, but we should remember always when designing Powrush-MMO that the ultimate goal is to make our reality better by offering humanity the ultimate sandbox to learn from safe trial and error upwards of global nuclear war and as perfectly utopian as an AGIRBE!"
+
+**Sherif, 2026-10-27 2:53 AM ET:** "Can't farm it through PvP if it's stolen, because totals would Equalize."
+
+**Sherif, 2026-10-27 2:56 AM ET:** "This applies to both, Mate! If a player makes valence drop with PKing by 10 points for example, the vigilante resolves it by killing him or catching him and restoring the lost loot through negotiations for example and that act resets the 10 valence the other way."
+
+- **R3 (council decision under Sherif's 2:30 AM order):** loot only. No XP or progression is ever taken (:244, :531 stand).
+- **Zero-sum steal (council decision under Sherif's 2:30 AM order):** a PK steal moves carried goods from the victim to the killer on the one ledger (:31), so no items are created or destroyed and there is no bonus drop.
+- The valence side (R3b, PROPOSED) lives in [SERVER_MORALITY](SERVER_MORALITY.md) §3.2.
 
 ---
 
