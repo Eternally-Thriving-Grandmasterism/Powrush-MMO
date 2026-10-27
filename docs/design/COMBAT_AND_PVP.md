@@ -285,6 +285,20 @@ Payout posts on the one ledger from source `bounty_claim`: 40 Reserve, plus 10 p
 - **Zero-sum steal (council decision under Sherif's 2:30 AM order):** a PK steal moves carried goods from the victim to the killer on the one ledger (:31), so no items are created or destroyed and there is no bonus drop.
 - The valence side (R3b, PROPOSED) lives in [SERVER_MORALITY](SERVER_MORALITY.md) §3.2.
 
+### 9.2 Conquer Online PK bench (CO-PK-BENCH-1)
+
+**Sherif, 2026-10-27 2:57 AM ET:** "We can learn a lot from conquer Online PK systems and how they play out in CO servers."
+
+**Sherif, 2026-10-27 2:58 AM ET:** "Their guild, ally and enemy system is great too. As well as the weekly wars and jails systems for war and catching PKers to mine for gold to be freed from the punishment caves of jail and so on."
+
+Conquer Online is a benchmark only: no names, numbers, items or steps are copied, and every name is [NAME TBD].
+
+- **CO3 under A15 and R6 (council decision):** a jail ([NAME TBD] punishment caves) holds high-infamy PKers caught by guards or vigilantes. It stays playable and the player keeps control of their character (R6, council ruling). The sentence pays the victim's zero-sum debt through the one ledger (:31), never XP. Kills inside cost no infamy (R5, council ruling, §9.1).
+- **CO5 (council decision):** nothing lets money skip consequences: no bail, no guild-fund cover, no premium buy-back.
+- **CO6 under A12 (council decision):** registered groups keep ally and enemy lists. Each group's laws decide what they mean for its members, but a group's lists never change sentry infamy.
+- **CO4 (council decision):** see §10. War spoils are zero-sum on the one ledger, nothing is created from nothing, and there is no offline version (:40).
+- **OPEN (no numbers):** CO1 under A14 (infamy decay only while online, vs :203); the CO2 debt window; what counts as a valid negotiated return (Conquer has no precedent); jail length and release terms.
+
 ---
 
 ## 10. Weekly guild war

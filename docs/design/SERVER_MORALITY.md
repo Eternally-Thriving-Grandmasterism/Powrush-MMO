@@ -118,6 +118,7 @@ The meter reads the sum of what the server's players do, in aggregate. Each inpu
 - **C and R3b (council decision under Sherif's 2:30 AM order; R3b PROPOSED, Sherif's "Perhaps"):** after-credits thriving and valence are this meter, its trend and band (:96-98), derived from play and never set by hand, pulled down by entropy (:114). A PK already reads toward hell through Grief (:115); vigilance (sentry records and bounties on the one ledger) is a toward-heaven read inside Tending (:112), its weight an open number (§9). The existing caps and review (:245) apply, the meter never names a player (:265), and the R3b cap covers only these valence reads. No new row, meter or currency.
 - **A10 and A11 (council decision under Sherif's 2:30 AM order):** only a kill that would add infamy lowers valence; kills of an Aggressor, Marked or Outlaw and kills inside consented frames do not ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) :192). That PK opens a zero-sum debt tied to the one event: the first valid resolution (a kill, a catch or a negotiated return) restores at most that PK's own debit, and counts once.
 - **OPEN:** how long a debt lasts, whether it decays (:114), and what counts as a valid negotiated return. No numbers.
+- Conquer Online bench seeds (jail, money never skips consequences, group lists, OPEN items) live in [COMBAT_AND_PVP](COMBAT_AND_PVP.md) §9.2.
 
 What does **not** move it:
 
