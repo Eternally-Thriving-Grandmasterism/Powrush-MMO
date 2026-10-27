@@ -199,6 +199,14 @@ Most human to least. The human share is chosen in realistic parts.
 
 Robot body and limbs mean fewer infections and bionic powers. No point on the range grows bark, vines, or a heartwood-core-as-body. Teal / leaf-metal is **trim / metal accents**, not bark-skin (`ART_BIBLE`).
 
+**Heart kept for biological emotions (CYDRUID-DRAEK-LORE-1).** Sherif (https://x.com/AlphaProMega/status/1998591933929628004):
+
+> The Cydruids thrived in the hollows of the earth till they became virtually 1 with machines, and some of them opt to keep parts of their original human body; such as their face, brain and heart for biological emotions to continue after becoming cyborgs.
+
+So a Cydruid who keeps human parts may keep the **heart** as well as the face and brain, so that biological emotions continue after becoming a cyborg. This adds to the range above; it does not add a new point, and the heart is a kept human heart, not a heartwood-core-as-body.
+
+**Origin flavour.** Sherif (https://x.com/AlphaProMega/status/1998591933929628004): "They've been underground for over 5000 years, before becoming engulfed in the chaos ensuing due to the Draeks invasion..." The hollows home and the split base are in [`design/GDD_LOGISTICS_SOCIETY.md` §3.1 Cydruid lore and the split base](design/GDD_LOGISTICS_SOCIETY.md#31-cydruid-lore-and-the-split-base-proposed-per-sherifs-perhaps).
+
 ### Upgrade path
 
 **Cite:** steward 2026-10-02 (CYDRUID-UPGRADE-PATH) · Body range above · `docs/DIPLOMACY_AND_WORLD_SIMULATION.md` §2.2 Faction Standing & Reputation. **Budget:** 0 meshes.

@@ -339,7 +339,7 @@ Clashes, flagged here and not edited in those files:
 | SL6 | Mind control of named great powers starts a war of missiles and nukes | MODERNISE | Crownstone mind control stands. Named real states leave game content. The nuke beat is conflict 1. | [FACTIONS_OVERVIEW](../FACTIONS_OVERVIEW.md), [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) |
 | SL7 | Magma islands, debris, a moon scrape, chunks spinning off | KEEP | Fracture spectacle stays. New land can be frontier hex flavour. | [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md), [ART_BIBLE](../ART_BIBLE.md) |
 | SL8 | Weaker gravity, so people jump higher and further | KEEP | Same hook as P3. | [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) |
-| SL9 | Cydruids rise from the hollows after more than five thousand years | MODERNISE | The hollows home is Sherif 2026-10-08 (§5). The year count is still unset. Steward call on the number only. | [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) |
+| SL9 | Cydruids rise from the hollows after more than five thousand years | MODERNISE | The hollows home is Sherif 2026-10-08 (§5). Year count fixed by Sherif (https://x.com/AlphaProMega/status/1998591933929628004): "They've been underground for over 5000 years, before becoming engulfed in the chaos ensuing due to the Draeks invasion..." Resolved: **over 5000 years** (CYDRUID-DRAEK-LORE-1). | [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) |
 | SL10 | Wrist light is weapon and gathering tool; no biological body, fuel not food | MODERNISE | Wrist light as weapon and gathering tool fits the trailer. "No biological body" is only the Fully cyborg end of the Body range. | [IMAGINE_TRAILER_PACK](../IMAGINE_TRAILER_PACK.md), [PLAYABLE_RACES](../PLAYABLE_RACES.md) §5 |
 | SL11 | A scout relay calls help only after nuclear-scale destruction, and spots the mothership late | MODERNISE | Quellorians already monitored and made covert contact. The relay is the shift to open aid. The trigger is fracture weapons. | [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §6 |
 | SL12 | The Quellorian mothership arrives by wormhole and deploys aid | KEEP | TAUN arrives through a wormhole. | [FACTIONS_OVERVIEW](../FACTIONS_OVERVIEW.md) |
@@ -388,7 +388,7 @@ Canon wins each row. Row 6 is Sherif's 2026-10-08 ruling. The older four-Places 
 | 15 | Items are destroyed at zero durability (E4) | Items are never deleted. No destroy-on-fail. A failed temper rests | [MERCY_TEMPER](../MERCY_TEMPER_PROGRESSION.md), [FACTION_HERALDRY](../FACTION_HERALDRY.md) |
 | 16 | Twelve movable teleport portals (L1) | Waypoint networks are refused. Travel that stands is the portal edition | [PRE_RELEASE_LAW](../PRE_RELEASE_LAW.md), [DRIVE_LORE](../DRIVE_LORE_ADAPTATION.md) |
 | 17 | Cosmetic skins for sale, and a skin subscription (M2, M4) | Physical finishes only. No cosmetic shop. No transmog | [FACTION_HERALDRY](../FACTION_HERALDRY.md) |
-| 18 | Cydruid age "hundreds of years" (R1) versus "over 5,000 years" (SL9, GR7, public site) | Repo docs do not fix a number | Neither legacy count. Steward call |
+| 18 | Cydruid age "hundreds of years" (R1) versus "over 5,000 years" (SL9, GR7, public site) | Resolved: **over 5000 years**, per Sherif (https://x.com/AlphaProMega/status/1998591933929628004): "They've been underground for over 5000 years" | Keep "over 5000 years"; drop "hundreds of years" for Cydruid age (CYDRUID-DRAEK-LORE-1) |
 
 ### Stale spots left in place
 
