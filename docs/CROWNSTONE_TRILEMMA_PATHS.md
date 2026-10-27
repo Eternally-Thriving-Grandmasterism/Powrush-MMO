@@ -29,20 +29,24 @@ This document provides deep narrative, technical, and implementation-ready detai
 
 **Sherif, 2026-10-27 2:27 AM ET:** "Only in end game, and when enough Draeks combined with Alliance members join together like maybe 25 from each side, unlocks a 50 man raid like AQ40 the war effort of World of Warcraft and the TBC opening of the gate as well as more events like that from similar games and expansions, and when enough runs are completed where they fight against the Draeks evil to then eventually pull together the grand achievement and make it no longer possible for mind control of the Crownstone to take over anyone again like the hive."
 
+**Sherif, 2026-10-27 2:29 AM ET:** "The runs don't solve the puzzles, instead, it's more like Khalim's flail in act 3 of Diablo 2 and the attunement for WoW, but thoughtfully designed to teach humans worthwhile aspects during a fun and rewarding experience instead of a tedious chore like Onyxia attunement, LoL!"
+
 > **Note:** The "Quellorian forces" framing in the paragraph below is superseded on who takes part: Draek players and Alliance players cooperate. Group size is approximate (about 25 + 25, a ~50-player raid), since Sherif said "maybe".
 
 Per this canon, the Destroy path is:
 - Endgame only.
 - A server-wide grand achievement, reached after enough runs are completed.
 - End state: the Crownstone's mind control can no longer take anyone over.
+- Raid runs alone don't complete it: a puzzle or attunement chain is also required, and it must be fun and rewarding, teach worthwhile things, and not be a tedious chore.
 
-Inspiration only (no names or mechanics copied): World of Warcraft's AQ40 war effort and the TBC gate opening.
+Inspiration only (no names, items, steps or mechanics copied): World of Warcraft's AQ40 war effort and the TBC gate opening; Diablo II's Khalim's Flail quest and WoW attunements. Pattern to avoid: Onyxia attunement as a tedious chore.
 
 **Still OPEN (do not fill):**
 - Number of runs and the completion threshold.
 - Whether destruction is permanent per server or resets.
 - How this fits with Capture & Repurpose and Sabotage — those paths currently read as Quellorian-only next to this canon (not rewritten here).
 - Every raid name, boss, step and stat.
+- Every attunement-chain step and puzzle, the artifact names, the lessons taught, and how the chain combines with the raid runs.
 
 ### Narrative & Thematic Weight
 The most direct and emotionally charged path. Quellorian forces, often in coordination with a full Resonance Burst from the Auroral Unification Nexus, board the Brood Spire, fight through to the Hivelord, and overload the Crownstone with concentrated resonance energy until it shatters.
