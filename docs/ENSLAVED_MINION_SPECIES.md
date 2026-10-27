@@ -235,6 +235,8 @@ Sherif (https://x.com/AlphaProMega/status/1998596460703780956):
 
 **Crownstone ruling (Sherif, 2026-10-27 12:35 AM ET, verbatim):** "There's 1 Crownstone which is what enables the ultimate controller of the hive mind and all below." Recorded only as said: exactly one Crownstone, and it enables the ultimate hive-mind controller over all below.
 
+**Hierarchy design rule (Sherif, 2026-10-27 12:36 AM ET, verbatim):** "Based on abilities, logical definitions especially relative to naming schemes for rational sense, will hierarchical systems be designed." This sets the method only: rank follows abilities and what each name logically means.
+
 **Open question for Sherif (recorded, NOT resolved):** where Mindlords sit beneath the Crownstone-enabled controller, relative to the Hivelord and Drainers. This doc does not place them.
 Horde-mode framing: [`POWRUSH_LOOP_NOTES.md` §3](POWRUSH_LOOP_NOTES.md#3-horde-fighting-option-beside-mining-design-note-only).
 
