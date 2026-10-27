@@ -175,6 +175,7 @@ mod tests {
             position: Vec3::new(post[0], post[1], post[2]),
             velocity: Vec3::ZERO,
             grounded: true,
+            ..Default::default()
         });
         app.insert_resource(PlayerInput {
             interact,

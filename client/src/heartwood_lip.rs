@@ -329,6 +329,7 @@ mod tests {
             position: Vec3::new(x, STAND_HEIGHT, z),
             velocity: Vec3::ZERO,
             grounded: true,
+            ..Default::default()
         });
         app.insert_resource(HourSacred {
             session: Default::default(),
@@ -670,6 +671,7 @@ mod tests {
             position: Vec3::new(WATER_POND_CENTER[0], -0.2, WATER_POND_CENTER[1]),
             velocity: Vec3::new(0.0, -4.0, 0.0),
             grounded: false,
+            ..Default::default()
         };
 
         assert!(apply_bath_to_presence(PlaceId::Heartwood, &mut presence));
@@ -706,6 +708,7 @@ mod tests {
             position: Vec3::new(WATER_POND_CENTER[0], STAND_HEIGHT, WATER_POND_CENTER[1]),
             velocity: Vec3::ZERO,
             grounded: true,
+            ..Default::default()
         };
         assert!(!apply_bath_to_presence(PlaceId::Sanctuary, &mut presence));
     }

@@ -96,3 +96,8 @@ Localhost two-client same-hex recipe (not a title/store feature; Online stays gr
 
 - `docs/F9_TWO_CLIENT_LOCALHOST.md` — `powrush-shard --listen 127.0.0.1:7788` + two `POWRUSH_NET=localhost` clients from separate CWDs
 - `POWRUSH_GEN=light` or Settings **Grove · light** — optional G0 hex-seed scatter + climate fog (default **off**; OR; world Camera3d fog only; cull when Title/pause/Settings/L/Q open)
+> **PLAYTEST-STRAFE-FIX-1 (render interpolation).** Locomotion still ticks on
+> FixedUpdate at 60 Hz; the body and follow camera now render at
+> `prev.lerp(curr, Time<Fixed>::overstep_fraction())` and `look_at` that same
+> point, which removes the strafe shimmer on Medium/High. If Low still
+> shimmers, that is a future Candidate-C card (not in this change).
