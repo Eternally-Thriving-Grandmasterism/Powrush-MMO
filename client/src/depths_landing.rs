@@ -274,6 +274,7 @@ mod tests {
             position: Vec3::new(20.0, 0.9, 20.0),
             velocity: Vec3::ZERO,
             grounded: true,
+            ..Default::default()
         });
         app.init_resource::<DepthsPeaceTend>();
         app.init_resource::<FirstHarvestEpiphany>();
@@ -298,6 +299,7 @@ mod tests {
             position: Vec3::new(0.0, 0.9, 0.0),
             velocity: Vec3::ZERO,
             grounded: true,
+            ..Default::default()
         });
         app.init_resource::<DepthsPeaceTend>();
         app.init_resource::<FirstHarvestEpiphany>();

@@ -520,6 +520,26 @@ pub struct SoftPresence {
     pub position: Vec3,
     pub velocity: Vec3,
     pub grounded: bool,
+    /// PLAYTEST-STRAFE-FIX-1 — `position` at the start of the last fixed tick.
+    pub prev_tick: Option<Vec3>,
+    /// PLAYTEST-STRAFE-FIX-1 — `position` at the end of the last fixed tick.
+    pub curr_tick: Option<Vec3>,
+}
+
+impl SoftPresence {
+    /// PLAYTEST-STRAFE-FIX-1 — render-side interpolated position.
+    ///
+    /// `prev_tick.lerp(curr_tick, overstep)`. Falls back to the raw
+    /// `position` before the first tick or when something outside
+    /// locomotion moved it (teleport / bath / landing), so no stale lerp.
+    pub fn render_position(&self, overstep: f32) -> Vec3 {
+        match (self.prev_tick, self.curr_tick) {
+            (Some(prev), Some(curr)) if curr == self.position => {
+                prev.lerp(curr, overstep.clamp(0.0, 1.0))
+            }
+            _ => self.position,
+        }
+    }
 }
 
 impl Default for SoftPresence {
@@ -528,6 +548,8 @@ impl Default for SoftPresence {
             position: Vec3::new(0.0, STAND, 0.0),
             velocity: Vec3::ZERO,
             grounded: true,
+            prev_tick: None,
+            curr_tick: None,
         }
     }
 }
@@ -1158,6 +1180,8 @@ fn apply_locomotion(
     mut latch: ResMut<JumpLatch>,
     mut presence: ResMut<SoftPresence>,
 ) {
+    // PLAYTEST-STRAFE-FIX-1 — snapshot last tick's end before integrating.
+    presence.prev_tick = Some(presence.position);
     let dt = time.delta_secs();
     let sprint_ok = body.as_ref().map(|b| b.can_sprint()).unwrap_or(true);
     let mut speed = if input.sprint && sprint_ok {
@@ -1237,6 +1261,7 @@ fn apply_locomotion(
         presence.velocity.y = 0.0;
         presence.grounded = true;
     }
+    presence.curr_tick = Some(presence.position);
 }
 
 /// Latch the existing Peace **E** into a Use read the body can show.
@@ -1275,11 +1300,14 @@ fn sync_body(
     preset: Option<Res<ControlPreset>>,
     orbit: Option<Res<FollowOrbit>>,
     facing: Option<Res<BodyFacing>>,
+    fixed: Option<Res<Time<Fixed>>>,
     mut q: Query<&mut Transform, With<HumanPresence>>,
 ) {
     let preset = preset.as_deref().copied().unwrap_or_default();
+    let overstep = fixed.map(|t| t.overstep_fraction()).unwrap_or(1.0);
+    let render_pos = presence.render_position(overstep);
     for mut tf in &mut q {
-        tf.translation = presence.position;
+        tf.translation = render_pos;
         let horiz = Vec3::new(presence.velocity.x, 0.0, presence.velocity.z);
         if horiz.length_squared() > 0.04 {
             let yaw = match preset {
@@ -1622,6 +1650,7 @@ fn look_follow_t(dt: f32, raw_look: bool) -> f32 {
 #[derive(SystemParam)]
 struct FollowTimePads<'w, 's> {
     time: Res<'w, Time>,
+    fixed: Option<Res<'w, Time<Fixed>>>,
     pads: Query<'w, 's, &'static Gamepad>,
 }
 
@@ -1672,16 +1701,19 @@ fn follow_camera(
     let look_lift = presence_punch_look_lift(kick, punch_scale);
     // CARD L7 — Ambrosian lift: ease UP and look-down on the existing yard/well.
     // Same Camera3d / SoftPresence. No hull mesh. Human / other lands keep yard follow.
-    let look_down = presence_reads_ambrosian_lift(presence.position);
+    // PLAYTEST-STRAFE-FIX-1 — follow + look_at the same interpolated point.
+    let overstep = clock.fixed.as_ref().map(|t| t.overstep_fraction()).unwrap_or(1.0);
+    let pos = presence.render_position(overstep);
+    let look_down = presence_reads_ambrosian_lift(pos);
     let desired = if look_down {
-        presence.position + Vec3::new(0.0, CAM_UP + 1.1, CAM_BACK - 1.4)
+        pos + Vec3::new(0.0, CAM_UP + 1.1, CAM_BACK - 1.4)
     } else {
-        presence.position + orbit.offset() + punch_delta
+        pos + orbit.offset() + punch_delta
     };
     let look = if look_down {
-        Vec3::new(presence.position.x, 0.45, presence.position.z)
+        Vec3::new(pos.x, 0.45, pos.z)
     } else {
-        presence.position + Vec3::Y * (follow_look_height_for_realm(realm.and_then(|r| r.current)) + look_lift)
+        pos + Vec3::Y * (follow_look_height_for_realm(realm.and_then(|r| r.current)) + look_lift)
     };
     let follow_t = look_follow_t(dt, raw_look);
     for mut cam in &mut cams {
@@ -1881,6 +1913,69 @@ pub fn presence_copy_is_honest(s: &str) -> bool {
 
 #[cfg(test)]
 mod tests {
+    // PLAYTEST-STRAFE-FIX-1 — render-side interpolation (Candidate B).
+    #[test]
+    fn strafe_fix_1_prev_curr_update_per_fixed_tick() {
+        use bevy::ecs::system::RunSystemOnce;
+        let mut world = World::new();
+        let mut fixed = Time::<Fixed>::from_hz(60.0);
+        fixed.advance_by(std::time::Duration::from_secs_f64(1.0 / 60.0));
+        world.insert_resource(fixed);
+        world.insert_resource(crate::input::PlayerInput {
+            movement: Vec2::new(1.0, 0.0),
+            ..Default::default()
+        });
+        world.insert_resource(super::JumpLatch::default());
+        world.insert_resource(super::SoftPresence::default());
+        let start = world.resource::<super::SoftPresence>().position;
+        world.run_system_once(super::apply_locomotion).unwrap();
+        let p = world.resource::<super::SoftPresence>();
+        assert_eq!(p.prev_tick, Some(start));
+        assert_eq!(p.curr_tick, Some(p.position));
+        let end1 = p.position;
+        world.run_system_once(super::apply_locomotion).unwrap();
+        let p = world.resource::<super::SoftPresence>();
+        assert_eq!(p.prev_tick, Some(end1));
+        assert_eq!(p.curr_tick, Some(p.position));
+    }
+
+    #[test]
+    fn strafe_fix_1_render_position_lerps_by_overstep() {
+        let prev = Vec3::new(0.0, 0.9, 0.0);
+        let curr = Vec3::new(2.0, 0.9, -4.0);
+        let p = super::SoftPresence {
+            position: curr,
+            prev_tick: Some(prev),
+            curr_tick: Some(curr),
+            ..Default::default()
+        };
+        assert_eq!(p.render_position(0.0), prev);
+        assert_eq!(p.render_position(1.0), curr);
+        assert_eq!(p.render_position(0.5), Vec3::new(1.0, 0.9, -2.0));
+        // Before the first tick, or after an out-of-tick teleport: raw position.
+        let raw = super::SoftPresence { position: curr, ..Default::default() };
+        assert_eq!(raw.render_position(0.5), curr);
+        let moved = super::SoftPresence { position: Vec3::splat(9.0), ..p };
+        assert_eq!(moved.render_position(0.5), Vec3::splat(9.0));
+    }
+
+    #[test]
+    fn strafe_fix_1_sync_body_and_camera_use_interpolated_point() {
+        let src = include_str!("human_presence.rs");
+        let body = &src[src.find("fn sync_body(").unwrap()..];
+        let body = &body[..body.find("\n}\n").unwrap()];
+        assert!(body.contains("overstep_fraction()"));
+        assert!(body.contains("tf.translation = render_pos;"));
+        let cam = &src[src.find("fn follow_camera(").unwrap()..];
+        let cam = &cam[..cam.find("\n}\n").unwrap()];
+        assert!(cam.contains("overstep_fraction()"));
+        assert!(cam.contains("let pos = presence.render_position(overstep);"));
+        // look_at target and follow point are built from `pos`, never raw position.
+        assert!(!cam.contains("presence.position"));
+        assert!(cam.contains("cam.look_at(look, Vec3::Y);"));
+        assert!(cam.contains("pos + Vec3::Y *"));
+    }
+
     #[test]
     fn vp_char_1_low_medium_accent_non_metal_keeps_use_mute_readable() {
         for p in [GraphicsPreset::Mobile, GraphicsPreset::Low, GraphicsPreset::Medium] {
@@ -1946,7 +2041,7 @@ mod tests {
         let body = &src[src.find("fn follow_camera(").expect("follow_camera")..];
         let body = &body[..body.find("\n}\n").expect("end of follow_camera")];
         assert!(body.contains(
-            "let look = if look_down {\n        Vec3::new(presence.position.x, 0.45, presence.position.z)\n    } else {"
+            "let look = if look_down {\n        Vec3::new(pos.x, 0.45, pos.z)\n    } else {"
         ));
         assert!(body.contains("follow_look_height_for_realm(realm.and_then(|r| r.current))"));
     }
