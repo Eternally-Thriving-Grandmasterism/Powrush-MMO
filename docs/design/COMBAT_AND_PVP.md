@@ -452,6 +452,8 @@ Kits are chosen at a match terminal, or carried as a crafted tool in the world. 
 
 Smoke is not invisibility. There is no stealth that hides a mark.
 
+> **CLASSES-CANON-1 (2026-10-28):** three kits above also back starting classes: Legionnaire is the shield tank on kit Bulwark (:448), Striker is the ranged class on kit Striker (:447), and Mender (:449) is the healing branch, not a class. Arcblade and Resonator are new classes with `[KIT TBD]` and no row in this table; Resonator is open to every people. The class choice unlocks after House, in play, never at a Title lobby or at boot, so the kit line above the table stays true. Council decision under Sherif's 2026-10-28 1:01 AM ET delegation ([#738 6461200579](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6461200579)), not his words. His 1:14 AM ET ask is quoted in [LEVELS_CANON](LEVELS_CANON.md) "Classes"; his 1:17 AM ET "Brilliant, Mate!" approved the councils' recommendation but did not pick the names; "Resonator" is his 1:12 AM ET lean, "Resonator sounds cooler?", which the councils adopted. Sherif may veto. English-only repo screen, not trademark clearance.
+
 Tool quality does not change these numbers. `docs/PLACES_BIBLE.md` keeps combat stats off recipes. Quality changes consumable timing (§15), not hit size. Faction recipes change who can craft the item and how it is painted. Both factions share the same combat numbers, so faction choice is not a damage side.
 
 ### 14.3 Keys, when combat is eventually built

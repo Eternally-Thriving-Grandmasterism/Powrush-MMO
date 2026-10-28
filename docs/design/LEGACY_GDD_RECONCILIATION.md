@@ -167,6 +167,8 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 | T10 | Buy durable ammo and repair it, instead of counting rounds | MODERNISE | A repairable kit fits wear-and-maintain. Items are never deleted. | [FACTION_HERALDRY](../FACTION_HERALDRY.md), [MERCY_TEMPER](../MERCY_TEMPER_PROGRESSION.md) |
 | T11 | Any people may take any craft; a salvager turns scrap into inputs | KEEP | Any People, any profession. Salvager fits tend and salvage. | [LAYERED](../LAYERED_GAMES_AND_SERVER.md) §3a |
 
+> **CLASSES-CANON-1 (2026-10-28):** rows T2, T3 and T6 are superseded on class existence: starting classes are Legionnaire (shield tank, on kit "Bulwark" at [COMBAT_AND_PVP](COMBAT_AND_PVP.md) :448), Arcblade (no-shield dual-wield or two-handed energy-blade bruiser, `[KIT TBD]`), Striker (ranged, kit [COMBAT_AND_PVP](COMBAT_AND_PVP.md) :447) and Resonator (caster, open to every people, `[KIT TBD]`). Mender (kit [COMBAT_AND_PVP](COMBAT_AND_PVP.md) :449) is the healing branch, not a class. The class choice unlocks after House, in play. Council decision under Sherif's 2026-10-28 1:01 AM ET delegation ([#738 6461200579](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6461200579)), not his words. His 1:14 AM ET ask is quoted in [LEVELS_CANON](LEVELS_CANON.md) "Classes"; his 1:17 AM ET "Brilliant, Mate!" approved the councils' recommendation but did not pick the names; "Resonator" is his 1:12 AM ET lean, "Resonator sounds cooler?", which the councils adopted. Sherif may veto. English-only repo screen, not trademark clearance.
+
 ### A — Art and technical requirements
 
 | ID | Old idea | Verdict | One-line reason | Canon home |
@@ -184,6 +186,8 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 | S4 | Ascended players gain extra item-find, health and damage | RETIRE | Extra stats are a power scalar. | [GDD_IMMERSION](../GDD_IMMERSION_REVISION.md) §4, [MERCY_TEMPER](../MERCY_TEMPER_PROGRESSION.md) |
 
 > **LEVELS-CANON-1 (2026-10-27):** row S1's premise "There is no level ladder" is superseded ([LEVELS_CANON](LEVELS_CANON.md) R2). Whether rebirth resets levels, and classes, stay OPEN for Sherif (R4).
+
+> **CLASSES-CANON-1 (2026-10-28):** for the rebirth wording above, the class-evolution event is "Confluence". Council decision under Sherif's 2026-10-28 1:01 AM ET delegation ([#738 6461200579](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6461200579)), not his words. Sherif may veto. English-only repo screen, not trademark clearance.
 
 > **LEVELS-LADDER-MAP-1 (2026-10-27):** this answers only the ascent half. Class evolution resets nothing on the same character, per Sherif's 8:48 PM canon ([LEVELS_CANON](LEVELS_CANON.md) "R4 answer"). Classes stay OPEN.
 
@@ -229,6 +233,8 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 | J6 | Full devotees stop decaying until good deeds lock the door | MODERNISE | Devotion does not freeze a one-way lock. Redemption can leave. → COMBAT_AND_PVP.md | [REDEMPTION_MECHANICS_PER_SPECIES](../REDEMPTION_MECHANICS_PER_SPECIES.md), [COMBAT_AND_PVP.md](COMBAT_AND_PVP.md) |
 
 > **LEVELS-CANON-1 (2026-10-27):** row J5's "moot without levels" is superseded, because levels exist ([LEVELS_CANON](LEVELS_CANON.md) R2). Level retention across ascension or rebirth is OPEN (R4).
+
+> **CLASSES-CANON-1 (2026-10-28):** for the rebirth wording above, the class-evolution event is "Confluence". Council decision under Sherif's 2026-10-28 1:01 AM ET delegation ([#738 6461200579](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6461200579)), not his words. Sherif may veto. English-only repo screen, not trademark clearance.
 
 > **LEVELS-LADDER-MAP-1 (2026-10-27):** all levels are kept across class evolution on the same character, per Sherif's 8:48 PM canon ([LEVELS_CANON](LEVELS_CANON.md) "R4 answer").
 
@@ -460,6 +466,8 @@ V6 is not in this list. v2.0 dropped the infinite bank, and the kept form is the
 ## 9. Combat pointer
 
 These old sections defer to [COMBAT_AND_PVP.md](COMBAT_AND_PVP.md) (merged in #685): righteousness and criminality (J1, J2, J6, G8, R23), bounties (P7, C4), skill-shots (K1), tournaments (K2), guild wars (K3, K4), duels (K5, K6), teleport control (L1), class kits (T2, T3, T6), weight and dodge (T8), armour slots (T9), and durability in a fight (E4). Verdicts above are what canon already implies. This file does not design the fights.
+
+> **CLASSES-CANON-1 (2026-10-28):** class kits (T2, T3, T6) still defer here for combat; class existence does not. See the note after the T table.
 
 ## 10. Revive next
 
