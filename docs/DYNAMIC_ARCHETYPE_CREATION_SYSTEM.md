@@ -42,7 +42,7 @@
   - Capstone form active; server inspiration aura; ability to mentor apprentices with joy-transfer
   - Eternal recurrence: Actions build permanent thriving legacy (e.g., named world events)
 
-> **LEVELS-LADDER-MAP-1 (2026-10-27):** the character-level phases and the Phase 4 rebirth range in this list are superseded. There is no character-wide level for now, and the rebirth cap is Sherif's tentative lean, a playtest placeholder ([LEVELS_CANON](design/LEVELS_CANON.md) "R4 answer"). This doc is stale and unlinked.
+> **LEVELS-LADDER-MAP-1 (2026-10-27):** the character-level phases and the Phase 4 range in this list are superseded. Class evolution replaces that phase, and the overall level is a lean (Sherif 9:00 PM, 'Perhaps'): an overall level = total of combined levels, capped ([LEVELS_CANON](design/LEVELS_CANON.md) "R4 answer"). This doc is stale and unlinked.
 
 #### Example Auto-Generated Archetype: "Void Singer" (User: No base, Mythic: Sedna ocean + Anansi tricks + Krishna flute)
 - Branch 1: Echo Strike (sonic bursts → mercy-echo heals)
