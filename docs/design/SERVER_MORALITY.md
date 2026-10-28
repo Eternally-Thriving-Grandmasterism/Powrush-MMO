@@ -219,6 +219,8 @@ The leap restores world state from a kept world snapshot taken before the ruin. 
 
 > **LEVELS-CANON-1 (2026-10-27):** "Levels" now also covers profession and skill levels earned through XP ([LEVELS_CANON](LEVELS_CANON.md) R2). How they map to Proficiency and Temper/Lumen/Ward is OPEN (R4).
 
+> **LEVELS-LADDER-MAP-1 (2026-10-27):** skill levels do not feed Temper/Lumen/Ward in the interim. This is a council decision ([LEVELS_CANON](LEVELS_CANON.md) "R4 answer"). The Proficiency mapping stays OPEN.
+
 Nothing on the restore list is personal progress. The leap never deletes anything. Something built after the snapshot stays as it is. The leap leaves Crownstone state, `total_harmony`, and `total_corruption` alone (§3.1), and it does not touch the weekly guild war ([COMBAT_AND_PVP](COMBAT_AND_PVP.md) §10).
 
 #### Sabotage of the effort

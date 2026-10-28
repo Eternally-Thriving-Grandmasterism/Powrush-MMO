@@ -55,6 +55,8 @@ Verbs are the sacred five: **Tend / Take / Flow / Reserve / Mend** (`PLACES_BIBL
 | **Refuse** | **Conquer-Point mall / Talismans / gear-socket power curve** — pay the shell, win the field. | Refused. Currency story is **credit**; no cash-shop power, no P2W stalls in the default door, no paid skins as default (`PLACES_BIBLE` · `LAUNCH_UX` veto). |
 | **Refuse** | **XP from kills**, open PK on every map, drop-on-death loot pressure. | Refused. Score is tons + restored; **no XP-from-kills** (`GDD_ADAPTATION` Refuse). Sanctuary stays Peace yard; the Heartwood pond drop is a **bath**, not a death (U6). |
 
+> **LEVELS-LADDER-MAP-1 (2026-10-27):** in the "Class kit / rebirth path identity" row, rebirth is now class evolution. This is a council decision ([LEVELS_CANON](design/LEVELS_CANON.md) "R4 answer"). Classes stay OPEN, and this table defines none.
+
 ### 2.2 WoW — Vanilla + TBC
 
 | Verdict | Reference beat | Powrush home |

@@ -149,6 +149,8 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 
 > **LEVELS-CANON-1 (2026-10-27):** row R4's "Level tiers are not the ladder" is superseded only in that levels now exist ([LEVELS_CANON](LEVELS_CANON.md) R2). How levels relate to the ladder is OPEN (R4).
 
+> **LEVELS-LADDER-MAP-1 (2026-10-27):** row R4 is answered for now. Skill levels do not feed Temper/Lumen/Ward in the interim ([LEVELS_CANON](LEVELS_CANON.md) "R4 answer"). This is a council decision that Sherif can correct.
+
 ### T — Classification tree and systems appendix
 
 | ID | Old idea | Verdict | One-line reason | Canon home |
@@ -182,6 +184,8 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 | S4 | Ascended players gain extra item-find, health and damage | RETIRE | Extra stats are a power scalar. | [GDD_IMMERSION](../GDD_IMMERSION_REVISION.md) §4, [MERCY_TEMPER](../MERCY_TEMPER_PROGRESSION.md) |
 
 > **LEVELS-CANON-1 (2026-10-27):** row S1's premise "There is no level ladder" is superseded ([LEVELS_CANON](LEVELS_CANON.md) R2). Whether rebirth resets levels, and classes, stay OPEN for Sherif (R4).
+
+> **LEVELS-LADDER-MAP-1 (2026-10-27):** this answers only the rebirth half. Rebirth is class evolution: practised skill levels drop partway with epiphany catch-up, and Temper/Lumen/Ward are not reset for now. This is a council placeholder ([LEVELS_CANON](LEVELS_CANON.md) "R4 answer"). Classes stay OPEN.
 
 ### E — Gear system and loot
 
@@ -225,6 +229,8 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 | J6 | Full devotees stop decaying until good deeds lock the door | MODERNISE | Devotion does not freeze a one-way lock. Redemption can leave. → COMBAT_AND_PVP.md | [REDEMPTION_MECHANICS_PER_SPECIES](../REDEMPTION_MECHANICS_PER_SPECIES.md), [COMBAT_AND_PVP.md](COMBAT_AND_PVP.md) |
 
 > **LEVELS-CANON-1 (2026-10-27):** row J5's "moot without levels" is superseded, because levels exist ([LEVELS_CANON](LEVELS_CANON.md) R2). Level retention across ascension or rebirth is OPEN (R4).
+
+> **LEVELS-LADDER-MAP-1 (2026-10-27):** on evolution, practised skill levels drop partway with epiphany catch-up, and items, ledger, House and Lineage stay. This is a council placeholder ([LEVELS_CANON](LEVELS_CANON.md) "R4 answer").
 
 ### K — Skill-shots, guild wars, tournaments, duels
 
