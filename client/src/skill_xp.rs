@@ -140,9 +140,26 @@ fn update_skills_panel(skills: Res<SkillXp>, mut texts: Query<&mut Text, With<Sk
     let lines: Vec<String> = (0..4)
         .map(|i| format!("{} · Lv {}", SKILL_NAMES[i], level_for_xp(skills.xp[i])))
         .collect();
+    let lines = with_total_line(lines, &skills.xp);
     for mut text in &mut texts {
         **text = format!("SKILLS\n{}", lines.join("\n"));
     }
+}
+
+/// Sum of every skill level; only used to clamp the total, never shown.
+pub const TOTAL_CAP: u32 = SKILL_NAMES.len() as u32 * LEVEL_CAP;
+
+/// Saturating sum of `level_for_xp` over the skill array, clamped at `TOTAL_CAP`.
+pub fn total_level(xp: &[u32]) -> u32 {
+    xp.iter()
+        .fold(0u32, |sum, &x| sum.saturating_add(level_for_xp(x)))
+        .min(TOTAL_CAP)
+}
+
+/// Appends the `Total · Lv {n}` line as the panel's last line.
+pub fn with_total_line(mut lines: Vec<String>, xp: &[u32]) -> Vec<String> {
+    lines.push(format!("Total · Lv {}", total_level(xp)));
+    lines
 }
 
 #[cfg(test)]
@@ -212,5 +229,21 @@ mod tests {
         assert_eq!(skills.xp[GATHER], XP_CAP);
         assert_eq!((level_for_xp(u32::MAX), level_for_xp(0)), (LEVEL_CAP, 1));
         assert_eq!(skills_on_load(None, u32::MAX, u32::MAX)[TEND], XP_CAP);
+    }
+
+    #[test]
+    fn total_level_zero_cap_and_saturating() {
+        let count = SKILL_NAMES.len() as u32;
+        assert_eq!(total_level(&[0; 4]), count * level_for_xp(0));
+        assert_eq!(total_level(&[0; 4]), 4);
+        assert_eq!(total_level(&[XP_CAP; 4]), TOTAL_CAP);
+        assert_eq!(total_level(&[u32::MAX; 4]), TOTAL_CAP);
+        assert_eq!(total_level(&vec![u32::MAX; 200]), TOTAL_CAP);
+    }
+
+    #[test]
+    fn panel_last_line_is_total_at_zero_xp() {
+        let lines = with_total_line(vec!["SKILLS".into()], &[0; 4]);
+        assert_eq!(lines.last().map(String::as_str), Some("Total · Lv 4"));
     }
 }
