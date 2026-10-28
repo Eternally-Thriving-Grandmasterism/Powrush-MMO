@@ -16,6 +16,8 @@ Parent law (cross-linked, not restated):
 3. **Offline first.** Everything works with Online grey. Sharing is GenShare Method B (file or paste, explicit confirm, never mid-WASD).
 4. **Canon only.** Presets and origins cite an existing doc. Anything without a source is marked **UNKNOWN** and needs the steward before it ships.
 
+> **LEVELS-CANON-1 (2026-10-27):** "the only ladder" means the only *power* ladder. Levels unlock recipes and access, not raw stats ([LEVELS_CANON](design/LEVELS_CANON.md) R3).
+
 ## 2. Creator scope
 - **When:** after Settled, extending D3 (LAUNCH_UX). Skippable; a default preset applies. Never at Title.
 - **Peoples:** the five in PLAYABLE_RACES only: Human, Cydruid, Quellorian, Ambrosian, Draek. No sixth People.
