@@ -16,11 +16,11 @@
 //! stones) read [`procedural_detail_scale`] from Comfort [`MeshLodPlan`].
 //! Low stays primitives / capsule-readable **and** Place-readable. High may
 //! gate [`persona_commit_dress_active`] only when an authored glb is already
-//! on disk — **no `.glb` dump**. Place dress never loads Buildings / Astra
+//! on disk, licensed, with a row in `assets/asset-licenses.csv`. Place dress never loads Buildings / Astra
 //! Medium cargo (refs stay refs). Four Places stay four. face ≠ class.
 //! Practices after House. No race lobby. No second HUD. Title Online stays grey.
 //!
-//! Prefer procedural / existing `assets/models/*.glb` only if already present.
+//! Prefer procedural. `assets/models/*.glb` only if licensed (assets/asset-licenses.csv).
 //! No new Quellorian art-pack. No binary dump in this PR.
 //! UI copy never shows placeholder asset paths.
 //!
@@ -100,7 +100,7 @@ pub fn lived_presence_detail_scale(plan: &MeshLodPlan) -> f32 {
 
 /// Lived Place-dress scale from Comfort [`MeshLodPlan`].
 /// Path stones / greybox props only. Low stays readable Place identity.
-/// Buildings / Astra Medium stay REFS — no `.glb` dump. Four Places stay four.
+/// Buildings / Astra Medium stay REFS (licensed `.glb` rule: assets/asset-licenses.csv). Four Places stay four.
 pub fn lived_place_dress_detail_scale(plan: &MeshLodPlan) -> f32 {
     procedural_detail_scale(plan.lod)
 }

@@ -34,6 +34,16 @@ jobs:
       - name: Workspace metadata (no sibling Ra-Thor)
         run: cargo metadata --format-version 1 --no-deps
 
+      - name: Asset license guard (+ self-test)
+        run: |
+          bash scripts/check_asset_licenses.sh .
+          t="$(mktemp -d)"; mkdir -p "$t/assets/models"
+          echo path,source,license,author,url > "$t/assets/asset-licenses.csv"
+          echo test > "$t/assets/models/x.glb"
+          if bash scripts/check_asset_licenses.sh "$t"; then echo "self-test: unlisted .glb passed"; exit 1; fi
+          echo assets/models/x.glb,self,CC0,ci,https://example.com >> "$t/assets/asset-licenses.csv"
+          bash scripts/check_asset_licenses.sh "$t"
+
       - name: Core tests (shared + identity)
         run: cargo test -p shared -p rsil-identity
 
