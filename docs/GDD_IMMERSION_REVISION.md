@@ -57,7 +57,9 @@ Verbs are the sacred five: **Tend / Take / Flow / Reserve / Mend** (`PLACES_BIBL
 
 > **LEVELS-LADDER-MAP-1 (2026-10-27):** the "Class kit" row's path identity is now class evolution: hybrids through a talent tree. This is a council decision ([LEVELS_CANON](design/LEVELS_CANON.md) "R4 answer"). Classes stay OPEN, and this table defines none.
 
-> **CLASSES-CANON-1 (2026-10-28):** the "Class kit / rebirth path identity" row is superseded on classes: starting classes are Warrior, Archer, Mage; healing is a trainable branch, not a class. PATSAGi council decision under Sherif's 1:01 AM ET delegation, not his words. For the rebirth wording, the class-evolution event is "Confluence". PATSAGi council decision under Sherif's 2026-10-28 1:01 AM ET delegation, not his words.
+> **CLASSES-CANON-1 (2026-10-28):** the "Class kit" row is superseded on classes: starting classes are Bulwark and Striker, grown from kits [COMBAT_AND_PVP](design/COMBAT_AND_PVP.md) :447-448, and Resonator, open to every people, with `[KIT TBD]`. Mender (kit [COMBAT_AND_PVP](design/COMBAT_AND_PVP.md) :449) is the healing branch, not a class. The class choice unlocks after House, in play. Council decision under Sherif's 2026-10-28 1:01 AM ET delegation ([#738 6461200579](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6461200579)), not his words; "Resonator" is his 1:12 AM ET lean, "Resonator sounds cooler?", which the councils adopted. Sherif may veto. English-only screen, not trademark clearance.
+
+> **CLASSES-CANON-1 (2026-10-28):** for the row's rebirth wording, the class-evolution event is "Confluence". Council decision under Sherif's 2026-10-28 1:01 AM ET delegation ([#738 6461200579](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6461200579)), not his words. Sherif may veto. English-only screen, not trademark clearance.
 
 ### 2.2 WoW — Vanilla + TBC
 

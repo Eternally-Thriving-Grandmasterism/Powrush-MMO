@@ -442,6 +442,8 @@ Hard crowd control diminishes. The second hard control inside 8 s lasts half as 
 
 Kits are chosen at a match terminal, or carried as a crafted tool in the world. They are not a Title class lobby and not a race lobby (`docs/GDD_IMMERSION_REVISION.md` §4). Five kits, four shots each. Damage numbers are against 200 health.
 
+> **CLASSES-CANON-1 (2026-10-28):** Bulwark (:448) and Striker (:447) also grow into starting classes, and Resonator is a third, open to every people, with `[KIT TBD]` and no row in this table. Mender (:449) is the healing branch. The class choice unlocks after House, in play, never at a Title lobby or at boot, so the line above stays true. Council decision under Sherif's 2026-10-28 1:01 AM ET delegation ([#738 6461200579](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6461200579)), not his words; "Resonator" is his 1:12 AM ET lean, "Resonator sounds cooler?", which the councils adopted. Sherif may veto. English-only screen, not trademark clearance.
+
 | Kit | Shots (tell, damage or effect) |
 |---|---|
 | **Striker** | Line lance, air-true, 0.4 s, 20. Arc mortar, ground, 0.55 s, 24. Step, 6 m, no damage. Riposte, 0.3 s window, reflects the next skillshot |
