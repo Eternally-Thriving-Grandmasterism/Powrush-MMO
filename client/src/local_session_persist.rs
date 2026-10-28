@@ -17,6 +17,7 @@ use crate::human_inventory::HumanInventory;
 use crate::living_ecology::PersistentWeb;
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::skill_xp::{skills_on_load, SkillXp};
+use crate::skill_xp::{skills_with_combat_on_load, COMBAT};
 
 const PERSIST_PATH: &str = "data/powrush_local_session.json";
 
@@ -38,6 +39,9 @@ struct SessionBlob {
     /// SKILL-XP-1. `None` = absent (old save), which seeds once on load.
     #[serde(default)]
     skills: Option<[u32; 4]>,
+    /// COMBAT-CORE-1. `None` = absent (v1 save), which loads as 0.
+    #[serde(default)]
+    combat_xp: Option<u32>,
 }
 
 impl Default for SessionBlob {
@@ -55,6 +59,7 @@ impl Default for SessionBlob {
             thread_strength: 0.28,
             companion_trust: 0.18,
             skills: None,
+            combat_xp: None,
         }
     }
 }
@@ -169,7 +174,8 @@ fn load_local_session(
     bond.trust = blob.companion_trust.clamp(0.0, 1.0);
     bond.mounted = false;
     if let Some(mut skills) = skills {
-        skills.xp = skills_on_load(blob.skills, blob.harvests, blob.tends);
+        skills.xp =
+            skills_with_combat_on_load(blob.skills, blob.combat_xp, blob.harvests, blob.tends);
     }
     info!(
         target: "powrush::session",
@@ -222,7 +228,8 @@ fn save_local_session(
         whisper_lived: persist.whisper_lived,
         thread_strength: web.thread_strength,
         companion_trust: bond.trust,
-        skills: skills.map(|s| s.xp),
+        skills: skills.as_ref().map(|s| [s.xp[0], s.xp[1], s.xp[2], s.xp[3]]),
+        combat_xp: skills.as_ref().map(|s| s.xp[COMBAT]),
     };
     save_blob(&blob);
     persist.dirty = false;
@@ -232,6 +239,34 @@ fn save_local_session(
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
+
+    #[test]
+    fn v1_save_loads_with_skills_kept_and_combat_zero() {
+        let temp = TempSession::new("v1-combat");
+        let mut v1 = serde_json::to_value(SessionBlob { vitality: 4.0, ..Default::default() }).unwrap();
+        v1.as_object_mut().unwrap().remove("combat_xp");
+        v1["skills"] = serde_json::json!([5, 6, 7, 8]);
+        fs::write(&temp.path, v1.to_string()).unwrap();
+        let a = load_blob_at(&temp.path).expect("v1 save must not reset the session");
+        assert!((a.vitality - 4.0).abs() < 0.001 && a.combat_xp.is_none());
+        assert_eq!(skills_with_combat_on_load(a.skills, a.combat_xp, 3, 2), [5, 6, 7, 8, 0]);
+    }
+
+    #[test]
+    fn combat_xp_round_trips_and_back_compat_both_ways() {
+        let temp = TempSession::new("combat-rt");
+        let b = SessionBlob { skills: Some([1, 2, 3, 4]), combat_xp: Some(42), ..Default::default() };
+        save_blob_at(&temp.path, &b);
+        let a = load_blob_at(&temp.path).unwrap();
+        assert_eq!((a.skills, a.combat_xp), (Some([1, 2, 3, 4]), Some(42)));
+        assert_eq!(skills_with_combat_on_load(a.skills, a.combat_xp, 0, 0)[COMBAT], 42);
+        // `skills` stays 4 wide for older builds; unknown fields are ignored on load.
+        let mut json = serde_json::to_value(&a).unwrap();
+        assert_eq!(json["skills"].as_array().map(Vec::len), Some(4));
+        json["later_field"] = 1.into();
+        let later: SessionBlob = serde_json::from_value(json).unwrap();
+        assert_eq!(later.combat_xp, Some(42));
+    }
 
     #[test]
     fn blob_keeps_trust() {

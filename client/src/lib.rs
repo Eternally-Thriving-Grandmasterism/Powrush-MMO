@@ -65,6 +65,7 @@ pub mod vegetation;
 pub mod water;
 pub mod living_body;
 pub mod skill_xp;
+pub mod combat_core;
 pub mod living_freshness;
 pub mod living_day;
 pub mod companion_bond;
@@ -203,6 +204,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(human_inventory::HumanInventoryPlugin);
         app.add_plugins(local_session_persist::LocalSessionPersistPlugin);
         app.add_plugins(skill_xp::SkillXpPlugin);
+        app.add_plugins(combat_core::CombatCorePlugin);
         app.add_plugins(first_whisper::FirstWhisperPlugin);
         app.add_plugins(first_hour_camera::FirstHourCameraPlugin);
         app.add_plugins(human_soft_panels::HumanSoftPanelsPlugin);
