@@ -31,6 +31,8 @@ A quote is a direction. This file is the councils' decision. It does not send th
 5. **One economy.** Bounties, portal fees, and match rewards post through the one ledger. There is no PvP currency (`docs/LAYERED_GAMES_AND_SERVER.md` §3e).
 6. **The yard ladder stays the yard ladder.** Temper, Lumen, and Ward are the only power ladder (`docs/MERCY_TEMPER_PROGRESSION.md`, `docs/FACTION_HERALDRY.md`). Combat does not add a second one. Shell Ward reduces stress on wells. It does not reduce player damage.
 
+> **LEVELS-CANON-1 (2026-10-27):** item 6 stands. Temper/Lumen/Ward stay the only *power* ladder, and levels unlock recipes and access, not raw stats ([LEVELS_CANON](LEVELS_CANON.md) R3).
+
 ---
 
 ## 2. Offline now, online later
@@ -65,6 +67,8 @@ Person-scale combat is this file. `docs/DOGFIGHT_MECHANICS.md`, `docs/BOARDING_M
 | **Muster Vault** | The war respawn chamber under the Holdfast. |
 | **Charter Pole** | The held objective in a guild-war instance. Holding it accrues hold time. |
 | **Charge** | A match-only resource inside the Lane Trial. It dies with the match. It is not on the ledger. |
+
+> **LEVELS-CANON-1 (2026-10-27):** in the Proficiency row only "It is not XP" is superseded ([LEVELS_CANON](LEVELS_CANON.md) R1–R2). "Not a damage bonus, not a Place gate, the world does not scale to it" stands, and Proficiency stays one bracket key.
 
 **Proficiency gain (targets).** One mark per completed craft, one mark when a node you tended reaches Idle, one mark per PvE skillshot that lands. PvE shot marks cap at 20 per real day. A player kill grants 0 marks. Ten marks raise proficiency by 1. Cap 60. Kills never pay proficiency and never pay XP.
 

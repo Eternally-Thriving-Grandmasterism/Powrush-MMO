@@ -41,6 +41,8 @@ Five practices only (not Hour-1 classes): Human · Quellorian · Draek · Cydrui
 | Iso / tactical overlay | Soft guidance card + **H** hide — no iso combat HUD |
 | Ship / alien cosmetics | Post-book skins + Heartwood / Spires / Depths — not Sanctuary spawn |
 
+> **LEVELS-CANON-1 (2026-10-27):** the "XP / levels from content" row is superseded. Levels and XP from practised verbs are allowed ([LEVELS_CANON](design/LEVELS_CANON.md) R1–R2). No XP from kills stands.
+
 ## Refuse (this slice and Peace hour)
 
 - Class / talent / skill tree at Title or first card

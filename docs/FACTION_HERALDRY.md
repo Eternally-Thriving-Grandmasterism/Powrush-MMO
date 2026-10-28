@@ -19,6 +19,8 @@ Parent law (cross-linked, not restated):
 4. **Wear tells the story.** Finishes age with use (chipped paint, a polished grip, a faded banner). Maintenance restores them. Lineage records who did the work.
 5. **No mall.** No cosmetic shop, no auction house, no RMT. Trade in finishes is a person-to-person service.
 
+> **LEVELS-CANON-1 (2026-10-27):** levels unlock recipes and access, not raw stats, so this stays the only power ladder ([LEVELS_CANON](design/LEVELS_CANON.md) R3).
+
 ## 2. Workshop services (hang off the existing fabricator; no second bench in Hour 1)
 
 | Service | Changes | Inputs | Wear |

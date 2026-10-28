@@ -147,6 +147,8 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 | R22 | The enemy people infiltrated Earth decades before play | KEEP | The long infiltration stands. They are also a playable People (conflict 2). | [DRAEK_ORIGIN](../DRAEK_ORIGIN_AND_THE_GREAT_BETRAYAL.md) §6, [PLAYABLE_RACES](../PLAYABLE_RACES.md) §3 |
 | R23 | Max criminality opens their mothership and freezes decay | MODERNISE | The ship is the Brood Spire, never in Sanctuary. Access and decay defer. → COMBAT_AND_PVP.md | [FACTIONS_OVERVIEW](../FACTIONS_OVERVIEW.md), [PLACES_BIBLE](../PLACES_BIBLE.md), [COMBAT_AND_PVP.md](COMBAT_AND_PVP.md) |
 
+> **LEVELS-CANON-1 (2026-10-27):** row R4's "Level tiers are not the ladder" is superseded only in that levels now exist ([LEVELS_CANON](LEVELS_CANON.md) R2). How levels relate to the ladder is OPEN (R4).
+
 ### T — Classification tree and systems appendix
 
 | ID | Old idea | Verdict | One-line reason | Canon home |
@@ -178,6 +180,8 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 | S2 | A visible special effect marks ascended players | MODERNISE | Cosmetic flag: no projected glow-skin. A physical earned mark (engraving or tabard thread) joins Lineage. | [FACTION_HERALDRY](../FACTION_HERALDRY.md) |
 | S3 | Gear scaled back to level 10, plus an auto-attack guardian | RETIRE | De-levelling gear and an auto-attack summon are a power scalar. | [GDD_IMMERSION](../GDD_IMMERSION_REVISION.md) §4 |
 | S4 | Ascended players gain extra item-find, health and damage | RETIRE | Extra stats are a power scalar. | [GDD_IMMERSION](../GDD_IMMERSION_REVISION.md) §4, [MERCY_TEMPER](../MERCY_TEMPER_PROGRESSION.md) |
+
+> **LEVELS-CANON-1 (2026-10-27):** row S1's premise "There is no level ladder" is superseded ([LEVELS_CANON](LEVELS_CANON.md) R2). Whether rebirth resets levels, and classes, stay OPEN for Sherif (R4).
 
 ### E — Gear system and loot
 
@@ -219,6 +223,8 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 | J4 | High righteousness invites "The Council" to raid enemy holdings | MODERNISE | The faction path is the Quellorian / Aetherion Luminari Alliance, earned by standing. The name Council stays governance. | [FACTIONS_OVERVIEW](../FACTIONS_OVERVIEW.md), [COUNCIL_SYSTEM](../COUNCIL_SYSTEM.md) |
 | J5 | Does the score survive ascension; can agents jump to earlier servers | MODERNISE (Online · grey) | Cross-timeline allegiance is a later timeline question. Ascension retention is moot without levels. | [LAYERED](../LAYERED_GAMES_AND_SERVER.md) §7.6 |
 | J6 | Full devotees stop decaying until good deeds lock the door | MODERNISE | Devotion does not freeze a one-way lock. Redemption can leave. → COMBAT_AND_PVP.md | [REDEMPTION_MECHANICS_PER_SPECIES](../REDEMPTION_MECHANICS_PER_SPECIES.md), [COMBAT_AND_PVP.md](COMBAT_AND_PVP.md) |
+
+> **LEVELS-CANON-1 (2026-10-27):** row J5's "moot without levels" is superseded, because levels exist ([LEVELS_CANON](LEVELS_CANON.md) R2). Level retention across ascension or rebirth is OPEN (R4).
 
 ### K — Skill-shots, guild wars, tournaments, duels
 
