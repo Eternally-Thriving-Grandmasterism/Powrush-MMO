@@ -24,7 +24,11 @@ R1 to R3 and the way R5 is applied are **council decisions under Sherif's 1:58 P
 
 ## R4 answer (LEVELS-LADDER-MAP-1)
 
-Core cut [#738 6457551301](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457551301), scope 6457536952, Clerk 6457529728, PATSAGi 6457505807 / 6457540944, Hands 6457546860.
+Core re-cut [#738 6457672904](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457672904), which replaces cut 6457551301. Re-scope 6457644126, Clerk 6457529728 / 6457654462, PATSAGi 6457505807 / 6457639022, Hands 6457546860 / 6457669024.
+
+Sherif canon, verbatim (2026-10-27 8:48 PM ET, via [6457639022](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457639022)):
+
+> Let's edit releveling to never happen on same character for same thing, Mate:
 
 Sherif canon, verbatim (2026-10-27 8:38 PM ET, via [6457505807](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457505807)):
 
@@ -34,26 +38,23 @@ Sherif canon, verbatim (2026-10-27 8:06 PM ET, via [6456876206](https://github.c
 
 > "Being Reborn should be a massive event like someone's wedding or graduation for example, with free fun stuff happening like fireworks and a global announcement to notify server players a player has been reborn from what class(es) to what class, and that will likely trigger excitement as well as potential support or griefing, both of which are fairplay."
 
-Only these two quotes are canon. Everything below is a **council decision under Sherif's 1:58 PM order, which Sherif can correct.** It is placeholder, with no figures or formulas.
+Only these three quotes are canon. Everything below is a **council decision under Sherif's 1:58 PM order, which Sherif can correct.** It is placeholder, with no figures or formulas.
 
 - **Use-based levels.** Only what a player trains and practises improves. XP comes only from doing the practised verb.
 - **No character-wide level, for now.** Sherif can overrule this.
-  - OPEN tension, not resolved here (A3): his 7:56 PM words ([6456695998](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6456695998)) say "get reset down levels and then proceed to relevel and even get powerleveled by friends like a newbie again". His 8:03 PM quote names Conquer Online and World of Warcraft. Both point toward some levels resetting on rebirth.
 - **Rebirth is class evolution.** The cap is Sherif's tentative 8:00 PM "not sure" lean of 1-2 rebirths. That is a playtest placeholder, not quoted canon (A2). The RB9 label and the shape of the celebration are a Lead Mate seed in 6456876206, folded into RB7.
-- **What evolution resets (point 3 governs, A1).**
-  - Practised skill levels drop partway, with epiphany catch-up (seed RB5, without its figure).
-  - Each new class grows from the skills practised in the past life.
-  - Items, ledger, House and Lineage stay. Temper/Lumen/Ward are not reset for now.
-  - Seed RB1 is reframed, not adopted.
+- **Nothing resets on the same character (N1).** Per the 8:48 PM quote, no skill or level is ever reset or re-levelled on the same character. Applying "same thing" to Temper/Lumen/Ward progress too is a council reading (CL-N1). Seed RB5 and seed RB1's reset are not adopted.
+- **Evolution only adds (N2).** It brings new things to train that the evolved class unlocks. Past skills stay. Classes stay OPEN.
+- **Superseded (CL-N3).** The 7:56 PM "reset down levels" words ([6456695998](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6456695998)) are superseded by 8:48 PM ([6457639022](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457639022)).
 - **Temper/Lumen/Ward stays the only power ladder.** Skill levels don't feed it in the interim, until a card maps them.
 - **Realism rule (A7).** Systems should make sense as "coherent and believable systems in reality to humans, even if some things like teleporters are fake", in Sherif's 8:38 PM words. Each convenience needs an in-world reason (the rational-prerequisite pillar).
 
 Still OPEN for Sherif:
 
-- The full reset scope, and whether rebirth gives any power reward (A1).
+- Any rebirth power reward, and a character-wide level (the "no character-wide level" above is a council decision).
 - Classes and how they relate to levels and to Temper/Lumen/Ward. There is no class list here.
 - Whether Proficiency becomes a per-skill level.
-- Seed RB6 (escort and mentoring instead of XP powerlevelling) is not adopted. It conflicts with "get powerleveled by friends" and is flagged for the council. Seeds RB1-RB8 ([6456695998](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6456695998)) are suggestions, not canon.
+- Seed RB6 (escort and mentoring instead of XP powerlevelling) is not adopted. 8:48 PM supersedes only the reset half of "powerleveled by friends like a newbie again", so the conflict stays flagged for the council (H7). Seeds RB1-RB8 ([6456695998](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6456695998)) are suggestions, not canon.
 
 ## Out of scope
 

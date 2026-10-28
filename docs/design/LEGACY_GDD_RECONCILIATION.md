@@ -185,7 +185,7 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 
 > **LEVELS-CANON-1 (2026-10-27):** row S1's premise "There is no level ladder" is superseded ([LEVELS_CANON](LEVELS_CANON.md) R2). Whether rebirth resets levels, and classes, stay OPEN for Sherif (R4).
 
-> **LEVELS-LADDER-MAP-1 (2026-10-27):** this answers only the rebirth half. Rebirth is class evolution: practised skill levels drop partway with epiphany catch-up, and Temper/Lumen/Ward are not reset for now. This is a council placeholder ([LEVELS_CANON](LEVELS_CANON.md) "R4 answer"). Classes stay OPEN.
+> **LEVELS-LADDER-MAP-1 (2026-10-27):** this answers only the rebirth half. Rebirth resets nothing on the same character, per Sherif's 8:48 PM canon ([LEVELS_CANON](LEVELS_CANON.md) "R4 answer"). Classes stay OPEN.
 
 ### E — Gear system and loot
 
@@ -230,7 +230,7 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 
 > **LEVELS-CANON-1 (2026-10-27):** row J5's "moot without levels" is superseded, because levels exist ([LEVELS_CANON](LEVELS_CANON.md) R2). Level retention across ascension or rebirth is OPEN (R4).
 
-> **LEVELS-LADDER-MAP-1 (2026-10-27):** on evolution, practised skill levels drop partway with epiphany catch-up, and items, ledger, House and Lineage stay. This is a council placeholder ([LEVELS_CANON](LEVELS_CANON.md) "R4 answer").
+> **LEVELS-LADDER-MAP-1 (2026-10-27):** all levels are kept across rebirth on the same character, per Sherif's 8:48 PM canon ([LEVELS_CANON](LEVELS_CANON.md) "R4 answer").
 
 ### K — Skill-shots, guild wars, tournaments, duels
 
