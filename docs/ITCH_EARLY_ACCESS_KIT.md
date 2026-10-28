@@ -1,7 +1,7 @@
 # ITCH-EARLY-ACCESS-KIT-1
 
 **Contact:** info@Rathor.ai  
-**Checked against:** `main` `55c830ca`.  
+**Checked against:** `main` `0e77c354`.  
 **Seat:** docs only. One file. No `client/**`, `shared/**`, or workflow edits.
 
 Sherif publishes the itch.io page. This file is the copy and the checklist. An agent does not create the account, does not upload, and does not press publish.
@@ -32,7 +32,7 @@ What you are buying is an early-access offline prototype. It is single-player. T
 
 Play starts in Sanctuary, a valley around a well. Continue returns you to a House name, or to an Unnamed House, when the yard already remembers you. You walk, jump, and sprint. By default, A and D strafe with the view. Settings also offers a Classic move preset, where A and D turn you and W and S follow the way you face. You tend or take at the well. The well tells you when it is idle, glowing, tended, resting, or stressed. You open a satchel, hide the guidance line, and allocate what you gathered: flow, or reserve. Saves stay on your machine.
 
-You can look around by holding the right mouse button. Mouse look is a separate option in Settings. It stays off until you turn it on. The camera pulls back from walls, so it does not pass into them.
+Mouse look is on by default. You can turn it off in Settings, on the Comfort tab, with the row "Mouse look · on/off". Holding the right mouse button looks around either way. The camera pulls back from walls, so it does not pass into them.
 
 In Settings, on the Controls tab, you can give an action a new key. If that key is already used, the row tells you which action has it. Under Reset keys, a line lists key conflicts, or says there are none.
 
@@ -47,7 +47,7 @@ Sound can be muted. Scenery stays off unless you turn it on.
 - Offline single-player for Windows and Linux. No account. The title's Online line stays off.
 - Title buttons: Play, Continue, Settings. Continue keeps a House name, or Unnamed House, and the yard remembers.
 - Walk, jump, and sprint. By default, A and D strafe. A Classic move preset turns with A and D instead.
-- Hold the right mouse button to look around. Mouse look is optional and off until you turn it on.
+- Mouse look is on by default. Turn it off in Settings, on the Comfort tab, row "Mouse look · on/off". Holding the right mouse button looks around either way.
 - The camera pulls back from walls, so it does not pass into them.
 - Controls in Settings: rebind keys. A taken key is refused, and a line under Reset keys warns about key conflicts.
 - Reserved shortcut keys are refused with the message "reserved · <key>".
@@ -70,7 +70,7 @@ Sound can be muted. Scenery stays off unless you turn it on.
 | Space | Jump |
 | Shift | Sprint |
 | Right mouse button | Look around |
-| Mouse look | Optional. Off until you turn it on in Settings |
+| Mouse look | On by default. Turn it off in Settings, Comfort tab, row "Mouse look · on/off" |
 | E | Tend or harvest the well |
 | I | Satchel |
 | H | Hide guidance |
@@ -93,7 +93,12 @@ Do not count places, and do not list them as a closed set. Do not claim other pl
 
 ## 2. Price
 
-Pay what you want, $5 USD minimum.
+[PRICE TBD — Sherif leans $13.37]  
+[PRICE MODEL TBD — fixed vs pay-what-you-want, Sherif's call]
+
+Sherif's words (2026-10-27, 9:14 PM ET), a lean, not set: "Pricing maybe should be $13.37 USD".
+
+Earlier choice (2026-10-16), not current: pay what you want, $5 USD minimum.
 
 ---
 
@@ -148,7 +153,7 @@ No agent, bot, or collaborator does these. No one publishes, uploads, or takes p
 3. Set itch's revenue-share slider himself. This kit does not pick the share.
 4. Create a new project. Kind: downloadable game. Title: Powrush. Paste the tagline, short pitch, long description, feature bullets, keys, and buyer launch notes from section 1.
 5. Tag the project early access, and keep the words "Early access" in the first line of the description.
-6. Set the price to pay what you want with a $5 USD minimum, as section 2 records.
+6. Set the price and the price model himself, from section 2. Section 2 is not decided yet.
 7. Download the Windows and Linux zips in section 3 from a green `offline-build` run on `main`.
 8. Upload the Windows zip and mark it Windows. Upload the Linux zip and mark it Linux.
 9. Open each uploaded zip far enough to see `README.txt`, and confirm the offline / Online-off lines are still there.
@@ -168,7 +173,7 @@ Lived hour and keys: `README.md`, `docs/STRANGER_LOOP.md`.
 Peoples: `docs/PLAYABLE_RACES.md`. Draek plate and the lineage cycle are in the client. Vrendak's name is not in the client.  
 Move preset: Modern is the default and its hint is "A/D strafe". Classic is the other move preset and its hint is "A/D turn".  
 Controls: a taken key shows "taken by …". The row under Reset keys reads "Key conflicts · …".  
-Mouse look: a Settings row, default off. Holding the right mouse button looks around without that option.  
+Mouse look: on by default since PLAYTEST-CAM-1 (#776) (`shared/local_settings.rs:420-433`, `:594`). Settings, Comfort tab, row "Mouse look · on/off" (`client/src/title_screen.rs:638`, `:1827-1833`, `:3317-3318`). Holding the right mouse button looks around either way (`client/src/human_presence.rs:1625`).  
 Camera: the follow camera pulls in when a wall is closer, so it does not sit inside the wall.  
 Scenery is the settings name for the light that stays off.  
 Offline package: `.github/workflows/offline-build.yml`. Title Online stays grey.
