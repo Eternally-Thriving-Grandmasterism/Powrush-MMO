@@ -116,7 +116,7 @@ Not for the itch page. Workflow file: `.github/workflows/offline-build.yml`. Wor
 
 It runs on a push to `main`, on a manual run, and on a pull request only when that workflow file itself changes. An ordinary docs pull request does not build it. Upload a green run from `main`.
 
-The job matrix is Ubuntu and Windows. Each leg builds the release client, then packs a folder. The packed files are kept for 14 days.
+The job matrix is Ubuntu and Windows. Each leg builds the release client, then packs a folder. The packed files are kept for 90 days.
 
 | Download name | What is inside |
 |---|---|
@@ -130,10 +130,10 @@ The job matrix is Ubuntu and Windows. Each leg builds the release client, then p
 ```
 Offline build only.
 Online is grey and disabled.
-This is a prototype CI artifact, not a release.
+Early-access offline prototype. Single-player. Saves stay on your machine.
 ```
 
-Leave that wording inside the download. Do not paste "CI" onto the itch page.
+Leave that wording inside the download.
 
 The Linux paragraph names the extract command and the library list in section 1. The Windows paragraph says to run `powrush-client.exe` next to `assets/`.
 
@@ -143,7 +143,7 @@ Checklist:
 
 1. Open the Actions tab for this repo. Select the `offline-build` workflow. Open a run on `main` whose build legs and the later Linux boot check are green.
 2. Read the download names and copy the short code. That code identifies the files. Do not print it as jargon on the itch page.
-3. Download both before day 14. Each arrives as a zip. The files sit at the root: the program (or the Linux archive), `assets/`, `README.txt`.
+3. Download both before day 90. Each arrives as a zip. The files sit at the root: the program (or the Linux archive), `assets/`, `README.txt`.
 4. Unzip once locally and confirm the Windows zip has `powrush-client.exe` beside `assets/`, and the Linux zip has the Linux archive beside `assets/`. Confirm `README.txt` still has the three lines above.
 5. Upload those zips as they arrived. Re-zip only if a check forced an unpack. Upload the whole Linux zip. The inner archive has the program alone and will ship without `assets/` if it is uploaded by itself.
 6. Do not rebuild by hand for the page, and do not swap in a different program. Do not turn Online on.
