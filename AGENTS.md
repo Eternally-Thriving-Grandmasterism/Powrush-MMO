@@ -66,4 +66,5 @@ Feature branch. Fill the ballot. Label `patsgi-auto` only when the court verdict
 - Change `Cargo.toml` workspace members / default bins.
 - Retag `playable-preview`.
 - Touch GitHub Pages, Deployments, or Secrets.
-- Invent PATHS · Online lit · Steam · `.glb` · reopen #459 · OFFER NEXT · Always-allow · `server/` unpark · MESH without Core PATHS · `client/**` edits outside a Core-named CARD · new files beyond Core-named PATHS.
+- Invent PATHS · Online lit · Steam · reopen #459 · OFFER NEXT · Always-allow · `server/` unpark · MESH without Core PATHS · `client/**` edits outside a Core-named CARD · new files beyond Core-named PATHS.
+- `.glb` ruling — Sherif 2026-10-28 3:18 AM ET: "Yes, lift the .glb ban, licensed assets only". Licensed glTF/`.glb` models (and their textures) may land under `assets/models/` only in a Core-named CARD and only with a row in `assets/asset-licenses.csv`. Unlicensed or unknown-source assets stay forbidden. Older lines that still ban `.glb` (docs/AGENT_RUN_BRIEF.md, docs/NEXT_NAMED_CARDS.md :8/:738, docs/AGENT_QA_TAPE.md :11, docs/L2_HOUSE_PERSONA_DRESS_REPLAY.md :11 and the dated pages) are superseded by this 2026-10-28 ruling for licensed assets only. MESH work still needs Core PATHS.
