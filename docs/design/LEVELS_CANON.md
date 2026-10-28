@@ -24,9 +24,13 @@ R1 to R3 and the way R5 is applied are **council decisions under Sherif's 1:58 P
 
 ## R4 answer (LEVELS-LADDER-MAP-1)
 
-Core re-cut 2 [#738 6457817635](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457817635): re-scope 2 6457717205 with addenda E6 6457761194 and E7 6457804407, replacing re-cut 6457672904. Votes: PATSAGi 6457722838 / 6457767074, Clerk 6457736902 / 6457770591, Hands 6457793322 / 6457811500, Clerk E7 6457814099, PATSAGi E7 6457809904. Earlier sources: 6457644126, 6457654462, 6457669024, 6457639022, 6457505807.
+Core re-cut 2 [#738 6457817635](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457817635): re-scope 2 6457717205 with addenda E6 6457761194 E7 6457804407 and E8 [6457856674](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457856674), replacing re-cut 6457672904. Votes: PATSAGi 6457722838 / 6457767074, Clerk 6457736902 / 6457770591, Hands 6457793322 / 6457811500, Clerk E7 6457814099, PATSAGi E7 6457809904. Earlier sources: 6457644126, 6457654462, 6457669024, 6457639022, 6457505807.
 
 Sherif canon, verbatim. Playtester lines in those comments are context only, never canon.
+
+- 9:03 PM, first sentence only ([6457852295](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457852295)):
+
+> Maybe the cap is if you leveled everything to max, which i suppose like in real life, could be achieved.
 
 - 9:00 PM ([6457801177](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457801177)):
 
@@ -58,7 +62,8 @@ Sherif canon, verbatim. Playtester lines in those comments are context only, nev
 Only these quotes are canon. Everything below is a **council decision under Sherif's 1:58 PM order, which Sherif can correct.** It is placeholder, with no figures or formulas.
 
 - **Terminology (E1).** The term "Rebirth" is retired. The working term is *class evolution*, and the player-facing name is [NAME TBD], waiting for Sherif's words.
-- **Overall level (E7a/E7b).** The lean (Sherif 9:00 PM, 'Perhaps'): an overall level = total of combined levels, capped. He opened with "Perhaps", so this is a lean, not a ruling. "without infinite levels like Paragon" is his own phrase. Only "bounded by the sum of the level caps" is a council reading, with no cap numbers.
+- **Overall level (E7a/E7b).** The lean (Sherif 9:00 PM, 'Perhaps'): an overall level = total of combined levels, capped. He opened with "Perhaps", so this is a lean, not a ruling. "without infinite levels like Paragon" is his own phrase.
+  - Cap (E8a, a lean because he opened with "Maybe"): the total-level cap is reached when everything is levelled to max, and that "could be achieved". Reading his "the cap" as the total-level cap, the sum of every level at max, is a council reading (CL-E11, 6457852295 point 1). There are no cap numbers.
   - Council reading (CL-E8, 6457801177 point 1): the total counts class, skill and profession levels, like RuneScape's total level. His words are only "the total combined levels".
 - **Pillar (E7c).** In Sherif's words, the meta "should be logical and fair, and end game should be predictable once mastered by top players, so that the art of technique and finesse becomes the ultimate level of strategy and skills beyond just having max levels and perfect best in slot gear". COMBAT_AND_PVP is not edited on this card.
 - **Use-based levels.** Only what a player trains and practises improves. XP comes only from doing the practised verb.
