@@ -86,7 +86,7 @@ jobs:
           cat > "${dist}/README.txt" << 'EOF'
           Offline build only.
           Online is grey and disabled.
-          This is a prototype CI artifact, not a release.
+          Early-access offline prototype. Single-player. Saves stay on your machine.
           EOF
           cat >> "${dist}/README.txt" << EOF
           Linux: tar xzf powrush-offline-linux-${sha8}.tar.gz, then ./powrush-client (from this folder, next to assets/).
@@ -104,7 +104,7 @@ jobs:
         with:
           name: powrush-offline-${{ steps.package.outputs.os }}-${{ steps.package.outputs.sha8 }}
           path: ${{ steps.package.outputs.dist }}
-          retention-days: 14
+          retention-days: 90
 
       - name: Smoke boot packaged Linux build
         if: runner.os == 'Linux'
