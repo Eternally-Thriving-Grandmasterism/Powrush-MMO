@@ -18,8 +18,9 @@ R1 to R3 and the way R5 is applied are **council decisions under Sherif's 1:58 P
 - **R4 · OPEN for Sherif, now partly answered** in "R4 answer" below. Otherwise none of the following is decided here. Nobody invents a mapping or a formula. These are banked as LEVELS-LADDER-MAP-1.
   - Whether there is a character-wide level, and how it maps onto Temper/Lumen/Ward.
   - Whether Proficiency (one bracket key, [COMBAT_AND_PVP](COMBAT_AND_PVP.md) :56) becomes a per-skill level.
-  - Whether rebirth resets levels. Sherif's 8:00 PM lean was "not sure".
+  - Whether Confluence resets levels. Sherif's 8:00 PM lean was "not sure".
   - Classes. Sherif's 8:06 PM rebirth canon ([#738 6456876206](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6456876206)) says a player is "reborn from what class(es) to what class", which implies a class system. The class list, and how classes relate to levels and to Temper/Lumen/Ward, stay OPEN. This doc does not define classes.
+    - **CLASSES-CANON-1 (2026-10-28):** Superseded: starting classes are Warrior, Archer, Mage; healing is a trainable branch, not a class. PATSAGi council decision under Sherif's 1:01 AM ET delegation, not his words.
 - **R5 · Exploit-proof rewards.** Every reward must be one that "cannot be exploited", in Sherif's words. How that is applied (the kill-XP guard in R1, and no pay-to-win) is a council decision.
 
 ## R4 answer (LEVELS-LADDER-MAP-1)
@@ -61,7 +62,8 @@ Sherif canon, verbatim. Playtester lines in those comments are context only, nev
 
 Only these quotes are canon. Everything below is a **council decision under Sherif's 1:58 PM order, which Sherif can correct.** It is placeholder, with no figures or formulas.
 
-- **Terminology (E1).** The term "Rebirth" is retired. The working term is *class evolution*, and the player-facing name is [NAME TBD], waiting for Sherif's words.
+- **Terminology (E1).** The term "Rebirth" is retired. The working term is *class evolution*, and the player-facing name is "Confluence" (CLASSES-CANON-1, 2026-10-28: PATSAGi council decision under Sherif's 1:01 AM ET delegation, not his words; English-only name screen, not trademark clearance).
+- **Classes (CLASSES-CANON-1, 2026-10-28).** Starting classes are Warrior, Archer and Mage. The hybrid pairs are Warrior+Archer, Warrior+Mage and Archer+Mage, each `[NAME TBD]`. Healing is a branch any class can train, not a fourth class. PATSAGi council decision under Sherif's 1:01 AM ET delegation, not his words. No numbers.
 - **Overall level (E7a/E7b).** The lean (Sherif 9:00 PM, 'Perhaps'): an overall level = total of combined levels, capped. He opened with "Perhaps", so this is a lean, not a ruling. "without infinite levels like Paragon" is his own phrase.
   - Cap (E8a, a lean because he opened with "Maybe"): the total-level cap is reached when everything is levelled to max, and that "could be achieved". Reading his "the cap" as the total-level cap, the sum of every level at max, is a council reading (CL-E11, 6457852295 point 1). There are no cap numbers.
   - Council reading (CL-E8, 6457801177 point 1): the total counts class, skill and profession levels, like RuneScape's total level. His words are only "the total combined levels".
@@ -88,6 +90,7 @@ Still OPEN for Sherif or playtests:
 - Whether Sherif's tentative 8:00 PM "not sure" lean of 1-2 now counts evolution tiers. That lean is not canon (A2, H10).
 - Whether the RB9 celebration fires at an evolution milestone, and power bounds, which go to playtests.
 - Classes, with no class list here, and whether Proficiency becomes a per-skill level.
+  - **CLASSES-CANON-1 (2026-10-28):** Superseded: starting classes are Warrior, Archer, Mage; healing is a trainable branch, not a class. PATSAGi council decision under Sherif's 1:01 AM ET delegation, not his words. Whether Proficiency becomes a per-skill level stays open.
 - Seed RB6 is not adopted. 8:48 PM supersedes only the reset half of "powerleveled by friends like a newbie again", so it stays flagged for the council (H7). Seeds RB1-RB8 ([6456695998](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6456695998)) are suggestions, not canon.
 
 ## Out of scope

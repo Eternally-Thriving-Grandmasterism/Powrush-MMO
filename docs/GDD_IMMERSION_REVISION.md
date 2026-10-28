@@ -57,6 +57,8 @@ Verbs are the sacred five: **Tend / Take / Flow / Reserve / Mend** (`PLACES_BIBL
 
 > **LEVELS-LADDER-MAP-1 (2026-10-27):** the "Class kit" row's path identity is now class evolution: hybrids through a talent tree. This is a council decision ([LEVELS_CANON](design/LEVELS_CANON.md) "R4 answer"). Classes stay OPEN, and this table defines none.
 
+> **CLASSES-CANON-1 (2026-10-28):** the "Class kit / rebirth path identity" row is superseded on classes: starting classes are Warrior, Archer, Mage; healing is a trainable branch, not a class. PATSAGi council decision under Sherif's 1:01 AM ET delegation, not his words. For the rebirth wording, the class-evolution event is "Confluence". PATSAGi council decision under Sherif's 2026-10-28 1:01 AM ET delegation, not his words.
+
 ### 2.2 WoW — Vanilla + TBC
 
 | Verdict | Reference beat | Powrush home |
