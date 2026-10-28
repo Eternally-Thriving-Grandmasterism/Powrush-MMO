@@ -96,6 +96,12 @@ TextColor(TITLE_TEXT_PRIMARY),
                 MercySoftBody,
             ));
             p.spawn((
+                Text::new(""),
+                TextFont { font_size: FontSize::Px(12.0 / 1.2), ..default() },
+                TextColor(TITLE_TEXT_PRIMARY),
+                crate::skill_xp::SkillsPanelText,
+            ));
+            p.spawn((
 Text::new("M toggle · J also opens the echo"),
 TextFont { font_size: FontSize::Px(11.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_SECONDARY),

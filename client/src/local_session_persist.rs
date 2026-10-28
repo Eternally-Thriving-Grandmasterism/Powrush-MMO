@@ -16,6 +16,7 @@ use crate::harvest_feel::SoftRbePool;
 use crate::human_inventory::HumanInventory;
 use crate::living_ecology::PersistentWeb;
 use crate::living_practice_loop::SoftPlayerRealm;
+use crate::skill_xp::{skills_on_load, SkillXp};
 
 const PERSIST_PATH: &str = "data/powrush_local_session.json";
 
@@ -34,6 +35,9 @@ struct SessionBlob {
     thread_strength: f32,
     #[serde(default)]
     companion_trust: f32,
+    /// SKILL-XP-1. `None` = absent (old save), which seeds once on load.
+    #[serde(default)]
+    skills: Option<[u32; 4]>,
 }
 
 impl Default for SessionBlob {
@@ -50,6 +54,7 @@ impl Default for SessionBlob {
             whisper_lived: false,
             thread_strength: 0.28,
             companion_trust: 0.18,
+            skills: None,
         }
     }
 }
@@ -137,6 +142,7 @@ fn load_local_session(
     mut inv: ResMut<HumanInventory>,
     mut web: ResMut<PersistentWeb>,
     mut bond: ResMut<CompanionBond>,
+    skills: Option<ResMut<SkillXp>>,
 ) {
     if persist.loaded {
         return;
@@ -162,6 +168,9 @@ fn load_local_session(
     web.apply_decay_on_return();
     bond.trust = blob.companion_trust.clamp(0.0, 1.0);
     bond.mounted = false;
+    if let Some(mut skills) = skills {
+        skills.xp = skills_on_load(blob.skills, blob.harvests, blob.tends);
+    }
     info!(
         target: "powrush::session",
         v = pool.vitality,
@@ -196,6 +205,7 @@ fn save_local_session(
     harvest: Res<FirstHarvestEpiphany>,
     web: Res<PersistentWeb>,
     bond: Res<CompanionBond>,
+    skills: Option<Res<SkillXp>>,
 ) {
     if !persist.dirty {
         return;
@@ -212,6 +222,7 @@ fn save_local_session(
         whisper_lived: persist.whisper_lived,
         thread_strength: web.thread_strength,
         companion_trust: bond.trust,
+        skills: skills.map(|s| s.xp),
     };
     save_blob(&blob);
     persist.dirty = false;
@@ -332,5 +343,27 @@ mod tests {
         assert!(!temp.path.with_extension("json.tmp").exists());
         let loaded = load_blob_at(&temp.path).unwrap();
         assert!(trust_near(&loaded, 0.77));
+    }
+
+    #[test]
+    fn old_blob_seeds_skills_once_and_round_trips() {
+        use crate::skill_xp::{XP_PER_GATHER as G, XP_PER_TEND as T};
+        let temp = TempSession::new("skills");
+        let mut b = SessionBlob::default();
+        (b.harvests, b.tends) = (3, 2);
+        let mut old = serde_json::to_value(b).unwrap();
+        old.as_object_mut().unwrap().remove("skills");
+        fs::write(&temp.path, old.to_string()).unwrap();
+        let loaded = load_blob_at(&temp.path).unwrap();
+        assert!(loaded.skills.is_none() && loaded.schema == "powrush_local_session_v1");
+        let seeded = skills_on_load(loaded.skills, loaded.harvests, loaded.tends);
+        assert_eq!(seeded, [3 * G, 2 * T, 0, 0]);
+        // Field now present: counters grow, a second load must not re-seed.
+        let kept = [seeded[0], seeded[1], 7, 0];
+        let mut b = loaded;
+        (b.harvests, b.tends, b.skills) = (9, 9, Some(kept));
+        save_blob_at(&temp.path, &b);
+        let a = load_blob_at(&temp.path).unwrap();
+        assert_eq!(skills_on_load(a.skills, a.harvests, a.tends), kept);
     }
 }

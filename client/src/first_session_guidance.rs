@@ -1057,7 +1057,7 @@ const GUIDE_STEP_CAP_MPS: f32 = 5.4 * 2.0;
 ///
 /// Returns 0 when `prev` is missing, when `dt + fixed_dt` is not positive,
 /// or when the XZ step exceeds that cap (teleport, landing wake, garden bounce).
-fn body_step_xz(prev: Option<Vec2>, now: Vec2, dt: f32, fixed_dt: f32) -> f32 {
+pub(crate) fn body_step_xz(prev: Option<Vec2>, now: Vec2, dt: f32, fixed_dt: f32) -> f32 {
     let Some(prev) = prev else {
         return 0.0;
     };
