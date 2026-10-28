@@ -90,6 +90,8 @@ pub struct FirstHarvestEpiphany {
     pub wards_near: bool,
     /// At the Depths Peace node. E restores that hex file; do not harvest.
     pub depths_near: bool,
+    /// STORY-TEXT-1 — at the Heartwood plaque. E reads; do not harvest.
+    pub plaque_near: bool,
     /// CARD FLESH-EPIPHANY-PLACE — stood Place for the tend pulse. None until travel exists.
     pub stood_place: Option<&'static str>,
 }
@@ -120,6 +122,7 @@ impl Default for FirstHarvestEpiphany {
             threshold_near: false,
             wards_near: false,
             depths_near: false,
+            plaque_near: false,
             stood_place: None,
         }
     }
@@ -140,6 +143,7 @@ impl FirstHarvestEpiphany {
     pub fn harvest_use_is_claimed(&self) -> bool {
         self.threshold_near
             || self.depths_near
+            || self.plaque_near
             || wards_may_claim_use(self.wards_near, self.well_in_reach)
     }
 
