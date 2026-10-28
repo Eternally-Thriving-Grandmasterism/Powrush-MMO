@@ -15,12 +15,80 @@ R1 to R3 and the way R5 is applied are **council decisions under Sherif's 1:58 P
 - **R1 · Where XP comes from.** XP comes from practised verbs: crafting, gathering, hauling, quests and similar. Kills still never pay XP. That is the existing exploit guard in [COMBAT_AND_PVP](COMBAT_AND_PVP.md) :69, :244 and :284, kept under R5. It is not a Sherif quote.
 - **R2 · What levels.** Professions and skills level up through XP, in the style of RuneScape and WoW. Engineering is a levelling profession per [AUDIO_RADIO_QUEST_DESIGN](AUDIO_RADIO_QUEST_DESIGN.md) :85.
 - **R3 · One power ladder.** Temper, Lumen and Ward stay the only *power* ladder ([MERCY_TEMPER_PROGRESSION](../MERCY_TEMPER_PROGRESSION.md)). Levels unlock recipes and access, not raw stats. There is no second stat ladder. How levels relate to the rungs is left to LEVELS-LADDER-MAP-1.
-- **R4 · OPEN for Sherif.** None of the following is decided here. Nobody invents a mapping or a formula. These are banked as LEVELS-LADDER-MAP-1.
+- **R4 · OPEN for Sherif, now partly answered** in "R4 answer" below. Otherwise none of the following is decided here. Nobody invents a mapping or a formula. These are banked as LEVELS-LADDER-MAP-1.
   - Whether there is a character-wide level, and how it maps onto Temper/Lumen/Ward.
   - Whether Proficiency (one bracket key, [COMBAT_AND_PVP](COMBAT_AND_PVP.md) :56) becomes a per-skill level.
   - Whether rebirth resets levels. Sherif's 8:00 PM lean was "not sure".
   - Classes. Sherif's 8:06 PM rebirth canon ([#738 6456876206](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6456876206)) says a player is "reborn from what class(es) to what class", which implies a class system. The class list, and how classes relate to levels and to Temper/Lumen/Ward, stay OPEN. This doc does not define classes.
 - **R5 · Exploit-proof rewards.** Every reward must be one that "cannot be exploited", in Sherif's words. How that is applied (the kill-XP guard in R1, and no pay-to-win) is a council decision.
+
+## R4 answer (LEVELS-LADDER-MAP-1)
+
+Core re-cut 2 [#738 6457817635](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457817635): re-scope 2 6457717205 with addenda E6 6457761194 E7 6457804407 and E8 [6457856674](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457856674), replacing re-cut 6457672904. Votes: PATSAGi 6457722838 / 6457767074, Clerk 6457736902 / 6457770591, Hands 6457793322 / 6457811500, Clerk E7 6457814099, PATSAGi E7 6457809904. Earlier sources: 6457644126, 6457654462, 6457669024, 6457639022, 6457505807.
+
+Sherif canon, verbatim. Playtester lines in those comments are context only, never canon.
+
+- 9:03 PM, first sentence only ([6457852295](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457852295)):
+
+> Maybe the cap is if you leveled everything to max, which i suppose like in real life, could be achieved.
+
+- 9:00 PM ([6457801177](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457801177)):
+
+> Perhaps an overall character level of the total combined levels is a good idea for those who want to feel a sense of combined achievement, Mate, without infinite levels like Paragon. The meta should be logical and fair, and end game should be predictable once mastered by top players, so that the art of technique and finesse becomes the ultimate level of strategy and skills beyond just having max levels and perfect best in slot gear for the final build of each unique character, Mate!
+
+- 8:56 PM ([6457757116](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457757116)):
+
+> The class evolutions can be milestones, like the  Conquer Online level 40, 70, 100, 110, and 120 milestones for examples and followup reborn class mixing.
+
+- ~8:52 PM ([6457712540](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457712540)):
+
+> Yes, should be class upgrade terminology like archer combined with warrior to be a high defense ranger, or a caster mixed with a melee class to have magic like melee hits and so on properly like leveling up through a talent tree, and it can be reset by paying resources to reset points and redo the class evolutions, or maybe have to level new characters each time for replayability?
+
+> Should class evolutions be permanent or reset able?
+> I think resetable with expensive resources, so everyone will make new characters unless they have tons of resources to just respec?
+
+- 8:48 PM ([6457639022](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457639022)):
+
+> Let's edit releveling to never happen on same character for same thing, Mate:
+
+- 8:38 PM ([6457505807](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457505807)):
+
+> Perhaps like real life, what is trained and practiced is what improves, and maybe the rebirth system can make more realistic sense as well to be a class evolution for more coherent and believable systems in reality to humans, even if some things like teleporters are fake.
+
+- 8:06 PM ([6456876206](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6456876206)):
+
+> "Being Reborn should be a massive event like someone's wedding or graduation for example, with free fun stuff happening like fireworks and a global announcement to notify server players a player has been reborn from what class(es) to what class, and that will likely trigger excitement as well as potential support or griefing, both of which are fairplay."
+
+Only these quotes are canon. Everything below is a **council decision under Sherif's 1:58 PM order, which Sherif can correct.** It is placeholder, with no figures or formulas.
+
+- **Terminology (E1).** The term "Rebirth" is retired. The working term is *class evolution*, and the player-facing name is [NAME TBD], waiting for Sherif's words.
+- **Overall level (E7a/E7b).** The lean (Sherif 9:00 PM, 'Perhaps'): an overall level = total of combined levels, capped. He opened with "Perhaps", so this is a lean, not a ruling. "without infinite levels like Paragon" is his own phrase.
+  - Cap (E8a, a lean because he opened with "Maybe"): the total-level cap is reached when everything is levelled to max, and that "could be achieved". Reading his "the cap" as the total-level cap, the sum of every level at max, is a council reading (CL-E11, 6457852295 point 1). There are no cap numbers.
+  - Council reading (CL-E8, 6457801177 point 1): the total counts class, skill and profession levels, like RuneScape's total level. His words are only "the total combined levels".
+- **Pillar (E7c).** In Sherif's words, the meta "should be logical and fair, and end game should be predictable once mastered by top players, so that the art of technique and finesse becomes the ultimate level of strategy and skills beyond just having max levels and perfect best in slot gear". COMBAT_AND_PVP is not edited on this card.
+- **Use-based levels.** Only what a player trains and practises improves. XP comes only from doing the practised verb.
+- **Class evolution (E2).** It combines classes into hybrids through a talent tree. "archer combined with warrior" and "a caster mixed with a melee class" are Sherif's examples, not class names.
+- **Milestones (E6, CL-E4).** Class evolutions *can be* level milestones. The Conquer Online figures appear only in his quote, and Powrush thresholds are unnamed placeholders.
+  - Council reading (E6b): milestones count against a class level that never resets.
+  - Council reading (CL-E5): "followup ... class mixing" comes at later milestones.
+  - Seeds only: an in-world prerequisite per step, such as a trainer quest, is EN9. Bridge clusters are EN1 ([6457744209](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457744209)).
+- **Nothing resets on the same character (N1).** Per 8:48 PM, no skill or level is ever reset or re-levelled on the same character. Applying "same thing" to Temper/Lumen/Ward progress is a council reading (CL-N1). Evolution only adds new things to train, and past skills stay (N2). Seed RB5 and seed RB1's reset are not adopted.
+- **Respec (E3, E4).** Respec with expensive in-world resources is Sherif's lean: his lines end in "?". There is no cash path and no pay-to-win.
+  - Council reading (E4): beside his "reset points and redo the class evolutions", a respec resets only talent points.
+  - His "level new characters each time" is also a lean, and it concerns a different character, so it does not conflict with 8:48 PM (H9).
+- **Superseded (CL-N3).** The 7:56 PM "reset down levels" words ([6456695998](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6456695998)) are superseded by 8:48 PM ([6457639022](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6457639022)).
+- **Temper/Lumen/Ward stays the only power ladder.** Skill levels don't feed it in the interim, until a card maps them.
+- **Realism rule (A7).** Systems should make sense as "coherent and believable systems in reality to humans, even if some things like teleporters are fake", in Sherif's 8:38 PM words. Each convenience needs an in-world reason (the rational-prerequisite pillar).
+
+Still OPEN for Sherif or playtests:
+
+- The overall level stays a lean (Sherif 9:00 PM, 'Perhaps'): an overall level = total of combined levels, capped, not a ruling. The class level above is a council reading. Temper/Lumen/Ward's half of R4 stays OPEN.
+- Whether the total level unlocks anything. The council's lean is cosmetic or prestige only, with no power. Also whether evolution grants power (E7d).
+- Whether redoing an evolution starts that path's class level fresh. Trained skill and class levels on the same character are never wiped (H8).
+- Whether Sherif's tentative 8:00 PM "not sure" lean of 1-2 now counts evolution tiers. That lean is not canon (A2, H10).
+- Whether the RB9 celebration fires at an evolution milestone, and power bounds, which go to playtests.
+- Classes, with no class list here, and whether Proficiency becomes a per-skill level.
+- Seed RB6 is not adopted. 8:48 PM supersedes only the reset half of "powerleveled by friends like a newbie again", so it stays flagged for the council (H7). Seeds RB1-RB8 ([6456695998](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6456695998)) are suggestions, not canon.
 
 ## Out of scope
 

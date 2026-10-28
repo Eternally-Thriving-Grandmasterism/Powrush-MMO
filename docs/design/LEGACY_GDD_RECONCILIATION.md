@@ -149,6 +149,8 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 
 > **LEVELS-CANON-1 (2026-10-27):** row R4's "Level tiers are not the ladder" is superseded only in that levels now exist ([LEVELS_CANON](LEVELS_CANON.md) R2). How levels relate to the ladder is OPEN (R4).
 
+> **LEVELS-LADDER-MAP-1 (2026-10-27):** row R4 is answered for now. Skill levels do not feed Temper/Lumen/Ward in the interim ([LEVELS_CANON](LEVELS_CANON.md) "R4 answer"). This is a council decision that Sherif can correct.
+
 ### T — Classification tree and systems appendix
 
 | ID | Old idea | Verdict | One-line reason | Canon home |
@@ -182,6 +184,8 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 | S4 | Ascended players gain extra item-find, health and damage | RETIRE | Extra stats are a power scalar. | [GDD_IMMERSION](../GDD_IMMERSION_REVISION.md) §4, [MERCY_TEMPER](../MERCY_TEMPER_PROGRESSION.md) |
 
 > **LEVELS-CANON-1 (2026-10-27):** row S1's premise "There is no level ladder" is superseded ([LEVELS_CANON](LEVELS_CANON.md) R2). Whether rebirth resets levels, and classes, stay OPEN for Sherif (R4).
+
+> **LEVELS-LADDER-MAP-1 (2026-10-27):** this answers only the ascent half. Class evolution resets nothing on the same character, per Sherif's 8:48 PM canon ([LEVELS_CANON](LEVELS_CANON.md) "R4 answer"). Classes stay OPEN.
 
 ### E — Gear system and loot
 
@@ -226,6 +230,8 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 
 > **LEVELS-CANON-1 (2026-10-27):** row J5's "moot without levels" is superseded, because levels exist ([LEVELS_CANON](LEVELS_CANON.md) R2). Level retention across ascension or rebirth is OPEN (R4).
 
+> **LEVELS-LADDER-MAP-1 (2026-10-27):** all levels are kept across class evolution on the same character, per Sherif's 8:48 PM canon ([LEVELS_CANON](LEVELS_CANON.md) "R4 answer").
+
 ### K — Skill-shots, guild wars, tournaments, duels
 
 | ID | Old idea | Verdict | One-line reason | Canon home |
@@ -248,6 +254,8 @@ Columns: ID, old idea in our words (15 words or fewer), verdict, one-line reason
 | ID | Old idea | Verdict | One-line reason | Canon home |
 |---|---|---|---|---|
 | N1 | One talent point per level across three trees and two specs | RETIRE | Talent trees and a talent panel are refused. | [GDD_IMMERSION](../GDD_IMMERSION_REVISION.md) §4 |
+
+> **LEVELS-LADDER-MAP-1 (2026-10-27):** row N1: a talent tree is now in through class evolution (Sherif ~8:52 PM, [LEVELS_CANON](LEVELS_CANON.md) "R4 answer"). The talent-panel HUD stays with HUD-LAYOUT-1, and the Title-time tree refusals stay.
 
 ### M — Revenue without pay-to-win
 
