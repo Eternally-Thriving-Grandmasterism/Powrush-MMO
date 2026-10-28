@@ -30,6 +30,12 @@ The peaceful alliance in that universe is the Aetherion Luminari Alliance. It is
 
 What you are buying is an early-access offline prototype. It is single-player. The title screen leaves Online off. There is no account and no public server. A later online game would be a different release.
 
+**What you buy today.** Offline single-player for Windows and Linux. No account. Saves stay on your machine. Online is off and not live. This build has no shop and no purchases.
+
+**What we don't promise.** This page gives no dates and promises no features. There is no Online launch date. What you get is what is in this download.
+
+**Refunds.** [REFUND TERMS TBD — Sherif's call]
+
 Play starts in Sanctuary, a valley around a well. Continue returns you to a House name, or to an Unnamed House, when the yard already remembers you. You walk, jump, and sprint. By default, A and D strafe with the view. Settings also offers a Classic move preset, where A and D turn you and W and S follow the way you face. You tend or take at the well. The well tells you when it is idle, glowing, tended, resting, or stressed. You open a satchel, hide the guidance line, and allocate what you gathered: flow, or reserve. Saves stay on your machine.
 
 Mouse look is on by default. You can turn it off in Settings, on the Comfort tab, with the row "Mouse look · on/off". Holding the right mouse button looks around either way. The camera pulls back from walls, so it does not pass into them.
@@ -88,6 +94,8 @@ Linux: unzip, then in that same folder unpack the Linux archive and run `powrush
 ### Leave off the page
 
 Do not count places, and do not list them as a closed set. Do not claim other players, matchmaking, or a public server. Do not claim a title-screen race select, or a scene with Vrendak, the Alliance, or the Dominion. Do not mention crypto, NFTs, or AGSi. Do not mention Steam. The first keys are peace. A later opt-in harm path exists in the same download. It is not the pitch. Online stays off.
+
+Do not claim AGI or intelligent AI. Fill the refund marker in the long description with Sherif's own words before anything is pasted.
 
 ---
 
