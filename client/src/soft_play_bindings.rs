@@ -6,6 +6,7 @@
  */
 
 use bevy::prelude::{ButtonInput, KeyCode};
+use bevy::prelude::{GamepadButton, MouseButton};
 use shared::local_settings::PeaceKey;
 
 pub const JUMP: KeyCode = KeyCode::Space;
@@ -36,6 +37,10 @@ pub const LEDGER: KeyCode = KeyCode::KeyL;
 /// Build wheel. Dies in Peace.
 pub const BUILD_WHEEL: KeyCode = KeyCode::KeyQ;
 pub const FORCE_CLOUD_FLUSH: KeyCode = KeyCode::KeyT;
+/// COMBAT-CORE-1 fire. Read only in `combat_core.rs`. Not W, not E.
+pub const FIRE: MouseButton = MouseButton::Left;
+/// Pad fire. LeftTrigger2 stays sprint (`input.rs:485`).
+pub const FIRE_PAD: GamepadButton = GamepadButton::RightTrigger2;
 
 pub const MY_MERCY_JOURNEY_ALIAS: KeyCode = KeyCode::F2;
 pub const REALM_TRAVEL_ALIAS: KeyCode = KeyCode::F3;

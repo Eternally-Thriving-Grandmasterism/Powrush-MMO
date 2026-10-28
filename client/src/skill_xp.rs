@@ -17,16 +17,18 @@ pub const LEVEL_CAP: u32 = 50; // playtest placeholder
 pub const XP_CAP: u32 = XP_CURVE_STEP * (LEVEL_CAP - 1) * LEVEL_CAP / 2;
 
 /// Player-facing names, one per skill. Internal ids: Gather, Tend, Walk, Sprint.
-pub const SKILL_NAMES: [&str; 4] = ["[NAME TBD — Sherif's words]"; 4];
+pub const SKILL_NAMES: [&str; 5] = ["[NAME TBD — Sherif's words]", "[NAME TBD — Sherif's words]", "[NAME TBD — Sherif's words]", "[NAME TBD — Sherif's words]", "[NAME TBD]"];
 pub const GATHER: usize = 0;
 pub const TEND: usize = 1;
 pub const WALK: usize = 2;
 pub const SPRINT: usize = 3;
+/// COMBAT-CORE-1: landed hits only (`combat_core.rs`).
+pub const COMBAT: usize = 4;
 
 #[derive(Resource, Debug, Default)]
 pub struct SkillXp {
-    pub xp: [u32; 4],
-    metres: [f32; 4],
+    pub xp: [u32; 5],
+    metres: [f32; 5],
 }
 
 #[derive(Component)]
@@ -68,6 +70,17 @@ pub fn skills_on_load(saved: Option<[u32; 4]>, harvests: u32, tends: u32) -> [u3
     saved
         .unwrap_or([gather, tend, 0, 0])
         .map(|xp| xp.min(XP_CAP))
+}
+
+/// COMBAT-CORE-1: the 4-wide save plus `combat_xp` (absent = 0).
+pub fn skills_with_combat_on_load(
+    saved: Option<[u32; 4]>,
+    combat_xp: Option<u32>,
+    harvests: u32,
+    tends: u32,
+) -> [u32; 5] {
+    let [g, t, w, s] = skills_on_load(saved, harvests, tends);
+    [g, t, w, s, combat_xp.unwrap_or(0).min(XP_CAP)]
 }
 
 impl SkillXp {
@@ -137,7 +150,7 @@ fn award_skill_xp(
 }
 
 fn update_skills_panel(skills: Res<SkillXp>, mut texts: Query<&mut Text, With<SkillsPanelText>>) {
-    let lines: Vec<String> = (0..4)
+    let lines: Vec<String> = (0..SKILL_NAMES.len())
         .map(|i| format!("{} · Lv {}", SKILL_NAMES[i], level_for_xp(skills.xp[i])))
         .collect();
     let lines = with_total_line(lines, &skills.xp);
@@ -234,16 +247,24 @@ mod tests {
     #[test]
     fn total_level_zero_cap_and_saturating() {
         let count = SKILL_NAMES.len() as u32;
-        assert_eq!(total_level(&[0; 4]), count * level_for_xp(0));
-        assert_eq!(total_level(&[0; 4]), 4);
-        assert_eq!(total_level(&[XP_CAP; 4]), TOTAL_CAP);
-        assert_eq!(total_level(&[u32::MAX; 4]), TOTAL_CAP);
+        assert_eq!(total_level(&[0; SKILL_NAMES.len()]), count * level_for_xp(0));
+        assert_eq!(total_level(&[0; SKILL_NAMES.len()]), 5);
+        assert_eq!(total_level(&[XP_CAP; SKILL_NAMES.len()]), TOTAL_CAP);
+        assert_eq!(total_level(&[u32::MAX; SKILL_NAMES.len()]), TOTAL_CAP);
         assert_eq!(total_level(&vec![u32::MAX; 200]), TOTAL_CAP);
     }
 
     #[test]
     fn panel_last_line_is_total_at_zero_xp() {
-        let lines = with_total_line(vec!["SKILLS".into()], &[0; 4]);
-        assert_eq!(lines.last().map(String::as_str), Some("Total · Lv 4"));
+        let lines = with_total_line(vec!["SKILLS".into()], &[0; SKILL_NAMES.len()]);
+        assert_eq!(lines.last().map(String::as_str), Some("Total · Lv 5"));
+    }
+
+    #[test]
+    fn combat_wrapper_absent_is_zero_and_some_round_trips() {
+        let v1 = skills_with_combat_on_load(Some([1, 2, 3, 4]), None, 9, 9);
+        assert_eq!(v1, [1, 2, 3, 4, 0]);
+        assert_eq!(skills_with_combat_on_load(None, Some(77), 0, 0)[COMBAT], 77);
+        assert_eq!(skills_with_combat_on_load(None, Some(u32::MAX), 0, 0)[COMBAT], XP_CAP);
     }
 }
