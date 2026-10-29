@@ -8,6 +8,7 @@ use shared::heartwood_lamp::{heartwood_bath_return, HEARTWOOD_BATH_RETURN, WATER
 use shared::hex_travel::PlaceId;
 
 use crate::coop_voice::VoiceYard;
+use crate::feel_move::{buffer_alive, USE_BUFFER_SECS};
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::first_session_guidance::FirstSessionGuidance;
 use crate::hex_travel::{places_plate_open, HexTravelState, PlacesPlate};
@@ -51,6 +52,15 @@ pub struct CombatState {
 #[derive(Component)]
 pub struct Predator;
 
+/// COMBAT-FEEL-1 — one held strike, the feel_move.rs:38-101 shape. Times are `Time<Fixed>` elapsed.
+#[derive(Resource, Debug, Default, Clone, PartialEq)]
+pub struct StrikeBuffer {
+    /// Fixed-clock seconds the held strike stays live until (inclusive, `buffer_alive`).
+    pub until: Option<f64>,
+    /// Sticky: set on a fixed tick when the held strike comes into reach; consumed once in Update.
+    pub fire: bool,
+}
+
 /// `mouse_look_grab_eligible` terms (human_presence.rs:1478) without `mouse_look`.
 pub fn fire_grab_terms(in_yard: bool, settings_open: bool, hud_edit: bool, focused: bool) -> bool {
     in_yard && !settings_open && !hud_edit && focused
@@ -84,6 +94,37 @@ pub fn predator_present(place: PlaceId) -> bool {
 pub fn in_reach(place: PlaceId, combat: &CombatState, x: f32, z: f32) -> bool {
     let d = Vec2::new(x, z).distance(Vec2::from_array(PREDATOR_HOME));
     predator_present(place) && combat.predator_taken < HEALTH && d <= REACH
+}
+
+/// COMBAT-FEEL-1 — fixed tick: only expires the held strike or, in reach, sets the sticky pulse.
+pub fn strike_buffer_tick(buf: &mut StrikeBuffer, now: f64, reach: bool) {
+    match buf.until.map(|until| buffer_alive(until, now)) {
+        Some(false) => buf.until = None,
+        Some(true) if reach => (buf.fire, buf.until) = (true, None),
+        _ => {}
+    }
+}
+
+/// COMBAT-FEEL-1 — one frame: the fixed `ticks` (time, reach) that ran, then the Update step at fixed `now`.
+/// True means run the existing hit path once; an edge and a pulse on one frame are one strike.
+pub fn strike_buffer_step(
+    buf: &mut StrikeBuffer,
+    ticks: &[(f64, bool)],
+    (press, allowed, gate, reach): (bool, bool, bool, bool),
+    now: f64,
+) -> bool {
+    for &(at, near) in ticks {
+        strike_buffer_tick(buf, at, near);
+    }
+    let pulse = std::mem::take(&mut buf.fire);
+    let run = allowed && (press || (pulse && gate && reach));
+    if pulse || (press && allowed && reach) {
+        buf.until = None; // feel_move.rs:69: an in-reach edge (or a consume) leaves nothing held
+    }
+    if press && allowed && gate && !reach {
+        buf.until = Some(now + USE_BUFFER_SECS);
+    }
+    run
 }
 
 /// A landed hit pays XP. The kill itself pays nothing extra.
@@ -159,8 +200,10 @@ pub struct CombatCorePlugin;
 impl Plugin for CombatCorePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CombatState>()
+            .init_resource::<StrikeBuffer>()
             .add_systems(Startup, spawn_predator)
-            .add_systems(Update, (combat_fire, predator_lunge).chain().after(InputMapSet));
+            .add_systems(Update, (combat_fire, predator_lunge).chain().after(InputMapSet))
+            .add_systems(FixedUpdate, hold_strike_buffer);
     }
 }
 
@@ -201,6 +244,7 @@ fn combat_fire(
         Option<Res<HumanInventory>>,
         Option<Res<HumanSoftPanels>>,
     ),
+    (buffer, fixed): (Option<ResMut<StrikeBuffer>>, Option<Res<Time<Fixed>>>),
 ) {
     let fire = buttons.is_some_and(|b| b.just_pressed(FIRE))
         || gamepads.iter().any(|g| g.just_pressed(FIRE_PAD));
@@ -212,7 +256,8 @@ fn combat_fire(
         realm.is_some_and(|r| r.realm_open),
     );
     let pressed = strike_pressed(fire, input.and_then(|i| i.ability_slot), gate);
-    let (true, Some(travel), Some(presence), Some(mut skills)) = (pressed, travel, presence, skills) else {
+    let pulse = buffer.as_ref().is_some_and(|b| b.fire);
+    let (true, Some(travel), Some(presence), Some(mut skills)) = (pressed || pulse, travel, presence, skills) else {
         return;
     };
     let grab = fire_grab_terms(
@@ -228,8 +273,15 @@ fn combat_fire(
         strip || prompt
     });
     let plate_open = plate.as_deref().is_some_and(places_plate_open);
-    if fire_allowed(grab, plate_open, ui.iter().any(|i| *i != Interaction::None), prompts) {
-        let reach = in_reach(travel.current, &combat, presence.position.x, presence.position.z);
+    let allowed = fire_allowed(grab, plate_open, ui.iter().any(|i| *i != Interaction::None), prompts);
+    let reach = in_reach(travel.current, &combat, presence.position.x, presence.position.z);
+    // COMBAT-FEEL-1: the hit lands here in Update; only expiry and reach run on the fixed tick.
+    let now_fixed = fixed.map_or(0.0, |t| t.elapsed_secs_f64());
+    let run = match buffer {
+        Some(mut buf) => strike_buffer_step(&mut buf, &[], (pressed, allowed, gate, reach), now_fixed),
+        None => pressed && allowed,
+    };
+    if run {
         let before = skills.xp[COMBAT];
         let (hit, level) = land_hit_crossing(&mut combat, &mut skills, reach);
         let gained = skills.xp[COMBAT].saturating_sub(before);
@@ -237,6 +289,22 @@ fn combat_fire(
             set_pulse(epi, line, now + CUE_SECS);
         }
     }
+}
+
+/// COMBAT-FEEL-1 — FixedUpdate hold: expiry and reach only. Never writes CombatState, SkillXp or the pulse line.
+fn hold_strike_buffer(
+    time: Option<Res<Time>>,
+    buffer: Option<ResMut<StrikeBuffer>>,
+    (travel, presence, combat): (Option<Res<HexTravelState>>, Option<Res<SoftPresence>>, Option<Res<CombatState>>),
+) {
+    let (Some(time), Some(mut buf)) = (time, buffer.filter(|b| b.until.is_some())) else {
+        return;
+    };
+    let reach = match (travel, presence, combat) {
+        (Some(t), Some(p), Some(c)) => in_reach(t.current, &c, p.position.x, p.position.z),
+        _ => false,
+    };
+    strike_buffer_tick(&mut buf, time.elapsed_secs_f64(), reach);
 }
 
 fn predator_lunge(
@@ -508,6 +576,73 @@ mod tests {
         world.run_system_once(combat_fire).unwrap();
         assert!(!world.is_resource_changed::<FirstHarvestEpiphany>());
         assert!(world.resource::<FirstHarvestEpiphany>().pulse_line.is_empty());
+    }
+
+    /// Helper-level replay (not an App test): press out of reach, reach arrives at `reach_at`.
+    fn replay(fps: f64, reach_at: f64) -> (u32, u32, Option<String>) {
+        let (mut buf, mut c, mut s) = (StrikeBuffer::default(), CombatState::default(), SkillXp::default());
+        let (step, tick, mut hits, mut line) = (1.0 / fps, 1.0 / crate::feel_move::SIM_HZ, 0, None);
+        let (mut vt, mut ft) = (0.0, 0.0);
+        for frame in 0..(fps as u32) {
+            let mut ticks = Vec::new();
+            while ft + tick <= vt {
+                ft += tick;
+                ticks.push((ft, ft >= reach_at));
+            }
+            let (before, reach) = (s.xp[COMBAT], vt >= reach_at);
+            if strike_buffer_step(&mut buf, &ticks, (frame == 0, true, true, reach), ft) {
+                let (hit, level) = land_hit_crossing(&mut c, &mut s, reach);
+                hits += u32::from(hit);
+                line = fire_line(PlaceId::Heartwood, &c, hit, s.xp[COMBAT] - before, level).or(line);
+            }
+            vt += step;
+        }
+        (hits, s.xp[COMBAT], line)
+    }
+
+    #[test]
+    fn buffered_strike_same_at_30_and_144_fps() {
+        let slow = replay(30.0, 0.06);
+        assert_eq!(slow, replay(144.0, 0.06));
+        assert_eq!((slow.0, slow.1), (1, XP_PER_LANDED_HIT));
+        let want = CombatState { predator_taken: HIT, ..Default::default() };
+        assert_eq!(slow.2, fire_cue(PlaceId::Heartwood, &want, true, XP_PER_LANDED_HIT));
+    }
+
+    #[test]
+    fn buffered_strike_expires_past_window() {
+        assert!([30.0, 144.0].into_iter().all(|fps| replay(fps, USE_BUFFER_SECS + 0.05).0 == 0));
+    }
+
+    #[test]
+    fn zero_or_many_ticks_in_a_frame_is_one_hit() {
+        let open = (false, true, true, true);
+        let mut buf = StrikeBuffer { until: None, fire: true };
+        assert!(strike_buffer_step(&mut buf, &[], open, 0.0) && !strike_buffer_step(&mut buf, &[], open, 0.0));
+        let mut buf = StrikeBuffer { until: Some(USE_BUFFER_SECS), fire: false };
+        let many = [(0.01, true), (0.02, true), (0.03, true)];
+        assert!(strike_buffer_step(&mut buf, &many, open, 0.03) && !strike_buffer_step(&mut buf, &many, open, 0.04));
+        let mut buf = StrikeBuffer { until: None, fire: true };
+        assert!(strike_buffer_step(&mut buf, &[], (true, true, true, true), 0.0), "edge + pulse is one strike");
+        assert_eq!(buf, StrikeBuffer::default());
+    }
+
+    #[test]
+    fn closed_gate_on_consume_writes_nothing() {
+        for terms in [(false, false, true, true), (false, true, false, true), (false, true, true, false)] {
+            let mut buf = StrikeBuffer { until: Some(USE_BUFFER_SECS), fire: true };
+            assert!(!strike_buffer_step(&mut buf, &[], terms, 0.0));
+            assert_eq!(buf, StrikeBuffer::default());
+        }
+    }
+
+    #[test]
+    fn slots_one_to_three_never_arm() {
+        for slot in [Some(1), Some(2), Some(3)] {
+            let mut buf = StrikeBuffer::default();
+            let press = strike_pressed(false, slot, true);
+            assert!(!strike_buffer_step(&mut buf, &[], (press, true, true, false), 0.0) && buf.until.is_none());
+        }
     }
 
     #[test]
