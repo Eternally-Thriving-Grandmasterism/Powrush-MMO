@@ -16,7 +16,8 @@ use crate::harvest_feel::SoftRbePool;
 use crate::human_inventory::HumanInventory;
 use crate::living_ecology::PersistentWeb;
 use crate::living_practice_loop::SoftPlayerRealm;
-use crate::skill_xp::{skills_on_load, SkillXp};
+use crate::skill_xp::SkillXp;
+#[cfg(test)] use crate::skill_xp::skills_on_load;
 use crate::skill_xp::{skills_with_combat_on_load, COMBAT};
 
 const PERSIST_PATH: &str = "data/powrush_local_session.json";
