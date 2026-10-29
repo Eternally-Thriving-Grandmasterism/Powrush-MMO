@@ -83,6 +83,11 @@ pub fn skills_with_combat_on_load(
     [g, t, w, s, combat_xp.unwrap_or(0).min(XP_CAP)]
 }
 
+/// TOTAL-LEVEL-2 — the one level-up line, shared by every skill.
+pub fn level_up_line(skill: usize, level: u32) -> String {
+    format!("{} · level {level}", SKILL_NAMES[skill])
+}
+
 impl SkillXp {
     /// Saturating add, clamped at the cap. Returns the new level on a level-up.
     pub fn gain(&mut self, skill: usize, amount: u32) -> Option<u32> {
@@ -144,7 +149,7 @@ fn award_skill_xp(
     }
     let now = time.elapsed_secs_f64();
     for (skill, level) in ups.into_iter().filter_map(|(s, l)| Some((s, l?))) {
-        state.pulse_line = format!("{} · level {level}", SKILL_NAMES[skill]);
+        state.pulse_line = level_up_line(skill, level);
         state.pulse_until = now + 4.2;
     }
 }
