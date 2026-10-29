@@ -15,7 +15,7 @@ use crate::hud_edit_mode::HudEditMode;
 use crate::human_presence::SoftPresence;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::{CareCycleOffer, NearbyMercyNode, HARVEST_REACH};
-use crate::skill_xp::{SkillXp, COMBAT};
+use crate::skill_xp::{level_up_line, SkillXp, COMBAT};
 use crate::soft_play_bindings::{FIRE, FIRE_PAD};
 use crate::title_screen::{HouseLabel, LaunchDoor};
 
@@ -67,12 +67,16 @@ pub fn in_reach(place: PlaceId, combat: &CombatState, x: f32, z: f32) -> bool {
 
 /// A landed hit pays XP. The kill itself pays nothing extra.
 pub fn land_hit(combat: &mut CombatState, skills: &mut SkillXp, reach: bool) -> bool {
+    land_hit_crossing(combat, skills, reach).0
+}
+
+/// TOTAL-LEVEL-2 — `land_hit` plus the COMBAT level crossing from `gain`.
+pub fn land_hit_crossing(combat: &mut CombatState, skills: &mut SkillXp, reach: bool) -> (bool, Option<u32>) {
     if !reach || combat.predator_taken >= HEALTH {
-        return false;
+        return (false, None);
     }
     combat.predator_taken = combat.predator_taken.saturating_add(HIT).min(HEALTH);
-    skills.gain(COMBAT, XP_PER_LANDED_HIT);
-    true
+    (true, skills.gain(COMBAT, XP_PER_LANDED_HIT))
 }
 
 /// One lunge per 0.6 s in reach. True when the player is defeated.
@@ -105,6 +109,17 @@ pub fn fire_cue(place: PlaceId, combat: &CombatState, hit: bool, gained: u32) ->
         return Some(format!("{PREDATOR_NAME} {remaining} / {HEALTH}{xp}"));
     }
     (predator_present(place) && remaining > 0).then(|| format!("Missed {PREDATOR_NAME}"))
+}
+
+/// TOTAL-LEVEL-2 — a crossing hit shows the level line; a crossing kill joins it to "is down".
+pub fn fire_line(place: PlaceId, combat: &CombatState, hit: bool, gained: u32, level: Option<u32>) -> Option<String> {
+    match (hit, level) {
+        (true, Some(lvl)) if combat.predator_taken >= HEALTH => {
+            Some(format!("{PREDATOR_NAME} is down · {}", level_up_line(COMBAT, lvl)))
+        }
+        (true, Some(lvl)) => Some(level_up_line(COMBAT, lvl)),
+        _ => fire_cue(place, combat, hit, gained),
+    }
 }
 
 pub fn wake_cue() -> String {
@@ -179,9 +194,9 @@ fn combat_fire(
     if fire_allowed(grab, plate_open, ui.iter().any(|i| *i != Interaction::None), prompts) {
         let reach = in_reach(travel.current, &combat, presence.position.x, presence.position.z);
         let before = skills.xp[COMBAT];
-        let hit = land_hit(&mut combat, &mut skills, reach);
+        let (hit, level) = land_hit_crossing(&mut combat, &mut skills, reach);
         let gained = skills.xp[COMBAT].saturating_sub(before);
-        if let (Some(line), Some(epi)) = (fire_cue(travel.current, &combat, hit, gained), epi.as_mut()) {
+        if let (Some(line), Some(epi)) = (fire_line(travel.current, &combat, hit, gained, level), epi.as_mut()) {
             set_pulse(epi, line, now + CUE_SECS);
         }
     }
@@ -351,6 +366,57 @@ mod tests {
         let hits = [(&up, true, XP_PER_LANDED_HIT), (&up, true, 0), (&up, false, 0), (&down, true, 0)];
         let cues = hits.map(|(c, hit, xp)| fire_cue(PlaceId::Heartwood, c, hit, xp).unwrap());
         for line in cues.into_iter().chain([wake_cue()]) {
+            assert!(!crate::mercy_harvest_nodes::pulse_line_is_tend_breathe(&line), "{line}");
+        }
+    }
+
+    #[test]
+    fn crossing_hit_prints_level_line_and_kill_joins_it() {
+        let step = crate::skill_xp::XP_CURVE_STEP;
+        for (taken, want) in [(0, String::new()), (HEALTH - HIT, format!("{PREDATOR_NAME} is down · "))] {
+            let (mut c, mut s) = (CombatState { predator_taken: taken, ..Default::default() }, SkillXp::default());
+            s.xp[COMBAT] = step - XP_PER_LANDED_HIT;
+            let (hit, level) = land_hit_crossing(&mut c, &mut s, true);
+            let line = fire_line(PlaceId::Heartwood, &c, hit, XP_PER_LANDED_HIT, level).unwrap();
+            assert_eq!(line, format!("{want}[NAME TBD] · level {}", level.expect("crossing")));
+        }
+    }
+
+    #[test]
+    fn no_crossing_keeps_feel_pass_cues() {
+        let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+        let (hit, level) = land_hit_crossing(&mut c, &mut s, true);
+        assert_eq!(level, None);
+        assert_eq!(fire_line(PlaceId::Heartwood, &c, hit, 10, level), fire_cue(PlaceId::Heartwood, &c, hit, 10));
+        assert_eq!(fire_line(PlaceId::Heartwood, &c, false, 0, Some(2)), Some(format!("Missed {PREDATOR_NAME}")));
+        let down = CombatState { predator_taken: HEALTH, ..Default::default() };
+        assert_eq!(fire_line(PlaceId::Heartwood, &down, true, 0, None), Some(format!("{PREDATOR_NAME} is down")));
+    }
+
+    #[test]
+    fn restored_combat_xp_prints_nothing() {
+        use bevy::ecs::system::RunSystemOnce;
+        let mut world = World::new();
+        world.insert_resource(Time::<()>::default());
+        world.insert_resource(HexTravelState::default());
+        world.insert_resource(SoftPresence::default());
+        world.insert_resource(CombatState::default());
+        let mut s = SkillXp::default();
+        s.xp = crate::skill_xp::skills_with_combat_on_load(None, Some(5 * crate::skill_xp::XP_CURVE_STEP), 0, 0);
+        assert!(s.xp[COMBAT] > 0);
+        world.insert_resource(s);
+        world.insert_resource(FirstHarvestEpiphany::default());
+        world.clear_trackers();
+        world.run_system_once(combat_fire).unwrap();
+        assert!(!world.is_resource_changed::<FirstHarvestEpiphany>());
+        assert!(world.resource::<FirstHarvestEpiphany>().pulse_line.is_empty());
+    }
+
+    #[test]
+    fn level_lines_never_read_as_tend_breathe() {
+        let down = CombatState { predator_taken: HEALTH, ..Default::default() };
+        let joined = fire_line(PlaceId::Heartwood, &down, true, XP_PER_LANDED_HIT, Some(2)).unwrap();
+        for line in [level_up_line(COMBAT, 2), joined] {
             assert!(!crate::mercy_harvest_nodes::pulse_line_is_tend_breathe(&line), "{line}");
         }
     }
