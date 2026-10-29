@@ -134,8 +134,56 @@ Source, verbatim: "Regarding cooldowns, it might have to be based on server capa
 - **Every hotkey, not just combat, follows the most common genre muscle memory**, the fit a player already brings from day 1. No oddball layout to relearn.
 - **Cooldowns are allowed**, data-driven and tunable. Their values are set later against live server capacity. This doc fixes no numbers.
 - *Council reading (not Sherif's words):* a Q/E/R/F skill row, MOBA/MMO-standard layout, WASD default. This rule records no ruling by Sherif on movement.
-- **Superseded F-row / ability-bar / cooldown-rotation refusals** (not edited; this rule governs where they conflict): `docs/GDD_IMMERSION_REVISION.md:48`, `:126`, `:172`; `docs/BLIZZARD_CRAFT_UX.md:49`, `:64`, `:111`; `docs/STUDIO_ARCHITECTURE_ORDER.md:46`, `:91`; `docs/FUN_WITHOUT_WOW.md:28`, `:78`, `:86`; `docs/PLACE_CLARITY_HOUR.md:77`, `:80`, `:96`; `docs/PERSON_READ_SPEC.md:38`, `:70`, `:110`; `docs/PATSAGI_v21.99_HUMAN_IMMERSION.md:11`. Noted in place: `docs/GDD_IMMERSION_REVISION.md:78`, `docs/design/COMBAT_AND_PVP.md:463`, `:465`, and this file :42, :121.
+- *Council ruling, not Sherif's words:* the Q/E/R/F council reading above is superseded by K1 and K2 of KEYMAP-RULING-1 below (skills on 1–4, E stays Use). Sherif may veto back to it.
+- **Superseded F-row / ability-bar / cooldown-rotation refusals** (not edited; this rule governs where they conflict): `docs/GDD_IMMERSION_REVISION.md:48`, `:128`, `:174`; `docs/BLIZZARD_CRAFT_UX.md:49`, `:64`, `:111`; `docs/STUDIO_ARCHITECTURE_ORDER.md:46`, `:91`; `docs/FUN_WITHOUT_WOW.md:28`, `:78`, `:86`; `docs/PLACE_CLARITY_HOUR.md:77`, `:80`, `:96`; `docs/PERSON_READ_SPEC.md:38`, `:70`, `:110`; `docs/PATSAGI_v21.99_HUMAN_IMMERSION.md:11`. Noted in place: `docs/GDD_IMMERSION_REVISION.md:80`, `docs/design/COMBAT_AND_PVP.md:465`, `:468`, and this file :43, :123.
 - **Open clashes, recorded not resolved** (no winner picked here): E is `INTERACT` (take, tend, every `_near` door); R is `ALLOCATE`; Q is `BUILD_WHEEL`; the I / L / Q default sheets; the remappable `PeaceKey::F`. Rebinding is left to COMBAT-FEEL-1 and the Striker kit cards, each with its own keymap ruling.
+
+## Live bindings and council keymap ruling (KEYMAP-RULING-1)
+
+Live bindings at `a7f21506`, copied from Clerk's PRE-PATH (6490612328). Live means the module is declared in `client/src/lib.rs` and the line sits above `#[cfg(test)]`. Constants are in `client/src/soft_play_bindings.rs`. PeaceKey defaults are in `shared/local_settings.rs:464-501`. The remap layer is `client/src/input.rs:197-286`.
+
+| key | action | file:line |
+|---|---|---|
+| W/A/S/D (+arrows) | move (const) | soft_play_bindings.rs:16-19; read input.rs:347,350,353,356 |
+| W/A/S/D (+arrows, Space) | camera "moving" check | first_hour_camera.rs:69-77; local_sovereign_session.rs:139-142 |
+| Space | JUMP | soft_play_bindings.rs:12; input.rs:412 |
+| Shift L/R | sprint (raw, not via PeaceKey) | soft_play_bindings.rs:14-15; input.rs:418 |
+| E | INTERACT / Use | soft_play_bindings.rs:13; input.rs:393,397; companion_bond.rs:136; coop_voice.rs:106 (aye); crownstone.rs:106; embassy.rs:180; first_harvest_epiphany.rs:529; heartwood_plaque.rs:66; human_presence.rs:1307 (hold); hybrid_matrix.rs:109; ledger_bind.rs:212; living_practice_loop.rs:381; shard_climate.rs:67,73; skirmish_well.rs:222; species_redemption.rs:109 |
+| R · 1 / 2 · Esc (Allocate) | ALLOCATE toggle · flow / reserve · close | soft_play_bindings.rs:30; rbe_allocate_choice.rs:384 · :488,490 · :392 |
+| Q | BUILD_WHEEL: fabricator / house face | soft_play_bindings.rs:38; fabricator.rs:217; vertical_factory.rs:116 |
+| I · I (raw KeyI) | INVENTORY satchel · guidance flag / thriving moment | soft_play_bindings.rs:28; human_inventory.rs:238 · first_session_guidance.rs:1108; thriving_moments.rs:211 |
+| L | LEDGER face | soft_play_bindings.rs:36; ledger_bind.rs:165 |
+| H · H (raw KeyH) | HIDE_GUIDANCE (const) · dismiss guidance / toggle persona guidance | soft_play_bindings.rs:29 · first_session_guidance.rs:1036; title_screen.rs:5103 |
+| G | SASH (coop voice) | soft_play_bindings.rs:34; coop_voice.rs:99 |
+| Tab · Tab / Shift+Tab / ] / [ | CHART · settings tab next/prev | soft_play_bindings.rs:32; hour_sacred.rs:1005; war_week.rs:81 · title_screen.rs:3127-3133 |
+| T · Shift+T | MERCY_TRANSPORTERS (no Shift) · FORCE_CLOUD_FLUSH | soft_play_bindings.rs:24; mercy_transporters.rs:83 · soft_play_bindings.rs:39; steam_abundance_mirror.rs:241 |
+| J · U | JOURNEY_ECHO panel · PEER_INGEST | soft_play_bindings.rs:21; abundance_journey_echo.rs:315 · soft_play_bindings.rs:25; lattice_flow_share.rs:196 |
+| C · P / Shift+P | lineage · practice toggle / dismiss | player_lineage.rs:85 · living_practice_loop.rs:250-251 |
+| 1-4 | ability_slot 0-3 (always read) | input.rs:381-387 |
+| 1 / 2 (sash open) · 1 (with E) · 3 | coop vote aye / nay · ledger go · ledger confirm | coop_voice.rs:107-108 · ledger_bind.rs:213 · ledger_bind.rs:185 |
+| 1 / 2 / 3, Esc | care offer: tend hook / shell ward / dismiss | mercy_harvest_nodes.rs:586,601,574 |
+| 1-3 (satchel open) · 1-5 (realm open) | satchel slot · realm pick | human_inventory.rs:260-264 · human_soft_panels.rs:175-183 |
+| 1/Enter, 2, 3, Esc · 3 (InYard) | Title: Play / Continue / Settings / back · yard pause, same as Esc | title_screen.rs:2636,2645,2661,2663 · title_screen.rs:2672 |
+| Esc (+ pad Start) | pause toggle | title_screen.rs:2865; pad input.rs:427 |
+| Esc | HUD edit exit / climate persist / rebind cancel | hud_edit_mode.rs:186; shard_climate.rs:160; title_screen.rs:3851 |
+| Enter / Esc / Backspace | name/persona plates | title_screen.rs:4641,4667-4668,4856-4857,5033,5111,5138-5140 |
+| LMB · RMB | FIRE · mouse look hold | soft_play_bindings.rs:41; combat_core.rs:176 · first_hour_camera.rs:87; human_presence.rs:1625 |
+| Pad RT2 | FIRE_PAD | soft_play_bindings.rs:43; combat_core.rs:177 |
+| Pad South | Use (or jump if `gamepad_south_use` false → LT) | input.rs:451,459,472,474 |
+| Pad West / North · LS click / LT2 | sheet_q / sheet_l · sprint per `sprint_mode` | input.rs:433,437 · input.rs:484-485 |
+
+Declared with no live reader: `FOUNDATION_LATTICE` L :22, `RESONANCE_CYCLE` G :23, `MY_MERCY_JOURNEY` M :26, `REALM_TRAVEL` Z :27, `MY_MERCY_JOURNEY_ALIAS` F2 :45, `REALM_TRAVEL_ALIAS` F3 :46. Rebind capture refuses reserved keys 1-5, Tab, Enter, Backspace, H, I, C, P, N: title_screen.rs:3549-3563.
+
+*Council ruling, not Sherif's words* (KEYMAP-RULING-1, CUT 6490676109), under his 9:32 PM words quoted above. Sherif did not pick these keys. Sherif may veto, and a veto reopens the keymap.
+
+- **K1. Skills on 1–4** (*council ruling, not Sherif's words*). input.rs:381-387 reads the digits into `ability_slot`, but the only consumer (systems.rs:42) is not compiled, so nothing fires until COMBAT-FEEL-1 wires them. LMB stays FIRE; pad RT2 stays FIRE_PAD. COMBAT-FEEL-1 requirement: gate 1–4 off while any digit-reading panel is open (Allocate rbe_allocate_choice.rs:488,490; sash coop_voice.rs:107-108; ledger ledger_bind.rs:185,213; care offer mercy_harvest_nodes.rs:586,601,574; satchel human_inventory.rs:260-264; realm human_soft_panels.rs:175-183; title and yard title_screen.rs:2636,2645,2661,2663,2672). Keys 1–5 stay reserved from remapping (title_screen.rs:3549-3563); a remappable hotbar is its own card.
+- **K2. E stays Use / Interact** (*council ruling, not Sherif's words*). All 16 live readers keep E.
+- **K3. R stays Allocate, Q stays the build / house face, I stays the satchel, L stays the ledger, Tab stays the chart** (*council ruling, not Sherif's words*). None collides with K1. Any later move needs its own card.
+- **K4. PeaceKey F stays free, with no default** (*council ruling, not Sherif's words*). A Use→F remap collides with nothing.
+- **K5. Record only, no code change** (*council ruling, not Sherif's words*): the L/G double constants (soft_play_bindings.rs:36,22 and :34,:23), T vs Shift+T (not a live clash), and the doc-vs-code drift Clerk listed. COMBAT-FEEL-1 traces the Digit3-in-yard triple meaning (title_screen.rs:2672; ledger_bind.rs:185; mercy_harvest_nodes.rs:574).
+- Cooldowns stay data-driven, with no numbers here.
+
+Council decision under Sherif's delegation. Sherif may veto.
 
 ## Proof
 
