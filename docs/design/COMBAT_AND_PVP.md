@@ -462,6 +462,7 @@ Tool quality does not change these numbers. `docs/PLACES_BIBLE.md` keeps combat 
 ### 14.3 Keys, when combat is eventually built
 
 The cold-start door stays: WASD · Space · Shift · E take/tend · I satchel · H hide · R allocate. Do not bind W. E keeps take and tend. R keeps allocate. There is no F-row.
+> **KEYMAP-RULING-1 note:** skill keys and Use are now set by K1 (skills on 1–4) and K2 (E stays Use) in [INPUT_CANON](../INPUT_CANON.md) (CUT 6490676109). *Council ruling, not Sherif's words.* Sherif may veto.
 > **KEYS-CANON-1 note:** "There is no F-row" above is superseded by the hotkey muscle-memory rule in [INPUT_CANON](../INPUT_CANON.md) (KEYS-CANON-1, CUT 6485461841). Clashes with E / R are recorded there, not resolved.
 
 Until Sherif lifts the parked-combat line on a ticket, no combat key exists. When a card does bind one, it is a single fire key Core names, plus aim. It is not W and it is not E. While a Care prompt owns `ACTION_BAR`, the fire key does nothing (§16).
