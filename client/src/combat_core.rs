@@ -31,6 +31,8 @@ pub const PREDATOR_HOME: [f32; 2] = [-18.0, -18.0];
 /// Defeat wakes here: the dry-Lip return of heartwood_lip.rs:209, rebuilt locally.
 pub const HEARTWOOD_ENTRANCE: [f32; 2] = HEARTWOOD_BATH_RETURN;
 const STAND_HEIGHT: f32 = 0.90; // copy of private heartwood_lip.rs:30
+/// FEEL-PASS-1 — how long a combat cue holds the pulse strip (skill_xp level-up uses 4.2 s).
+const CUE_SECS: f64 = 4.2;
 
 /// Damage taken so far; health is `HEALTH - taken`. Client-local.
 #[derive(Resource, Debug, Default)]
@@ -92,6 +94,30 @@ pub fn reseat_on_defeat(combat: &mut CombatState, presence: &mut SoftPresence) {
     (combat.player_taken, combat.lunge_timer) = (0, 0.0);
 }
 
+/// FEEL-PASS-1 — the line for one FIRE that passed `fire_allowed`. `gained` is the real XP change.
+pub fn fire_cue(place: PlaceId, combat: &CombatState, hit: bool, gained: u32) -> Option<String> {
+    let remaining = HEALTH.saturating_sub(combat.predator_taken);
+    if hit && remaining == 0 {
+        return Some(format!("{PREDATOR_NAME} is down"));
+    }
+    if hit {
+        let xp = if gained > 0 { format!(" · +{gained} combat XP") } else { String::new() };
+        return Some(format!("{PREDATOR_NAME} {remaining} / {HEALTH}{xp}"));
+    }
+    (predator_present(place) && remaining > 0).then(|| format!("Missed {PREDATOR_NAME}"))
+}
+
+pub fn wake_cue() -> String {
+    "You wake at the Heartwood entrance".to_string()
+}
+
+/// Compare before write: an unchanged cue leaves the resource untouched.
+pub fn set_pulse(epi: &mut impl std::ops::DerefMut<Target = FirstHarvestEpiphany>, line: String, until: f64) {
+    if epi.pulse_line != line || epi.pulse_until != until {
+        (epi.pulse_line, epi.pulse_until) = (line, until);
+    }
+}
+
 pub struct CombatCorePlugin;
 
 impl Plugin for CombatCorePlugin {
@@ -125,7 +151,7 @@ fn combat_fire(
     (edit, plate): (Option<Res<HudEditMode>>, Option<Res<PlacesPlate>>),
     windows: Query<&Window, With<PrimaryWindow>>,
     ui: Query<&Interaction>,
-    (care, epi): (Option<Res<CareCycleOffer>>, Option<Res<FirstHarvestEpiphany>>),
+    (care, mut epi): (Option<Res<CareCycleOffer>>, Option<ResMut<FirstHarvestEpiphany>>),
     (nearby, guidance): (Option<Res<NearbyMercyNode>>, Option<Res<FirstSessionGuidance>>),
     bind: Option<Res<LivedHourBind>>,
     (travel, presence): (Option<Res<HexTravelState>>, Option<Res<SoftPresence>>),
@@ -152,7 +178,12 @@ fn combat_fire(
     let plate_open = plate.as_deref().is_some_and(places_plate_open);
     if fire_allowed(grab, plate_open, ui.iter().any(|i| *i != Interaction::None), prompts) {
         let reach = in_reach(travel.current, &combat, presence.position.x, presence.position.z);
-        land_hit(&mut combat, &mut skills, reach);
+        let before = skills.xp[COMBAT];
+        let hit = land_hit(&mut combat, &mut skills, reach);
+        let gained = skills.xp[COMBAT].saturating_sub(before);
+        if let (Some(line), Some(epi)) = (fire_cue(travel.current, &combat, hit, gained), epi.as_mut()) {
+            set_pulse(epi, line, now + CUE_SECS);
+        }
     }
 }
 
@@ -162,6 +193,7 @@ fn predator_lunge(
     travel: Option<Res<HexTravelState>>,
     presence: Option<ResMut<SoftPresence>>,
     mut combat: ResMut<CombatState>,
+    mut epi: Option<ResMut<FirstHarvestEpiphany>>,
     mut shown: Query<&mut Visibility, With<Predator>>,
 ) {
     let (Some(travel), Some(mut presence)) = (travel, presence) else {
@@ -175,6 +207,9 @@ fn predator_lunge(
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
     if predator_tick(&mut combat, time.delta_secs(), reach) {
         reseat_on_defeat(&mut combat, &mut presence);
+        if let Some(epi) = epi.as_mut() {
+            set_pulse(epi, wake_cue(), time.elapsed_secs_f64() + CUE_SECS);
+        }
     }
 }
 
@@ -241,5 +276,82 @@ mod tests {
         assert_eq!((p.position.x, p.position.z), (HEARTWOOD_ENTRANCE[0], HEARTWOOD_ENTRANCE[1]));
         assert!(c.player_taken == 0 && p.grounded && p.velocity == Vec3::ZERO);
         assert!(inv.selected == slot && inv.last_seen_harvests == seen);
+    }
+
+    #[test]
+    fn hit_prints_remaining_and_real_xp() {
+        let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+        assert!(land_hit(&mut c, &mut s, true));
+        let line = fire_cue(PlaceId::Heartwood, &c, true, s.xp[COMBAT]).unwrap();
+        let want = format!("{PREDATOR_NAME} {} / {HEALTH} · +{XP_PER_LANDED_HIT} combat XP", HEALTH - HIT);
+        assert_eq!(line, want);
+        c.predator_taken = HEALTH;
+        assert_eq!(fire_cue(PlaceId::Heartwood, &c, true, 0).unwrap(), format!("{PREDATOR_NAME} is down"));
+    }
+
+    #[test]
+    fn at_xp_cap_no_unpaid_xp_printed() {
+        let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+        s.xp[COMBAT] = crate::skill_xp::XP_CAP;
+        let before = s.xp[COMBAT];
+        assert!(land_hit(&mut c, &mut s, true));
+        let line = fire_cue(PlaceId::Heartwood, &c, true, s.xp[COMBAT] - before).unwrap();
+        assert_eq!(line, format!("{PREDATOR_NAME} {} / {HEALTH}", HEALTH - HIT));
+        assert!(!line.contains("XP"));
+    }
+
+    #[test]
+    fn miss_only_in_heartwood_with_predator_up() {
+        let mut c = CombatState::default();
+        assert_eq!(fire_cue(PlaceId::Heartwood, &c, false, 0), Some(format!("Missed {PREDATOR_NAME}")));
+        assert_eq!(fire_cue(PlaceId::Sanctuary, &c, false, 0), None);
+        c.predator_taken = HEALTH;
+        assert_eq!(fire_cue(PlaceId::Heartwood, &c, false, 0), None, "predator down");
+    }
+
+    #[test]
+    fn defeat_writes_wake_line() {
+        use bevy::ecs::system::RunSystemOnce;
+        let mut world = World::new();
+        let mut time = Time::<()>::default();
+        time.advance_by(std::time::Duration::from_secs_f32(LUNGE_SECS));
+        world.insert_resource(time);
+        let mut travel = HexTravelState::default();
+        travel.current = PlaceId::Heartwood;
+        world.insert_resource(travel);
+        world.insert_resource(LaunchDoor::InYard);
+        let [x, z] = PREDATOR_HOME;
+        world.insert_resource(SoftPresence { position: Vec3::new(x, STAND_HEIGHT, z), ..Default::default() });
+        world.insert_resource(CombatState { player_taken: HEALTH - HIT, ..Default::default() });
+        world.insert_resource(FirstHarvestEpiphany::default());
+        world.run_system_once(predator_lunge).unwrap();
+        assert_eq!(world.resource::<FirstHarvestEpiphany>().pulse_line, wake_cue());
+        assert_eq!(world.resource::<CombatState>().player_taken, 0);
+    }
+
+    #[test]
+    fn no_write_on_a_frame_without_an_event() {
+        use bevy::ecs::system::RunSystemOnce;
+        let mut world = World::new();
+        world.insert_resource(Time::<()>::default());
+        world.insert_resource(HexTravelState::default());
+        world.insert_resource(SoftPresence::default());
+        world.insert_resource(CombatState::default());
+        world.insert_resource(SkillXp::default());
+        world.insert_resource(FirstHarvestEpiphany::default());
+        world.clear_trackers();
+        world.run_system_once(combat_fire).unwrap();
+        world.run_system_once(predator_lunge).unwrap();
+        assert!(!world.is_resource_changed::<FirstHarvestEpiphany>());
+    }
+
+    #[test]
+    fn combat_lines_never_read_as_tend_breathe() {
+        let (up, down) = (CombatState::default(), CombatState { predator_taken: HEALTH, ..Default::default() });
+        let hits = [(&up, true, XP_PER_LANDED_HIT), (&up, true, 0), (&up, false, 0), (&down, true, 0)];
+        let cues = hits.map(|(c, hit, xp)| fire_cue(PlaceId::Heartwood, c, hit, xp).unwrap());
+        for line in cues.into_iter().chain([wake_cue()]) {
+            assert!(!crate::mercy_harvest_nodes::pulse_line_is_tend_breathe(&line), "{line}");
+        }
     }
 }
