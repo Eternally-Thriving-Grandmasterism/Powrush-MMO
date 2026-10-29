@@ -40,6 +40,7 @@ No second Camera3d. No Online gesture. No combat buttons. No brand SDK.
 | UI click | LMB |
 
 Quiet law: Default Use is **E** on keyboard. Pause is always **Esc**. Default sheets stay I / L / Q. Remaps rebind the same verbs — they do not add a second Use, a fifth Place, or combat. No F-row. No second HUD.
+> **KEYS-CANON-1 note:** "No F-row" above is superseded by the hotkey muscle-memory rule below. One Use verb and no second HUD stay.
 
 ## Touch layout
 
@@ -119,11 +120,22 @@ Grove `off|light` already persists here; Controls fields sit beside it. Env not 
 - No **second Camera3d** (order-ambiguity bury).
 - No **Online gesture** (title Online stays grey; no peer flourish).
 - No **combat buttons** / F-row / brand “action” packs in Peace.
+  - **KEYS-CANON-1 note:** the F-row part is superseded by the hotkey muscle-memory rule below; this Peace-scoped row stays for Peace.
 - No **new verbs** (remap rebinds existing Peace actions only).
 - No client `soft_play` on this stamp (`soft_play` wire stays later).
 - No **brand SDK** hard-require (Steam Input / DualSense / NX SDK optional later; generic map first).
 - No Ra-Thor key drive. No GenShare sockets from input. No Wave P. No `playable-preview` from this doc alone.
 - No Title Online · no listen · no public bind · no fifth Place · no second HUD.
+
+## Hotkey muscle-memory rule (KEYS-CANON-1)
+
+Source, verbatim: "Regarding cooldowns, it might have to be based on server capabilities once the MMO is live. About the rest of all hot keys in general, not just combat, always go with most common muscle memory plus most optimal fit for human brains so end-users feel like James Bond fitting his Bond Gloves, not a stranger's outfit from day 1 to relearn and maintain in their oddball set of hot key rolodex, Mate!" (Sherif, 2026-10-28 9:32 PM ET, relayed by Lead Mate (no GitHub ticket; Clerk- and Hands-verified)).
+
+- **Every hotkey, not just combat, follows the most common genre muscle memory**, the fit a player already brings from day 1. No oddball layout to relearn.
+- **Cooldowns are allowed**, data-driven and tunable. Their values are set later against live server capacity. This doc fixes no numbers.
+- *Council reading (not Sherif's words):* a Q/E/R/F skill row, MOBA/MMO-standard layout, WASD default. This rule records no ruling by Sherif on movement.
+- **Superseded F-row / ability-bar / cooldown-rotation refusals** (not edited; this rule governs where they conflict): `docs/GDD_IMMERSION_REVISION.md:48`, `:126`, `:172`; `docs/BLIZZARD_CRAFT_UX.md:49`, `:64`, `:111`; `docs/STUDIO_ARCHITECTURE_ORDER.md:46`, `:91`; `docs/FUN_WITHOUT_WOW.md:28`, `:78`, `:86`; `docs/PLACE_CLARITY_HOUR.md:77`, `:80`, `:96`; `docs/PERSON_READ_SPEC.md:38`, `:70`, `:110`; `docs/PATSAGI_v21.99_HUMAN_IMMERSION.md:11`. Noted in place: `docs/GDD_IMMERSION_REVISION.md:78`, `docs/design/COMBAT_AND_PVP.md:463`, `:465`, and this file :42, :121.
+- **Open clashes, recorded not resolved** (no winner picked here): E is `INTERACT` (take, tend, every `_near` door); R is `ALLOCATE`; Q is `BUILD_WHEEL`; the I / L / Q default sheets; the remappable `PeaceKey::F`. Rebinding is left to COMBAT-FEEL-1 and the Striker kit cards, each with its own keymap ruling.
 
 ## Proof
 
