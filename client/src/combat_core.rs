@@ -52,6 +52,35 @@ pub struct CombatState {
 #[derive(Component)]
 pub struct Predator;
 
+/// COMBAT_AND_PVP.md:433: every damaging ability telegraphs for at least 0.35 s.
+pub const LUNGE_TELL_SECS: f32 = 0.35;
+/// LUNGE-TELL-1 — ground ring of dots at the lunge reach (stripes or dots, colour is an extra).
+pub const LUNGE_TELL_DOTS: usize = 20;
+/// Radius and height of one ground disc.
+pub const LUNGE_TELL_DOT_RADIUS: f32 = 0.12;
+pub const LUNGE_TELL_DOT_HEIGHT: f32 = 0.02;
+/// Ground y: the capsule foot is y 0 (Capsule3d::new(0.35, 0.9) at y 0.8, :215/:217),
+/// plus the heartwood_lip.rs:199 lift.
+pub const LUNGE_TELL_LIFT: f32 = 0.01;
+
+/// LUNGE-TELL-1 — one ground dot of the lunge telegraph.
+#[derive(Component)]
+pub struct LungeTell;
+
+/// The tell is up for the last `LUNGE_TELL_SECS` before each lunge, only while in reach.
+pub fn tell_visible(lunge_timer: f32, reach: bool) -> bool {
+    reach && lunge_timer >= LUNGE_SECS - LUNGE_TELL_SECS
+}
+
+/// Dot i sits at angle TAU*i/N, radius `REACH`, around `PREDATOR_HOME`, at the ground lift.
+pub fn lunge_tell_ring() -> [Vec3; LUNGE_TELL_DOTS] {
+    std::array::from_fn(|i| {
+        let a = std::f32::consts::TAU * i as f32 / LUNGE_TELL_DOTS as f32;
+        let [hx, hz] = PREDATOR_HOME;
+        Vec3::new(hx + REACH * a.cos(), LUNGE_TELL_LIFT, hz + REACH * a.sin())
+    })
+}
+
 /// COMBAT-FEEL-1 — one held strike, the feel_move.rs:38-101 shape. Times are `Time<Fixed>` elapsed.
 #[derive(Resource, Debug, Default, Clone, PartialEq)]
 pub struct StrikeBuffer {
@@ -202,7 +231,8 @@ impl Plugin for CombatCorePlugin {
         app.init_resource::<CombatState>()
             .init_resource::<StrikeBuffer>()
             .add_systems(Startup, spawn_predator)
-            .add_systems(Update, (combat_fire, predator_lunge).chain().after(InputMapSet))
+            .add_systems(Startup, spawn_lunge_tell)
+            .add_systems(Update, (combat_fire, predator_lunge, lunge_tell).chain().after(InputMapSet))
             .add_systems(FixedUpdate, hold_strike_buffer);
     }
 }
@@ -219,6 +249,28 @@ fn spawn_predator(
         Predator,
         Name::new(PREDATOR_NAME),
     ));
+}
+
+/// LUNGE-TELL-1 — 20 hidden discs sharing one mesh and one neutral material.
+fn spawn_lunge_tell(
+    mut commands: Commands,
+    (mut meshes, mut materials): (ResMut<Assets<Mesh>>, ResMut<Assets<StandardMaterial>>),
+) {
+    let mesh = meshes.add(Cylinder::new(LUNGE_TELL_DOT_RADIUS, LUNGE_TELL_DOT_HEIGHT));
+    let material = materials.add(StandardMaterial {
+        base_color: Color::srgb(0.86, 0.85, 0.82),
+        unlit: true,
+        ..default()
+    });
+    for at in lunge_tell_ring() {
+        commands.spawn((
+            Mesh3d(mesh.clone()),
+            MeshMaterial3d(material.clone()),
+            Transform::from_translation(at),
+            Visibility::Hidden,
+            LungeTell,
+        ));
+    }
 }
 
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
@@ -330,6 +382,32 @@ fn predator_lunge(
         if let Some(epi) = epi.as_mut() {
             set_pulse(epi, wake_cue(), time.elapsed_secs_f64() + CUE_SECS);
         }
+    }
+}
+
+/// LUNGE-TELL-1 — chained after `predator_lunge`, so the timer and reach are post-tick.
+fn lunge_tell(
+    door: Option<Res<LaunchDoor>>,
+    travel: Option<Res<HexTravelState>>,
+    presence: Option<Res<SoftPresence>>,
+    combat: Option<Res<CombatState>>,
+    mut dots: Query<&mut Visibility, With<LungeTell>>,
+) {
+    let (Some(travel), Some(presence), Some(combat)) = (travel, presence, combat) else {
+        for mut vis in &mut dots {
+            vis.set_if_neq(Visibility::Hidden);
+        }
+        return;
+    };
+    // The exact reach term of predator_lunge, combat_core.rs:326-327. No second formula.
+    let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
+    let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
+    for mut vis in &mut dots {
+        vis.set_if_neq(if tell_visible(combat.lunge_timer, reach) {
+            Visibility::Visible
+        } else {
+            Visibility::Hidden
+        });
     }
 }
 
@@ -651,6 +729,40 @@ mod tests {
         let joined = fire_line(PlaceId::Heartwood, &down, true, XP_PER_LANDED_HIT, Some(2)).unwrap();
         for line in [level_up_line(COMBAT, 2), joined] {
             assert!(!crate::mercy_harvest_nodes::pulse_line_is_tend_breathe(&line), "{line}");
+        }
+    }
+
+    #[test]
+    fn lunge_tell_opens_at_the_window_edge() {
+        assert!(tell_visible(LUNGE_SECS - LUNGE_TELL_SECS, true));
+    }
+
+    #[test]
+    fn lunge_tell_closed_just_below_the_window() {
+        assert!(!tell_visible(LUNGE_SECS - LUNGE_TELL_SECS - 1e-3, true));
+    }
+
+    #[test]
+    fn lunge_tell_closed_after_the_wrap() {
+        let mut c = CombatState { lunge_timer: 0.59, ..Default::default() };
+        predator_tick(&mut c, 0.02, true);
+        assert!(c.lunge_timer < LUNGE_SECS - LUNGE_TELL_SECS, "{}", c.lunge_timer);
+        assert!(!tell_visible(c.lunge_timer, true));
+    }
+
+    #[test]
+    fn lunge_tell_closed_when_reach_is_lost() {
+        assert!(!tell_visible(LUNGE_SECS - 1e-3, false));
+    }
+
+    #[test]
+    fn lunge_tell_ring_matches_reach() {
+        let ring = lunge_tell_ring();
+        assert_eq!(ring.len(), 20);
+        let home = Vec2::from_array(PREDATOR_HOME);
+        for at in ring {
+            assert!((Vec2::new(at.x, at.z).distance(home) - REACH).abs() < 1e-4, "{at}");
+            assert_eq!(at.y, LUNGE_TELL_LIFT);
         }
     }
 }
