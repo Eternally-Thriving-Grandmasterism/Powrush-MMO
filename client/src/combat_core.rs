@@ -7,14 +7,20 @@ use bevy::window::PrimaryWindow;
 use shared::heartwood_lamp::{heartwood_bath_return, HEARTWOOD_BATH_RETURN, WATER_POND_CENTER};
 use shared::hex_travel::PlaceId;
 
+use crate::coop_voice::VoiceYard;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::first_session_guidance::FirstSessionGuidance;
 use crate::hex_travel::{places_plate_open, HexTravelState, PlacesPlate};
 use crate::hud_anchor_registry::action_bar_prompts_showing;
 use crate::hud_edit_mode::HudEditMode;
+use crate::human_inventory::HumanInventory;
 use crate::human_presence::SoftPresence;
+use crate::human_soft_panels::HumanSoftPanels;
+use crate::input::{InputMapSet, PlayerInput};
+use crate::ledger_bind::LedgerYard;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::{CareCycleOffer, NearbyMercyNode, HARVEST_REACH};
+use crate::rbe_allocate_choice::RbeAllocateChoice;
 use crate::skill_xp::{level_up_line, SkillXp, COMBAT};
 use crate::soft_play_bindings::{FIRE, FIRE_PAD};
 use crate::title_screen::{HouseLabel, LaunchDoor};
@@ -53,6 +59,21 @@ pub fn fire_grab_terms(in_yard: bool, settings_open: bool, hud_edit: bool, focus
 /// `prompts` = CareStrip or CarePrompt showing (COMBAT_AND_PVP.md:522).
 pub fn fire_allowed(grab: bool, plate_open: bool, ui_busy: bool, prompts: bool) -> bool {
     grab && !plate_open && !ui_busy && !prompts
+}
+
+/// SKILL-KEYS-1 — the digit path only: true when no digit-reading panel is open (INPUT_CANON K1).
+pub fn skill_gate_allows(allocate: bool, voice: bool, ledger: bool, satchel: bool, realm: bool) -> bool {
+    !(allocate || voice || ledger || satchel || realm)
+}
+
+/// SKILL-KEYS-1 — only slot 0 (key 1) is the strike. Slots 1-3 have no kit yet and do nothing.
+pub fn slot_strikes(slot: Option<u32>) -> bool {
+    slot == Some(0)
+}
+
+/// One strike decision per frame: LMB/pad as before, or key 1 while no panel is open.
+pub fn strike_pressed(fire: bool, slot: Option<u32>, gate: bool) -> bool {
+    fire || (slot_strikes(slot) && gate)
 }
 
 /// The predator lives only in Heartwood. Never Sanctuary, never Depths.
@@ -139,7 +160,7 @@ impl Plugin for CombatCorePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CombatState>()
             .add_systems(Startup, spawn_predator)
-            .add_systems(Update, (combat_fire, predator_lunge).chain());
+            .add_systems(Update, (combat_fire, predator_lunge).chain().after(InputMapSet));
     }
 }
 
@@ -172,9 +193,25 @@ fn combat_fire(
     (travel, presence): (Option<Res<HexTravelState>>, Option<Res<SoftPresence>>),
     mut combat: ResMut<CombatState>,
     skills: Option<ResMut<SkillXp>>,
+    input: Option<Res<PlayerInput>>,
+    (allocate, voice, ledger, satchel, realm): (
+        Option<Res<RbeAllocateChoice>>,
+        Option<Res<VoiceYard>>,
+        Option<Res<LedgerYard>>,
+        Option<Res<HumanInventory>>,
+        Option<Res<HumanSoftPanels>>,
+    ),
 ) {
-    let pressed = buttons.is_some_and(|b| b.just_pressed(FIRE))
+    let fire = buttons.is_some_and(|b| b.just_pressed(FIRE))
         || gamepads.iter().any(|g| g.just_pressed(FIRE_PAD));
+    let gate = skill_gate_allows(
+        allocate.is_some_and(|a| a.panel_open),
+        voice.is_some_and(|v| v.sash_open),
+        ledger.is_some_and(|l| l.sash_open),
+        satchel.is_some_and(|i| i.open),
+        realm.is_some_and(|r| r.realm_open),
+    );
+    let pressed = strike_pressed(fire, input.and_then(|i| i.ability_slot), gate);
     let (true, Some(travel), Some(presence), Some(mut skills)) = (pressed, travel, presence, skills) else {
         return;
     };
@@ -247,6 +284,67 @@ mod tests {
         assert!(!fire_allowed(true, true, false, false), "places plate");
         assert!(!fire_allowed(true, false, true, false), "ui hover or press");
         assert!(!fire_allowed(true, false, false, true), "care prompts own ACTION_BAR");
+    }
+
+    #[test]
+    fn slot_zero_inert_under_each_panel_and_guard() {
+        assert!(skill_gate_allows(false, false, false, false, false));
+        for i in 0..5 {
+            let open: [bool; 5] = std::array::from_fn(|j| j == i);
+            let gate = skill_gate_allows(open[0], open[1], open[2], open[3], open[4]);
+            assert!(!gate && !strike_pressed(false, Some(0), gate), "panel {i} open");
+            assert!(strike_pressed(true, None, gate), "panels never gate LMB/pad");
+        }
+        assert!(strike_pressed(false, Some(0), true));
+        let guards = [
+            fire_grab_terms(false, false, false, true),
+            fire_grab_terms(true, true, false, true),
+            fire_grab_terms(true, false, true, true),
+            fire_grab_terms(true, false, false, false),
+        ];
+        for grab in guards {
+            assert!(!(strike_pressed(false, Some(0), true) && fire_allowed(grab, false, false, false)));
+        }
+        let ok = fire_grab_terms(true, false, false, true);
+        for (plate, ui, prompts) in [(true, false, false), (false, true, false), (false, false, true)] {
+            assert!(!(strike_pressed(false, Some(0), true) && fire_allowed(ok, plate, ui, prompts)));
+        }
+    }
+
+    #[test]
+    fn slots_one_to_three_never_write() {
+        for slot in [Some(1), Some(2), Some(3)] {
+            assert!(!slot_strikes(slot) && !strike_pressed(false, slot, true));
+        }
+        assert!(!slot_strikes(None) && slot_strikes(Some(0)));
+        let (c, s, epi) = (CombatState::default(), SkillXp::default(), FirstHarvestEpiphany::default());
+        let (mut c2, mut s2, epi2) = (CombatState::default(), SkillXp::default(), FirstHarvestEpiphany::default());
+        if strike_pressed(false, Some(2), true) {
+            land_hit_crossing(&mut c2, &mut s2, true);
+        }
+        assert_eq!((c2.predator_taken, c2.player_taken), (c.predator_taken, c.player_taken));
+        assert_eq!(s2.xp, s.xp);
+        assert_eq!((epi2.pulse_line, epi2.pulse_until), (epi.pulse_line, epi.pulse_until));
+    }
+
+    #[test]
+    fn lmb_and_key_one_same_frame_is_one_hit() {
+        let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+        if strike_pressed(true, Some(0), true) {
+            assert!(land_hit_crossing(&mut c, &mut s, true).0);
+        }
+        assert_eq!((c.predator_taken, s.xp[COMBAT]), (HIT, XP_PER_LANDED_HIT));
+    }
+
+    #[test]
+    fn slot_zero_off_heartwood_hits_nothing() {
+        let (mut c, mut s, [x, z]) = (CombatState::default(), SkillXp::default(), PREDATOR_HOME);
+        for place in [PlaceId::Sanctuary, PlaceId::Depths] {
+            assert!(strike_pressed(false, Some(0), true) && !predator_present(place));
+            let reach = in_reach(place, &c, x, z);
+            assert_eq!(land_hit_crossing(&mut c, &mut s, reach), (false, None));
+        }
+        assert!(c.predator_taken == 0 && s.xp[COMBAT] == 0);
     }
 
     #[test]
