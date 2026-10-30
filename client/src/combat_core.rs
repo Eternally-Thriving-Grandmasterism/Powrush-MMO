@@ -42,6 +42,8 @@ pub const HEARTWOOD_ENTRANCE: [f32; 2] = HEARTWOOD_BATH_RETURN;
 const STAND_HEIGHT: f32 = 0.90; // copy of private heartwood_lip.rs:30
 /// FEEL-PASS-1 — how long a combat cue holds the pulse strip (skill_xp level-up uses 4.2 s).
 const CUE_SECS: f64 = 4.2;
+/// PREDATOR-RESPAWN-1 — council-set, playtest-tunable delay after a kill. Sherif may veto.
+pub const PREDATOR_RESPAWN_SECS: f32 = 30.0;
 
 /// Damage taken so far; health is `HEALTH - taken`. Client-local.
 #[derive(Resource, Debug, Default)]
@@ -49,6 +51,8 @@ pub struct CombatState {
     pub player_taken: u32,
     pub predator_taken: u32,
     pub lunge_timer: f32,
+    /// Set by `predator_respawn`; stays set until COMBAT-XP-PACE-1 lifts it.
+    pub respawned: bool,
 }
 
 #[derive(Component)]
@@ -199,7 +203,11 @@ pub fn land_hit_crossing(combat: &mut CombatState, skills: &mut SkillXp, reach: 
         return (false, None);
     }
     combat.predator_taken = combat.predator_taken.saturating_add(HIT).min(HEALTH);
-    (true, skills.gain(COMBAT, XP_PER_LANDED_HIT))
+    if combat.respawned {
+        (true, None) // PREDATOR-RESPAWN-1: respawned lives pay 0, `gain` never runs
+    } else {
+        (true, skills.gain(COMBAT, XP_PER_LANDED_HIT))
+    }
 }
 
 /// One lunge per 0.6 s in reach. True when the player is defeated.
@@ -210,6 +218,23 @@ pub fn predator_tick(combat: &mut CombatState, dt: f32, reach: bool) -> bool {
         combat.player_taken = combat.player_taken.saturating_add(HIT).min(HEALTH);
     }
     combat.player_taken >= HEALTH
+}
+
+/// PREDATOR-RESPAWN-1 — one step of the down timer: `(elapsed, fire)`.
+/// Fires when `elapsed + dt >= PREDATOR_RESPAWN_SECS`; zero while alive, inert at `dt <= 0`.
+pub fn respawn_step(elapsed: f32, dt: f32, down: bool) -> (f32, bool) {
+    if !down {
+        return (0.0, false);
+    }
+    if dt <= 0.0 {
+        return (elapsed, false);
+    }
+    let elapsed = elapsed + dt;
+    if elapsed >= PREDATOR_RESPAWN_SECS {
+        (0.0, true)
+    } else {
+        (elapsed, false)
+    }
 }
 
 /// Wake at the entrance at full health. Only presence and health move.
@@ -266,6 +291,7 @@ impl Plugin for CombatCorePlugin {
             .add_systems(Startup, spawn_lunge_tell)
             .add_systems(Update, (combat_fire, predator_lunge, lunge_tell).chain().after(InputMapSet))
             .add_systems(Update, hit_flash.after(combat_fire))
+            .add_systems(Update, predator_respawn.after(combat_fire).before(predator_lunge).before(hit_flash))
             .add_systems(FixedUpdate, hold_strike_buffer);
     }
 }
@@ -478,6 +504,18 @@ fn hit_flash(
         if let Some(mut mat) = materials.get_mut(&handle.0) {
             mat.base_color = flash_color(strength);
         }
+    }
+}
+
+/// PREDATOR-RESPAWN-1 — counts on `Res<Time>` everywhere; writes only `predator_taken` and `respawned`.
+fn predator_respawn(time: Res<Time>, combat: Option<ResMut<CombatState>>, mut elapsed: Local<f32>) {
+    let Some(mut combat) = combat else {
+        return;
+    };
+    let fire;
+    (*elapsed, fire) = respawn_step(*elapsed, time.delta_secs(), combat.predator_taken >= HEALTH);
+    if fire {
+        (combat.predator_taken, combat.respawned) = (0, true);
     }
 }
 
@@ -901,5 +939,90 @@ mod tests {
         assert_eq!(colour(&app, &handle), PREDATOR_COLOR, "kill restores a live flash");
         assert_eq!(step(&mut app, 0.02), (0.0, 0));
         assert_eq!(colour(&app, &handle), PREDATOR_COLOR, "kill never tints");
+    }
+
+    #[test]
+    fn respawn_step_edges() {
+        let down = |at: f32| respawn_step(0.0, at, true);
+        assert_eq!(down(PREDATOR_RESPAWN_SECS - 0.01), (PREDATOR_RESPAWN_SECS - 0.01, false));
+        assert_eq!(down(PREDATOR_RESPAWN_SECS), (0.0, true), "fires at 30 s");
+        assert_eq!(respawn_step(29.0, 1.0, true), (0.0, true));
+        assert_eq!(respawn_step(12.0, 5.0, false), (0.0, false), "no tick while alive");
+        assert_eq!(respawn_step(12.0, 0.0, true), (12.0, false), "dt 0 inert");
+        assert_eq!(respawn_step(12.0, -1.0, true), (12.0, false));
+    }
+
+    #[test]
+    fn one_reset_per_kill_and_re_down_starts_fresh() {
+        let mut app = App::new();
+        app.insert_resource(Time::<()>::default())
+            .init_resource::<CombatState>()
+            .add_systems(Update, predator_respawn);
+        let mut tick = |app: &mut App, secs: f32| {
+            app.world_mut().resource_mut::<Time>().advance_by(std::time::Duration::from_secs_f32(secs));
+            app.update();
+            app.world().resource::<CombatState>().predator_taken
+        };
+        assert_eq!(tick(&mut app, 40.0), 0, "alive: nothing to reset");
+        assert!(!app.world().resource::<CombatState>().respawned);
+        app.world_mut().resource_mut::<CombatState>().predator_taken = HEALTH;
+        assert_eq!(tick(&mut app, 20.0), HEALTH);
+        assert_eq!(tick(&mut app, 10.0), 0, "one reset at 30 s");
+        assert!(app.world().resource::<CombatState>().respawned);
+        assert_eq!(tick(&mut app, 25.0), 0, "alive again: timer zeroed");
+        app.world_mut().resource_mut::<CombatState>().predator_taken = HEALTH;
+        assert_eq!(tick(&mut app, 20.0), HEALTH, "re-down starts fresh, not at 25 s");
+        assert_eq!(tick(&mut app, 10.0), 0);
+    }
+
+    #[test]
+    fn respawned_life_lands_hits_with_zero_xp() {
+        let (mut c, mut s) = (CombatState { respawned: true, ..Default::default() }, SkillXp::default());
+        let xp = s.xp[COMBAT];
+        let place = PlaceId::Heartwood;
+        while c.predator_taken < HEALTH {
+            let before = c.predator_taken;
+            assert_eq!(land_hit_crossing(&mut c, &mut s, true), (true, None));
+            assert_eq!(c.predator_taken, (before + HIT).min(HEALTH), "HIT damage lands");
+            assert_eq!(s.xp[COMBAT], xp, "no combat XP");
+            let line = fire_line(place, &c, true, s.xp[COMBAT] - xp, None).unwrap();
+            assert!(!line.contains('+'), "{line}");
+        }
+        assert_eq!(fire_cue(place, &c, true, 0).unwrap(), format!("{PREDATOR_NAME} is down"));
+    }
+
+    #[test]
+    fn defeat_leaves_respawned_set() {
+        let mut c = CombatState { respawned: true, player_taken: HEALTH, ..Default::default() };
+        reseat_on_defeat(&mut c, &mut SoftPresence::default());
+        assert!(c.respawned && c.player_taken == 0);
+    }
+
+    /// Stand-in for `combat_fire`: one strike lands `HIT` past the same kill guard.
+    #[derive(Resource, Default)]
+    struct Strike(bool);
+
+    fn stand_in_fire(mut strike: ResMut<Strike>, mut combat: ResMut<CombatState>) {
+        if std::mem::take(&mut strike.0) && combat.predator_taken < HEALTH {
+            combat.predator_taken = combat.predator_taken.saturating_add(HIT).min(HEALTH);
+        }
+    }
+
+    #[test]
+    fn reset_then_hit_on_adjacent_frames_is_one_flash_rise() {
+        let (mut app, _) = flash_app();
+        app.init_resource::<Strike>()
+            .add_systems(Update, stand_in_fire.before(predator_respawn).before(hit_flash))
+            .add_systems(Update, predator_respawn.after(combat_fire).before(predator_lunge).before(hit_flash));
+        app.world_mut().resource_mut::<CombatState>().predator_taken = HEALTH;
+        assert_eq!(step(&mut app, 0.0), (KILL_KICK, 1), "the kill");
+        assert_eq!(step(&mut app, PREDATOR_RESPAWN_SECS - 0.5), (0.0, 0));
+        assert_eq!(app.world().resource::<CombatState>().predator_taken, HEALTH);
+        app.world_mut().resource_mut::<Strike>().0 = true;
+        assert_eq!(step(&mut app, 0.5), (0.0, 0), "reset frame: blocked strike, no rise");
+        assert_eq!(app.world().resource::<CombatState>().predator_taken, 0);
+        app.world_mut().resource_mut::<Strike>().0 = true;
+        assert_eq!(step(&mut app, 0.02), (HIT_KICK, 1), "next frame: exactly one rise");
+        assert_eq!(step(&mut app, 0.02), (0.0, 0));
     }
 }
