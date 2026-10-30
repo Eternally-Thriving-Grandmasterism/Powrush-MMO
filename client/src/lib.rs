@@ -68,6 +68,7 @@ pub mod living_body;
 pub mod skill_xp;
 pub mod combat_core;
 pub mod grazer;
+pub mod droid;
 pub mod living_freshness;
 pub mod living_day;
 pub mod companion_bond;
@@ -209,6 +210,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(skill_xp::SkillXpPlugin);
         app.add_plugins(combat_core::CombatCorePlugin);
         app.add_plugins(grazer::GrazerPlugin);
+        app.add_plugins(droid::DroidPlugin);
         app.add_plugins(first_whisper::FirstWhisperPlugin);
         app.add_plugins(first_hour_camera::FirstHourCameraPlugin);
         app.add_plugins(human_soft_panels::HumanSoftPanelsPlugin);

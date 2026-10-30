@@ -53,6 +53,8 @@ pub struct CombatState {
     pub lunge_timer: f32,
     /// Set by `predator_respawn`; pays like a first life now that the COMBAT-XP-PACE-1 daily cap governs XP.
     pub respawned: bool,
+    /// ENEMY-DROID-1 — allowed strikes run so far (wrapping); droid.rs reads a rise.
+    pub strikes: u32,
 }
 
 #[derive(Component)]
@@ -334,7 +336,7 @@ fn spawn_lunge_tell(
 }
 
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn combat_fire(
+pub fn combat_fire(
     time: Res<Time>,
     buttons: Option<Res<ButtonInput<MouseButton>>>,
     gamepads: Query<&Gamepad>,
@@ -394,6 +396,7 @@ fn combat_fire(
         None => pressed && allowed,
     };
     if run {
+        combat.strikes = combat.strikes.wrapping_add(1);
         let before = skills.xp[COMBAT];
         let (hit, level) = land_hit_crossing(&mut combat, &mut skills, reach);
         let gained = skills.xp[COMBAT].saturating_sub(before);
