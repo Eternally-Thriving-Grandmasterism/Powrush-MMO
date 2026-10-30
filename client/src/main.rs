@@ -78,6 +78,7 @@ fn main() {
                 powrush_client::title_screen::DECK_TITLE_HEIGHT as u32,
             )
                 .into(),
+            present_mode: bevy::window::PresentMode::Fifo,
             ..default()
         }),
         ..default()
@@ -95,6 +96,7 @@ fn main() {
         .add_plugins((
             FrameTimeDiagnosticsPlugin::default(),
             frame_time_log_plugin(),
+            powrush_client::frame_pace::FramePacePlugin,
         ))
         .add_systems(Startup, spawn_sun_and_camera);
     if let Some(path) = script_timeline {

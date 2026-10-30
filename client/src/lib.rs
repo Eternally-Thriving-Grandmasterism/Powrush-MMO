@@ -86,6 +86,7 @@ pub mod steam_abundance_mirror;
 pub mod ui_font;
 pub mod loading_lines;
 pub mod loading_screen;
+pub mod frame_pace;
 
 /// CARD CLIENT-ENV-LOCK-1 — one process-wide lock for `POWRUSH_USER_DIR` in `--lib` tests.
 #[cfg(test)]
