@@ -83,10 +83,13 @@ jobs:
           # (shaders/forgiveness_wave.wgsl, audio/README.md).
           cp -a assets/. "${dist}/assets/"
           cp -a client/assets/. "${dist}/assets/"
+          rm -f "${dist}/assets/music/epic_dark_ambient.ogg"
+          rmdir "${dist}/assets/music" 2>/dev/null || true
+          [[ ! -e "${dist}/assets/music/epic_dark_ambient.ogg" ]] || { echo "FAIL: epic_dark_ambient.ogg in dist" >&2; exit 1; }
           cat > "${dist}/README.txt" << 'EOF'
           Offline build only.
           Online is grey and disabled.
-          Early-access offline prototype. Single-player. Saves stay on your machine.
+          Early Access offline build. Single-player. Saves stay on your machine.
           EOF
           cat >> "${dist}/README.txt" << EOF
           Linux: tar xzf powrush-offline-linux-${sha8}.tar.gz, then ./powrush-client (from this folder, next to assets/).
