@@ -1,6 +1,7 @@
 //! COMBAT-CORE-1 — offline PvE: one predator in the Heartwood Teeth band.
 //! Health is client-local. No PvP, no kill XP, no loot. Online stays grey.
 
+use bevy::input::gamepad::GamepadRumbleRequest;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
@@ -11,6 +12,7 @@ use crate::coop_voice::VoiceYard;
 use crate::feel_move::{buffer_alive, USE_BUFFER_SECS};
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::first_session_guidance::FirstSessionGuidance;
+use crate::harvest_feel::{rumble_harvest, SoftRbePool};
 use crate::hex_travel::{places_plate_open, HexTravelState, PlacesPlate};
 use crate::hud_anchor_registry::action_bar_prompts_showing;
 use crate::hud_edit_mode::HudEditMode;
@@ -79,6 +81,36 @@ pub fn lunge_tell_ring() -> [Vec3; LUNGE_TELL_DOTS] {
         let [hx, hz] = PREDATOR_HOME;
         Vec3::new(hx + REACH * a.cos(), LUNGE_TELL_LIFT, hz + REACH * a.sin())
     })
+}
+
+/// HIT-JUICE-1 — the Predator's base colour (spawn_predator); a flash always restores to it exactly.
+pub const PREDATOR_COLOR: Color = Color::srgb(0.36, 0.22, 0.16);
+/// HIT-JUICE-1 — neutral warm white the Predator tints toward on a landed hit.
+pub const FLASH_COLOR: Color = Color::srgb(1.0, 0.96, 0.9);
+/// The flash is over by this many seconds after the hit.
+pub const FLASH_SECS: f32 = 0.10;
+/// Camera kick on a landed hit and on the kill. Both stay under the contest win's 1.0.
+pub const HIT_KICK: f32 = 0.35;
+pub const KILL_KICK: f32 = 0.6;
+
+/// 1.0 at the hit, easing out to 0.0 at `FLASH_SECS`; never rises with `t`.
+pub fn flash_strength(t: f32) -> f32 {
+    let left = (1.0 - t.max(0.0) / FLASH_SECS).max(0.0);
+    left * left
+}
+
+/// The kill kicks harder than a plain hit.
+pub fn hit_kick(kill: bool) -> f32 {
+    [HIT_KICK, KILL_KICK][usize::from(kill)]
+}
+
+/// The Predator colour at flash `strength`; 0 is `PREDATOR_COLOR` exactly.
+pub fn flash_color(strength: f32) -> Color {
+    if strength <= 0.0 {
+        PREDATOR_COLOR
+    } else {
+        PREDATOR_COLOR.mix(&FLASH_COLOR, strength.min(1.0))
+    }
 }
 
 /// COMBAT-FEEL-1 — one held strike, the feel_move.rs:38-101 shape. Times are `Time<Fixed>` elapsed.
@@ -233,6 +265,7 @@ impl Plugin for CombatCorePlugin {
             .add_systems(Startup, spawn_predator)
             .add_systems(Startup, spawn_lunge_tell)
             .add_systems(Update, (combat_fire, predator_lunge, lunge_tell).chain().after(InputMapSet))
+            .add_systems(Update, hit_flash.after(combat_fire))
             .add_systems(FixedUpdate, hold_strike_buffer);
     }
 }
@@ -243,7 +276,7 @@ fn spawn_predator(
 ) {
     commands.spawn((
         Mesh3d(meshes.add(Capsule3d::new(0.35, 0.9))),
-        MeshMaterial3d(materials.add(Color::srgb(0.36, 0.22, 0.16))),
+        MeshMaterial3d(materials.add(PREDATOR_COLOR)),
         Transform::from_xyz(PREDATOR_HOME[0], 0.8, PREDATOR_HOME[1]),
         Visibility::Hidden,
         Predator,
@@ -408,6 +441,43 @@ fn lunge_tell(
         } else {
             Visibility::Hidden
         });
+    }
+}
+
+/// HIT-JUICE-1 — after `combat_fire`: a rise in `predator_taken` is one landed hit (Update clock).
+/// Writes the material only while a flash is live, plus one restore. A kill never tints.
+#[allow(clippy::too_many_arguments)]
+fn hit_flash(
+    time: Res<Time>,
+    (mut last, mut since): (Local<u32>, Local<Option<f64>>),
+    combat: Option<Res<CombatState>>,
+    pool: Option<ResMut<SoftRbePool>>,
+    materials: Option<ResMut<Assets<StandardMaterial>>>,
+    predator: Query<&MeshMaterial3d<StandardMaterial>, With<Predator>>,
+    gamepads: Query<Entity, With<Gamepad>>,
+    mut rumble: MessageWriter<GamepadRumbleRequest>,
+) {
+    let (Some(combat), Some(mut pool), Some(mut materials)) = (combat, pool, materials) else {
+        return;
+    };
+    let (taken, now, live) = (combat.predator_taken, time.elapsed_secs_f64(), since.is_some());
+    let (rise, kill) = (taken > std::mem::replace(&mut *last, taken), taken >= HEALTH);
+    if rise {
+        pool.kick = pool.kick.max(hit_kick(kill));
+        rumble_harvest(&mut rumble, gamepads.iter(), false);
+        *since = (!kill).then_some(now);
+    }
+    let strength = since.map_or(0.0, |at| flash_strength((now - at) as f32));
+    if strength <= 0.0 {
+        *since = None;
+        if !live {
+            return;
+        }
+    }
+    for handle in &predator {
+        if let Some(mut mat) = materials.get_mut(&handle.0) {
+            mat.base_color = flash_color(strength);
+        }
     }
 }
 
@@ -764,5 +834,72 @@ mod tests {
             assert!((Vec2::new(at.x, at.z).distance(home) - REACH).abs() < 1e-4, "{at}");
             assert_eq!(at.y, LUNGE_TELL_LIFT);
         }
+    }
+
+    #[test]
+    fn flash_strength_edges_and_monotone() {
+        assert_eq!((flash_strength(0.0), flash_strength(FLASH_SECS), flash_strength(1.0)), (1.0, 0.0, 0.0));
+        let steps: Vec<f32> = (0..=150).map(|ms| flash_strength(ms as f32 * 0.001)).collect();
+        assert!(steps.windows(2).all(|w| w[1] <= w[0]), "{steps:?}");
+        assert_eq!(flash_color(0.0), PREDATOR_COLOR);
+    }
+
+    #[test]
+    fn hit_kick_order() {
+        assert_eq!((hit_kick(false), hit_kick(true)), (HIT_KICK, KILL_KICK));
+        assert!(0.0 < hit_kick(false) && hit_kick(false) < hit_kick(true) && hit_kick(true) < 1.0);
+    }
+
+    /// Bare App: no plugins, one Predator material, one pad. `step` returns (kick, rumbles) per update.
+    fn flash_app() -> (App, Handle<StandardMaterial>) {
+        let mut app = App::new();
+        app.add_message::<GamepadRumbleRequest>()
+            .insert_resource(Time::<()>::default())
+            .init_resource::<CombatState>()
+            .init_resource::<SoftRbePool>()
+            .init_resource::<Assets<StandardMaterial>>()
+            .add_systems(Update, hit_flash);
+        let handle = app.world_mut().resource_mut::<Assets<StandardMaterial>>().add(PREDATOR_COLOR);
+        app.world_mut().spawn((MeshMaterial3d(handle.clone()), Predator));
+        app.world_mut().spawn(Gamepad::default());
+        (app, handle)
+    }
+
+    fn step(app: &mut App, secs: f32) -> (f32, usize) {
+        app.world_mut().resource_mut::<SoftRbePool>().kick = 0.0;
+        app.world_mut().resource_mut::<Time>().advance_by(std::time::Duration::from_secs_f32(secs));
+        app.update();
+        let rumbles = app.world_mut().resource_mut::<Messages<GamepadRumbleRequest>>().drain().count();
+        (app.world().resource::<SoftRbePool>().kick, rumbles)
+    }
+
+    fn colour(app: &App, handle: &Handle<StandardMaterial>) -> Color {
+        app.world().resource::<Assets<StandardMaterial>>().get(handle).unwrap().base_color
+    }
+
+    #[test]
+    fn one_rise_is_one_hit_across_zero_one_or_many_updates() {
+        let (mut app, handle) = flash_app();
+        assert_eq!(step(&mut app, 0.0), (0.0, 0), "no land, no feel");
+        app.world_mut().resource_mut::<CombatState>().predator_taken = HIT;
+        assert_eq!(step(&mut app, 0.0), (HIT_KICK, 1));
+        assert_eq!(colour(&app, &handle), flash_color(1.0), "flash is live");
+        for updates in [0, 1, 6] {
+            (0..updates).for_each(|_| assert_eq!(step(&mut app, 0.03), (0.0, 0), "no new land"));
+        }
+        assert_eq!(colour(&app, &handle), PREDATOR_COLOR, "restored exactly");
+    }
+
+    #[test]
+    fn kill_restores_and_never_tints() {
+        let (mut app, handle) = flash_app();
+        app.world_mut().resource_mut::<CombatState>().predator_taken = HEALTH - HIT;
+        assert_eq!(step(&mut app, 0.0), (HIT_KICK, 1));
+        assert_ne!(colour(&app, &handle), PREDATOR_COLOR, "the hit flash is live");
+        app.world_mut().resource_mut::<CombatState>().predator_taken = HEALTH;
+        assert_eq!(step(&mut app, 0.02), (KILL_KICK, 1));
+        assert_eq!(colour(&app, &handle), PREDATOR_COLOR, "kill restores a live flash");
+        assert_eq!(step(&mut app, 0.02), (0.0, 0));
+        assert_eq!(colour(&app, &handle), PREDATOR_COLOR, "kill never tints");
     }
 }
