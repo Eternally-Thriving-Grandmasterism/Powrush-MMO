@@ -43,6 +43,12 @@ struct SessionBlob {
     /// COMBAT-CORE-1. `None` = absent (v1 save), which loads as 0.
     #[serde(default)]
     combat_xp: Option<u32>,
+    /// COMBAT-XP-PACE-1. UTC day key of `combat_day_hits`; `None` (v1 save) loads as 0.
+    #[serde(default)]
+    combat_day: Option<u32>,
+    /// COMBAT-XP-PACE-1. Paying combat hits that day; `None` (v1 save) loads as 0.
+    #[serde(default)]
+    combat_day_hits: Option<u32>,
 }
 
 impl Default for SessionBlob {
@@ -61,6 +67,8 @@ impl Default for SessionBlob {
             companion_trust: 0.18,
             skills: None,
             combat_xp: None,
+            combat_day: None,
+            combat_day_hits: None,
         }
     }
 }
@@ -177,6 +185,7 @@ fn load_local_session(
     if let Some(mut skills) = skills {
         skills.xp =
             skills_with_combat_on_load(blob.skills, blob.combat_xp, blob.harvests, blob.tends);
+        (skills.combat_day, skills.combat_day_hits) = (blob.combat_day.unwrap_or(0), blob.combat_day_hits.unwrap_or(0));
     }
     info!(
         target: "powrush::session",
@@ -231,6 +240,8 @@ fn save_local_session(
         companion_trust: bond.trust,
         skills: skills.as_ref().map(|s| [s.xp[0], s.xp[1], s.xp[2], s.xp[3]]),
         combat_xp: skills.as_ref().map(|s| s.xp[COMBAT]),
+        combat_day: skills.as_ref().map(|s| s.combat_day),
+        combat_day_hits: skills.as_ref().map(|s| s.combat_day_hits),
     };
     save_blob(&blob);
     persist.dirty = false;
@@ -401,5 +412,53 @@ mod tests {
         save_blob_at(&temp.path, &b);
         let a = load_blob_at(&temp.path).unwrap();
         assert_eq!(skills_on_load(a.skills, a.harvests, a.tends), kept);
+    }
+
+    #[test]
+    fn combat_day_and_hits_round_trip() {
+        let temp = TempSession::new("combat-day");
+        let b = SessionBlob { combat_day: Some(20_400), combat_day_hits: Some(17), ..Default::default() };
+        save_blob_at(&temp.path, &b);
+        let a = load_blob_at(&temp.path).unwrap();
+        assert_eq!((a.combat_day, a.combat_day_hits), (Some(20_400), Some(17)));
+        assert_eq!(a.schema, "powrush_local_session_v1");
+    }
+
+    #[test]
+    fn v1_save_without_day_fields_loads_as_zero_hits() {
+        let temp = TempSession::new("combat-day-v1");
+        let mut v1 = serde_json::to_value(SessionBlob { combat_xp: Some(30), ..Default::default() }).unwrap();
+        v1.as_object_mut().unwrap().remove("combat_day");
+        v1.as_object_mut().unwrap().remove("combat_day_hits");
+        fs::write(&temp.path, v1.to_string()).unwrap();
+        let a = load_blob_at(&temp.path).expect("v1 save must not reset the session");
+        assert_eq!((a.combat_day.unwrap_or(0), a.combat_day_hits.unwrap_or(0)), (0, 0));
+        assert_eq!(a.combat_xp, Some(30));
+    }
+
+    /// X3 stand-in for `combat_fire`: the same land, `fire_line` and `set_pulse` as combat_core :397-400.
+    #[test]
+    fn paying_hit_marks_the_session_dirty() {
+        use crate::combat_core::{fire_line, land_hit_crossing, set_pulse, CombatState};
+        let mut app = App::new();
+        app.init_resource::<SoftRbePool>()
+            .init_resource::<SoftPlayerRealm>()
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<PersistentWeb>()
+            .init_resource::<CompanionBond>()
+            .init_resource::<LocalSessionPersist>()
+            .add_systems(Update, mark_dirty);
+        app.update();
+        app.update();
+        app.world_mut().resource_mut::<LocalSessionPersist>().dirty = false;
+        app.update();
+        assert!(!app.world().resource::<LocalSessionPersist>().dirty, "quiet frame stays clean");
+        let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+        let (hit, level) = land_hit_crossing(&mut c, &mut s, true);
+        assert!(hit && s.combat_day_hits == 1);
+        let line = fire_line(shared::hex_travel::PlaceId::Heartwood, &c, hit, s.xp[COMBAT], level).unwrap();
+        set_pulse(&mut app.world_mut().resource_mut::<FirstHarvestEpiphany>(), line, 4.2);
+        app.update();
+        assert!(app.world().resource::<LocalSessionPersist>().dirty, "a paying hit is saved");
     }
 }

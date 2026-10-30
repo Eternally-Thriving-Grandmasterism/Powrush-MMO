@@ -29,6 +29,11 @@ pub const COMBAT: usize = 4;
 pub struct SkillXp {
     pub xp: [u32; 5],
     metres: [f32; 5],
+    /// COMBAT-XP-PACE-1 — UTC day key of `combat_day_hits`. Saved because every paying hit
+    /// rewrites the pulse on `FirstHarvestEpiphany` (combat_core :399-400), which `mark_dirty` watches.
+    pub combat_day: u32,
+    /// COMBAT-XP-PACE-1 — paying combat hits on `combat_day`.
+    pub combat_day_hits: u32,
 }
 
 #[derive(Component)]
@@ -83,6 +88,25 @@ pub fn skills_with_combat_on_load(
     [g, t, w, s, combat_xp.unwrap_or(0).min(XP_CAP)]
 }
 
+/// COMBAT-XP-PACE-1 — paying combat hits per UTC day (`epoch_secs / 86400`; rolls 8 PM ET
+/// in summer, 7 PM ET in winter). Council reading of COMBAT_AND_PVP.md:73. Playtest-tunable;
+/// Sherif may veto.
+pub const COMBAT_PAYING_HITS_PER_DAY: u32 = 20;
+
+/// COMBAT-XP-PACE-1 — UTC day key: `epoch_secs / 86400`.
+pub fn day_key(epoch_secs: u64) -> u32 {
+    (epoch_secs / 86_400).min(u64::from(u32::MAX)) as u32
+}
+
+/// COMBAT-XP-PACE-1 — a later day starts at 0 hits; the same or an earlier day keeps the count.
+pub fn roll_day(saved_day: u32, saved_hits: u32, today: u32) -> (u32, u32) {
+    if today > saved_day {
+        (today, 0)
+    } else {
+        (saved_day, saved_hits)
+    }
+}
+
 /// TOTAL-LEVEL-2 — the one level-up line, shared by every skill.
 pub fn level_up_line(skill: usize, level: u32) -> String {
     format!("{} · level {level}", SKILL_NAMES[skill])
@@ -106,12 +130,27 @@ impl SkillXp {
     }
 }
 
+/// COMBAT-XP-PACE-1 — the only wall-clock read for the cap. Reads through `Deref` and
+/// writes `SkillXp` only when the UTC day moves forward, so a no-op frame stays unchanged.
+fn roll_combat_day(skills: Option<ResMut<SkillXp>>) {
+    let Some(mut skills) = skills else {
+        return;
+    };
+    let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH);
+    let today = day_key(now.map_or(0, |d| d.as_secs()));
+    let (day, hits) = roll_day(skills.combat_day, skills.combat_day_hits, today);
+    if day != skills.combat_day {
+        (skills.combat_day, skills.combat_day_hits) = (day, hits);
+    }
+}
+
 pub struct SkillXpPlugin;
 
 impl Plugin for SkillXpPlugin {
     fn build(&self, app: &mut App) {
         let panel = update_skills_panel.run_if(resource_changed::<SkillXp>);
         app.init_resource::<SkillXp>()
+            .add_systems(PreUpdate, roll_combat_day)
             .add_systems(PostUpdate, (award_skill_xp, panel).chain());
     }
 }
@@ -271,5 +310,17 @@ mod tests {
         assert_eq!(v1, [1, 2, 3, 4, 0]);
         assert_eq!(skills_with_combat_on_load(None, Some(77), 0, 0)[COMBAT], 77);
         assert_eq!(skills_with_combat_on_load(None, Some(u32::MAX), 0, 0)[COMBAT], XP_CAP);
+    }
+
+    #[test]
+    fn day_key_rolls_at_utc_midnight() {
+        assert_eq!((day_key(0), day_key(86_399), day_key(86_400)), (0, 0, 1));
+    }
+
+    #[test]
+    fn roll_day_forward_resets_same_and_backwards_keep() {
+        assert_eq!(roll_day(5, 20, 6), (6, 0), "forward");
+        assert_eq!(roll_day(5, 20, 5), (5, 20), "same day");
+        assert_eq!(roll_day(5, 20, 4), (5, 20), "backwards clock keeps the count");
     }
 }
