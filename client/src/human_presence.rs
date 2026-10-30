@@ -140,6 +140,8 @@ const WALK: f32 = 3.4;
 const SPRINT: f32 = 5.4;
 const GRAVITY: f32 = 18.0;
 const JUMP: f32 = 5.6;
+/// CARD JUMP-BUFFER-1 — airborne jump press window in seconds (tunable; council-set, Sherif may veto).
+pub const JUMP_BUFFER_SECS: f32 = 0.12;
 const CAM_BACK: f32 = 6.4;
 const CAM_UP: f32 = 2.35;
 /// Radians of yaw per mouse pixel while the right button is held.
@@ -669,6 +671,10 @@ pub fn wrong_door_bounce_disarms_arrival_beat() -> ArrivalBeat {
 #[derive(Resource, Debug, Default)]
 struct JumpLatch {
     pending: bool,
+    /// CARD JUMP-BUFFER-1 — seconds left on an airborne press; decrement on airborne ticks only.
+    buffer: f32,
+    /// Set only by the STAND clamp in `apply_locomotion`; read and cleared every tick.
+    clamp_landed: bool,
 }
 
 pub struct HumanPresencePlugin;
@@ -1185,6 +1191,8 @@ fn apply_locomotion(
     trees: (Option<Res<crate::living_practice_loop::SoftPlayerRealm>>, Option<Res<crate::vegetation::FieldTrunks>>),
 ) {
     // PLAYTEST-STRAFE-FIX-1 — snapshot last tick's end before integrating.
+    // CARD JUMP-BUFFER-1 — reseat guard, read before anything moves the position this tick.
+    let seated = presence.curr_tick == Some(presence.position);
     presence.prev_tick = Some(presence.position);
     let dt = time.delta_secs();
     let sprint_ok = body.as_ref().map(|b| b.can_sprint()).unwrap_or(true);
@@ -1250,13 +1258,31 @@ fn apply_locomotion(
         }
     }
     presence.velocity.y -= GRAVITY * dt;
-    if yard_step && presence.grounded && latch.pending {
+    // CARD JUMP-BUFFER-1 — the clamp-landing flag is read and cleared on every tick.
+    let clamp_landed = std::mem::take(&mut latch.clamp_landed);
+    let buffered = yard_step && latch.buffer > 0.0 && clamp_landed && seated;
+    if presence.grounded && buffered {
+        // Buffered jump on the first grounded tick after a clamp landing: one press, one jump.
         presence.velocity.y = JUMP;
         presence.grounded = false;
         latch.pending = false;
-    } else if !presence.grounded {
-        // Airborne: drop a stale latch so landing does not auto-hop.
+        latch.buffer = 0.0;
+    } else if yard_step && presence.grounded && latch.pending {
+        presence.velocity.y = JUMP;
+        presence.grounded = false;
         latch.pending = false;
+        latch.buffer = 0.0;
+    } else if !presence.grounded {
+        // Airborne: a pending edge arms the buffer, then it decrements on the same tick.
+        // Decrement on airborne ticks only. Pending never carries to landing (no auto-hop).
+        if yard_step && latch.pending {
+            latch.buffer = JUMP_BUFFER_SECS;
+        }
+        latch.pending = false;
+        latch.buffer = if yard_step { latch.buffer - dt } else { 0.0 };
+    } else {
+        // Grounded tick that does not fire: drop the buffer; a paused grounded press keeps pending.
+        latch.buffer = 0.0;
     }
     let velocity = presence.velocity;
     presence.position += velocity * dt;
@@ -1269,6 +1295,7 @@ fn apply_locomotion(
         presence.position.y = STAND;
         presence.velocity.y = 0.0;
         presence.grounded = true;
+        latch.clamp_landed = true;
     }
     presence.curr_tick = Some(presence.position);
 }
@@ -2768,6 +2795,59 @@ mod tests {
         assert_eq!(presence.position.z, 0.0);
         assert_eq!(presence.velocity.x, 0.0);
         assert_eq!(presence.velocity.z, 0.0);
+    }
+
+    /// CARD JUMP-BUFFER-1 — open yard, one exact 1/60 fixed tick per update; `drop` starts at STAND + 2.
+    fn jb_app(drop: bool) -> App {
+        let mut app = yard_w_app(None, None);
+        app.insert_resource(bevy::time::TimeUpdateStrategy::FixedTimesteps(1));
+        let mut presence = app.world_mut().resource_mut::<SoftPresence>();
+        (presence.position.y, presence.velocity, presence.grounded) = (STAND + if drop { 2.0 } else { 0.0 }, Vec3::ZERO, !drop);
+        app
+    }
+    fn jb_step(app: &mut App) -> bool {
+        app.update();
+        assert_eq!(app.world().resource::<Time<Fixed>>().delta_secs(), 1.0 / 60.0);
+        app.world().resource::<SoftPresence>().velocity.y == JUMP
+    }
+    /// Arms `k` airborne ticks before the clamp land (arm and landing tick counted); `hook` runs after tick land - `back`. Returns JUMP rises.
+    fn jb_rises(k: usize, held: bool, back: usize, hook: fn(&mut SoftPresence)) -> usize {
+        let mut dry = jb_app(true);
+        let n = (1..).find(|_| !jb_step(&mut dry) && dry.world().resource::<SoftPresence>().grounded).unwrap();
+        let mut app = jb_app(true);
+        app.add_systems(Update, arm_jump_latch);
+        (1..=n + 60).filter(|&t| {
+            // Held: one `jump: true` frame; Update arms after this tick, so it lands on the next.
+            app.world_mut().resource_mut::<PlayerInput>().jump = held && t + k == n;
+            app.world_mut().resource_mut::<JumpLatch>().pending |= !held && t + k == n + 1;
+            let rise = jb_step(&mut app);
+            if t + back == n { hook(&mut app.world_mut().resource_mut::<SoftPresence>()); }
+            rise
+        }).count()
+    }
+    #[test]
+    fn jump_buffer_6_ticks_jumps_12_does_not() {
+        assert_eq!((jb_rises(6, false, 0, |_| {}), jb_rises(12, false, 0, |_| {})), (1, 0));
+    }
+    #[test]
+    fn jump_buffer_boundary_7_jumps_8_does_not() {
+        assert_eq!((jb_rises(7, false, 0, |_| {}), jb_rises(8, false, 0, |_| {})), (1, 0));
+    }
+    #[test]
+    fn jump_buffer_held_key_one_rise() {
+        assert_eq!(jb_rises(4, true, 0, |_| {}), 1);
+    }
+    #[test]
+    fn jump_buffer_grounded_press_unchanged() {
+        let mut app = jb_app(false);
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        assert!(jb_step(&mut app) && !app.world().resource::<SoftPresence>().grounded);
+        assert!(!app.world().resource::<JumpLatch>().pending);
+    }
+    #[test]
+    fn jump_buffer_reseat_does_not_hop() {
+        assert_eq!(jb_rises(3, false, 0, |p| { let landed = p.position; wake_garden_bounce(p); assert_ne!(p.position, landed); }), 0);
+        assert_eq!(jb_rises(4, false, 2, |p| { assert!(!p.grounded); p.grounded = true; }), 0);
     }
 
     /// (d) NameHouse + W does not move.
