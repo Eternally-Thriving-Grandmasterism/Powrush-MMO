@@ -51,7 +51,7 @@ pub struct CombatState {
     pub player_taken: u32,
     pub predator_taken: u32,
     pub lunge_timer: f32,
-    /// Set by `predator_respawn`; stays set until COMBAT-XP-PACE-1 lifts it.
+    /// Set by `predator_respawn`; pays like a first life now that the COMBAT-XP-PACE-1 daily cap governs XP.
     pub respawned: bool,
 }
 
@@ -203,10 +203,11 @@ pub fn land_hit_crossing(combat: &mut CombatState, skills: &mut SkillXp, reach: 
         return (false, None);
     }
     combat.predator_taken = combat.predator_taken.saturating_add(HIT).min(HEALTH);
-    if combat.respawned {
-        (true, None) // PREDATOR-RESPAWN-1: respawned lives pay 0, `gain` never runs
-    } else {
+    if skills.combat_day_hits < crate::skill_xp::COMBAT_PAYING_HITS_PER_DAY {
+        skills.combat_day_hits += 1;
         (true, skills.gain(COMBAT, XP_PER_LANDED_HIT))
+    } else {
+        (true, None) // COMBAT-XP-PACE-1: past the daily cap `gain` never runs
     }
 }
 
@@ -976,18 +977,40 @@ mod tests {
     }
 
     #[test]
-    fn respawned_life_lands_hits_with_zero_xp() {
+    fn paying_hit_edges_19_20_21() {
+        let cap = crate::skill_xp::COMBAT_PAYING_HITS_PER_DAY;
+        for (count, pays) in [(cap - 1, true), (cap, false), (cap + 1, false)] {
+            let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+            s.combat_day_hits = count;
+            let hit = land_hit_crossing(&mut c, &mut s, true);
+            assert_eq!(c.predator_taken, HIT, "damage unchanged at {count}");
+            assert_eq!(s.xp[COMBAT], if pays { XP_PER_LANDED_HIT } else { 0 }, "at {count}");
+            assert_eq!(s.combat_day_hits, if pays { count + 1 } else { count });
+            assert_eq!(hit, (true, None));
+        }
+    }
+
+    #[test]
+    fn respawned_life_pays_until_the_cap() {
         let (mut c, mut s) = (CombatState { respawned: true, ..Default::default() }, SkillXp::default());
         let xp = s.xp[COMBAT];
         let place = PlaceId::Heartwood;
+        let (mut paid, mut lives, cap) = (0, 3, crate::skill_xp::COMBAT_PAYING_HITS_PER_DAY); // 14 hits a life: 3 lives cross the cap
         while c.predator_taken < HEALTH {
             let before = c.predator_taken;
-            assert_eq!(land_hit_crossing(&mut c, &mut s, true), (true, None));
+            let paid_before = s.xp[COMBAT];
+            assert!(land_hit_crossing(&mut c, &mut s, true).0);
+            let gained = s.xp[COMBAT] - paid_before;
             assert_eq!(c.predator_taken, (before + HIT).min(HEALTH), "HIT damage lands");
-            assert_eq!(s.xp[COMBAT], xp, "no combat XP");
-            let line = fire_line(place, &c, true, s.xp[COMBAT] - xp, None).unwrap();
-            assert!(!line.contains('+'), "{line}");
+            assert_eq!(gained, if paid < cap { XP_PER_LANDED_HIT } else { 0 }, "pays until the cap");
+            paid += u32::from(gained > 0);
+            let line = fire_line(place, &c, true, gained, None).unwrap();
+            assert_eq!(line.contains('+'), gained > 0 && c.predator_taken < HEALTH, "{line}");
+            if c.predator_taken >= HEALTH && lives > 1 {
+                (c.predator_taken, lives) = (0, lives - 1);
+            }
         }
+        assert_eq!((paid, s.xp[COMBAT], s.combat_day_hits), (cap, xp + cap * XP_PER_LANDED_HIT, cap));
         assert_eq!(fire_cue(place, &c, true, 0).unwrap(), format!("{PREDATOR_NAME} is down"));
     }
 
