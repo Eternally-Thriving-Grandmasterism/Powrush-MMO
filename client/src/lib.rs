@@ -19,6 +19,7 @@ pub mod depths_landing;
 pub mod heartwood_lip;
 pub mod heartwood_wards;
 pub mod heartwood_plaque;
+pub mod wellsworn;
 pub mod local_settings;
 pub mod vertical_factory;
 pub mod coop_voice;
@@ -223,6 +224,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(heartwood_lip::HeartwoodLipPlugin);
         app.add_plugins(heartwood_wards::HeartwoodWardsPlugin);
         app.add_plugins(heartwood_plaque::HeartwoodPlaquePlugin);
+        app.add_plugins(wellsworn::WellswornPlugin);
         app.add_plugins(flow_weather::FlowWeatherPlugin);
         app.add_plugins(local_human_sim::LocalHumanSimPlugin);
         app.add_plugins(player_lineage::PlayerLineagePlugin);

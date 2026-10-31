@@ -92,6 +92,7 @@ pub struct FirstHarvestEpiphany {
     pub depths_near: bool,
     /// STORY-TEXT-1 — at the Heartwood plaque. E reads; do not harvest.
     pub plaque_near: bool,
+    pub wellsworn_near: bool,
     /// CARD FLESH-EPIPHANY-PLACE — stood Place for the tend pulse. None until travel exists.
     pub stood_place: Option<&'static str>,
 }
@@ -123,6 +124,7 @@ impl Default for FirstHarvestEpiphany {
             wards_near: false,
             depths_near: false,
             plaque_near: false,
+            wellsworn_near: false,
             stood_place: None,
         }
     }
@@ -144,6 +146,7 @@ impl FirstHarvestEpiphany {
         self.threshold_near
             || self.depths_near
             || self.plaque_near
+            || self.wellsworn_near
             || wards_may_claim_use(self.wards_near, self.well_in_reach)
     }
 
