@@ -5172,6 +5172,126 @@ mod tests {
         assert!(ultra.volumetric_fog && ultra.volumetric_light, "Ultra fog");
         save_probe_png(&ultra.image, "light-bloom-ultra.png");
     }
+
+    /// CARD LOOK-CAPTURE-1 — "before" baseline stills, 3 places x Low/Medium/High.
+    /// Lavapipe software renderer, test scene, not full game. Not part of the
+    /// headless gate (`--ignored`). Day phase is not modelled in this harness
+    /// (no `LivingDayPlugin`); Depths night comes from living_day and is not shown.
+    #[test]
+    #[ignore = "lavapipe screenshot; DISPLAY and VK_ICD_FILENAMES"]
+    fn look_capture_places_low_medium_and_high_lavapipe() {
+        use crate::{hex_travel::HexTravelState, living_practice_loop::SoftPlayerRealm, ui_above_world::UiAboveWorldPlugin};
+        use shared::local_settings::LocalSettings;
+        use std::sync::{mpsc, Arc, Mutex};
+
+        const LOOK_RES: (u32, u32) = (640, 360);
+        const LOOK_EYE: Vec3 = Vec3::new(1.55, 0.95, 2.15);
+        const LOOK_AT: Vec3 = Vec3::new(0.05, 0.28, 0.05);
+        const PLACES: [(PlaceId, &str); 3] =
+            [(PlaceId::Sanctuary, "sanctuary"), (PlaceId::Heartwood, "heartwood"), (PlaceId::Depths, "depths")];
+        const PRESETS: [(GraphicsPreset, &str); 3] =
+            [(GraphicsPreset::Low, "low"), (GraphicsPreset::Medium, "medium"), (GraphicsPreset::High, "high")];
+
+        let dir = std::env::var("SHOT_DIR").expect("LOOK-CAPTURE-1 needs SHOT_DIR set");
+        std::fs::create_dir_all(&dir).expect("create SHOT_DIR");
+        let shots = std::fs::canonicalize(&dir).expect("canonical SHOT_DIR");
+        let repo = std::fs::canonicalize(concat!(env!("CARGO_MANIFEST_DIR"), "/..")).expect("repo root");
+        assert!(!shots.starts_with(&repo), "SHOT_DIR {} is inside the repo", shots.display());
+        #[derive(Resource)]
+        struct LookRun {
+            step: usize, frames: u32, requested: bool,
+            tx: mpsc::Sender<bevy::image::Image>,
+            rx: Mutex<mpsc::Receiver<bevy::image::Image>>,
+            done: Arc<Mutex<Vec<String>>>,
+        }
+
+        fn drive_look_run(
+            mut commands: Commands,
+            mut run: ResMut<LookRun>,
+            mut settings: ResMut<LocalSettingsState>,
+            mut travel: ResMut<HexTravelState>,
+            realm: Res<SoftPlayerRealm>,
+            windows: Query<Entity, With<bevy::window::PrimaryWindow>>,
+            mut exit: MessageWriter<AppExit>,
+        ) {
+            let (place, place_name) = PLACES[run.step / 3];
+            let (_, preset_name) = PRESETS[run.step % 3];
+            run.frames += 1;
+            let warmup = if run.step == 0 { 120 } else { 48 };
+            if run.frames >= warmup && !run.requested {
+                assert_eq!(realm.current, dress_realm_for_place(place), "{place_name} did not dress");
+                use bevy::render::view::window::screenshot::{Screenshot, ScreenshotCaptured};
+                if let Ok(window) = windows.single() {
+                    run.requested = true;
+                    let tx = run.tx.clone();
+                    commands.spawn(Screenshot::window(window)).observe(
+                        move |trigger: On<ScreenshotCaptured>| drop(tx.send(trigger.event().image.clone())),
+                    );
+                }
+            }
+            let Some(image) = run.rx.lock().expect("look inbox").try_recv().ok() else {
+                assert!(run.frames <= 500, "no screenshot for {place_name}_{preset_name}");
+                return;
+            };
+            if shot_is_clear_sky(&image) {
+                assert!(run.frames <= 500, "{place_name}_{preset_name} stayed on the clear sky");
+                eprintln!("look-capture: discarded clear-sky frame for {place_name}_{preset_name}");
+                run.requested = false;
+                return;
+            }
+            let name = format!("{place_name}_{preset_name}.png");
+            save_probe_png(&image, &name);
+            run.done.lock().expect("look done").push(name);
+            (run.step, run.frames, run.requested) = (run.step + 1, 0, false);
+            if run.step == PLACES.len() * PRESETS.len() {
+                exit.write(AppExit::Success);
+                return;
+            }
+            travel.current = PLACES[run.step / 3].0;
+            settings.inner.set_graphics_preset(PRESETS[run.step % 3].0);
+        }
+
+        let mut settings = LocalSettings::default();
+        settings.set_graphics_preset(PRESETS[0].0);
+        let (tx, rx) = mpsc::channel();
+        let done = Arc::new(Mutex::new(Vec::new()));
+        let mut app = App::new();
+        app.add_plugins(
+            DefaultPlugins
+                .set(WindowPlugin {
+                    primary_window: Some(Window { resolution: LOOK_RES.into(), title: "look-capture-1".into(), ..default() }),
+                    ..default()
+                })
+                .disable::<bevy::audio::AudioPlugin>()
+                .disable::<bevy::winit::WinitPlugin>(),
+        )
+        .add_plugins({
+            let mut winit = bevy::winit::WinitPlugin::default();
+            winit.run_on_any_thread = true;
+            winit
+        })
+        .init_resource::<SoftPlayerRealm>()
+        .insert_resource(HexTravelState { current: PLACES[0].0 })
+        .insert_resource(LocalSettingsState { inner: settings, dirty: false })
+        .insert_resource(LookRun { step: 0, frames: 0, requested: false, tx, rx: Mutex::new(rx), done: done.clone() })
+        .add_plugins((UiAboveWorldPlugin, ClimatePlanePlugin))
+        .add_systems(Update, drive_look_run.after(sync_place_dress_from_travel));
+
+        let cube = app.world_mut().resource_mut::<Assets<Mesh>>().add(Cuboid::new(1.1, 1.1, 1.1));
+        let stone = StandardMaterial { base_color: Color::srgb(0.55, 0.58, 0.62), perceptual_roughness: 0.9, ..default() };
+        let stone = app.world_mut().resource_mut::<Assets<StandardMaterial>>().add(stone);
+        app.world_mut().spawn((
+            Camera3d::default(),
+            Camera { order: crate::ui_above_world::WORLD_CAMERA_ORDER, ..default() },
+            Transform::from_translation(LOOK_EYE).looking_at(LOOK_AT, Vec3::Y),
+            Msaa::Off,
+        ));
+        app.world_mut().spawn((Mesh3d(cube), MeshMaterial3d(stone), Transform::from_xyz(0.0, 0.55, 0.0)));
+        app.run();
+
+        let done = done.lock().unwrap();
+        assert_eq!(done.len(), 9, "only {} of 9 stills: {done:?}", done.len());
+    }
 }
 
 #[cfg(test)]
