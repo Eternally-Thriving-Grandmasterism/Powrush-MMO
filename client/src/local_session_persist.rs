@@ -11,6 +11,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use crate::companion_bond::CompanionBond;
+use crate::difficulty::AreaDifficulty;
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::harvest_feel::SoftRbePool;
 use crate::human_inventory::HumanInventory;
@@ -49,6 +50,10 @@ struct SessionBlob {
     /// COMBAT-XP-PACE-1. Paying combat hits that day; `None` (v1 save) loads as 0.
     #[serde(default)]
     combat_day_hits: Option<u32>,
+    /// DIFFICULTY-TIERS-1. Default tier, per-area overrides and clears; `None` loads as Sheltered, no clears.
+    #[serde(default)] difficulty: Option<u8>,
+    #[serde(default)] area_difficulty: Option<[u8; 3]>,
+    #[serde(default)] area_clears: Option<[u8; 3]>,
 }
 
 impl Default for SessionBlob {
@@ -69,6 +74,7 @@ impl Default for SessionBlob {
             combat_xp: None,
             combat_day: None,
             combat_day_hits: None,
+            difficulty: None, area_difficulty: None, area_clears: None,
         }
     }
 }
@@ -157,6 +163,7 @@ fn load_local_session(
     mut web: ResMut<PersistentWeb>,
     mut bond: ResMut<CompanionBond>,
     skills: Option<ResMut<SkillXp>>,
+    diff: Option<ResMut<AreaDifficulty>>,
 ) {
     if persist.loaded {
         return;
@@ -182,6 +189,7 @@ fn load_local_session(
     web.apply_decay_on_return();
     bond.trust = blob.companion_trust.clamp(0.0, 1.0);
     bond.mounted = false;
+    if let Some(mut diff) = diff { *diff = AreaDifficulty::from_save(blob.difficulty, blob.area_difficulty, blob.area_clears); }
     if let Some(mut skills) = skills {
         skills.xp =
             skills_with_combat_on_load(blob.skills, blob.combat_xp, blob.harvests, blob.tends);
@@ -222,10 +230,12 @@ fn save_local_session(
     web: Res<PersistentWeb>,
     bond: Res<CompanionBond>,
     skills: Option<Res<SkillXp>>,
+    diff: Option<Res<AreaDifficulty>>,
 ) {
     if !persist.dirty {
         return;
     }
+    let saved = diff.map(|d| d.to_save());
     let blob = SessionBlob {
         schema: "powrush_local_session_v1".into(),
         vitality: pool.vitality,
@@ -242,6 +252,7 @@ fn save_local_session(
         combat_xp: skills.as_ref().map(|s| s.xp[COMBAT]),
         combat_day: skills.as_ref().map(|s| s.combat_day),
         combat_day_hits: skills.as_ref().map(|s| s.combat_day_hits),
+        difficulty: saved.map(|s| s.0), area_difficulty: saved.map(|s| s.1), area_clears: saved.map(|s| s.2),
     };
     save_blob(&blob);
     persist.dirty = false;
@@ -278,6 +289,20 @@ mod tests {
         json["later_field"] = 1.into();
         let later: SessionBlob = serde_json::from_value(json).unwrap();
         assert_eq!(later.combat_xp, Some(42));
+    }
+
+    #[test]
+    fn v1_save_loads_sheltered_and_difficulty_round_trips() {
+        use crate::difficulty::DifficultyTier::*;
+        let temp = TempSession::new("difficulty");
+        fs::write(&temp.path, r#"{"schema":"powrush_local_session_v1","vitality":1.0,"harmony":0.0,"joy":0.0,"harvests":0,"tends":0,"realm":0,"first_harvest_lived":false,"whisper_lived":false}"#).unwrap();
+        let a = load_blob_at(&temp.path).unwrap();
+        assert_eq!(AreaDifficulty::from_save(a.difficulty, a.area_difficulty, a.area_clears), AreaDifficulty::default());
+        let d = AreaDifficulty { default: Steady, area: [None, Some(Sworn), None], clears: [1, 3, 1], ..Default::default() };
+        let (t, ar, c) = d.to_save();
+        save_blob_at(&temp.path, &SessionBlob { difficulty: Some(t), area_difficulty: Some(ar), area_clears: Some(c), ..Default::default() });
+        let b = load_blob_at(&temp.path).unwrap();
+        assert_eq!((b.schema.as_str(), AreaDifficulty::from_save(b.difficulty, b.area_difficulty, b.area_clears)), ("powrush_local_session_v1", d));
     }
 
     #[test]

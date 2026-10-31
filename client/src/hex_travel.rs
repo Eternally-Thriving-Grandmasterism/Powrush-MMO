@@ -50,6 +50,7 @@ use shared::hex_travel::{
 use shared::pause_ledger_face::NOT_YOUR_CHARTER;
 use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
 
+use crate::difficulty::{gate_facts, row_line, AreaDifficulty, TIERS};
 use crate::embassy::EmbassyYard;
 use crate::hour_sacred::{
     decline_or_wrong_door, try_cross_people_door, unsealed_light_may_take_people_door,
@@ -210,7 +211,7 @@ impl Plugin for HexTravelPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<HexTravelState>()
             .init_resource::<PlacesPlate>()
-            .add_systems(Startup, spawn_places_plate)
+            .add_systems(Startup, (spawn_places_plate, spawn_difficulty_row))
             .add_systems(
                 Update,
                 (
@@ -220,6 +221,7 @@ impl Plugin for HexTravelPlugin {
                     sync_places_visibility.after(PlacesDoorClickSet),
                     refresh_places_labels.after(PlacesDoorClickSet),
                     refresh_pause_places_row.after(PlacesDoorClickSet),
+                    difficulty_row.after(PlacesDoorClickSet),
                 ),
             );
     }
@@ -255,6 +257,7 @@ pub fn apply_place(
         return;
     }
     travel.current = dest;
+    crate::difficulty::mark_entry(dest);
     bind.apply_place(dest);
     if dest == PlaceId::Sanctuary {
         restore_house_embassy(embassy.as_deref_mut());
@@ -754,6 +757,36 @@ fn select_dest(plate: &mut PlacesPlate, current: PlaceId, dest: PlaceId) {
         PlaceId::Depths => PlacesRoom::Depths,
     };
     select_room(plate, current, room);
+}
+
+#[derive(Component)] struct DifficultyRow;
+#[derive(Component)] struct DifficultyRowBtn;
+
+/// DIFFICULTY-TIERS-1: one area difficulty row below pause and the Places door, same ≥44dp button.
+fn spawn_difficulty_row(mut commands: Commands) {
+    let node = Node { position_type: PositionType::Absolute, bottom: Val::Percent(6.0), left: Val::Percent(50.0), width: Val::Px(400.0), margin: UiRect { left: Val::Px(-200.0), ..default() }, flex_direction: FlexDirection::Column, ..default() };
+    let root = (node, GlobalZIndex(PLACES_PLATE_Z), LivedUiPlate, Visibility::Hidden, DifficultyRow, Name::new("AreaDifficultyRow"));
+    commands.spawn(root).with_children(|p| spawn_places_btn(p, "", DifficultyRowBtn));
+}
+
+/// Pause lowers the current area's tier. The Places door picks the tier that lands on entry.
+fn difficulty_row(
+    (label, door, plate, travel): (Res<HouseLabel>, Res<LaunchDoor>, Res<PlacesPlate>, Res<HexTravelState>),
+    (diff, skills, ww): (Option<ResMut<AreaDifficulty>>, Option<Res<crate::skill_xp::SkillXp>>, Option<Res<crate::wellsworn::WellswornState>>),
+    (clicks, btn): (Query<&Interaction, (Changed<Interaction>, With<DifficultyRowBtn>)>, Query<&Children, With<DifficultyRowBtn>>),
+    (mut root, mut text): (Query<&mut Visibility, With<DifficultyRow>>, Query<&mut Text>),
+) {
+    let Some(mut diff) = diff else { return };
+    let (live, place) = (label.settings_open && *door == LaunchDoor::InYard, plate.selected.unwrap_or(travel.current));
+    let f = gate_facts(skills.as_deref(), ww.as_deref());
+    if live && clicks.iter().any(|i| *i == Interaction::Pressed) {
+        if plate.open { diff.cycle_at_door(place, f) } else if let Some(&lower) = TIERS.get((diff.tier(place) as usize).wrapping_sub(1)) { let _ = diff.pick(place, lower, false, f); }
+    }
+    root.iter_mut().for_each(|mut v| { v.set_if_neq(if live { Visibility::Visible } else { Visibility::Hidden }); });
+    let line = row_line(if plate.open { diff.shown(place) } else { diff.tier(place) }, plate.open);
+    for e in btn.iter().flat_map(|c| c.iter()) {
+        if let Ok(mut t) = text.get_mut(e) { if t.0 != line { t.0 = line.clone(); } }
+    }
 }
 
 /// Sticks / grove cull when the Places plate is open (same spirit as pause).
