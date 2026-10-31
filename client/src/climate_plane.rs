@@ -2080,6 +2080,13 @@ mod tests {
     /// Low 16 (+24), past Heartwood end 36 and Depths end 16. 70 m: Sanctuary
     /// Low start 45 (+25), past the Low end floor 48 on every place.
     const LOOK_FAR_MARKERS: [(f32, f32, f32); 3] = [(20.0, 25.0, 2.0), (40.0, -26.0, 4.0), (70.0, 31.0, 7.0)];
+    /// CARD LOOK-SILHOUETTE-1 — test-only plate/caster stand-ins on the ground:
+    /// (mass, horizontal metres from `LOOK_EYE`, yaw degrees off the view heading,
+    /// clear of the near cube and the far markers). Built at detail scale 1.0.
+    const LOOK_MASS_MARKERS: [(crate::human_presence::BodyMass, f32, f32); 2] = [
+        (crate::human_presence::BodyMass::Plate, 12.0, -32.0),
+        (crate::human_presence::BodyMass::Caster, 12.0, -19.0),
+    ];
 
     /// Far marker centre at `LOOK_EYE` height along the eye -> `LOOK_AT` heading.
     fn look_far_marker_pos(dist: f32, yaw_deg: f32) -> Vec3 {
@@ -5503,6 +5510,17 @@ mod tests {
         for (dist, yaw_deg, size) in LOOK_FAR_MARKERS {
             let pos = look_far_marker_pos(dist, yaw_deg);
             app.world_mut().spawn((Mesh3d(cube.clone()), MeshMaterial3d(stone.clone()), Transform::from_translation(pos).with_scale(Vec3::splat(size / 1.1))));
+        }
+        for (mass, dist, yaw_deg) in LOOK_MASS_MARKERS {
+            use crate::human_presence::{mass_silhouette, BodyMass};
+            let (half_w, height) = mass_silhouette(mass, 1.0);
+            let mesh = match mass {
+                BodyMass::Plate => Mesh::from(Cuboid::new(half_w * 2.0, height, half_w)),
+                BodyMass::Caster => Mesh::from(Capsule3d::new(half_w, height - half_w * 2.0)),
+            };
+            let mesh = app.world_mut().resource_mut::<Assets<Mesh>>().add(mesh);
+            let pos = look_far_marker_pos(dist, yaw_deg).with_y(height * 0.5);
+            app.world_mut().spawn((Mesh3d(mesh), MeshMaterial3d(stone.clone()), Transform::from_translation(pos)));
         }
         app.run();
 

@@ -303,6 +303,46 @@ pub fn silhouette() -> Silhouette {
     }
 }
 
+/// LOOK-SILHOUETTE-1 — two test/capture-only body masses (docs/VISUAL_TARGET.md:258:
+/// a broad bulky armored figure against a tall caped caster). Data only.
+#[cfg(test)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BodyMass {
+    Plate,
+    Caster,
+}
+
+/// Half-width multiplier on the default shoulder half-span for the wide plate mass.
+#[cfg(test)]
+pub(crate) const PLATE_WIDTH_MUL: f32 = 1.45;
+/// Height multiplier on the default standing height for the plate mass.
+#[cfg(test)]
+pub(crate) const PLATE_HEIGHT_MUL: f32 = 0.95;
+/// Half-width multiplier on the default shoulder half-span for the tall caster mass.
+#[cfg(test)]
+pub(crate) const CASTER_WIDTH_MUL: f32 = 0.85;
+/// Height multiplier on the default standing height for the caster mass.
+#[cfg(test)]
+pub(crate) const CASTER_HEIGHT_MUL: f32 = 1.12;
+/// Plate (half-width / height) must exceed caster (half-width / height) by at least this.
+#[cfg(test)]
+pub(crate) const MASS_WH_RATIO_MIN: f32 = 1.8;
+
+/// (half-width, height) in metres for a mass at a uniform detail scale. Base
+/// half-width is the default shoulder half-span; base height is feet to head top.
+#[cfg(test)]
+pub(crate) fn mass_silhouette(mass: BodyMass, scale: f32) -> (f32, f32) {
+    let s = silhouette();
+    let (w_mul, h_mul) = match mass {
+        BodyMass::Plate => (PLATE_WIDTH_MUL, PLATE_HEIGHT_MUL),
+        BodyMass::Caster => (CASTER_WIDTH_MUL, CASTER_HEIGHT_MUL),
+    };
+    (
+        (SHOULDER_X + ARM_R) * w_mul * scale,
+        (s.head.1 - s.feet) * h_mul * scale,
+    )
+}
+
 /// CARD VP-CHAR-1 — character dress/material response per preset so the
 /// person sits in the shipped golden-hour grade (VP-LIGHT-1 / VP-GRADE-1)
 /// instead of reading flat. Material only: no rig, anim, VFX, light or bloom.
@@ -2191,6 +2231,93 @@ mod tests {
         assert!(s.hips.0 <= s.legs_top, "hips float off the legs");
         // Head reads smaller than the torso mass — person, not blob.
         assert!(HEAD_R < TORSO_R);
+    }
+
+    #[test]
+    fn look_silhouette_default_body_exact_values() {
+        let got = [
+            HIP_R,
+            HIP_LEN,
+            WAIST_Y,
+            TORSO_R,
+            TORSO_LEN,
+            TORSO_Y,
+            HEAD_R,
+            HEAD_Y,
+            BROW_R,
+            SHOULDER_X,
+            SHOULDER_Y,
+            ARM_R,
+            ARM_LEN,
+            ARM_Y,
+            HAND_Y,
+            LEG_R,
+            LEG_LEN,
+            LEG_Y,
+            HIP_PIVOT_X,
+            HIP_PIVOT_Y,
+            ACCENT_R,
+            PLAYER_TRUNK_RADIUS,
+            STAND,
+        ];
+        let want = [
+            0.17, 0.12, -0.05, 0.205, 0.38, 0.33, 0.15, 0.74, 0.055, 0.235, 0.60, 0.068, 0.40,
+            -0.27, -0.545, 0.10, 0.48, -0.34, 0.115, -0.20, 0.055, 0.3, 0.90,
+        ];
+        assert_eq!(got, want);
+        let s = silhouette();
+        let close = |a: f32, b: f32| assert!((a - b).abs() < 1e-5, "{a} != {b}");
+        close(s.feet, 0.02);
+        close(s.legs_top, 0.70);
+        close(s.hips.0, 0.67);
+        close(s.hips.1, 1.13);
+        close(s.torso.0, 0.785);
+        close(s.torso.1, 1.575);
+        close(s.head.0, 1.44);
+        close(s.head.1, 1.74);
+        for scale in [0.65, 1.0, 1.15] {
+            let tf = lod_mesh_tf(0.1, 0.2, 0.3, scale);
+            assert_eq!(tf.scale, Vec3::splat(scale));
+            assert_eq!(tf.translation, Vec3::new(0.1, 0.2, 0.3));
+            assert!(presence_still_capsule_readable(scale));
+        }
+        let cheap = CharacterMaterialPlan {
+            cloth_roughness: 0.86,
+            cloth_reflectance: 0.30,
+            accent_metallic: 0.0,
+            accent_roughness: 0.42,
+        };
+        let metal = CharacterMaterialPlan {
+            cloth_roughness: 0.82,
+            cloth_reflectance: 0.35,
+            accent_metallic: 0.65,
+            accent_roughness: 0.30,
+        };
+        for p in [GraphicsPreset::Mobile, GraphicsPreset::Low, GraphicsPreset::Medium] {
+            assert_eq!(character_material_plan(p), cheap);
+        }
+        for p in [GraphicsPreset::High, GraphicsPreset::Ultra] {
+            assert_eq!(character_material_plan(p), metal);
+        }
+        assert_eq!(SANCTUARY_GOLD, Color::srgb(0.86, 0.66, 0.29));
+        assert_eq!(BODY_EARTH, Color::srgb(0.20, 0.26, 0.24));
+    }
+
+    #[test]
+    fn look_silhouette_plate_wider_caster_taller_every_tier() {
+        // Mobile reaches these tiers only through Mobile -> MeshLod::Low (0.65).
+        assert_eq!(presence_lod_scale(GraphicsPreset::Mobile), 0.65);
+        for scale in [0.65, 1.0, 1.15] {
+            let (pw, ph) = mass_silhouette(BodyMass::Plate, scale);
+            let (cw, ch) = mass_silhouette(BodyMass::Caster, scale);
+            let (plate_wh, caster_wh) = (pw / ph, cw / ch);
+            assert!(
+                plate_wh > caster_wh * MASS_WH_RATIO_MIN,
+                "w/h {plate_wh} vs {caster_wh}"
+            );
+            assert!(ch > ph, "caster {ch} not taller than plate {ph}");
+            assert!(pw > cw, "plate {pw} not wider than caster {cw}");
+        }
     }
 
     #[test]
