@@ -55,6 +55,8 @@ pub struct CombatState {
     pub respawned: bool,
     /// ENEMY-DROID-1 — allowed strikes run so far (wrapping); droid.rs reads a rise.
     pub strikes: u32,
+    /// Seconds the predator has been down; reset to 0 while alive. Only writer: `predator_respawn`.
+    pub down_secs: f32,
 }
 
 #[derive(Component)]
@@ -87,6 +89,30 @@ pub fn lunge_tell_ring() -> [Vec3; LUNGE_TELL_DOTS] {
         let [hx, hz] = PREDATOR_HOME;
         Vec3::new(hx + REACH * a.cos(), LUNGE_TELL_LIFT, hz + REACH * a.sin())
     })
+}
+
+/// RESPAWN-TELL-1 — the last stretch of the down clock, when the creature rises from the Place.
+pub const PREDATOR_TELL_SECS: f32 = 1.5;
+/// A ground pillar at `PREDATOR_HOME`: full height when the predator returns.
+pub const RISE_TELL_RADIUS: f32 = 0.45;
+pub const RISE_TELL_HEIGHT: f32 = 1.7;
+
+/// The rising pillar at `PREDATOR_HOME`.
+#[derive(Component)]
+pub struct RiseTell;
+
+/// Rise fraction (0..=1) while the tell shows: Heartwood only, predator down, last `PREDATOR_TELL_SECS`.
+pub fn rise_tell(place: PlaceId, predator_taken: u32, down_secs: f32) -> Option<f32> {
+    let onset = PREDATOR_RESPAWN_SECS - PREDATOR_TELL_SECS;
+    (predator_present(place) && predator_taken >= HEALTH && down_secs >= onset)
+        .then(|| ((down_secs - onset) / PREDATOR_TELL_SECS).clamp(0.0, 1.0))
+}
+
+/// The pillar grows up out of the ground: base pinned at y 0, height scales with the rise.
+pub fn rise_tell_transform(rise: f32) -> Transform {
+    let h = rise.clamp(0.01, 1.0);
+    let [x, z] = PREDATOR_HOME;
+    Transform::from_xyz(x, RISE_TELL_HEIGHT * h * 0.5, z).with_scale(Vec3::new(1.0, h, 1.0))
 }
 
 /// HIT-JUICE-1 — the Predator's base colour (spawn_predator); a flash always restores to it exactly.
@@ -292,6 +318,8 @@ impl Plugin for CombatCorePlugin {
             .init_resource::<StrikeBuffer>()
             .add_systems(Startup, spawn_predator)
             .add_systems(Startup, spawn_lunge_tell)
+            .add_systems(Startup, spawn_rise_tell)
+            .add_systems(Update, rise_tell_show.after(predator_respawn))
             .add_systems(Update, (combat_fire, predator_lunge, lunge_tell).chain().after(InputMapSet))
             .add_systems(Update, hit_flash.after(combat_fire))
             .add_systems(Update, predator_respawn.after(combat_fire).before(predator_lunge).before(hit_flash))
@@ -333,6 +361,24 @@ fn spawn_lunge_tell(
             LungeTell,
         ));
     }
+}
+
+/// RESPAWN-TELL-1 — one hidden pillar at `PREDATOR_HOME`, primitive mesh and colour only.
+fn spawn_rise_tell(
+    mut commands: Commands,
+    (mut meshes, mut materials): (ResMut<Assets<Mesh>>, ResMut<Assets<StandardMaterial>>),
+) {
+    commands.spawn((
+        Mesh3d(meshes.add(Cylinder::new(RISE_TELL_RADIUS, RISE_TELL_HEIGHT))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: PREDATOR_COLOR,
+            unlit: true,
+            ..default()
+        })),
+        rise_tell_transform(0.0),
+        Visibility::Hidden,
+        RiseTell,
+    ));
 }
 
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
@@ -511,15 +557,36 @@ fn hit_flash(
     }
 }
 
-/// PREDATOR-RESPAWN-1 — counts on `Res<Time>` everywhere; writes only `predator_taken` and `respawned`.
-fn predator_respawn(time: Res<Time>, combat: Option<ResMut<CombatState>>, mut elapsed: Local<f32>) {
+/// PREDATOR-RESPAWN-1 — counts on `Res<Time>` everywhere; writes only `predator_taken`, `respawned`
+/// and `down_secs`, the down clock's only writer.
+fn predator_respawn(time: Res<Time>, combat: Option<ResMut<CombatState>>) {
     let Some(mut combat) = combat else {
         return;
     };
-    let fire;
-    (*elapsed, fire) = respawn_step(*elapsed, time.delta_secs(), combat.predator_taken >= HEALTH);
+    let (down_secs, fire) = respawn_step(combat.down_secs, time.delta_secs(), combat.predator_taken >= HEALTH);
+    if combat.down_secs != down_secs {
+        combat.down_secs = down_secs;
+    }
     if fire {
         (combat.predator_taken, combat.respawned) = (0, true);
+    }
+}
+
+/// RESPAWN-TELL-1 — after `predator_respawn`, so the frame it fires already reads hidden.
+fn rise_tell_show(
+    travel: Option<Res<HexTravelState>>,
+    combat: Option<Res<CombatState>>,
+    mut pillar: Query<(&mut Visibility, &mut Transform), With<RiseTell>>,
+) {
+    let rise = match (travel, combat) {
+        (Some(t), Some(c)) => rise_tell(t.current, c.predator_taken, c.down_secs),
+        _ => None,
+    };
+    for (mut vis, mut at) in &mut pillar {
+        vis.set_if_neq(if rise.is_some() { Visibility::Visible } else { Visibility::Hidden });
+        if let Some(r) = rise {
+            at.set_if_neq(rise_tell_transform(r));
+        }
     }
 }
 
@@ -1050,5 +1117,47 @@ mod tests {
         app.world_mut().resource_mut::<Strike>().0 = true;
         assert_eq!(step(&mut app, 0.02), (HIT_KICK, 1), "next frame: exactly one rise");
         assert_eq!(step(&mut app, 0.02), (0.0, 0));
+    }
+
+    #[test]
+    fn rise_tell_onset_and_gates() {
+        let (hw, onset) = (PlaceId::Heartwood, PREDATOR_RESPAWN_SECS - PREDATOR_TELL_SECS);
+        assert_eq!(rise_tell(hw, HEALTH, onset), Some(0.0), "onset at 28.5 s");
+        assert_eq!(rise_tell(hw, HEALTH, onset - 0.1), None, "hidden at 28.4 s");
+        assert_eq!(rise_tell(hw, HEALTH, PREDATOR_RESPAWN_SECS), Some(1.0));
+        assert_eq!(rise_tell(hw, HEALTH - HIT, onset + 1.0), None, "hidden while alive");
+        assert_eq!(rise_tell(PlaceId::Sanctuary, HEALTH, onset + 1.0), None, "never in Sanctuary");
+        assert_eq!(rise_tell(PlaceId::Depths, HEALTH, onset + 1.0), None, "never in Depths");
+        let (low, high) = (rise_tell_transform(0.2), rise_tell_transform(0.8));
+        assert!(high.scale.y > low.scale.y && high.translation.y > low.translation.y, "it rises");
+        let base = |t: Transform| t.translation.y - RISE_TELL_HEIGHT * t.scale.y * 0.5;
+        assert!(base(low).abs() < 1e-5 && base(high).abs() < 1e-5, "grows from the ground");
+        assert_eq!((high.translation.x, high.translation.z), (PREDATOR_HOME[0], PREDATOR_HOME[1]));
+    }
+
+    #[test]
+    fn rise_tell_shows_then_clears_on_respawn() {
+        let mut app = App::new();
+        app.insert_resource(Time::<()>::default())
+            .insert_resource(HexTravelState { current: PlaceId::Heartwood })
+            .init_resource::<CombatState>()
+            .add_systems(Update, (predator_respawn, rise_tell_show).chain());
+        let pillar = app.world_mut().spawn((Transform::default(), Visibility::Hidden, RiseTell)).id();
+        let mut tick = |app: &mut App, secs: f32| {
+            app.world_mut().resource_mut::<Time>().advance_by(std::time::Duration::from_secs_f32(secs));
+            app.update();
+            *app.world().get::<Visibility>(pillar).unwrap()
+        };
+        assert_eq!(tick(&mut app, 40.0), Visibility::Hidden, "hidden while alive");
+        app.world_mut().resource_mut::<CombatState>().predator_taken = HEALTH;
+        assert_eq!(tick(&mut app, PREDATOR_RESPAWN_SECS - PREDATOR_TELL_SECS - 0.1), Visibility::Hidden);
+        assert_eq!(tick(&mut app, 0.5), Visibility::Visible, "the creature rises");
+        app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Sanctuary;
+        assert_eq!(tick(&mut app, 0.1), Visibility::Hidden, "hidden in Sanctuary");
+        app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Heartwood;
+        assert_eq!(tick(&mut app, 0.1), Visibility::Visible);
+        assert_eq!(tick(&mut app, 1.0), Visibility::Hidden, "hidden after respawn");
+        let c = app.world().resource::<CombatState>();
+        assert!(c.respawned && c.predator_taken == 0 && c.down_secs == 0.0);
     }
 }
