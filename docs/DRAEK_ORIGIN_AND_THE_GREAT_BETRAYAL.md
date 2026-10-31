@@ -1,7 +1,7 @@
 # Draek Origin and the Great Betrayal — Powrush-MMO
 
 **Version:** 1.0  
-**Last Updated:** June 13, 2026  
+**Last Updated:** October 30, 2026  
 **Status:** Active Development — Foundational Lore  
 **PATSAGi Council Alignment:** Approved for maximal coherence with all prior documentation (Playable Races, Enslaved Minion Species, Redemption Mechanics, Fleet AI, Crownstone Trilemma, Ambrosian Systems, RBE Moral Layer)
 
@@ -35,13 +35,13 @@ The Draeks were respected as **wise mediators and patient builders**. Many ensla
 
 ---
 
-## 3. The Catastrophe — Loss of the Females and the Cloning Imperative
+## 3. The Catastrophe — Loss of the Females (as believed in-world) and the Cloning Imperative
 
 > **Designer-only spoiler note (DRAEK-SECRET-RULE-1).** Not player-facing at start; players discover it through play.
 
-A still-mysterious cosmic event or engineered plague (some Quellorian scholars suspect early Draek experiments gone wrong) wiped out the **entire female Draek population** in a single generation.
+In-world belief: the cloned leadership believes a still-mysterious cosmic event or engineered plague (some Quellorian scholars suspect early Draek experiments gone wrong) wiped out the **entire female Draek population** in a single generation, and characters may say so. Authorial canon (secret in-world): the females and the original organic males were not wiped out; they evacuated when they realized their species was playing God by editing its genes.
 
-With no natural reproduction possible, the surviving males turned to **mass cloning** as the only path to species survival.
+Believing no natural reproduction possible, the males left behind turned to **mass cloning** as the only path to species survival.
 
 ### Consequences of the Cloning Imperative:
 - Rapid loss of genetic and cultural diversity
@@ -58,12 +58,16 @@ This was the first fracture. The second would be far more damning.
 
 Steward 2026-10-02 (LORE-ORIGINS, unconfirmed).
 
-1. Possible origin (unconfirmed): the Draeks may once have been human, or close to it, and remade themselves through genetics rather than machines. That remaking may have had severe consequences: the females dying and cloning becoming their sole way of survival. This sits beside the matriarchal canon in section 2 as an open option and does not replace it.
-2. The fled sect (deep secret, unconfirmed): rumor of a small ancient sect that fled before the catastrophe in section 3 and founded a hidden colony, with organic females who could one day help the species recover. Section 3 stays canon (all known females died); this is an unconfirmed rumor and a deep easter egg. Reaching the colony needs an Ambrosian alliance, because of distance and permissions across the galaxies of Powrush. Section 7: the Ambrosians stand off until triggered; this alliance is a possible trigger hook.
+1. Possible origin (unconfirmed): the Draeks may once have been human, or close to it, and remade themselves through genetics rather than machines. That remaking may have had severe consequences: what the cloned leadership believes in-world was the females dying and cloning becoming their sole way of survival (authorially, the females and the original organic males evacuated). This sits beside the matriarchal canon in section 2 as an open option and does not replace it.
+2. The fled sect (deep secret, confirmed authorial canon, secret in-world): in-world it survives only as rumor of a small ancient sect that fled before the catastrophe in section 3. Authorially, the females and the original organic males fled before the catastrophe in section 3 and founded a hidden colony, with organic females who could one day help the species recover. In-world, characters still believe all known females died. Reaching the colony needs an Ambrosian alliance, because of distance and permissions across the galaxies of Powrush. Section 7: the Ambrosians stand off until triggered; this alliance is a possible trigger hook.
 
 #### Fled-sect clues (unconfirmed)
 
-Sherif 2026-10-08 via Lead Mate (unconfirmed). Section 3 canon stands (all known females died), and item 2 stays a rumor. These clues only hint that some Draek females may have survived alongside males long ago. No report or intel settles it. Each clue can be read as evidence or as hope, forgery, or misreading. Public site copy stays silent on this rumor.
+Sherif 2026-10-08 via Lead Mate (unconfirmed). In-world, section 3 belief stands (all known females died), and item 2 stays a rumor to characters. These clues only hint that some Draek females may have survived alongside males long ago. No report or intel settles it. Each clue can be read as evidence or as hope, forgery, or misreading. Public site copy stays silent on this rumor.
+
+Sherif 2026-10-30 8:08 PM ET via Lead Mate (authorial canon): "The female and organic males as they originally were, did evacuate when they realized that their species is playing God by editing their genes, and is an easter egg for later unifying the males at war for cloning and rebellion" (excerpt). This supersedes the 2026-10-08 rumor status authorially only; in-world it stays secret, and public site copy stays silent.
+
+Purpose: the evacuation is an easter egg for a later reunion with the warring cloned males, tied to the cloning and rebellion threads.
 
 - **The lullaby fragment.** A few bars of an old hive lullaby turn up in salvaged pre-fall memory-song. The phrasing is matriarchal, and the recording may be younger than the catastrophe. It could be a living voice, an old memory replayed, or a copy someone wished were new.
 - **The garbled intercept.** A Dominion relay once logged a short burst of pre-fall Draek speech in a voice register the Dominion does not field. The Dominion filed it as noise and purged the relay. Quellorian analysts disagree on whether it was a real voice, an echo from an older archive, or a Dominion lure.
