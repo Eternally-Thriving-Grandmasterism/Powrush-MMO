@@ -224,8 +224,8 @@ const HEARTWOOD_WOOD_ROUGHNESS: f32 = 0.82;
 const HEARTWOOD_WOOD_SKY: Color = Color::srgb(0.44, 0.32, 0.16);
 const HEARTWOOD_WOOD_FOG: Color = Color::srgba(0.36, 0.25, 0.12, 1.0);
 /// Lamp disk stays clear. Wood haze closes sooner than the open yard.
-const HEARTWOOD_FOG_START: f32 = 10.0;
-const HEARTWOOD_FOG_END: f32 = 36.0;
+const HEARTWOOD_FOG_START: f32 = 12.0;
+const HEARTWOOD_FOG_END: f32 = 30.0;
 
 /// ART_BIBLE HANDS Threshold accent — iron + tend seam (not Sanctuary
 /// warm-gold, not Heartwood amber, not currency gold). Climate owns its
@@ -266,8 +266,8 @@ const DEPTHS_WET_STONE_ROUGHNESS: f32 = 0.86;
 const DEPTHS_WET_SKY: Color = Color::srgb(0.05, 0.10, 0.12);
 const DEPTHS_WET_FOG: Color = Color::srgba(0.04, 0.09, 0.11, 1.0);
 /// Night close fog (living_day Depths night — do not open into yard distances).
-const DEPTHS_FOG_START: f32 = 3.5;
-const DEPTHS_FOG_END: f32 = 16.0;
+const DEPTHS_FOG_START: f32 = 2.5;
+const DEPTHS_FOG_END: f32 = 14.0;
 
 #[derive(Clone, Copy)]
 struct ClimateLook {
@@ -2071,6 +2071,97 @@ mod tests {
     const LOOK_RES: (u32, u32) = (640, 360);
     const LOOK_EYE: Vec3 = Vec3::new(1.55, 0.95, 2.15);
     const LOOK_AT: Vec3 = Vec3::new(0.05, 0.28, 0.05);
+    /// CARD LOOK-ATMOS-1 — test-only far markers for the LOOK capture (no game
+    /// scene change): (horizontal metres from `LOOK_EYE`, yaw degrees off the
+    /// view heading, clear of the near cube; cube edge metres). Margins past
+    /// main's effective fog_start:
+    /// 20 m: Depths 3.5 (+16.5), Heartwood 10 (+10), Low floor 16 (+4); short
+    /// of Sanctuary Medium/High haze 28/24. 40 m: Sanctuary haze 28/24 (+12/+16),
+    /// Low 16 (+24), past Heartwood end 36 and Depths end 16. 70 m: Sanctuary
+    /// Low start 45 (+25), past the Low end floor 48 on every place.
+    const LOOK_FAR_MARKERS: [(f32, f32, f32); 3] = [(20.0, 25.0, 2.0), (40.0, -26.0, 4.0), (70.0, 31.0, 7.0)];
+
+    /// Far marker centre at `LOOK_EYE` height along the eye -> `LOOK_AT` heading.
+    fn look_far_marker_pos(dist: f32, yaw_deg: f32) -> Vec3 {
+        let heading = Vec3::new(LOOK_AT.x - LOOK_EYE.x, 0.0, LOOK_AT.z - LOOK_EYE.z).normalize();
+        LOOK_EYE + Quat::from_rotation_y(yaw_deg.to_radians()) * heading * dist
+    }
+
+    /// CARD LOOK-ATMOS-1 A2 / HA3 — Sanctuary (and Threshold) fog beds pinned to
+    /// main `166ac645` literals on every preset: colour (incl. Low alpha), start,
+    /// end, bed density. Exact values, not a pixel compare.
+    #[test]
+    fn look_atmos_sanctuary_and_threshold_fog_bed_equal_main_literals() {
+        let sky = Color::srgba(0.70, 0.79, 0.90, 1.0);
+        let iron = Color::srgba(0.16, 0.16, 0.19, 1.0);
+        let low = |c: Color| { let s = c.to_srgba(); Color::srgba(s.red, s.green, s.blue, 0.55) };
+        use GraphicsPreset::*;
+        let want = [
+            (Some(0), Mobile, low(sky), 45.0, 650.0, 0.55), (Some(0), Low, low(sky), 45.0, 650.0, 0.55),
+            (Some(0), Medium, sky, 28.0, 600.0, 1.0), (Some(0), High, sky, 24.0, 480.0, 1.0),
+            (Some(0), Ultra, sky, 26.0, 560.0, 1.0),
+            (Some(1), Mobile, low(iron), 16.0, 48.0, 0.55), (Some(1), Low, low(iron), 16.0, 48.0, 0.55),
+            (Some(1), Medium, iron, 11.0, 34.0, 1.0), (Some(1), High, iron, 11.0, 34.0, 1.0),
+            (Some(1), Ultra, iron, 11.0, 34.0, 1.0),
+        ];
+        for (realm, preset, fog, start, end, density) in want {
+            let bed = fog_bed_for(realm, preset);
+            assert_eq!(bed.fog, fog, "{realm:?} {preset:?} colour");
+            assert_eq!((bed.fog_start, bed.fog_end, bed.bed_density), (start, end, density), "{realm:?} {preset:?}");
+            assert_eq!(bed, fog_bed_for(realm.map(|r| if r == 1 { 4 } else { r }), preset), "{realm:?} alias");
+        }
+        assert_eq!(fog_bed_for(None, Medium), fog_bed_for(Some(0), Medium));
+    }
+
+    /// CARD LOOK-ATMOS-1 HA5 — Heartwood 12 -> 30 m and Depths 2.5 -> 14 m per
+    /// tier. Low/Mobile sit on the 16/48 floors (unchanged from main). High and
+    /// Ultra Depths end = 14 * 0.85 = 11.9 > 2.5 + 8 = 10.5, so the floor does not bind.
+    #[test]
+    fn look_atmos_heartwood_and_depths_fog_bed_per_tier() {
+        use GraphicsPreset::*;
+        let want = [
+            (2, Mobile, 16.0, 48.0), (2, Low, 16.0, 48.0), (2, Medium, 12.0, 30.0),
+            (2, High, 12.0, 30.0), (2, Ultra, 12.0, 30.0),
+            (3, Mobile, 16.0, 48.0), (3, Low, 16.0, 48.0), (3, Medium, 2.5, 14.0),
+            (3, High, 2.5, 14.0 * 0.85), (3, Ultra, 2.5, 14.0 * 0.85),
+        ];
+        for (realm, preset, start, end) in want {
+            let bed = fog_bed_for(Some(realm), preset);
+            assert_eq!((bed.fog_start, bed.fog_end), (start, end), "{realm} {preset:?}");
+        }
+        assert_eq!((HEARTWOOD_FOG_START, HEARTWOOD_FOG_END, DEPTHS_FOG_START, DEPTHS_FOG_END), (12.0, 30.0, 2.5, 14.0));
+        assert!(DEPTHS_FOG_END * HIGH_DEPTHS_FOG_END_MUL > DEPTHS_FOG_START + 8.0);
+        assert!((fog_bed_for(Some(3), High).fog_end - 11.9).abs() < 1e-5);
+    }
+
+    /// CARD LOOK-ATMOS-1 A2 / HA4 — the new distances reach the applied
+    /// `DistanceFog` after `breathe_weather_bed`, within the breath pulse.
+    #[test]
+    fn look_atmos_new_distances_reach_applied_fog_after_breathe() {
+        use shared::local_settings::LocalSettings;
+        for (realm, start, end) in [(2u8, 12.0_f32, 30.0_f32), (3, 2.5, 14.0)] {
+            let mut app = App::new();
+            app.init_resource::<Time>();
+            app.init_resource::<WeatherBandCoupling>();
+            app.insert_resource(GlobalAmbientLight::default());
+            app.insert_resource(SoftPlayerRealm { current: Some(realm) });
+            let mut inner = LocalSettings::default();
+            inner.set_graphics_preset(GraphicsPreset::Medium);
+            app.insert_resource(LocalSettingsState { inner, dirty: false });
+            app.add_systems(Update, breathe_weather_bed);
+            let cam = app.world_mut().spawn((Camera3d::default(), DistanceFog::default())).id();
+            app.world_mut().resource_mut::<Time>().advance_by(std::time::Duration::from_millis(1700));
+            app.update();
+            let bed = fog_bed_for(Some(realm), GraphicsPreset::Medium);
+            assert_eq!((bed.fog_start, bed.fog_end), (start, end));
+            let amp = coupled_breath_amp(&bed, app.world().resource::<WeatherBandCoupling>().band).abs();
+            let fog = app.world().entity(cam).get::<DistanceFog>().unwrap();
+            assert_eq!(fog.color, bed.fog);
+            let FogFalloff::Linear { start: s, end: e } = fog.falloff else { panic!("fog stays linear") };
+            assert!((s - start).abs() <= start * amp * 0.35 + 1e-4, "{realm}: start {s} vs {start}");
+            assert!((e - end).abs() <= end * amp + 1e-4, "{realm}: end {e} vs {end}");
+        }
+    }
 
     /// CARD HUD-ANCHOR-REGISTRY-2B — PlaceName position is the registry, Style is the coded literal.
     #[test]
@@ -5408,7 +5499,11 @@ mod tests {
             Transform::from_translation(LOOK_EYE).looking_at(LOOK_AT, Vec3::Y),
             Msaa::Off,
         ));
-        app.world_mut().spawn((Mesh3d(cube), MeshMaterial3d(stone), Transform::from_xyz(0.0, 0.55, 0.0)));
+        app.world_mut().spawn((Mesh3d(cube.clone()), MeshMaterial3d(stone.clone()), Transform::from_xyz(0.0, 0.55, 0.0)));
+        for (dist, yaw_deg, size) in LOOK_FAR_MARKERS {
+            let pos = look_far_marker_pos(dist, yaw_deg);
+            app.world_mut().spawn((Mesh3d(cube.clone()), MeshMaterial3d(stone.clone()), Transform::from_translation(pos).with_scale(Vec3::splat(size / 1.1))));
+        }
         app.run();
 
         let done = done.lock().unwrap();

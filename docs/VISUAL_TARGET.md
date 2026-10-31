@@ -61,7 +61,7 @@ The five-tier ladder exists in [`GraphicsPreset`](../shared/local_settings.rs) (
 `GraphicsPreset::mesh_lod` and `weather_fidelity` (`shared/local_settings.rs` L245–L265) take five tiers and map onto three. This card does not copy `WeatherFidelity::intensity` into a look target. Stills have no density.
 On Mobile, `sky_for` flattens/desaturates the sky (#614, `client/src/climate_plane.rs` L300).
 On Mobile, `fog_bed_for` sets `breath_amp` to 0, a still wash (#617, `client/src/climate_plane.rs` L692).
-On High and Ultra, Depths `fog_end` is 13.6 instead of 16.0 via `HIGH_DEPTHS_FOG_END_MUL` 0.85 (#618, `client/src/climate_plane.rs` L669 + L209).
+On High and Ultra, Depths `fog_end` is 11.9 instead of 14.0 via `HIGH_DEPTHS_FOG_END_MUL` 0.85 (#618, LOOK-ATMOS-1, `client/src/climate_plane.rs` L732 + L270).
 
 Dead `QualityPreset` in `client/src/settings.rs` L45–L50 (`Seedling` / `FlowGuardian` / `Eternal`) is slated for removal in a later card. This card does not remove it.
 
