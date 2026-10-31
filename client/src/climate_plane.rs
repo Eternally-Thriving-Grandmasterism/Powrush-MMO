@@ -2014,6 +2014,11 @@ fn is_teal_peace(c: Color) -> bool {
 mod tests {
     use super::*;
 
+    /// CARD LOOK-PALETTE-1 (R4) — LOOK-CAPTURE pose, shared by the before and after runs.
+    const LOOK_RES: (u32, u32) = (640, 360);
+    const LOOK_EYE: Vec3 = Vec3::new(1.55, 0.95, 2.15);
+    const LOOK_AT: Vec3 = Vec3::new(0.05, 0.28, 0.05);
+
     /// CARD HUD-ANCHOR-REGISTRY-2B — PlaceName position is the registry, Style is the coded literal.
     #[test]
     fn place_name_style_byte_identical_to_coded_place() {
@@ -5184,9 +5189,6 @@ mod tests {
         use shared::local_settings::LocalSettings;
         use std::sync::{mpsc, Arc, Mutex};
 
-        const LOOK_RES: (u32, u32) = (640, 360);
-        const LOOK_EYE: Vec3 = Vec3::new(1.55, 0.95, 2.15);
-        const LOOK_AT: Vec3 = Vec3::new(0.05, 0.28, 0.05);
         const PLACES: [(PlaceId, &str); 3] =
             [(PlaceId::Sanctuary, "sanctuary"), (PlaceId::Heartwood, "heartwood"), (PlaceId::Depths, "depths")];
         const PRESETS: [(GraphicsPreset, &str); 3] =
@@ -5283,6 +5285,9 @@ mod tests {
         app.world_mut().spawn((
             Camera3d::default(),
             Camera { order: crate::ui_above_world::WORLD_CAMERA_ORDER, ..default() },
+            // CARD LOOK-PALETTE-1 — parity with main.rs's world camera, same helpers.
+            WORLD_TONEMAPPING,
+            world_color_grading(),
             Transform::from_translation(LOOK_EYE).looking_at(LOOK_AT, Vec3::Y),
             Msaa::Off,
         ));
