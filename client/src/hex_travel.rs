@@ -705,6 +705,7 @@ fn places_plate_clicks(
                         &bind.standing,
                     ) {
                         travel.current = to;
+                        crate::difficulty::mark_entry(to);
                         bind.climate = loaded.climate;
                         bind.standing = loaded.standing;
                         bind.refresh_climate_slab_keep_week();
