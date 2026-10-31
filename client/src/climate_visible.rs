@@ -319,6 +319,23 @@ TextColor(TITLE_TEXT_PRIMARY),
         });
 }
 
+/// CARD INTERACT-PROMPT-1 — the live Use key label from Settings. With no
+/// settings resource, the LocalSettings default's key_use speaks instead.
+fn use_key_label(settings: Option<&LocalSettingsState>) -> &'static str {
+    settings
+        .map(|s| s.inner.key_use)
+        .unwrap_or_else(|| shared::local_settings::LocalSettings::default().key_use)
+        .display_label()
+}
+
+/// CARD INTERACT-PROMPT-1 — in-range line `[<key>] Use · name · caption · hint`.
+/// One Use-key token per line: a hint that opens on the fixed "E " (the shared
+/// Glowing hand hint "E tend") hands its key over to the live label.
+fn in_range_use_line(name: &str, caption: &str, hint: &str, key: &str) -> String {
+    let hint = hint.strip_prefix("E ").unwrap_or(hint);
+    format!("[{key}] Use · {name} · {caption} · {hint}")
+}
+
 fn update_climate_state_slab(
     nearby: Res<NearbyMercyNode>,
     bind: Res<LivedHourBind>,
@@ -413,11 +430,11 @@ fn update_climate_state_slab(
                     .as_ref()
                     .and_then(|c| c.sentence_for(n.climate_id))
                     .unwrap_or(state.hand_hint());
-                let mut line = format!(
-                    "{} · {} · {}",
+                let mut line = in_range_use_line(
                     n.name,
-                    place_color_well_caption(state, shapes, place),
-                    hint
+                    &place_color_well_caption(state, shapes, place),
+                    hint,
+                    use_key_label(settings.as_deref()),
                 );
                 if let Some(slab) = bind.climate_slab.as_deref() {
                     line = format!("{line} · {slab}");
@@ -668,6 +685,36 @@ fn wards_notice_if_near(wards: Option<&WardSession>) -> Option<String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// CARD INTERACT-PROMPT-1 — the Use key reads live from Settings, once per line.
+    #[test]
+    fn in_range_use_prompt_follows_key_use_once() {
+        use shared::local_settings::{LocalSettings, PeaceKey};
+        let mut inner = LocalSettings::default();
+        let default_key = use_key_label(Some(&LocalSettingsState { inner: inner.clone(), dirty: false }));
+        assert_eq!(default_key, "E");
+        assert_eq!(use_key_label(None), inner.key_use.display_label());
+        let cap = place_color_well_caption(NodeState::Glowing, true, "Heartwood");
+        let line = in_range_use_line("North Well", &cap, NodeState::Glowing.hand_hint(), default_key);
+        assert!(line.starts_with("[E] Use · North Well"));
+        assert_eq!(line.matches("[E]").count(), 1);
+        assert!(!line.contains("E tend"));
+        inner.key_use = PeaceKey::F;
+        let f_key = use_key_label(Some(&LocalSettingsState { inner, dirty: false }));
+        assert_eq!(f_key, "F");
+        for state in ALL_MOODS {
+            let line = in_range_use_line("North Well", &cap, state.hand_hint(), f_key);
+            assert_eq!(line.matches("[F]").count(), 1);
+            assert!(!line.contains("[E]") && !line.contains("E tend"), "{line}");
+        }
+        // Guidance-hidden and out-of-range lines carry no key token.
+        for state in ALL_MOODS {
+            for place in ["Sanctuary", "Heartwood", "Depths"] {
+                let quiet = well_state_sentence_in_place("North Well", state, true, place);
+                assert!(!quiet.contains('[') && !quiet.contains(" Use"), "{quiet}");
+            }
+        }
+    }
     use shared::climate_node::LivedHour;
     use shared::threshold_shelf::THRESHOLD_PEACE_VERBS;
 
