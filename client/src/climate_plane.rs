@@ -1202,6 +1202,43 @@ pub fn world_color_grading() -> bevy::render::view::ColorGrading {
     }
 }
 
+/// CARD LOOK-PALETTE-1 — Heartwood muted earth: post-saturation scale on
+/// [`world_color_grading`].
+pub const HEARTWOOD_GRADE_MUTE: f32 = 0.86;
+/// CARD LOOK-PALETTE-1 — Heartwood accent "dusk blue": white-balance offset
+/// (CIE x, negative is bluer). Away from the green mercy and brown danger tells.
+pub const HEARTWOOD_GRADE_ACCENT_TEMPERATURE: f32 = -0.02;
+/// CARD LOOK-PALETTE-1 — Depths muted earth: post-saturation scale.
+pub const DEPTHS_GRADE_MUTE: f32 = 0.78;
+/// CARD LOOK-PALETTE-1 — Depths accent "deep violet": tint offset (CIE y,
+/// positive is magenta). Away from the green mercy and brown danger tells.
+pub const DEPTHS_GRADE_ACCENT_TINT: f32 = 0.012;
+
+/// CARD LOOK-PALETTE-1 — world camera grade per place, keyed by the same `id`
+/// as [`apply_climate_look`]'s guard. Sanctuary, Threshold (1 | 4) and every
+/// other id keep [`world_color_grading`] (SANCTUARY-GRADE-1 stays banked).
+/// Mobile and Ultra inherit the place grade; no preset reads it.
+pub fn place_color_grading(id: u8) -> bevy::render::view::ColorGrading {
+    match id {
+        2 => {
+            let mut grade = world_color_grading();
+            grade.global.post_saturation *= HEARTWOOD_GRADE_MUTE;
+            grade.global.temperature += HEARTWOOD_GRADE_ACCENT_TEMPERATURE;
+            grade
+        }
+        3 => {
+            let mut grade = world_color_grading();
+            grade.global.post_saturation *= DEPTHS_GRADE_MUTE;
+            grade.global.tint += DEPTHS_GRADE_ACCENT_TINT;
+            grade
+        }
+        0 => world_color_grading(),
+        // Threshold takes the Sanctuary grade in this card.
+        1 | 4 => world_color_grading(),
+        _ => world_color_grading(),
+    }
+}
+
 /// Couple FlowWeather band → Place mood breath / glow multiplier.
 /// Flow lifts; Anxiety tightens; Boredom mutes; Rise is neutral.
 pub fn place_band_mul(mood: PlaceMood, band: WeatherBandKind) -> f32 {
@@ -1671,8 +1708,17 @@ fn apply_climate_look(
     stones: Query<&MeshMaterial3d<StandardMaterial>, With<ClimateStone>>,
     nodes: Query<&MeshMaterial3d<StandardMaterial>, With<MercyHarvestNode>>,
     mut fogs: Query<&mut DistanceFog>,
+    mut grades: Query<
+        (&Camera, &mut bevy::render::view::ColorGrading),
+        (With<Camera3d>, Without<crate::ui_above_world::LivedUiCamera>),
+    >,
 ) {
     let id = realm.current.unwrap_or(0);
+    // LOOK-PALETTE-1 (H4): a world grade that arrives after the dress reopens
+    // the guard once, so the place grade still lands on it.
+    let grade_arrived = grades
+        .iter_mut()
+        .any(|(cam, grade)| cam.order == crate::ui_above_world::WORLD_CAMERA_ORDER && grade.is_added());
     // Missing settings (headless) stay Medium. Plain Res would panic there.
     let preset = settings
         .as_ref()
@@ -1681,6 +1727,7 @@ fn apply_climate_look(
     if plane.applied == Some(id)
         && plane.applied_preset == Some(preset)
         && !realm.is_changed()
+        && !grade_arrived
     {
         return;
     }
@@ -1725,6 +1772,12 @@ fn apply_climate_look(
             start: look.fog_start,
             end: look.fog_end,
         };
+    }
+    // LOOK-PALETTE-1 — mutate the world camera's existing grade; never insert.
+    for (cam, mut grade) in &mut grades {
+        if cam.order == crate::ui_above_world::WORLD_CAMERA_ORDER {
+            *grade = place_color_grading(id);
+        }
     }
     info!(target: "powrush::climate", climate = look.name, id, "place shifted");
 }
@@ -5176,6 +5229,70 @@ mod tests {
         assert!(ultra.world_hdr && ultra.ui_hdr, "Ultra hdr");
         assert!(ultra.volumetric_fog && ultra.volumetric_light, "Ultra fog");
         save_probe_png(&ultra.image, "light-bloom-ultra.png");
+    }
+
+    fn palette_app() -> (App, Entity) {
+        let mut app = climate_startup_app();
+        let cam = (Camera3d::default(), Camera { order: crate::ui_above_world::WORLD_CAMERA_ORDER, ..default() });
+        let cam = app.world_mut().spawn((cam, world_color_grading())).id();
+        (app, cam)
+    }
+
+    fn grade_of(app: &App, cam: Entity) -> bevy::render::view::ColorGrading {
+        app.world().entity(cam).get::<bevy::render::view::ColorGrading>().expect("world grade").clone()
+    }
+
+    /// CARD LOOK-PALETTE-1 — each place's grade lands; Sanctuary/Threshold equal today's grade.
+    #[test]
+    fn look_palette_each_place_grade_applied_and_sanctuary_unchanged() {
+        for id in [0u8, 1, 4, 9] {
+            assert_eq!(place_color_grading(id), world_color_grading(), "id {id}");
+        }
+        let (mut app, cam) = palette_app();
+        for id in [2u8, 3, 0] {
+            app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(id);
+            app.update();
+            assert_eq!(grade_of(&app, cam), place_color_grading(id), "id {id}");
+        }
+        assert_eq!(grade_of(&app, cam), world_color_grading());
+        let (heart, depths) = (place_color_grading(2), place_color_grading(3));
+        assert_ne!(heart, world_color_grading());
+        assert_ne!(depths, world_color_grading());
+        assert!(heart.global.post_saturation < WORLD_GRADE_POST_SATURATION);
+        assert!(depths.global.post_saturation < WORLD_GRADE_POST_SATURATION);
+    }
+
+    /// CARD LOOK-PALETTE-1 — UI camera stays bare; idle frames leave the grade untouched.
+    #[test]
+    fn look_palette_ui_camera_bare_and_idle_frame_untouched() {
+        let (mut app, cam) = palette_app();
+        let ui = (Camera3d::default(), Camera { order: 1, ..default() }, crate::ui_above_world::LivedUiCamera);
+        let ui = app.world_mut().spawn(ui).id();
+        app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(2);
+        app.update();
+        app.update();
+        assert!(app.world().entity(ui).get::<bevy::render::view::ColorGrading>().is_none());
+        let tick = |app: &App| app.world().entity(cam).get_ref::<bevy::render::view::ColorGrading>().unwrap().last_changed();
+        let before = tick(&app);
+        app.update();
+        assert_eq!(tick(&app), before, "idle frame wrote the grade");
+    }
+
+    /// CARD LOOK-PALETTE-1 (H4) — guard passed with no camera; grade lands on arrival,
+    /// and travel to Heartwood and back ends on Sanctuary's grade.
+    #[test]
+    fn look_palette_grade_lands_after_late_camera_and_travel_round_trip() {
+        let mut app = climate_startup_app();
+        app.insert_resource(crate::hex_travel::HexTravelState { current: PlaceId::Heartwood });
+        app.update();
+        assert_eq!(app.world().resource::<ClimatePlane>().applied, Some(2));
+        let cam = (Camera3d::default(), Camera { order: crate::ui_above_world::WORLD_CAMERA_ORDER, ..default() });
+        let cam = app.world_mut().spawn((cam, world_color_grading())).id();
+        app.update();
+        assert_eq!(grade_of(&app, cam), place_color_grading(2));
+        app.world_mut().resource_mut::<crate::hex_travel::HexTravelState>().current = PlaceId::Sanctuary;
+        app.update();
+        assert_eq!(grade_of(&app, cam), world_color_grading());
     }
 
     /// CARD LOOK-CAPTURE-1 — "before" baseline stills, 3 places x Low/Medium/High.
