@@ -224,8 +224,8 @@ const HEARTWOOD_WOOD_ROUGHNESS: f32 = 0.82;
 const HEARTWOOD_WOOD_SKY: Color = Color::srgb(0.44, 0.32, 0.16);
 const HEARTWOOD_WOOD_FOG: Color = Color::srgba(0.36, 0.25, 0.12, 1.0);
 /// Lamp disk stays clear. Wood haze closes sooner than the open yard.
-const HEARTWOOD_FOG_START: f32 = 10.0;
-const HEARTWOOD_FOG_END: f32 = 36.0;
+const HEARTWOOD_FOG_START: f32 = 12.0;
+const HEARTWOOD_FOG_END: f32 = 30.0;
 
 /// ART_BIBLE HANDS Threshold accent — iron + tend seam (not Sanctuary
 /// warm-gold, not Heartwood amber, not currency gold). Climate owns its
@@ -266,8 +266,8 @@ const DEPTHS_WET_STONE_ROUGHNESS: f32 = 0.86;
 const DEPTHS_WET_SKY: Color = Color::srgb(0.05, 0.10, 0.12);
 const DEPTHS_WET_FOG: Color = Color::srgba(0.04, 0.09, 0.11, 1.0);
 /// Night close fog (living_day Depths night — do not open into yard distances).
-const DEPTHS_FOG_START: f32 = 3.5;
-const DEPTHS_FOG_END: f32 = 16.0;
+const DEPTHS_FOG_START: f32 = 2.5;
+const DEPTHS_FOG_END: f32 = 14.0;
 
 #[derive(Clone, Copy)]
 struct ClimateLook {
@@ -2111,6 +2111,56 @@ mod tests {
             assert_eq!(bed, fog_bed_for(realm.map(|r| if r == 1 { 4 } else { r }), preset), "{realm:?} alias");
         }
         assert_eq!(fog_bed_for(None, Medium), fog_bed_for(Some(0), Medium));
+    }
+
+    /// CARD LOOK-ATMOS-1 HA5 — Heartwood 12 -> 30 m and Depths 2.5 -> 14 m per
+    /// tier. Low/Mobile sit on the 16/48 floors (unchanged from main). High and
+    /// Ultra Depths end = 14 * 0.85 = 11.9 > 2.5 + 8 = 10.5, so the floor does not bind.
+    #[test]
+    fn look_atmos_heartwood_and_depths_fog_bed_per_tier() {
+        use GraphicsPreset::*;
+        let want = [
+            (2, Mobile, 16.0, 48.0), (2, Low, 16.0, 48.0), (2, Medium, 12.0, 30.0),
+            (2, High, 12.0, 30.0), (2, Ultra, 12.0, 30.0),
+            (3, Mobile, 16.0, 48.0), (3, Low, 16.0, 48.0), (3, Medium, 2.5, 14.0),
+            (3, High, 2.5, 14.0 * 0.85), (3, Ultra, 2.5, 14.0 * 0.85),
+        ];
+        for (realm, preset, start, end) in want {
+            let bed = fog_bed_for(Some(realm), preset);
+            assert_eq!((bed.fog_start, bed.fog_end), (start, end), "{realm} {preset:?}");
+        }
+        assert_eq!((HEARTWOOD_FOG_START, HEARTWOOD_FOG_END, DEPTHS_FOG_START, DEPTHS_FOG_END), (12.0, 30.0, 2.5, 14.0));
+        assert!(DEPTHS_FOG_END * HIGH_DEPTHS_FOG_END_MUL > DEPTHS_FOG_START + 8.0);
+        assert!((fog_bed_for(Some(3), High).fog_end - 11.9).abs() < 1e-5);
+    }
+
+    /// CARD LOOK-ATMOS-1 A2 / HA4 — the new distances reach the applied
+    /// `DistanceFog` after `breathe_weather_bed`, within the breath pulse.
+    #[test]
+    fn look_atmos_new_distances_reach_applied_fog_after_breathe() {
+        use shared::local_settings::LocalSettings;
+        for (realm, start, end) in [(2u8, 12.0_f32, 30.0_f32), (3, 2.5, 14.0)] {
+            let mut app = App::new();
+            app.init_resource::<Time>();
+            app.init_resource::<WeatherBandCoupling>();
+            app.insert_resource(GlobalAmbientLight::default());
+            app.insert_resource(SoftPlayerRealm { current: Some(realm) });
+            let mut inner = LocalSettings::default();
+            inner.set_graphics_preset(GraphicsPreset::Medium);
+            app.insert_resource(LocalSettingsState { inner, dirty: false });
+            app.add_systems(Update, breathe_weather_bed);
+            let cam = app.world_mut().spawn((Camera3d::default(), DistanceFog::default())).id();
+            app.world_mut().resource_mut::<Time>().advance_by(std::time::Duration::from_millis(1700));
+            app.update();
+            let bed = fog_bed_for(Some(realm), GraphicsPreset::Medium);
+            assert_eq!((bed.fog_start, bed.fog_end), (start, end));
+            let amp = coupled_breath_amp(&bed, app.world().resource::<WeatherBandCoupling>().band).abs();
+            let fog = app.world().entity(cam).get::<DistanceFog>().unwrap();
+            assert_eq!(fog.color, bed.fog);
+            let FogFalloff::Linear { start: s, end: e } = fog.falloff else { panic!("fog stays linear") };
+            assert!((s - start).abs() <= start * amp * 0.35 + 1e-4, "{realm}: start {s} vs {start}");
+            assert!((e - end).abs() <= end * amp + 1e-4, "{realm}: end {e} vs {end}");
+        }
     }
 
     /// CARD HUD-ANCHOR-REGISTRY-2B — PlaceName position is the registry, Style is the coded literal.
