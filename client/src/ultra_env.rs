@@ -1,10 +1,10 @@
-//! CARD VP-ULTRA-1 — Ultra-only environment-map lighting, generated in code.
+//! CARD VP-ULTRA-1 / GFX-IBL-1 — High + Ultra environment-map lighting, generated in code.
 //!
 //! No texture binary is committed: a small golden-hour sky cubemap is built
 //! procedurally ([`ultra_env_texel`]) and filtered at runtime by Bevy's
 //! built-in [`GeneratedEnvironmentMapLight`]. It is inserted on the world
-//! [`Camera3d`] only on [`GraphicsPreset::Ultra`] and removed on every other
-//! preset, so Mobile / Low / Medium / High never see it. The lived UI is a
+//! [`Camera3d`] on [`GraphicsPreset::High`] and [`GraphicsPreset::Ultra`] and
+//! removed on every other preset, so Mobile / Low / Medium never see it. The lived UI is a
 //! `Camera2d` and is never touched. Grade, bloom and lamp emissive are not
 //! touched; the light is a soft fill scaled by [`ULTRA_ENV_INTENSITY`].
 
@@ -22,14 +22,17 @@ use crate::local_settings::LocalSettingsState;
 pub const ULTRA_ENV_FACE: u32 = 32;
 /// Env-map fill in cd/m². Soft: the sun and ambient stay the key light.
 pub const ULTRA_ENV_INTENSITY: f32 = 350.0;
+/// CARD GFX-IBL-1 — softer High fill, below Ultra; tunable on the real-PC pass.
+pub const HIGH_ENV_INTENSITY: f32 = 200.0;
 /// Golden-hour palette (sRGB) for the generated sky.
 pub const ULTRA_ENV_ZENITH: [f32; 3] = [0.46, 0.56, 0.74];
 pub const ULTRA_ENV_HORIZON: [f32; 3] = [0.92, 0.76, 0.52];
 pub const ULTRA_ENV_GROUND: [f32; 3] = [0.34, 0.30, 0.18];
 
-/// Env-map intensity for a preset: [`Some`] only on Ultra.
+/// Env-map intensity for a preset: [`Some`] on High and Ultra only.
 pub const fn ultra_env_for(preset: GraphicsPreset) -> Option<f32> {
     match preset {
+        GraphicsPreset::High => Some(HIGH_ENV_INTENSITY),
         GraphicsPreset::Ultra => Some(ULTRA_ENV_INTENSITY),
         _ => None,
     }
@@ -114,7 +117,7 @@ fn sync_ultra_env(
     settings: Option<Res<LocalSettingsState>>,
     images: Option<ResMut<Assets<Image>>>,
     mut held: ResMut<UltraEnvImage>,
-    cameras: Query<(Entity, Has<GeneratedEnvironmentMapLight>), With<Camera3d>>,
+    cameras: Query<(Entity, Option<&GeneratedEnvironmentMapLight>), With<Camera3d>>,
 ) {
     let preset = settings
         .map(|s| s.inner.graphics_preset)
@@ -130,8 +133,9 @@ fn sync_ultra_env(
                 }
                 (None, None) => Handle::default(),
             };
+            // Re-insert only when missing or stale (intensity / handle), never per frame.
             for (e, has) in &cameras {
-                if !has {
+                if has.is_none_or(|c| c.intensity != intensity || c.environment_map != handle) {
                     commands.entity(e).insert(GeneratedEnvironmentMapLight {
                         environment_map: handle.clone(),
                         intensity,
@@ -142,7 +146,7 @@ fn sync_ultra_env(
         }
         None => {
             for (e, has) in &cameras {
-                if has {
+                if has.is_some() {
                     commands.entity(e).remove::<GeneratedEnvironmentMapLight>();
                 }
             }
@@ -155,11 +159,13 @@ mod tests {
     use super::*;
 
     #[test]
-    fn env_map_is_ultra_only() {
-        for p in [GraphicsPreset::Mobile, GraphicsPreset::Low, GraphicsPreset::Medium, GraphicsPreset::High] {
+    fn env_map_is_high_and_ultra_only() {
+        for p in [GraphicsPreset::Mobile, GraphicsPreset::Low, GraphicsPreset::Medium] {
             assert_eq!(ultra_env_for(p), None, "{p:?}");
         }
+        assert_eq!(ultra_env_for(GraphicsPreset::High), Some(HIGH_ENV_INTENSITY));
         assert_eq!(ultra_env_for(GraphicsPreset::Ultra), Some(ULTRA_ENV_INTENSITY));
+        assert!(0.0 < HIGH_ENV_INTENSITY && HIGH_ENV_INTENSITY < ULTRA_ENV_INTENSITY);
         assert!(ULTRA_ENV_FACE.is_power_of_two());
     }
 
@@ -176,7 +182,7 @@ mod tests {
     }
 
     #[test]
-    fn camera_gets_env_only_on_ultra_and_ui_never() {
+    fn camera_gets_env_only_on_high_ultra_and_ui_never() {
         let mut app = App::new();
         let mut s = LocalSettingsState::default();
         s.inner.graphics_preset = GraphicsPreset::High;
@@ -184,7 +190,7 @@ mod tests {
         let cam = app.world_mut().spawn(Camera3d::default()).id();
         let ui = app.world_mut().spawn(Camera2d).id();
         for (p, want) in [
-            (GraphicsPreset::High, false),
+            (GraphicsPreset::High, true),
             (GraphicsPreset::Ultra, true),
             (GraphicsPreset::Medium, false),
             (GraphicsPreset::Ultra, true),
@@ -194,6 +200,34 @@ mod tests {
             app.update();
             assert_eq!(app.world().entity(cam).contains::<GeneratedEnvironmentMapLight>(), want, "{p:?}");
             assert!(!app.world().entity(ui).contains::<GeneratedEnvironmentMapLight>());
+        }
+    }
+
+    /// CARD GFX-IBL-1 — one camera follows High→Ultra→High→Medium at 200, 350,
+    /// 200, then removed; an idle frame never re-inserts; UI never gets it.
+    #[test]
+    fn env_intensity_follows_preset_switch_without_idle_reinsert() {
+        let mut app = App::new();
+        app.insert_resource(LocalSettingsState::default()).add_plugins(UltraEnvPlugin);
+        let cam = app.world_mut().spawn(Camera3d::default()).id();
+        let ui = app.world_mut().spawn(Camera2d).id();
+        for (p, want) in [
+            (GraphicsPreset::High, Some(200.0)),
+            (GraphicsPreset::Ultra, Some(350.0)),
+            (GraphicsPreset::High, Some(200.0)),
+            (GraphicsPreset::Medium, None),
+        ] {
+            app.world_mut().resource_mut::<LocalSettingsState>().inner.graphics_preset = p;
+            app.update();
+            let got = app.world().entity(cam).get::<GeneratedEnvironmentMapLight>().map(|l| l.intensity);
+            assert_eq!(got, want, "{p:?}");
+            assert!(!app.world().entity(ui).contains::<GeneratedEnvironmentMapLight>());
+            if want.is_some() {
+                let before = app.world().entity(cam).get_change_ticks::<GeneratedEnvironmentMapLight>().unwrap();
+                app.update();
+                let after = app.world().entity(cam).get_change_ticks::<GeneratedEnvironmentMapLight>().unwrap();
+                assert_eq!((after.added, after.changed), (before.added, before.changed), "idle {p:?}");
+            }
         }
     }
 
@@ -230,7 +264,7 @@ mod tests {
         assert!(vu.reach >= vh.reach && vu.fine_segments >= vh.fine_segments);
 
         assert!(ultra_volumetric_for(u).is_some() && ultra_volumetric_for(h).is_none());
-        assert!(ultra_env_for(u).is_some() && ultra_env_for(h).is_none());
+        assert_eq!((ultra_env_for(h), ultra_env_for(u)), (Some(HIGH_ENV_INTENSITY), Some(ULTRA_ENV_INTENSITY)));
         assert_eq!(anti_alias_for(h), AntiAliasKind::Smaa, "High AA unchanged");
         assert_eq!(anti_alias_for(u), AntiAliasKind::Taa, "one AA path on Ultra");
 
