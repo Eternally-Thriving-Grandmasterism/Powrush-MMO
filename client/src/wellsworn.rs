@@ -61,10 +61,17 @@ impl WellswornState {
         match self.near {
             Some(Spot::Plaque) => format!("{PLAQUE_TEXT}\n\n{QUEST_TEXT}{rank}"),
             _ if self.can_swear() => format!("{}\n\n[{key}] Swear", OATH.join("\n")),
+            _ if matches!(self.rank, Some(WellswornRank::Sworn | WellswornRank::Stave | WellswornRank::Wellkeeper)) => {
+                format!("{}\n\n{VOWS_LINE}\n{NINTH_STAVE_LINE}{rank}\n\n{ECHO_LINE}", OATH.join("\n"))
+            }
             _ => format!("{}{rank}", OATH.join("\n")),
         }
     }
 }
+/// WELLSWORN-ECHO-1, CUT 6548784036. Sworn page only, in-game only.
+pub const VOWS_LINE: &str = "The eight staves: Truth, Mercy, Dawn, Shelter, Ground, Return, Rest, Watch.";
+pub const NINTH_STAVE_LINE: &str = "You are the ninth stave.";
+pub const ECHO_LINE: &str = "Watch is my vow. Rest is yours.";
 pub fn spot_at(place: PlaceId, x: f32, z: f32) -> Option<Spot> {
     let spots = [(PLAQUE_SPOT, Spot::Plaque), (BOOK_SPOT, Spot::Book), (STAVEHOLD_GATE_SPOT, Spot::Gate)];
     spots.into_iter().find(|(s, _)| place == PlaceId::Sanctuary && dist_xz(x, z, s[0], s[1]) <= SPOT_REACH).map(|(_, spot)| spot)
@@ -190,5 +197,37 @@ mod tests {
     fn save_missing_junk_drawn_sworn() {
         for junk in [None, Some("not json"), Some("\"Oathbreaker\"")] { assert_eq!(decode_rank(junk), None, "missing or junk"); }
         for r in [None, Some(WellswornRank::Drawn), Some(WellswornRank::Sworn)] { assert_eq!(decode_rank(Some(&encode_rank(r))), r); }
+    }
+    #[test]
+    fn sworn_page_has_vows_and_echo_last() {
+        let s = WellswornState { rank: Some(WellswornRank::Sworn), ..at(Spot::Book) };
+        let page = s.page("F");
+        assert_eq!(page, "By the Verdant well's water and the gate I keep,\n\
+         I stand where Sanctuary ends and the Contested ground begins.\n\
+         What hungers to copy us will find no copy here.\n\
+         I hold the line so others may hold their rest.\n\
+         I watch for those still lost, and for any who come home.\n\
+         I am the ninth stave. I do not break.\n\
+         \n\
+         The eight staves: Truth, Mercy, Dawn, Shelter, Ground, Return, Rest, Watch.\n\
+         You are the ninth stave.\n\
+         \n\
+         Rank: Sworn\n\
+         \n\
+         Watch is my vow. Rest is yours.");
+        assert!(page.ends_with("\nWatch is my vow. Rest is yours."));
+        assert_eq!(page.lines().last(), Some(ECHO_LINE));
+    }
+    #[test]
+    fn vows_are_the_eight_staves_in_canon_order() {
+        assert_eq!(VOWS_LINE, "The eight staves: Truth, Mercy, Dawn, Shelter, Ground, Return, Rest, Watch.");
+    }
+    #[test]
+    fn drawn_and_unranked_pages_are_unchanged() {
+        for (rank, suffix) in [(None, ""), (Some(WellswornRank::Drawn), "\n\nRank: Drawn")] {
+            let page = WellswornState { rank, ..at(Spot::Book) }.page("F");
+            assert_eq!(page, format!("{}{suffix}", OATH.join("\n")));
+            assert!(!page.contains(ECHO_LINE) && !page.contains("The eight staves"));
+        }
     }
 }
