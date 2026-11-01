@@ -137,6 +137,51 @@ const _: () = {
     let mut i = 0;
     while i < 4 { assert!(DROP_QTY_PCT[i] >= 100 && DROP_QTY_PCT[i] <= DROP_QTY_HARD_MAX_PCT && DROP_CHANCE_PCT[i] <= XP_HARD_MAX_PCT); i += 1; }
 };
+/// Run modifiers (#738 CUT 6555509394). Inactive opt-in run modifiers: more threat for more combat XP, never less reward.
+/// Integer data and pure fns only; nothing reads these outside tests and no system is wired.
+/// Ids are internal with no on-screen names; earning a modifier waits for a later earn card.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct RunModifier { pub id: u8, pub xp_bonus_pct: u32, pub foe_factor: u32, pub damage_pct: u32 }
+pub const RUN_MODIFIERS: [RunModifier; 2] = [
+    RunModifier { id: 0, xp_bonus_pct: 25, foe_factor: 1, damage_pct: 10 },
+    RunModifier { id: 1, xp_bonus_pct: 30, foe_factor: 2, damage_pct: 0 },
+];
+/// Design ceiling on foes in one fight (forward constraint), and today's fixed spawns: one predator, one droid.
+pub const MAX_FOES_PER_FIGHT: u32 = 4;
+pub const BASE_FOES_PER_FIGHT: u32 = 2;
+const _: () = {
+    let (mut i, mut foes, mut dmg) = (0, BASE_FOES_PER_FIGHT, UNBROKEN_DAMAGE_PCT);
+    while i < RUN_MODIFIERS.len() {
+        let m = RUN_MODIFIERS[i];
+        assert!(m.xp_bonus_pct > 0 && m.foe_factor >= 1);
+        assert!(m.foe_factor > 1 || m.damage_pct > 0);
+        assert!(UNBROKEN_DAMAGE_PCT + m.damage_pct <= DAMAGE_HARD_MAX_PCT && BASE_FOES_PER_FIGHT * m.foe_factor <= MAX_FOES_PER_FIGHT);
+        (foes, dmg) = (foes * m.foe_factor, dmg + m.damage_pct);
+        i += 1;
+    }
+    assert!(foes <= MAX_FOES_PER_FIGHT && dmg <= DAMAGE_HARD_MAX_PCT);
+};
+/// Steady or higher only; Sheltered rejects every non-empty set. The set must stay under the foe and damage ceilings.
+pub const fn run_modifiers_allowed(tier: DifficultyTier, mods: &[RunModifier]) -> bool {
+    if mods.is_empty() { return true; }
+    if (tier as u8) < (DifficultyTier::Steady as u8) { return false; }
+    let (mut i, mut foes, mut dmg) = (0, BASE_FOES_PER_FIGHT, UNBROKEN_DAMAGE_PCT);
+    while i < mods.len() {
+        if mods[i].foe_factor == 0 { return false; }
+        (foes, dmg) = (foes.saturating_mul(mods[i].foe_factor), dmg.saturating_add(mods[i].damage_pct));
+        i += 1;
+    }
+    foes <= MAX_FOES_PER_FIGHT && dmg <= DAMAGE_HARD_MAX_PCT
+}
+/// Tier XP plus every modifier bonus, saturating, through `clamp_xp_pct`. A rejected set earns the tier base only.
+pub const fn stacked_xp_pct(tier: DifficultyTier, mods: &[RunModifier]) -> u32 {
+    let mut pct = COMBAT_XP_PCT[tier as usize];
+    if run_modifiers_allowed(tier, mods) {
+        let mut i = 0;
+        while i < mods.len() { pct = pct.saturating_add(mods[i].xp_bonus_pct); i += 1; }
+    }
+    clamp_xp_pct(pct)
+}
 pub fn drop_chance(tier: DifficultyTier, base: f32) -> f32 { (base.max(0.0) * DROP_CHANCE_PCT[tier as usize] as f32 / 100.0).min(DROP_CHANCE_MAX) }
 pub const fn clamp_qty_pct(pct: u32) -> u32 { if pct > DROP_QTY_HARD_MAX_PCT { DROP_QTY_HARD_MAX_PCT } else if pct < 100 { 100 } else { pct } }
 pub const fn drop_qty_at(pct: u32, base: u32) -> u32 { let q = (base * clamp_qty_pct(pct) + 50) / 100; if q < 1 { 1 } else { q } }
@@ -300,5 +345,37 @@ mod tests {
         d.pick(H, Sheltered, false, HIGH).unwrap();
         assert_eq!(d.marks()[slot(H)], Some(TierMark::Unbroken), "stepping down never removes an earned mark");
         assert!(TierMark::Unbroken.line() == "area difficulty mark: Unbroken");
+    }
+    #[test]
+    fn run_modifiers_stack_through_clamp_per_tier() {
+        let [a, b] = RUN_MODIFIERS;
+        assert_eq!(TIERS.map(|t| stacked_xp_pct(t, &[])), COMBAT_XP_PCT);
+        assert_eq!(TIERS.map(|t| stacked_xp_pct(t, &[a])), [100, 140, 155, 175]);
+        assert_eq!(TIERS.map(|t| stacked_xp_pct(t, &[b])), [100, 145, 160, 175]);
+        assert_eq!(TIERS.map(|t| stacked_xp_pct(t, &[a, b])), [100, 170, 175, 175]);
+        assert!(RUN_MODIFIERS.iter().all(|m| m.xp_bonus_pct >= 25 && stacked_xp_pct(Unbroken, &[*m]) == XP_HARD_MAX_PCT));
+        let huge = RunModifier { id: 9, xp_bonus_pct: u32::MAX, foe_factor: 1, damage_pct: 1 };
+        assert_eq!((stacked_xp_pct(Steady, &[huge, huge]), XP_HARD_MAX_PCT), (175, 175));
+        assert_eq!(TIERS.map(|t| combat_xp(t, 10)), [10, 12, 13, 15]);
+    }
+    #[test]
+    fn run_modifiers_rejected_on_sheltered_allowed_steady_up() {
+        for m in RUN_MODIFIERS {
+            assert_eq!(TIERS.map(|t| run_modifiers_allowed(t, &[m])), [false, true, true, true]);
+        }
+        assert!(TIERS.iter().all(|&t| run_modifiers_allowed(t, &[])));
+        assert!(!run_modifiers_allowed(Sheltered, &RUN_MODIFIERS) && run_modifiers_allowed(Steady, &RUN_MODIFIERS));
+    }
+    #[test]
+    fn run_modifiers_trade_threat_for_reward_under_ceilings() {
+        for m in RUN_MODIFIERS {
+            assert!(m.xp_bonus_pct > 0 && m.foe_factor >= 1 && (m.foe_factor > 1 || m.damage_pct > 0));
+            assert!(UNBROKEN_DAMAGE_PCT + m.damage_pct <= DAMAGE_HARD_MAX_PCT);
+            assert!(BASE_FOES_PER_FIGHT * m.foe_factor <= MAX_FOES_PER_FIGHT);
+        }
+        assert_eq!((BASE_FOES_PER_FIGHT, MAX_FOES_PER_FIGHT), (2, 4));
+        let [a, b] = RUN_MODIFIERS;
+        assert!(!run_modifiers_allowed(Steady, &[b, b]) && !run_modifiers_allowed(Steady, &[a, a]));
+        assert_eq!(enemy_hit(Unbroken, 100), 115);
     }
 }
