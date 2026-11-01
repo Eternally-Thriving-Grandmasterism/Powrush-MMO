@@ -3,7 +3,9 @@
 
 use bevy::prelude::*;
 
+use crate::difficulty::{clamp_xp_pct, combat_xp, AreaDifficulty, DifficultyTier, COMBAT_XP_PCT};
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+use crate::hex_travel::HexTravelState;
 use crate::first_session_guidance::body_step_xz;
 use crate::human_presence::SoftPresence;
 use crate::input::PlayerInput;
@@ -155,6 +157,9 @@ impl Plugin for SkillXpPlugin {
     }
 }
 
+/// DIFFICULTY-REWARDS-2. Walk metres scale by the combat table, exactly 1.0 on Sheltered.
+pub fn walk_factor(tier: DifficultyTier) -> f32 { clamp_xp_pct(COMBAT_XP_PCT[tier as usize]) as f32 / 100.0 }
+
 /// Own system: runs even when first-session guidance is dismissed.
 #[allow(clippy::too_many_arguments)]
 fn award_skill_xp(
@@ -166,12 +171,14 @@ fn award_skill_xp(
     mut skills: ResMut<SkillXp>,
     mut state: ResMut<FirstHarvestEpiphany>,
     mut last: Local<(u32, u32, Option<Vec2>)>,
+    (travel, diff): (Option<Res<HexTravelState>>, Option<Res<AreaDifficulty>>),
 ) {
+    let tier = match (travel, diff) { (Some(t), Some(d)) => d.tier(t.current), _ => DifficultyTier::Sheltered };
     let (h, t) = (state.harvests_this_session, state.tends_this_session);
     let gather = success_gain(last.0, h, XP_PER_GATHER);
     let tend = success_gain(last.1, t, XP_PER_TEND);
     let mut ups = vec![
-        (GATHER, skills.gain(GATHER, gather)),
+        (GATHER, skills.gain(GATHER, combat_xp(tier, gather))),
         (TEND, skills.gain(TEND, tend)),
     ];
     (last.0, last.1) = (h, t);
@@ -183,7 +190,7 @@ fn award_skill_xp(
         let sprinting = matches!((input, body), (Some(i), Some(b))
             if want_sprint(i.sprint, i.movement, b.can_sprint()));
         let (walk, sprint) = split_step(step, sprinting);
-        ups.push((WALK, skills.gain_metres(WALK, walk)));
+        ups.push((WALK, skills.gain_metres(WALK, walk * walk_factor(tier))));
         ups.push((SPRINT, skills.gain_metres(SPRINT, sprint)));
     }
     let now = time.elapsed_secs_f64();
@@ -322,5 +329,43 @@ mod tests {
         assert_eq!(roll_day(5, 20, 6), (6, 0), "forward");
         assert_eq!(roll_day(5, 20, 5), (5, 20), "same day");
         assert_eq!(roll_day(5, 20, 4), (5, 20), "backwards clock keeps the count");
+    }
+    #[test]
+    fn rewards2_gather_scales_per_tier_through_the_system() {
+        use bevy::ecs::system::RunSystemOnce;
+        use crate::difficulty::TIERS;
+        let got = TIERS.map(|t| {
+            let mut world = World::new();
+            world.insert_resource(Time::<()>::default());
+            world.insert_resource(SkillXp::default());
+            world.insert_resource(FirstHarvestEpiphany { harvests_this_session: 1, ..Default::default() });
+            world.insert_resource(HexTravelState { current: shared::hex_travel::PlaceId::Heartwood });
+            world.insert_resource(AreaDifficulty { default: t, ..Default::default() });
+            world.run_system_once(award_skill_xp).unwrap();
+            world.resource::<SkillXp>().xp[GATHER]
+        });
+        assert_eq!(got, [10, 12, 13, 15]);
+        assert_eq!(TIERS.map(|t| combat_xp(t, XP_PER_GATHER)), [10, 12, 13, 15]);
+    }
+
+    #[test]
+    fn rewards2_walk_1000m_per_tier_zero_idle_and_sprint_at_base() {
+        use crate::difficulty::TIERS;
+        assert_eq!(walk_factor(DifficultyTier::Sheltered), 1.0, "Sheltered is exactly 1.0");
+        assert!(TIERS.iter().all(|&t| (1.0..=1.75).contains(&walk_factor(t))), "never over the hard max");
+        for (t, want) in TIERS.into_iter().zip([1000u32, 1150, 1300, 1500]) {
+            let mut skills = SkillXp::default();
+            for _ in 0..4000 {
+                skills.gain_metres(WALK, 0.25 * walk_factor(t));
+                skills.gain_metres(SPRINT, 0.25);
+            }
+            let walk = skills.xp[WALK];
+            assert!(walk.abs_diff(want) <= 1, "{t:?} walk {walk} vs {want}");
+            if t == DifficultyTier::Sheltered { assert_eq!(walk, 1000); }
+            assert_eq!(skills.xp[SPRINT], 1000, "{t:?} sprint stays at base");
+        }
+        let mut idle = SkillXp::default();
+        for _ in 0..1000 { idle.gain_metres(WALK, 0.0 * walk_factor(DifficultyTier::Unbroken)); }
+        assert_eq!(idle.xp[WALK], 0, "0 m on Unbroken pays 0");
     }
 }
