@@ -147,6 +147,17 @@ pub fn flash_color(strength: f32) -> Color {
     }
 }
 
+/// HIT-FLASH-SHAPE-1 — peak extra Predator scale at flash strength 1 (visual only).
+pub const HIT_PULSE_PEAK: f32 = 0.12;
+/// HIT-FLASH-SHAPE-1 — Predator scale at flash `strength`; exactly 1.0 at 0, below 0 or NaN.
+pub fn hit_pulse_scale(strength: f32) -> f32 {
+    if strength > 0.0 {
+        1.0 + HIT_PULSE_PEAK * strength.min(1.0)
+    } else {
+        1.0
+    }
+}
+
 /// COMBAT-FEEL-1 — one held strike, the feel_move.rs:38-101 shape. Times are `Time<Fixed>` elapsed.
 #[derive(Resource, Debug, Default, Clone, PartialEq)]
 pub struct StrikeBuffer {
@@ -567,7 +578,10 @@ fn hit_flash(
     combat: Option<Res<CombatState>>,
     pool: Option<ResMut<SoftRbePool>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
-    predator: Query<&MeshMaterial3d<StandardMaterial>, With<Predator>>,
+    mut predator: Query<
+        (&MeshMaterial3d<StandardMaterial>, Option<&mut Transform>),
+        With<Predator>,
+    >,
     gamepads: Query<Entity, With<Gamepad>>,
     mut rumble: MessageWriter<GamepadRumbleRequest>,
 ) {
@@ -588,9 +602,12 @@ fn hit_flash(
             return;
         }
     }
-    for handle in &predator {
+    for (handle, transform) in &mut predator {
         if let Some(mut mat) = materials.get_mut(&handle.0) {
             mat.base_color = flash_color(strength);
+        }
+        if let Some(mut transform) = transform {
+            transform.scale = Vec3::splat(hit_pulse_scale(strength));
         }
     }
 }
@@ -1048,6 +1065,47 @@ mod tests {
         assert_eq!(colour(&app, &handle), PREDATOR_COLOR, "kill restores a live flash");
         assert_eq!(step(&mut app, 0.02), (0.0, 0));
         assert_eq!(colour(&app, &handle), PREDATOR_COLOR, "kill never tints");
+    }
+
+    #[test]
+    fn hit_pulse_scale_rests_at_one_and_peaks_small() {
+        assert_eq!([0.0, -0.5, -1.0, f32::NAN].map(hit_pulse_scale), [1.0; 4]);
+        let sweep: Vec<f32> = (0..=40).map(|i| hit_pulse_scale(i as f32 / 20.0)).collect();
+        assert!(sweep.windows(2).all(|w| w[0] <= w[1]) && sweep[20] <= 1.12 && sweep[40] <= 1.12);
+    }
+
+    fn pulse_app() -> (App, Entity, Transform) {
+        let (mut app, _) = flash_app();
+        let at = Transform::from_xyz(PREDATOR_HOME[0], 0.8, PREDATOR_HOME[1]);
+        let mut q = app.world_mut().query_filtered::<Entity, With<Predator>>();
+        let e = q.single(app.world()).unwrap();
+        app.world_mut().entity_mut(e).insert(at);
+        (app, e, at)
+    }
+    #[test]
+    fn hit_pulse_scales_restores_one_never_moves_or_changes_reach() {
+        let (mut app, e, at) = pulse_app();
+        app.world_mut().resource_mut::<CombatState>().predator_taken = HIT;
+        step(&mut app, 0.0);
+        let t = *app.world().get::<Transform>(e).unwrap();
+        assert!(t.scale.x > 1.0 && (t.translation, t.rotation) == (at.translation, at.rotation));
+        // in_reach takes no Transform (PREDATOR_HOME plus REACH): same answer at pulse peak and at rest.
+        let ([x, z], ds) = (PREDATOR_HOME, [0.0, REACH, 2.0 * REACH]);
+        let reach = |c: &CombatState| ds.map(|d| in_reach(PlaceId::Heartwood, c, x + d, z));
+        let at_peak = reach(app.world().resource());
+        step(&mut app, FLASH_SECS + 0.01);
+        assert_eq!(reach(app.world().resource()), at_peak);
+        assert_eq!(*app.world().get::<Transform>(e).unwrap(), at);
+    }
+
+    #[test]
+    fn two_quick_hits_never_exceed_pulse_peak() {
+        let (mut app, e, _) = pulse_app();
+        for (taken, dt) in [(HIT, 0.0), (HIT, 0.02), (2 * HIT, 0.0), (2 * HIT, 0.03)] {
+            app.world_mut().resource_mut::<CombatState>().predator_taken = taken;
+            step(&mut app, dt);
+            assert!(app.world().get::<Transform>(e).unwrap().scale.max_element() <= 1.12);
+        }
     }
 
     #[test]
