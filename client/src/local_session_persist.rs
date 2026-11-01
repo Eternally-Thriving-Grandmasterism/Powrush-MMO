@@ -20,6 +20,7 @@ use crate::living_practice_loop::SoftPlayerRealm;
 use crate::skill_xp::SkillXp;
 #[cfg(test)] use crate::skill_xp::skills_on_load;
 use crate::skill_xp::{skills_with_combat_on_load, COMBAT};
+use crate::run_ledger::RunLedger;
 
 const PERSIST_PATH: &str = "data/powrush_local_session.json";
 
@@ -54,6 +55,8 @@ struct SessionBlob {
     #[serde(default)] difficulty: Option<u8>,
     #[serde(default)] area_difficulty: Option<[u8; 3]>,
     #[serde(default)] area_clears: Option<[u8; 3]>,
+    /// RUN-LEDGER-1. Best clear rows per area and tier; any bad value loads as no ledger.
+    #[serde(default, deserialize_with = "crate::run_ledger::lenient")] run_best: Option<crate::run_ledger::RunBestSave>,
 }
 
 impl Default for SessionBlob {
@@ -75,6 +78,7 @@ impl Default for SessionBlob {
             combat_day: None,
             combat_day_hits: None,
             difficulty: None, area_difficulty: None, area_clears: None,
+            run_best: None,
         }
     }
 }
@@ -164,6 +168,7 @@ fn load_local_session(
     mut bond: ResMut<CompanionBond>,
     skills: Option<ResMut<SkillXp>>,
     diff: Option<ResMut<AreaDifficulty>>,
+    ledger: Option<ResMut<RunLedger>>,
 ) {
     if persist.loaded {
         return;
@@ -190,6 +195,7 @@ fn load_local_session(
     bond.trust = blob.companion_trust.clamp(0.0, 1.0);
     bond.mounted = false;
     if let Some(mut diff) = diff { *diff = AreaDifficulty::from_save(blob.difficulty, blob.area_difficulty, blob.area_clears); }
+    if let (Some(mut l), Some(best)) = (ledger, blob.run_best) { l.best = best; }
     if let Some(mut skills) = skills {
         skills.xp =
             skills_with_combat_on_load(blob.skills, blob.combat_xp, blob.harvests, blob.tends);
@@ -211,12 +217,14 @@ fn mark_dirty(
     web: Res<PersistentWeb>,
     bond: Res<CompanionBond>,
     mut persist: ResMut<LocalSessionPersist>,
+    ledger: Option<Res<RunLedger>>,
 ) {
     if pool.is_changed()
         || realm.is_changed()
         || harvest.is_changed()
         || web.is_changed()
         || bond.is_changed()
+        || ledger.as_ref().is_some_and(|l| l.is_changed())
     {
         persist.dirty = true;
     }
@@ -231,6 +239,7 @@ fn save_local_session(
     bond: Res<CompanionBond>,
     skills: Option<Res<SkillXp>>,
     diff: Option<Res<AreaDifficulty>>,
+    ledger: Option<Res<RunLedger>>,
 ) {
     if !persist.dirty {
         return;
@@ -253,6 +262,7 @@ fn save_local_session(
         combat_day: skills.as_ref().map(|s| s.combat_day),
         combat_day_hits: skills.as_ref().map(|s| s.combat_day_hits),
         difficulty: saved.map(|s| s.0), area_difficulty: saved.map(|s| s.1), area_clears: saved.map(|s| s.2),
+        run_best: ledger.as_ref().map(|l| l.best),
     };
     save_blob(&blob);
     persist.dirty = false;
@@ -262,6 +272,28 @@ fn save_local_session(
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU64, Ordering};
+    #[test]
+    fn missing_run_best_loads_empty_ledger() {
+        let temp = TempSession::new("run-best");
+        fs::write(&temp.path, r#"{"schema":"powrush_local_session_v1","vitality":1.0,"harmony":0.0,"joy":0.0,"harvests":0,"tends":0,"realm":0,"first_harvest_lived":false,"whisper_lived":false}"#).unwrap();
+        assert_eq!(load_blob_at(&temp.path).unwrap().run_best, None, "missing field loads an empty ledger");
+    }
+    #[test]
+    fn garbage_run_best_keeps_the_rest_of_the_session() {
+        let temp = TempSession::new("run-best-garbage");
+        fs::write(&temp.path, r#"{"schema":"powrush_local_session_v1","vitality":3.0,"harmony":0.0,"joy":0.0,"harvests":2,"tends":0,"realm":0,"first_harvest_lived":true,"whisper_lived":false,"difficulty":2,"run_best":"x"}"#).unwrap();
+        let g = load_blob_at(&temp.path).expect("a garbage ledger keeps the session");
+        assert_eq!((g.vitality, g.harvests, g.first_harvest_lived, g.difficulty, g.run_best), (3.0, 2, true, Some(2), None));
+    }
+    #[test]
+    fn run_best_round_trips() {
+        let temp = TempSession::new("run-best-rt");
+        let mut best = [[[0; 3]; 4]; 3];
+        best[1][2] = [41_250, 30, 4];
+        save_blob_at(&temp.path, &SessionBlob { run_best: Some(best), ..Default::default() });
+        let b = load_blob_at(&temp.path).unwrap();
+        assert_eq!((b.schema.as_str(), b.run_best), ("powrush_local_session_v1", Some(best)));
+    }
 
     #[test]
     fn v1_save_loads_with_skills_kept_and_combat_zero() {
