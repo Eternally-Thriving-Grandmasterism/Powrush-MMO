@@ -5527,6 +5527,71 @@ mod tests {
         let done = done.lock().unwrap();
         assert_eq!(done.len(), 9, "only {} of 9 stills: {done:?}", done.len());
     }
+
+    /// CARD LOOK-READABILITY-1 (RR2) — approximate place-graded luminance:
+    /// Bevy's own white-balance matrix (`ColorGradingUniform::from`, bevy_render
+    /// 0.20.1 `view/mod.rs:809-848`, clamped at 0 as `tonemapping.wesl:390`),
+    /// then the post-saturation mix toward Rec. 709 luma (`tonemapping.wesl:155-158`).
+    /// Approximate, AgX LUT and section terms not modelled; no on-screen claim.
+    fn rr_graded_luminance(c: Color, id: u8) -> f32 {
+        let grade = place_color_grading(id);
+        let balance = bevy::render::view::ColorGradingUniform::from(grade.clone()).balance;
+        let l = c.to_linear();
+        let rgb = (balance * Vec3::new(l.red, l.green, l.blue)).max(Vec3::ZERO);
+        let luma = Vec3::new(0.2126, 0.7152, 0.0722);
+        let y = rgb.dot(luma);
+        Vec3::splat(y).lerp(rgb, grade.global.post_saturation).dot(luma)
+    }
+
+    /// WCAG contrast ratio `(L1 + 0.05) / (L2 + 0.05)` on the graded luminance.
+    fn rr_ratio(fg: Color, bg: Color, id: u8) -> f32 {
+        let (a, b) = (rr_graded_luminance(fg, id), rr_graded_luminance(bg, id));
+        (a.max(b) + 0.05) / (a.min(b) + 0.05)
+    }
+
+    /// CARD LOOK-READABILITY-1 (RR3) — test copy of the neutral lunge ring literal
+    /// at `combat_core.rs:358` and `droid.rs:111` (RING-CONST-1 banked).
+    const RR_RING: Color = Color::srgb(0.86, 0.85, 0.82);
+
+    /// CARD LOOK-READABILITY-1 (RR5, CL-R3) — snapshot of every tell x place
+    /// contrast ratio, pinned +/-0.02 so colour drift fails loudly. Columns:
+    /// PREDATOR_COLOR, FLASH_COLOR, ring, the place's own `look.node`; rows: each
+    /// place's base `look.fog` then `look.sky` (presets collapse to 1; mood and
+    /// weather tints are READABILITY-2). `FLOOR` only feeds the pinned
+    /// below-floor list; it is never asserted, so known fails land as data.
+    #[test]
+    fn look_readability_tell_contrast_snapshot_and_below_floor_list() {
+        use crate::combat_core::{FLASH_COLOR, PREDATOR_COLOR};
+        const FLOOR: f32 = 3.0;
+        let tells = ["predator", "flash", "ring", "node"];
+        let want: [(&str, u8, [[f32; 4]; 2]); 4] = [
+            ("Sanctuary", 0, [[6.06, 1.56, 1.19, 1.27], [4.93, 1.92, 1.47, 1.04]]),
+            ("Threshold", 1, [[1.42, 13.44, 10.27, 3.03], [1.05, 9.93, 7.58, 2.24]]),
+            ("Heartwood", 2, [[1.07, 8.83, 6.75, 3.50], [1.42, 6.66, 5.09, 2.64]]),
+            ("Depths", 3, [[1.79, 17.04, 13.01, 11.90], [1.75, 16.64, 12.71, 11.62]]),
+        ];
+        let mut below = Vec::new();
+        for (place, id, rows) in want {
+            let look = look_for(Some(id));
+            for ((bg_name, bg), row) in [("fog", look.fog), ("sky", look.sky)].into_iter().zip(rows) {
+                for ((tell, fg), pinned) in tells.iter().zip([PREDATOR_COLOR, FLASH_COLOR, RR_RING, look.node]).zip(row) {
+                    let r = rr_ratio(fg, bg, id);
+                    assert!((r - pinned).abs() <= 0.02, "{place} {bg_name} {tell}: {r:.3} vs pinned {pinned}");
+                    if r < FLOOR {
+                        below.push(format!("{place} {bg_name} {tell}"));
+                    }
+                }
+            }
+        }
+        let want_below = [
+            "Sanctuary fog flash", "Sanctuary fog ring", "Sanctuary fog node",
+            "Sanctuary sky flash", "Sanctuary sky ring", "Sanctuary sky node",
+            "Threshold fog predator", "Threshold sky predator", "Threshold sky node",
+            "Heartwood fog predator", "Heartwood sky predator", "Heartwood sky node",
+            "Depths fog predator", "Depths sky predator",
+        ];
+        assert_eq!(below, want_below, "below-floor list drifted");
+    }
 }
 
 #[cfg(test)]
