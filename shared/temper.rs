@@ -246,6 +246,105 @@ pub const NAMED_FINDS: [NamedFind; 6] = [
 /// find. There is no conversion between finds, tools or any currency.
 pub const VENDOR_STANDING_CEILING: Standing = Standing::Worn;
 
+// --- CARD UPGRADE-STAKES-1 — inactive Bold/Careful upgrade meter ----------
+// Rules from the PATSAGi councils' 1:25 AM ET ruling under Sherif's design
+// delegation (not Sherif's own words); Sherif may veto. Earned materials only,
+// a fail never loses the item or a Lumen, and a full meter guarantees the
+// upgrade. Nothing outside tests reads these. The existing resting lock is
+// banked as TEMPER-RESTING-FIX-1; binding cost to a real material is banked as
+// UPGRADE-COST-WIRE-1.
+
+/// Basis points in one whole: odds and rolls live in 0..10000.
+pub const UPGRADE_BPS: u16 = 10_000;
+/// Meter units for a guaranteed upgrade. Proposed word: "Progress".
+pub const UPGRADE_METER_FULL: u16 = 6;
+pub const UPGRADE_PROGRESS_WORD: &str = "Progress";
+
+/// Player-picked stance per attempt. Proposed words: "Bold", "Careful".
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpgradeStance {
+    Bold,
+    Careful,
+}
+
+impl UpgradeStance {
+    pub const ALL: [UpgradeStance; 2] = [UpgradeStance::Bold, UpgradeStance::Careful];
+    pub const fn word(self) -> &'static str {
+        ["Bold", "Careful"][self as usize]
+    }
+    /// Odds per attempt in basis points.
+    pub const fn odds_bps(self) -> u16 {
+        [5_000, 2_500][self as usize]
+    }
+    /// Shown odds as a plain whole percent; equals the odds used.
+    pub const fn odds_pct(self) -> u16 {
+        self.odds_bps() / 100
+    }
+    /// Abstract earned-material units per attempt; spent from no stock here.
+    pub const fn cost(self) -> u16 {
+        [37, 30][self as usize]
+    }
+    /// Meter units a failed attempt adds.
+    pub const fn fill(self) -> u16 {
+        [2, 3][self as usize]
+    }
+    /// Most attempts to an upgrade: fails until the meter is full, then one sure attempt.
+    pub const fn worst_case_attempts(self) -> u16 {
+        UPGRADE_METER_FULL.div_ceil(self.fill()) + 1
+    }
+}
+
+/// Upgrade meter, kept apart from `TemperedItem` so its saved shape is unchanged.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct UpgradeMeter {
+    pub progress: u16,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum UpgradeOutcome {
+    /// Already at `TEMPER_MAX`; nothing spent.
+    AtMax,
+    /// Upgrade lands; the caller hands off as `apply_temper(item, true)`.
+    Upgraded { cost: u16 },
+    /// Materials spent, meter filled; the item is untouched.
+    MeterFilled { cost: u16, progress: u16 },
+}
+
+/// One attempt with an injected roll in 0..10000. Never calls `can_temper` or
+/// `apply_temper`, so a fail never sets `resting`.
+pub fn attempt_upgrade(meter: &mut UpgradeMeter, item: &TemperedItem, stance: UpgradeStance, roll: u16) -> UpgradeOutcome {
+    if item.temper >= TEMPER_MAX {
+        return UpgradeOutcome::AtMax;
+    }
+    let cost = stance.cost();
+    if meter.progress >= UPGRADE_METER_FULL || roll < stance.odds_bps() {
+        meter.progress = 0;
+        return UpgradeOutcome::Upgraded { cost };
+    }
+    meter.progress = (meter.progress + stance.fill()).min(UPGRADE_METER_FULL);
+    UpgradeOutcome::MeterFilled { cost, progress: meter.progress }
+}
+
+/// Exact expected cost to an upgrade from an empty meter, as (numerator,
+/// denominator): cost x sum over k < worst case of (1 - p)^k, scaled by 10000.
+pub const fn upgrade_expected_cost(stance: UpgradeStance) -> (u128, u128) {
+    let (w, q, b) = (stance.worst_case_attempts() as u32, (UPGRADE_BPS - stance.odds_bps()) as u128, UPGRADE_BPS as u128);
+    let (mut k, mut num) = (0, 0u128);
+    while k < w {
+        num += q.pow(k) * b.pow(w - 1 - k);
+        k += 1;
+    }
+    (stance.cost() as u128 * num, b.pow(w - 1))
+}
+
+const _: () = {
+    let ((bn, bd), (cn, cd)) = (upgrade_expected_cost(UpgradeStance::Bold), upgrade_expected_cost(UpgradeStance::Careful));
+    assert!(bn * cd == cn * bd);
+    assert!(UpgradeStance::Bold.odds_bps() > UpgradeStance::Careful.odds_bps());
+    assert!(UpgradeStance::Bold.cost() > UpgradeStance::Careful.cost());
+    assert!(UpgradeStance::Bold.fill() < UpgradeStance::Careful.fill());
+};
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -458,6 +557,54 @@ mod tests {
             for w in ["loot", "gold", "market", "price", "vendor"] {
                 assert!(!low.contains(w), "{s} says {w}");
             }
+        }
+    }
+
+    #[test]
+    fn upgrade_stakes_equal_expected_cost_exact() {
+        let (bn, bd) = upgrade_expected_cost(UpgradeStance::Bold);
+        let (cn, cd) = upgrade_expected_cost(UpgradeStance::Careful);
+        // Bold: 37 x (1 + 1/2 + 1/4 + 1/8) = 69.375; Careful: 30 x (1 + 3/4 + 9/16) = 69.375.
+        assert_eq!(bn * cd, cn * bd, "tolerance zero");
+        assert_eq!((bn * 1000 / bd, cn * 1000 / cd), (69_375, 69_375));
+        assert_eq!(UpgradeStance::ALL.map(|s| s.worst_case_attempts()), [4, 3]);
+    }
+
+    #[test]
+    fn upgrade_stakes_fail_streak_never_rests_and_meter_guarantees() {
+        for s in UpgradeStance::ALL {
+            let (mut item, mut meter) = (hook(3), UpgradeMeter::default());
+            let before = item.clone();
+            for n in 1..s.worst_case_attempts() {
+                let out = attempt_upgrade(&mut meter, &item, s, UPGRADE_BPS - 1);
+                assert_eq!(out, UpgradeOutcome::MeterFilled { cost: s.cost(), progress: (n * s.fill()).min(UPGRADE_METER_FULL) });
+                assert_eq!(item, before, "fail leaves item, Lumens and resting alone");
+            }
+            assert_eq!(meter.progress, UPGRADE_METER_FULL);
+            assert_eq!(attempt_upgrade(&mut meter, &item, s, UPGRADE_BPS - 1), UpgradeOutcome::Upgraded { cost: s.cost() });
+            apply_temper(&mut item, true);
+            assert!(!item.resting && item.temper == 4 && meter.progress == 0);
+        }
+    }
+
+    #[test]
+    fn upgrade_stakes_roll_is_injected_and_max_is_refused() {
+        for s in UpgradeStance::ALL {
+            let mut meter = UpgradeMeter::default();
+            assert_eq!(attempt_upgrade(&mut meter, &hook(0), s, s.odds_bps() - 1), UpgradeOutcome::Upgraded { cost: s.cost() });
+            assert!(matches!(attempt_upgrade(&mut meter, &hook(0), s, s.odds_bps()), UpgradeOutcome::MeterFilled { .. }));
+            let mut full = UpgradeMeter { progress: UPGRADE_METER_FULL };
+            assert_eq!(attempt_upgrade(&mut full, &hook(TEMPER_MAX), s, 0), UpgradeOutcome::AtMax);
+            assert_eq!(full.progress, UPGRADE_METER_FULL, "refusal spends nothing");
+        }
+    }
+
+    #[test]
+    fn upgrade_stakes_shown_odds_and_words_are_honest() {
+        assert_eq!(UpgradeStance::ALL.map(|s| (s.word(), s.odds_pct())), [("Bold", 50), ("Careful", 25)]);
+        assert!(UpgradeStance::ALL.iter().all(|s| s.odds_pct() * 100 == s.odds_bps()));
+        for w in [UpgradeStance::Bold.word(), UpgradeStance::Careful.word(), UPGRADE_PROGRESS_WORD] {
+            assert!(temper_copy_is_honest(w), "{w}");
         }
     }
 }
