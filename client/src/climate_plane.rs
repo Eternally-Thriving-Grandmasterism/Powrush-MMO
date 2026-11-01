@@ -5592,6 +5592,17 @@ mod tests {
         assert_eq!(below, want_below, "below-floor list drifted");
         let hw = look_for(Some(2));
         assert!(rr_ratio(PREDATOR_COLOR, hw.fog, 2) >= FLOOR && rr_ratio(PREDATOR_COLOR, hw.sky, 2) >= FLOOR, "live Heartwood predator under floor");
+        // PATSAGi (2): the live Heartwood hit flash stays readable on fog and sky.
+        assert!(
+            rr_ratio(FLASH_COLOR, hw.fog, 2) >= FLOOR && rr_ratio(FLASH_COLOR, hw.sky, 2) >= FLOOR,
+            "live Heartwood flash under floor"
+        );
+        // Flash vs predator body: below floor, known gap, HIT-FLASH-SHAPE-1.
+        let flash_body = rr_ratio(FLASH_COLOR, PREDATOR_COLOR, 2);
+        assert!(
+            (flash_body - 2.179).abs() <= 0.02,
+            "flash vs body {flash_body:.3}, pinned at measured 2.179"
+        );
     }
 }
 
