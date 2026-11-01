@@ -27,6 +27,8 @@ use crate::rbe_allocate_choice::RbeAllocateChoice;
 use crate::skill_xp::{level_up_line, SkillXp, COMBAT};
 use crate::soft_play_bindings::{FIRE, FIRE_PAD};
 use crate::title_screen::{HouseLabel, LaunchDoor};
+use crate::difficulty::{cue_line, enemy_hit, hides_cues, tell_onset, AreaDifficulty, DifficultyTier};
+use shared::peace_audio::{audio_output_safe, STING_ASSET};
 
 pub const PREDATOR_NAME: &str = "[NAME TBD]";
 pub const HEALTH: u32 = 200; // player and predator pools, per CUT A1
@@ -240,11 +242,11 @@ pub fn land_hit_crossing(combat: &mut CombatState, skills: &mut SkillXp, reach: 
 }
 
 /// One lunge per 0.6 s in reach. True when the player is defeated.
-pub fn predator_tick(combat: &mut CombatState, dt: f32, reach: bool) -> bool {
+pub fn predator_tick(combat: &mut CombatState, dt: f32, reach: bool, tier: DifficultyTier) -> bool {
     combat.lunge_timer = if reach { combat.lunge_timer + dt.max(0.0) } else { 0.0 };
     while combat.lunge_timer >= LUNGE_SECS {
         combat.lunge_timer -= LUNGE_SECS;
-        combat.player_taken = combat.player_taken.saturating_add(HIT).min(HEALTH);
+        combat.player_taken = combat.player_taken.saturating_add(enemy_hit(tier, HIT)).min(HEALTH);
     }
     combat.player_taken >= HEALTH
 }
@@ -441,6 +443,7 @@ pub fn combat_fire(
         Some(mut buf) => strike_buffer_step(&mut buf, &[], (pressed, allowed, gate, reach), now_fixed),
         None => pressed && allowed,
     };
+    let tier = diff.as_deref().map_or(DifficultyTier::Sheltered, |d| d.tier(travel.current));
     if run {
         combat.strikes = combat.strikes.wrapping_add(1);
         let before = skills.xp[COMBAT];
@@ -450,6 +453,7 @@ pub fn combat_fire(
         }
         let gained = skills.xp[COMBAT].saturating_sub(before);
         if let (Some(line), Some(epi)) = (fire_line(travel.current, &combat, hit, gained, level), epi.as_mut()) {
+            let line = cue_line(tier, line, HEALTH.saturating_sub(combat.predator_taken), HEALTH);
             set_pulse(epi, line, now + CUE_SECS);
         }
     }
@@ -479,17 +483,19 @@ fn predator_lunge(
     mut combat: ResMut<CombatState>,
     mut epi: Option<ResMut<FirstHarvestEpiphany>>,
     mut shown: Query<&mut Visibility, With<Predator>>,
+    diff: Option<Res<AreaDifficulty>>,
 ) {
     let (Some(travel), Some(mut presence)) = (travel, presence) else {
         return;
     };
+    let tier = diff.map_or(DifficultyTier::Sheltered, |d| d.tier(travel.current));
     let show = combat.predator_taken < HEALTH && predator_present(travel.current);
     for mut vis in &mut shown {
         vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
-    if predator_tick(&mut combat, time.delta_secs(), reach) {
+    if predator_tick(&mut combat, time.delta_secs(), reach, tier) {
         reseat_on_defeat(&mut combat, &mut presence);
         if let Some(epi) = epi.as_mut() {
             set_pulse(epi, wake_cue(), time.elapsed_secs_f64() + CUE_SECS);
@@ -497,8 +503,20 @@ fn predator_lunge(
     }
 }
 
+/// DIFFICULTY-CUES-1 — the wind-up sound, the same sting spawn as peace_audio.rs, behind `audio_output_safe`.
+pub fn play_tell(cmd: &mut Commands, assets: Option<&AssetServer>) {
+    if let (true, Some(assets)) = (audio_output_safe(), assets) {
+        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(STING_ASSET)), PlaybackSettings::DESPAWN));
+    }
+}
+
+pub const LUNGE_TELL_TEXT: &str = "Brace, it is about to lunge";
+
 /// LUNGE-TELL-1 — chained after `predator_lunge`, so the timer and reach are post-tick.
+#[allow(clippy::too_many_arguments)]
 fn lunge_tell(
+    (mut cmd, assets, time, mut was): (Commands, Option<Res<AssetServer>>, Res<Time>, Local<bool>),
+    (diff, mut epi): (Option<Res<AreaDifficulty>>, Option<ResMut<FirstHarvestEpiphany>>),
     door: Option<Res<LaunchDoor>>,
     travel: Option<Res<HexTravelState>>,
     presence: Option<Res<SoftPresence>>,
@@ -514,8 +532,15 @@ fn lunge_tell(
     // The exact reach term of predator_lunge, combat_core.rs:326-327. No second formula.
     let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
+    let (tell, tier) = (tell_visible(combat.lunge_timer, reach), diff.map_or(DifficultyTier::Sheltered, |d| d.tier(travel.current)));
+    if tell_onset(&mut was, tell) {
+        play_tell(&mut cmd, assets.as_deref());
+        if let (true, Some(epi)) = (hides_cues(tier), epi.as_mut()) {
+            set_pulse(epi, LUNGE_TELL_TEXT.to_string(), time.elapsed_secs_f64() + f64::from(LUNGE_TELL_SECS));
+        }
+    }
     for mut vis in &mut dots {
-        vis.set_if_neq(if tell_visible(combat.lunge_timer, reach) {
+        vis.set_if_neq(if tell && !hides_cues(tier) {
             Visibility::Visible
         } else {
             Visibility::Hidden
@@ -708,8 +733,8 @@ mod tests {
         let inv = HumanInventory::default();
         let (slot, seen) = (inv.selected, inv.last_seen_harvests);
         let mut c = CombatState::default();
-        assert!(!predator_tick(&mut c, LUNGE_SECS, true) && c.player_taken == HIT);
-        assert!(predator_tick(&mut c, LUNGE_SECS * 14.0, true), "200 health, 15 per lunge");
+        assert!(!predator_tick(&mut c, LUNGE_SECS, true, DifficultyTier::Sheltered) && c.player_taken == HIT);
+        assert!(predator_tick(&mut c, LUNGE_SECS * 14.0, true, DifficultyTier::Sheltered), "200 health, 15 per lunge");
         let (position, velocity) = (Vec3::new(-18.0, STAND_HEIGHT, -18.0), Vec3::X);
         let (prev_tick, curr_tick) = (None, None);
         let mut p = SoftPresence { position, velocity, grounded: false, prev_tick, curr_tick };
@@ -927,7 +952,7 @@ mod tests {
     #[test]
     fn lunge_tell_closed_after_the_wrap() {
         let mut c = CombatState { lunge_timer: 0.59, ..Default::default() };
-        predator_tick(&mut c, 0.02, true);
+        predator_tick(&mut c, 0.02, true, DifficultyTier::Sheltered);
         assert!(c.lunge_timer < LUNGE_SECS - LUNGE_TELL_SECS, "{}", c.lunge_timer);
         assert!(!tell_visible(c.lunge_timer, true));
     }
@@ -1162,5 +1187,21 @@ mod tests {
         assert_eq!(tick(&mut app, 1.0), Visibility::Hidden, "hidden after respawn");
         let c = app.world().resource::<CombatState>();
         assert!(c.respawned && c.predator_taken == 0 && c.down_secs == 0.0);
+    }
+    #[test]
+    fn lunge_cues_per_tier() {
+        for t in crate::difficulty::TIERS {
+            let (mut c, mut was) = (CombatState::default(), false);
+            predator_tick(&mut c, LUNGE_SECS - LUNGE_TELL_SECS - 1e-3, true, t);
+            assert!(!tell_onset(&mut was, tell_visible(c.lunge_timer, true)), "timer unchanged on {t:?}");
+            predator_tick(&mut c, 2e-3, true, t);
+            let tell = tell_visible(c.lunge_timer, true);
+            assert!(tell_onset(&mut was, tell) && !tell_onset(&mut was, tell), "tell fires once on {t:?}");
+            assert_eq!(tell && !hides_cues(t), t <= DifficultyTier::Steady, "ring shows on tiers 1-2 only");
+            predator_tick(&mut c, LUNGE_TELL_SECS, true, t);
+            assert_eq!(c.player_taken, if t == DifficultyTier::Unbroken { 17 } else { HIT });
+        }
+        let low = LUNGE_TELL_TEXT.to_lowercase();
+        assert!(["loot", "instance", "heroic", "mythic", "rebirth", "outrider", "online"].iter().all(|w| !low.contains(w)));
     }
 }
