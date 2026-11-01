@@ -10,7 +10,7 @@ use crate::wellsworn::{WellswornRank, WellswornState};
 
 pub const SWORN_TOTAL_LEVEL: u32 = 15;
 pub const UNBROKEN_TOTAL_LEVEL: u32 = 30;
-/// Unbroken enemy damage over base, in percent, and its hard max. Inactive: nothing reads it yet.
+/// Unbroken enemy damage over base, in percent, and its hard max. Read by `enemy_hit`.
 pub const UNBROKEN_DAMAGE_PCT: u32 = 15;
 pub const DAMAGE_HARD_MAX_PCT: u32 = 25;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Default)]
@@ -33,6 +33,21 @@ impl DifficultyTier {
     }
 }
 pub fn clamp_damage_pct(pct: u32) -> u32 { pct.min(DAMAGE_HARD_MAX_PCT) }
+/// DIFFICULTY-CUES-1. Sworn and Unbroken hide the ground ring and the enemy HP number.
+pub const fn hides_cues(tier: DifficultyTier) -> bool { matches!(tier, DifficultyTier::Sworn | DifficultyTier::Unbroken) }
+/// Enemy hit on this tier, integer percent rounded half up, never over round(base x 1.25).
+pub const fn enemy_hit(tier: DifficultyTier, base: u32) -> u32 {
+    let DifficultyTier::Unbroken = tier else { return base };
+    let pct = if UNBROKEN_DAMAGE_PCT < DAMAGE_HARD_MAX_PCT { UNBROKEN_DAMAGE_PCT } else { DAMAGE_HARD_MAX_PCT };
+    let (hit, cap) = ((base * (100 + pct) + 50) / 100, (base * 125 + 50) / 100);
+    if hit < cap { hit } else { cap }
+}
+/// The tell sound and text fire once, on the frame the tell window opens.
+pub fn tell_onset(was: &mut bool, now: bool) -> bool { !std::mem::replace(was, now) && now }
+/// Tiers 3-4 drop only the " {left} / {health}" number from a pulse line.
+pub fn cue_line(tier: DifficultyTier, line: String, left: u32, health: u32) -> String {
+    if hides_cues(tier) { line.replacen(&format!(" {left} / {health}"), "", 1) } else { line }
+}
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PickError { Locked, StepUpOnlyAtEntry }
 /// What the gate reads: total level and whether the Wellsworn oath is taken.
@@ -167,6 +182,43 @@ mod tests {
         for line in TIERS.iter().flat_map(|&t| [row_line(t, true), row_line(t, false)]) {
             let low = line.to_lowercase();
             assert!(line.starts_with("area difficulty: ") && ["instance", "heroic", "mythic"].iter().all(|w| !low.contains(w)), "{line}");
+        }
+    }
+    #[test]
+    fn cues_damage_per_tier() {
+        for (t, a, b) in [(Sheltered, 15, 25), (Steady, 15, 25), (Sworn, 15, 25), (Unbroken, 17, 29)] {
+            assert_eq!((enemy_hit(t, 15), enemy_hit(t, 25)), (a, b), "{t:?}");
+            assert!(enemy_hit(t, 15) <= 19 && enemy_hit(t, 25) <= 31);
+        }
+        assert!(clamp_damage_pct(UNBROKEN_DAMAGE_PCT) <= DAMAGE_HARD_MAX_PCT && enemy_hit(Unbroken, 100) <= 125);
+    }
+
+    #[test]
+    fn cues_tell_onset_once_per_wind_up() {
+        let mut was = false;
+        let fired: Vec<bool> = [false, true, true, true, false, true].iter().map(|&v| tell_onset(&mut was, v)).collect();
+        assert_eq!(fired, [false, true, false, false, false, true]);
+    }
+
+    #[test]
+    fn cues_hp_number_hidden_on_tiers_three_four_only() {
+        for t in TIERS {
+            let line = cue_line(t, "Foe 185 / 200 · +10 combat XP".into(), 185, 200);
+            assert_eq!(line, if hides_cues(t) { "Foe · +10 combat XP" } else { "Foe 185 / 200 · +10 combat XP" });
+            assert_eq!(cue_line(t, "Missed Foe".into(), 200, 200), "Missed Foe");
+        }
+        assert!(!hides_cues(Sheltered) && !hides_cues(Steady) && hides_cues(Sworn) && hides_cues(Unbroken));
+    }
+
+    #[test]
+    fn cues_leave_accessibility_flags_alone() {
+        let s = shared::local_settings::LocalSettings::peace_defaults();
+        let (before, ui) = (s.clone(), crate::local_settings::LocalUiFeel::from_settings(&s));
+        for t in TIERS {
+            let _ = (hides_cues(t), enemy_hit(t, 15), cue_line(t, String::new(), 0, 0));
+            assert_eq!(s, before);
+            assert_eq!((s.reduced_motion, &s.colorblind_wells, s.key_use.display_label()), (before.reduced_motion, &before.colorblind_wells, before.key_use.display_label()));
+            assert_eq!(crate::local_settings::LocalUiFeel::from_settings(&s).text_scale, ui.text_scale);
         }
     }
 }

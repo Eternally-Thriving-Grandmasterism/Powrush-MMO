@@ -430,7 +430,7 @@ Once a month, online, a later phase. A championship server takes copies of chara
 
 ### 14.1 Aimed shots
 
-Skillshots are aimed volumes with travel time. Every damaging ability except the basic strike telegraphs for at least 0.35 s. The telegraph is a ground shape: line, circle, or cone, drawn as stripes or dots. Colour is an extra. Reduced-motion play pops the shape in at full size, still on the same timer.
+Skillshots are aimed volumes with travel time. Every damaging ability except the basic strike telegraphs for at least 0.35 s. The telegraph is a ground shape: line, circle, or cone, drawn as stripes or dots. Colour is an extra. Reduced-motion play pops the shape in at full size, still on the same timer. Carve-out: the visual helper and enemy HP number may be hidden on opt-in tiers 3–4; timing, the audio tell and its text tell stay.
 
 The basic strike is short range, 0.2 s, 8 damage, costs no charge, and is aimed at a body in front of you.
 
@@ -497,7 +497,7 @@ Player-crafted from harvested stock. Families:
 | **Ration bar** | Grain or protein harvest | Clears hunger. Slow health regen, 20 over 20 s | 3.0 s | 0 | A fourth bar inside 10 min slows movement 15% for 30 s |
 | **Nano-medkit** | Fabricated mesh, reagent | Heals 60 | 4.0 s | 0 | 60 s cooldown. A second inside 3 min heals 30. Interrupt heals 0 and still spends it |
 | **Adrenaline stim** | Gland-analogue, reagent | +15% speed and steady hands for 8 s | 1.0 s | +25 | Then a tremor: wider aim for 6 s. Later doses inside 10 min add less and deepen the crash |
-| **Focus stim** | Sibling reagent | Telegraph timer drawn 0.1 s earlier for you, for 10 s | 1.0 s | +15 | Tunnel: the place-name chip hides for 8 s. Your own mark stays |
+| **Focus stim** | Sibling reagent | Telegraph timer drawn 0.1 s earlier for you, for 10 s | 1.0 s | +15 | Tunnel: the place-name chip hides for 8 s. Your own mark stays. Carve-out: the visual helper and enemy HP number may be hidden on opt-in tiers 3–4; timing, the audio tell and its text tell stay |
 | **Catalyst Draught** | Water, sugar harvest, catalyst | The energy-drink role | 1.2 s | +40 | If Surge crosses 60 and later hits 0, crash: −8% speed for 20 s |
 
 Any damage during the use time cancels the channel. The item is spent. Panic use is a real cost.

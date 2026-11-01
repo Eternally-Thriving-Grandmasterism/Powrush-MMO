@@ -6,6 +6,8 @@ use crate::combat_core::{combat_fire, predator_present, respawn_step, set_pulse,
 use crate::combat_core::{LUNGE_TELL_DOTS, LUNGE_TELL_DOT_HEIGHT, LUNGE_TELL_DOT_RADIUS, LUNGE_TELL_LIFT};
 use crate::{first_harvest_epiphany::FirstHarvestEpiphany, hex_travel::HexTravelState};
 use crate::{human_presence::SoftPresence, title_screen::LaunchDoor};
+use crate::combat_core::play_tell;
+use crate::difficulty::{cue_line, enemy_hit, hides_cues, tell_onset, AreaDifficulty, DifficultyTier};
 
 /// North of the Threshold shelf (0,6): clear of the node, lamp, pond, Wards, both enemies and the wake point.
 pub const DROID_HOME: [f32; 2] = [0.0, 13.0];
@@ -17,6 +19,7 @@ pub const DROID_SHOT_TELL_SECS: f32 = 0.5;
 pub const DROID_HIT: u32 = 25;
 pub const DROID_NAME: &str = "[DROID NAME TBD]"; // unnamed until NAME-PASS-1
 const DROID_CUE_SECS: f64 = 4.2; // same hold as the private `CUE_SECS` at combat_core.rs:44
+pub const DROID_TELL_TEXT: &str = "Look out, the droid is about to fire";
 
 /// The droid's pool and clocks. Client-local, never saved.
 #[derive(Resource, Debug, Default, Clone, PartialEq)]
@@ -52,12 +55,12 @@ pub fn shot_armed(state: &DroidState, player_taken: u32, gate: bool, reach: bool
 
 /// One frame of the shot clock. Returns whether armed after the step (for the tell).
 /// Not armed resets the timer to 0. Defeat is left to `predator_lunge`.
-pub fn shot_step(state: &mut DroidState, player_taken: &mut u32, dt: f32, gate: bool, reach: bool) -> bool {
+pub fn shot_step(state: &mut DroidState, player_taken: &mut u32, dt: f32, gate: bool, reach: bool, tier: DifficultyTier) -> bool {
     let true = shot_armed(state, *player_taken, gate, reach) else { state.shot_timer = 0.0; return false };
     state.shot_timer += dt.max(0.0);
     if state.shot_timer >= DROID_SHOT_SECS {
         state.shot_timer -= DROID_SHOT_SECS;
-        *player_taken = player_taken.saturating_add(DROID_HIT).min(HEALTH);
+        *player_taken = player_taken.saturating_add(enemy_hit(tier, DROID_HIT)).min(HEALTH);
     }
     shot_armed(state, *player_taken, gate, reach)
 }
@@ -124,21 +127,32 @@ fn droid_tick(
     mut epi: Option<ResMut<FirstHarvestEpiphany>>,
     mut body: Query<&mut Visibility, (With<Droid>, Without<DroidTell>)>,
     mut dots: Query<&mut Visibility, (With<DroidTell>, Without<Droid>)>,
+    (mut cmd, assets, diff, mut was): (Commands, Option<Res<AssetServer>>, Option<Res<AreaDifficulty>>, Local<bool>),
+    mute: Option<Res<crate::local_settings::MasterMuteGain>>,
 ) {
     let place = travel.as_deref().map(|t| t.current);
+    let tier = place.zip(diff.as_deref()).map_or(DifficultyTier::Sheltered, |(pl, d)| d.tier(pl));
     let gate = place.is_some_and(predator_present) && door.as_deref().copied() == Some(LaunchDoor::InYard);
     let at = presence.as_deref().map(|p| p.position);
     let reach = gate && place.zip(at).is_some_and(|(pl, p)| droid_in_reach(pl, &state, p.x, p.z));
     let line = strike_step(&mut state, &mut last, combat.strikes, gate, reach);
+    let line = line.map(|l| cue_line(tier, l, HEALTH - state.taken, HEALTH));
     if let (Some(line), Some(epi)) = (line, epi.as_mut()) {
         set_pulse(epi, line, time.elapsed_secs_f64() + DROID_CUE_SECS);
     }
     let dt = time.delta_secs();
     down_step(&mut state, dt);
-    let armed = shot_step(&mut state, &mut combat.player_taken, dt, gate, reach);
+    let armed = shot_step(&mut state, &mut combat.player_taken, dt, gate, reach, tier);
     let alive = gate && droid_alive(&state);
     body.iter_mut().for_each(|mut v| _ = v.set_if_neq(show(alive)));
     let tell = alive && shot_tell_visible(state.shot_timer, armed);
+    if tell_onset(&mut was, tell) {
+        play_tell(&mut cmd, assets.as_deref(), mute.as_deref());
+        if let (true, Some(epi)) = (hides_cues(tier), epi.as_mut()) {
+            set_pulse(epi, DROID_TELL_TEXT.to_string(), time.elapsed_secs_f64() + f64::from(DROID_SHOT_TELL_SECS));
+        }
+    }
+    let tell = tell && !hides_cues(tier); // tiers 3-4: the ring stays hidden
     dots.iter_mut().for_each(|mut v| _ = v.set_if_neq(show(tell)));
 }
 
@@ -152,7 +166,7 @@ mod tests {
     use shared::heartwood_wards::{WARD_POST_CENTERS, WARD_USE_RADIUS};
     use shared::threshold_shelf::{THRESHOLD_NODE_CENTER, THRESHOLD_SHELF_USE_RADIUS};
 
-    fn run_for(s: &mut DroidState, t: &mut u32, secs: f32, reach: bool) -> bool { shot_step(s, t, secs, true, reach) }
+    fn run_for(s: &mut DroidState, t: &mut u32, secs: f32, reach: bool) -> bool { shot_step(s, t, secs, true, reach, DifficultyTier::Sheltered) }
 
     #[test]
     fn tell_shows_from_three_quarters() {
@@ -193,7 +207,7 @@ mod tests {
         run_for(&mut s, &mut t, 0.016, false);
         assert_eq!(s.shot_timer, 0.0);
         assert!(run_for(&mut s, &mut t, 1.0, true) && t == 0);
-        assert!(!shot_step(&mut s, &mut t, 0.1, false, true) && s.shot_timer == 0.0, "gate off resets");
+        assert!(!shot_step(&mut s, &mut t, 0.1, false, true, DifficultyTier::Sheltered) && s.shot_timer == 0.0, "gate off resets");
     }
 
     #[test]
@@ -250,5 +264,24 @@ mod tests {
         assert!(home.distance(Vec2::from_array(GRAZER_HOME)) > REACH + FLEE_RADIUS);
         assert!(clear(Vec2::from_array(HEARTWOOD_ENTRANCE), THRESHOLD_SHELF_USE_RADIUS), "wake point");
         assert!(droid_tell_ring(DROID_HOME).iter().all(|d| (d.xz().distance(home) - DROID_REACH).abs() < 1e-4));
+    }
+    #[test]
+    fn shot_cues_per_tier() {
+        for t in crate::difficulty::TIERS {
+            let (mut s, mut p, mut was) = (DroidState::default(), 0, false);
+            let armed = shot_step(&mut s, &mut p, DROID_SHOT_SECS - DROID_SHOT_TELL_SECS - 1e-3, true, true, t);
+            assert!(!tell_onset(&mut was, shot_tell_visible(s.shot_timer, armed)), "timer unchanged on {t:?}");
+            let armed = shot_step(&mut s, &mut p, 2e-3, true, true, t);
+            let tell = shot_tell_visible(s.shot_timer, armed);
+            assert!(tell_onset(&mut was, tell) && !tell_onset(&mut was, tell), "tell fires once on {t:?}");
+            assert_eq!(tell && !hides_cues(t), t <= DifficultyTier::Steady, "ring shows on tiers 1-2 only");
+            shot_step(&mut s, &mut p, DROID_SHOT_TELL_SECS, true, true, t);
+            assert_eq!(p, if t == DifficultyTier::Unbroken { 29 } else { DROID_HIT });
+            let line = strike_step(&mut DroidState::default(), &mut 0, 1, true, true).unwrap();
+            let want = if hides_cues(t) { DROID_NAME.to_string() } else { format!("{DROID_NAME} {} / {HEALTH}", HEALTH - HIT) };
+            assert_eq!(cue_line(t, line, HEALTH - HIT, HEALTH), want);
+        }
+        let low = DROID_TELL_TEXT.to_lowercase();
+        assert!(["loot", "instance", "heroic", "mythic", "rebirth", "outrider", "online"].iter().all(|w| !low.contains(w)));
     }
 }
