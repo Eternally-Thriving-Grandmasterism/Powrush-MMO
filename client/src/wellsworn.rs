@@ -42,7 +42,7 @@ impl WellswornState {
     pub fn observe(&mut self, counts: (u32, u32), at_well: bool) {
         let rose = counts.0 > self.seen.0 || counts.1 > self.seen.1;
         self.seen = counts;
-        if rose && at_well && self.step == DrawStep::Empty && self.rank != Some(WellswornRank::Sworn) {
+        if rose && at_well && self.step == DrawStep::Empty && matches!(self.rank, None | Some(WellswornRank::Drawn)) {
             self.step = DrawStep::Flask;
             if self.rank.is_none() { self.rank = Some(WellswornRank::Drawn); }
         }
@@ -51,7 +51,7 @@ impl WellswornState {
     pub fn press(&mut self) {
         match self.near {
             Some(Spot::Gate) if self.step == DrawStep::Flask => { self.step = DrawStep::Poured; self.open = true; }
-            Some(_) if self.can_swear() => { self.rank = Some(WellswornRank::Sworn); self.step = DrawStep::Empty; }
+            Some(_) if self.can_swear() && matches!(self.rank, None | Some(WellswornRank::Drawn)) => { self.rank = Some(WellswornRank::Sworn); self.step = DrawStep::Empty; }
             Some(_) => self.open = !self.open,
             None => {}
         }
@@ -229,5 +229,47 @@ mod tests {
             assert_eq!(page, format!("{}{suffix}", OATH.join("\n")));
             assert!(!page.contains(ECHO_LINE) && !page.contains("The eight staves"));
         }
+    }
+    #[test]
+    fn stave_and_wellkeeper_keep_rank_through_draw_pour_and_book() {
+        for r in [WellswornRank::Stave, WellswornRank::Wellkeeper] {
+            let mut s = WellswornState { rank: Some(r), ..Default::default() };
+            s.observe((1, 1), true);
+            assert_eq!((s.step, s.rank), (DrawStep::Empty, Some(r)), "no flask for {r:?}");
+            assert!(!s.page("F").contains("Swear"));
+            for spot in [Spot::Gate, Spot::Book] {
+                s.near = Some(spot); s.press();
+                assert_eq!((s.step, s.rank), (DrawStep::Empty, Some(r)), "press at {spot:?}");
+                assert!(!s.page("F").contains("Swear") && s.page("F").ends_with(ECHO_LINE));
+            }
+            let mut p = WellswornState { rank: Some(r), step: DrawStep::Poured, open: true, ..at(Spot::Book) };
+            p.press();
+            assert_eq!(p.rank, Some(r), "press never lowers {r:?}");
+        }
+    }
+    #[test]
+    fn drawn_press_still_swears() {
+        let mut s = WellswornState { rank: Some(WellswornRank::Drawn), ..Default::default() };
+        s.observe((0, 1), true);
+        assert_eq!(s.step, DrawStep::Flask);
+        s.near = Some(Spot::Gate); s.press(); s.press();
+        assert_eq!((s.step, s.rank), (DrawStep::Empty, Some(WellswornRank::Sworn)));
+    }
+    #[test]
+    fn stave_and_wellkeeper_survive_reload_and_press() {
+        let dir = std::env::temp_dir().join(format!("powrush-wellsworn-marks-{}", std::process::id()));
+        let _guard = crate::test_env::lock();
+        let (env, prev) = (shared::user_persist::USER_DIR_OVERRIDE_ENV, std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok());
+        std::env::set_var(env, &dir);
+        let mut back = Vec::new();
+        for r in [WellswornRank::Stave, WellswornRank::Wellkeeper] {
+            save_rank(Some(r));
+            let mut s = WellswornState { rank: load_rank(), ..at(Spot::Gate) };
+            s.observe((1, 1), true); s.press(); s.press();
+            back.push(s.rank);
+        }
+        match prev { Some(v) => std::env::set_var(env, v), None => std::env::remove_var(env) }
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(back, vec![Some(WellswornRank::Stave), Some(WellswornRank::Wellkeeper)]);
     }
 }
