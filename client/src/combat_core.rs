@@ -475,6 +475,7 @@ fn hold_strike_buffer(
     strike_buffer_tick(&mut buf, time.elapsed_secs_f64(), reach);
 }
 
+#[allow(clippy::too_many_arguments)]
 fn predator_lunge(
     time: Res<Time>,
     door: Option<Res<LaunchDoor>>,
@@ -504,19 +505,22 @@ fn predator_lunge(
 }
 
 /// DIFFICULTY-CUES-1 — the wind-up sound, the same sting spawn as peace_audio.rs, behind `audio_output_safe`.
-pub fn play_tell(cmd: &mut Commands, assets: Option<&AssetServer>) {
-    if let (true, Some(assets)) = (audio_output_safe(), assets) {
-        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(STING_ASSET)), PlaybackSettings::DESPAWN));
+/// Silent while the shared Mute flag is on or the gain is 0, like peace_audio.rs:112.
+pub fn play_tell(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&crate::local_settings::MasterMuteGain>) {
+    let gain = mute.map_or(1.0, |m| if m.muted { 0.0 } else { m.gain });
+    if let (true, true, Some(assets)) = (audio_output_safe(), gain > 0.0, assets) {
+        let play = PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain));
+        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(STING_ASSET)), play));
     }
 }
 
 pub const LUNGE_TELL_TEXT: &str = "Brace, it is about to lunge";
 
 /// LUNGE-TELL-1 — chained after `predator_lunge`, so the timer and reach are post-tick.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn lunge_tell(
     (mut cmd, assets, time, mut was): (Commands, Option<Res<AssetServer>>, Res<Time>, Local<bool>),
-    (diff, mut epi): (Option<Res<AreaDifficulty>>, Option<ResMut<FirstHarvestEpiphany>>),
+    (diff, mut epi, mute): (Option<Res<AreaDifficulty>>, Option<ResMut<FirstHarvestEpiphany>>, Option<Res<crate::local_settings::MasterMuteGain>>),
     door: Option<Res<LaunchDoor>>,
     travel: Option<Res<HexTravelState>>,
     presence: Option<Res<SoftPresence>>,
@@ -534,7 +538,7 @@ fn lunge_tell(
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
     let (tell, tier) = (tell_visible(combat.lunge_timer, reach), diff.map_or(DifficultyTier::Sheltered, |d| d.tier(travel.current)));
     if tell_onset(&mut was, tell) {
-        play_tell(&mut cmd, assets.as_deref());
+        play_tell(&mut cmd, assets.as_deref(), mute.as_deref());
         if let (true, Some(epi)) = (hides_cues(tier), epi.as_mut()) {
             set_pulse(epi, LUNGE_TELL_TEXT.to_string(), time.elapsed_secs_f64() + f64::from(LUNGE_TELL_SECS));
         }

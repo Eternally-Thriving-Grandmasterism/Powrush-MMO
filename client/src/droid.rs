@@ -128,6 +128,7 @@ fn droid_tick(
     mut body: Query<&mut Visibility, (With<Droid>, Without<DroidTell>)>,
     mut dots: Query<&mut Visibility, (With<DroidTell>, Without<Droid>)>,
     (mut cmd, assets, diff, mut was): (Commands, Option<Res<AssetServer>>, Option<Res<AreaDifficulty>>, Local<bool>),
+    mute: Option<Res<crate::local_settings::MasterMuteGain>>,
 ) {
     let place = travel.as_deref().map(|t| t.current);
     let tier = place.zip(diff.as_deref()).map_or(DifficultyTier::Sheltered, |(pl, d)| d.tier(pl));
@@ -146,7 +147,7 @@ fn droid_tick(
     body.iter_mut().for_each(|mut v| _ = v.set_if_neq(show(alive)));
     let tell = alive && shot_tell_visible(state.shot_timer, armed);
     if tell_onset(&mut was, tell) {
-        play_tell(&mut cmd, assets.as_deref());
+        play_tell(&mut cmd, assets.as_deref(), mute.as_deref());
         if let (true, Some(epi)) = (hides_cues(tier), epi.as_mut()) {
             set_pulse(epi, DROID_TELL_TEXT.to_string(), time.elapsed_secs_f64() + f64::from(DROID_SHOT_TELL_SECS));
         }
