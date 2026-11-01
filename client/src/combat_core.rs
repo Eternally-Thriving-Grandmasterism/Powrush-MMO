@@ -1234,4 +1234,30 @@ mod tests {
         land_hit_on(&mut c, &mut s, true, DifficultyTier::Unbroken);
         assert_eq!(s.xp[COMBAT], crate::skill_xp::XP_CAP, "XP_CAP still clamps");
     }
+    #[test]
+    fn muted_lunge_tell_text_shows_only_on_hidden_cue_tiers() {
+        use bevy::ecs::system::RunSystemOnce;
+        for t in crate::difficulty::TIERS {
+            let mut world = World::new();
+            world.insert_resource(Time::<()>::default());
+            let mut travel = HexTravelState::default();
+            travel.current = PlaceId::Heartwood;
+            world.insert_resource(travel);
+            world.insert_resource(LaunchDoor::InYard);
+            let [x, z] = PREDATOR_HOME;
+            world.insert_resource(SoftPresence { position: Vec3::new(x, STAND_HEIGHT, z), ..Default::default() });
+            world.insert_resource(CombatState { lunge_timer: LUNGE_SECS - LUNGE_TELL_SECS, ..Default::default() });
+            world.insert_resource(AreaDifficulty { default: t, ..Default::default() });
+            world.insert_resource(FirstHarvestEpiphany::default());
+            world.insert_resource(crate::local_settings::MasterMuteGain { gain: 1.0, muted: true });
+            let ring = world.spawn((LungeTell, Visibility::Hidden)).id();
+            world.run_system_once(lunge_tell).unwrap();
+            let (line, vis) = (world.resource::<FirstHarvestEpiphany>().pulse_line.clone(), *world.get::<Visibility>(ring).unwrap());
+            if hides_cues(t) {
+                assert_eq!((line.as_str(), vis), (LUNGE_TELL_TEXT, Visibility::Hidden), "{t:?} muted keeps the text tell");
+            } else {
+                assert_eq!((line, vis), (FirstHarvestEpiphany::default().pulse_line, Visibility::Visible), "{t:?} muted writes no text tell");
+            }
+        }
+    }
 }
