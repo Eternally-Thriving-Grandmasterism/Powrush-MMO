@@ -454,6 +454,79 @@ pub fn garden_cross_landing(
 pub const PAUSE_GUIDE_LINE: &str =
     "I walked to a well, tended it, the week was the bill, I quit, and the yard remembered.";
 
+/// CARD MUSIC-CREDITS-1 (MC1, MC5) — one licensed music track credit. `line` is
+/// byte-exact to the owner's MUSIC-1 credit text for its artist.
+pub struct MusicCredit {
+    pub title: &'static str,
+    pub line: &'static str,
+    pub licence_url: &'static str,
+    pub shipped: bool,
+}
+
+macro_rules! buckley_credit {
+    ($t:literal, $slug:literal) => {
+        MusicCredit {
+            title: $t,
+            line: concat!($t, " by Scott Buckley \u{2013} released under CC-BY 4.0. www.scottbuckley.com.au"),
+            licence_url: concat!("https://www.scottbuckley.com.au/library/", $slug, "/"),
+            shipped: false,
+        }
+    };
+}
+
+macro_rules! wba_credit {
+    ($t:literal) => {
+        MusicCredit {
+            title: $t,
+            line: concat!("Music: '", $t, "' by Karl Casey @ White Bat Audio"),
+            licence_url: "https://whitebataudio.com/pages/license-agreement",
+            shipped: false,
+        }
+    };
+}
+
+/// CARD MUSIC-CREDITS-1 — the 13 owner-slotted tracks. No file ships in this card,
+/// so every `shipped` is false; MUSIC-WIRE-1 flips each flag as its file lands.
+pub const MUSIC_CREDITS: [MusicCredit; 13] = [
+    buckley_credit!("Juggernaut", "juggernaut"),
+    buckley_credit!("Vanguard", "vanguard"),
+    buckley_credit!("Goliath", "goliath"),
+    buckley_credit!("Hyperion", "hyperion"),
+    buckley_credit!("Legacy", "legacy"),
+    buckley_credit!("Song of the Forge", "song-of-the-forge"),
+    buckley_credit!("Memories of Stone", "memories-of-stone"),
+    wba_credit!("System Shock"),
+    wba_credit!("Operation Terminate"),
+    wba_credit!("Tremors"),
+    wba_credit!("Empire"),
+    wba_credit!("Signal Lost"),
+    wba_credit!("After The War"),
+];
+
+/// Credits font, logical px. Fixed, not text-scaled, so 13 credits fit 720p.
+const MUSIC_CREDITS_FONT_PX: f32 = 13.0;
+const MUSIC_CREDITS_ROW_GAP: f32 = 2.0;
+
+/// MC5 gate — no music is credited before it plays. False while nothing ships.
+pub fn music_credits_unlocked() -> bool {
+    MUSIC_CREDITS.iter().any(|c| c.shipped)
+}
+
+/// Marker for the hidden Credits panel (outside the PauseTab cycle, MC5).
+#[derive(Component)]
+pub struct MusicCreditsPanel;
+
+fn spawn_music_credits_rows(p: &mut ChildSpawnerCommands) {
+    for credit in MUSIC_CREDITS.iter().filter(|c| c.shipped) {
+        p.spawn((
+            Text::new(credit.line),
+            TextFont { font_size: FontSize::Px(MUSIC_CREDITS_FONT_PX / 1.2), ..default() },
+            TextColor(TITLE_TEXT_SECONDARY),
+            Node { width: Val::Percent(100.0), ..default() },
+        ));
+    }
+}
+
 /// Present-tense persist beat from shared (`the yard remembers`).
 /// The Continue plate speaks the Guide past in that same beat.
 const CONTINUE_PRESENT_YARD: &str = "the yard remembers";
@@ -1963,6 +2036,14 @@ Node {
 ),
                 );
             });
+            // CARD MUSIC-CREDITS-1 (MC5) — Credits panel only once a track ships.
+            if music_credits_unlocked() {
+                p.spawn((
+                    settings_tab_panel_bundle_gap(false, MUSIC_CREDITS_ROW_GAP),
+                    MusicCreditsPanel,
+                ))
+                .with_children(spawn_music_credits_rows);
+            }
             // Settled+book Places door — opens four-room plate; not a Settings row.
             // Hidden until refresh_pause_places_row (hex_travel) after Settled+book.
             spawn_pause_places_door(p);
@@ -10036,5 +10117,80 @@ mod tests {
             (1, 1),
             "fresh rise held past 0.42s takes once and tends once"
         );
+    }
+
+    // --- CARD MUSIC-CREDITS-1 — credit bytes, MC5 gate, 720p fit ---------------
+
+    #[test]
+    fn music_credits_lines_are_byte_exact_and_unshipped() {
+        let want = [
+            "Juggernaut by Scott Buckley \u{2013} released under CC-BY 4.0. www.scottbuckley.com.au",
+            "Vanguard by Scott Buckley \u{2013} released under CC-BY 4.0. www.scottbuckley.com.au",
+            "Goliath by Scott Buckley \u{2013} released under CC-BY 4.0. www.scottbuckley.com.au",
+            "Hyperion by Scott Buckley \u{2013} released under CC-BY 4.0. www.scottbuckley.com.au",
+            "Legacy by Scott Buckley \u{2013} released under CC-BY 4.0. www.scottbuckley.com.au",
+            "Song of the Forge by Scott Buckley \u{2013} released under CC-BY 4.0. www.scottbuckley.com.au",
+            "Memories of Stone by Scott Buckley \u{2013} released under CC-BY 4.0. www.scottbuckley.com.au",
+            "Music: 'System Shock' by Karl Casey @ White Bat Audio",
+            "Music: 'Operation Terminate' by Karl Casey @ White Bat Audio",
+            "Music: 'Tremors' by Karl Casey @ White Bat Audio",
+            "Music: 'Empire' by Karl Casey @ White Bat Audio",
+            "Music: 'Signal Lost' by Karl Casey @ White Bat Audio",
+            "Music: 'After The War' by Karl Casey @ White Bat Audio",
+        ];
+        for (c, w) in MUSIC_CREDITS.iter().zip(want) {
+            assert_eq!(c.line, w);
+            assert!(c.line.contains(c.title) && !c.shipped, "{}", c.title);
+            assert!(c.licence_url.starts_with("https://"), "{}", c.licence_url);
+        }
+        assert_eq!(MUSIC_CREDITS[5].licence_url, "https://www.scottbuckley.com.au/library/song-of-the-forge/");
+        assert_eq!(MUSIC_CREDITS[12].licence_url, "https://whitebataudio.com/pages/license-agreement");
+    }
+
+    /// MC5 — nothing ships, so the gate is shut, PauseTab keeps four tabs, and
+    /// no Credits panel or credit line spawns.
+    #[test]
+    fn music_credits_panel_gated_off_while_nothing_ships() {
+        assert!(!music_credits_unlocked());
+        assert_eq!(PauseTab::ALL.len(), 4);
+        let mut world = World::new();
+        world.commands().spawn(Node::default()).with_children(spawn_music_credits_rows);
+        world.flush();
+        assert_eq!(world.query::<&Text>().iter(&world).count(), 0, "no unshipped credit renders");
+        assert_eq!(world.query::<&MusicCreditsPanel>().iter(&world).count(), 0);
+    }
+
+    /// Greedy word-wrap line count at `capacity` glyphs (Fira Mono, 0.6em).
+    fn music_credit_lines(line: &str, capacity: usize) -> usize {
+        let (mut lines, mut used) = (1, 0);
+        for word in line.split(' ') {
+            let w = word.chars().count();
+            if used == 0 {
+                used = w;
+            } else if used + 1 + w <= capacity {
+                used += 1 + w;
+            } else {
+                lines += 1;
+                used = w;
+            }
+        }
+        lines
+    }
+
+    /// CL-M3 — all 13 credits (as if shipped) fit the 1280×720 pause plate on the
+    /// Comfort/Controls chrome and 98% cap. The credits font is fixed, so max text
+    /// scale does not grow it.
+    #[test]
+    fn music_credits_plate_fits_720p_at_max_text_scale() {
+        let advance = 0.6 * (MUSIC_CREDITS_FONT_PX / 1.2);
+        let capacity = (controls_row_text_width_px() / advance).floor() as usize;
+        let lines: usize = MUSIC_CREDITS.iter().map(|c| music_credit_lines(c.line, capacity)).sum();
+        assert_eq!((capacity, lines), (57, 21), "8 credits wrap to 2 lines, 5 stay 1");
+        let panel = lines as f32 * MUSIC_CREDITS_FONT_PX.ceil() + 12.0 * MUSIC_CREDITS_ROW_GAP;
+        let height = pause_plate_chrome_px() + panel;
+        let cap = 720.0 * 0.98;
+        assert!(cap - height >= 16.0, "credits plate {height}px inside the 720p cap {cap}");
+        assert!(720.0 * 0.01 + height <= 720.0, "plate ends past 720");
+        assert!(title_plate_fits_surface(Vec2::new(1280.0, 720.0), Vec2::new(PAUSE_PLATE_WIDTH, height), 0.0));
     }
 }
