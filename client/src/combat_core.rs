@@ -118,7 +118,7 @@ pub fn rise_tell_transform(rise: f32) -> Transform {
 }
 
 /// HIT-JUICE-1 — the Predator's base colour (spawn_predator); a flash always restores to it exactly.
-pub const PREDATOR_COLOR: Color = Color::srgb(0.36, 0.22, 0.16);
+pub const PREDATOR_COLOR: Color = Color::srgb(0.81, 0.62, 0.55);
 /// HIT-JUICE-1 — neutral warm white the Predator tints toward on a landed hit.
 pub const FLASH_COLOR: Color = Color::srgb(1.0, 0.96, 0.9);
 /// The flash is over by this many seconds after the hit.

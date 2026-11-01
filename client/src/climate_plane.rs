@@ -5565,10 +5565,10 @@ mod tests {
         const FLOOR: f32 = 3.0;
         let tells = ["predator", "flash", "ring", "node"];
         let want: [(&str, u8, [[f32; 4]; 2]); 4] = [
-            ("Sanctuary", 0, [[6.06, 1.56, 1.19, 1.27], [4.93, 1.92, 1.47, 1.04]]),
-            ("Threshold", 1, [[1.42, 13.44, 10.27, 3.03], [1.05, 9.93, 7.58, 2.24]]),
-            ("Heartwood", 2, [[1.07, 8.83, 6.75, 3.50], [1.42, 6.66, 5.09, 2.64]]),
-            ("Depths", 3, [[1.79, 17.04, 13.01, 11.90], [1.75, 16.64, 12.71, 11.62]]),
+            ("Sanctuary", 0, [[1.39, 1.56, 1.19, 1.27], [1.13, 1.92, 1.47, 1.04]]),
+            ("Threshold", 1, [[6.18, 13.44, 10.27, 3.03], [4.56, 9.93, 7.58, 2.24]]),
+            ("Heartwood", 2, [[4.05, 8.83, 6.75, 3.50], [3.06, 6.66, 5.09, 2.64]]),
+            ("Depths", 3, [[7.83, 17.04, 13.01, 11.90], [7.64, 16.64, 12.71, 11.62]]),
         ];
         let mut below = Vec::new();
         for (place, id, rows) in want {
@@ -5583,14 +5583,15 @@ mod tests {
                 }
             }
         }
+        // Sanctuary predator cells are not live: predator_present (combat_core.rs:184-186) is Heartwood-only.
         let want_below = [
-            "Sanctuary fog flash", "Sanctuary fog ring", "Sanctuary fog node",
-            "Sanctuary sky flash", "Sanctuary sky ring", "Sanctuary sky node",
-            "Threshold fog predator", "Threshold sky predator", "Threshold sky node",
-            "Heartwood fog predator", "Heartwood sky predator", "Heartwood sky node",
-            "Depths fog predator", "Depths sky predator",
+            "Sanctuary fog predator", "Sanctuary fog flash", "Sanctuary fog ring", "Sanctuary fog node",
+            "Sanctuary sky predator", "Sanctuary sky flash", "Sanctuary sky ring", "Sanctuary sky node",
+            "Threshold sky node", "Heartwood sky node",
         ];
         assert_eq!(below, want_below, "below-floor list drifted");
+        let hw = look_for(Some(2));
+        assert!(rr_ratio(PREDATOR_COLOR, hw.fog, 2) >= FLOOR && rr_ratio(PREDATOR_COLOR, hw.sky, 2) >= FLOOR, "live Heartwood predator under floor");
     }
 }
 
