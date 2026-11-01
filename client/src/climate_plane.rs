@@ -210,7 +210,7 @@ const SANCTUARY_YARD_ROUGHNESS: f32 = 0.90;
 /// ART_BIBLE HANDS Heartwood accent — amber lamp (not Sanctuary warm-gold,
 /// not currency gold). Climate owns its copy so this file stays the only F2
 /// edit path.
-const HEARTWOOD_AMBER_LAMP: Color = Color::srgb(0.90, 0.52, 0.14);
+const HEARTWOOD_AMBER_LAMP: Color = Color::srgb(0.91, 0.59, 0.27);
 
 /// Shared living-wood roughness for Heartwood ground + ring path stones
 /// (one material family — PLACE_DRESS_SPEC).
@@ -5567,7 +5567,7 @@ mod tests {
         let want: [(&str, u8, [[f32; 4]; 2]); 4] = [
             ("Sanctuary", 0, [[1.39, 1.56, 1.19, 1.27], [1.13, 1.92, 1.47, 1.04]]),
             ("Threshold", 1, [[6.18, 13.44, 10.27, 3.03], [4.56, 9.93, 7.58, 2.24]]),
-            ("Heartwood", 2, [[4.05, 8.83, 6.75, 3.50], [3.06, 6.66, 5.09, 2.64]]),
+            ("Heartwood", 2, [[4.05, 8.83, 6.75, 4.05], [3.06, 6.66, 5.09, 3.05]]),
             ("Depths", 3, [[7.83, 17.04, 13.01, 11.90], [7.64, 16.64, 12.71, 11.62]]),
         ];
         let mut below = Vec::new();
@@ -5584,10 +5584,12 @@ mod tests {
             }
         }
         // Sanctuary predator cells are not live: predator_present (combat_core.rs:184-186) is Heartwood-only.
+        // Sanctuary node fog/sky: honest known gap; a passing node would be dark bronze, failing
+        // is_warm_gold_well and the well > earth + 0.25 law, so SANCTUARY_WELL_GOLD stays.
         let want_below = [
             "Sanctuary fog predator", "Sanctuary fog flash", "Sanctuary fog ring", "Sanctuary fog node",
             "Sanctuary sky predator", "Sanctuary sky flash", "Sanctuary sky ring", "Sanctuary sky node",
-            "Threshold sky node", "Heartwood sky node",
+            "Threshold sky node",
         ];
         assert_eq!(below, want_below, "below-floor list drifted");
         let hw = look_for(Some(2));
@@ -5598,6 +5600,8 @@ mod tests {
             "live Heartwood flash under floor"
         );
         // Flash vs predator body: below floor, known gap, HIT-FLASH-SHAPE-1.
+        // READ-FIX-NODE-1: the live Heartwood amber-lamp node clears the floor on fog and sky.
+        assert!(rr_ratio(hw.node, hw.fog, 2) >= FLOOR && rr_ratio(hw.node, hw.sky, 2) >= FLOOR);
         let flash_body = rr_ratio(FLASH_COLOR, PREDATOR_COLOR, 2);
         assert!(
             (flash_body - 2.179).abs() <= 0.02,
