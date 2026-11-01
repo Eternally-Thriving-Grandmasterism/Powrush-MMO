@@ -345,6 +345,50 @@ const _: () = {
     assert!(UpgradeStance::Bold.fill() < UpgradeStance::Careful.fill());
 };
 
+// --- CARD LOOT-LABEL-1 — label strictness filter (inactive) ----------------
+// Cut-offs are the councils' design targets; Sherif may veto, and the words are
+// proposals. The filter hides only a label, never an item, and nothing outside
+// tests reads it. Banked: LOOT-LABEL-SAVE-1 (persist the choice),
+// LOOT-LABEL-SHOW-1 (draw the label), READABILITY-2 (a production floor const).
+
+/// How strict the label filter is. Default `All` hides no label.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum LabelStrictness {
+    #[default]
+    All,
+    Useful,
+    Notable,
+}
+
+impl LabelStrictness {
+    pub const ALL: [LabelStrictness; 3] = [
+        LabelStrictness::All,
+        LabelStrictness::Useful,
+        LabelStrictness::Notable,
+    ];
+    pub const fn word(self) -> &'static str {
+        match self {
+            LabelStrictness::All => "All",
+            LabelStrictness::Useful => "Useful",
+            LabelStrictness::Notable => "Notable",
+        }
+    }
+}
+
+/// Whether a label of this standing shows. All: Worn and up. Useful: Kept and up.
+/// Notable: Proven and up. Storied shows at every level. Explicit pairs, no Ord.
+pub fn label_shown(s: Standing, l: LabelStrictness) -> bool {
+    use LabelStrictness as L;
+    use Standing as S;
+    match (l, s) {
+        (L::All, S::Worn | S::Kept | S::Proven | S::Storied) => true,
+        (L::Useful, S::Kept | S::Proven | S::Storied) => true,
+        (L::Useful, S::Worn) => false,
+        (L::Notable, S::Proven | S::Storied) => true,
+        (L::Notable, S::Worn | S::Kept) => false,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -605,6 +649,32 @@ mod tests {
         assert!(UpgradeStance::ALL.iter().all(|s| s.odds_pct() * 100 == s.odds_bps()));
         for w in [UpgradeStance::Bold.word(), UpgradeStance::Careful.word(), UPGRADE_PROGRESS_WORD] {
             assert!(temper_copy_is_honest(w), "{w}");
+        }
+    }
+
+    #[test]
+    fn label_strictness_truth_table_is_pinned() {
+        let st = [Standing::Worn, Standing::Kept, Standing::Proven, Standing::Storied];
+        let table = LabelStrictness::ALL.map(|l| st.map(|s| label_shown(s, l)));
+        assert_eq!(table, [[true, true, true, true], [false, true, true, true], [false, false, true, true]]);
+    }
+
+    #[test]
+    fn label_strictness_stricter_is_subset_and_storied_always_shows() {
+        let st = [Standing::Worn, Standing::Kept, Standing::Proven, Standing::Storied];
+        for pair in LabelStrictness::ALL.windows(2) {
+            assert!(st.iter().all(|&s| !label_shown(s, pair[1]) || label_shown(s, pair[0])), "{pair:?}");
+        }
+        assert!(LabelStrictness::ALL.iter().all(|&l| label_shown(Standing::Storied, l)));
+        assert_eq!(LabelStrictness::default(), LabelStrictness::All);
+        assert!(st.iter().all(|&s| label_shown(s, LabelStrictness::default())));
+    }
+
+    #[test]
+    fn label_strictness_words_are_honest() {
+        assert_eq!(LabelStrictness::ALL.map(|l| l.word()), ["All", "Useful", "Notable"]);
+        for l in LabelStrictness::ALL {
+            assert!(temper_copy_is_honest(l.word()) && !l.word().to_lowercase().contains("loot"), "{l:?}");
         }
     }
 }
