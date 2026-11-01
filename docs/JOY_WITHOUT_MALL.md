@@ -21,6 +21,14 @@ GREEN-DOCS. One page. Design tick, not a Cargo bump. **Title Online stays grey.*
 
 AH · billion-run EV · perfect-or-trash trading · target-farm tables · RMT bounty · BIS-that-is-also-rarest · affix soup spreadsheet.
 
+## Shown standing (LOOT-LEGIBLE-1)
+
+- **Two numbers, in code:** Temper `+N` and Lumen `a/b`. Ward is a label. `shared/temper.rs` `shown_standing` reads only those two, with no roll.
+- **Four standings:** Worn · Kept · Proven · Storied, each with its own word, shape and luminance step. Words and shapes are proposals; Sherif may veto.
+- **Named finds:** at most 6, one card each. No drop table or weights (that is LOOT-DROPS-1).
+- **Vendor law:** a vendor never offers above Worn, and nothing converts into a find.
+- **Dead roll:** the root `src/inventory.rs` `Rarity` roll is dead code. Do not revive it. Removal is banked as ROOT-SRC-PRUNE-1.
+
 ---
 
 ## Social (keep)
