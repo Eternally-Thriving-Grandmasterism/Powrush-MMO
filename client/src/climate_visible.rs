@@ -528,6 +528,14 @@ fn place_clarity_line(place: &str, body: String) -> String {
     }
 }
 
+/// CARD DANGER-READ-1 — entry danger line "Place · Tier" from existing words only:
+/// `place_clarity_label` (never the Threshold form) and the tier's `name()`. Pure
+/// and inactive; showing it once per entry is banked as DANGER-READ-SHOW-1.
+#[cfg_attr(not(test), allow(dead_code))]
+fn entry_danger_line(place: PlaceId, tier: crate::difficulty::DifficultyTier) -> String {
+    place_clarity_line(place_clarity_label(place, false), tier.name().to_string())
+}
+
 /// CARD L1 SANCTUARY-WANT / CARD L6 LANDING-WANT — first minutes speak
 /// People + Want for the Place the body is in. Garden boot (no land) is
 /// title `garden_boot_want_line`, not this slab. H hushes the clause;
@@ -1734,6 +1742,51 @@ mod tests {
                 1.0,
                 "synced fill alpha (reduced {reduced}, glow {glow})"
             );
+        }
+    }
+
+    /// CARD DANGER-READ-1 — 3 places x 4 tiers, place and tier name only.
+    #[test]
+    fn entry_danger_line_pins_place_and_tier_only() {
+        use crate::difficulty::TIERS;
+        let places = [PlaceId::Sanctuary, PlaceId::Heartwood, PlaceId::Depths];
+        let got: Vec<String> = places
+            .iter()
+            .flat_map(|&p| TIERS.map(|t| entry_danger_line(p, t)))
+            .collect();
+        assert_eq!(
+            got,
+            [
+                "Sanctuary · Sheltered",
+                "Sanctuary · Steady",
+                "Sanctuary · Sworn",
+                "Sanctuary · Unbroken",
+                "Heartwood · Sheltered",
+                "Heartwood · Steady",
+                "Heartwood · Sworn",
+                "Heartwood · Unbroken",
+                "Depths · Sheltered",
+                "Depths · Steady",
+                "Depths · Sworn",
+                "Depths · Unbroken",
+            ]
+        );
+        for line in &got {
+            let low = line.to_lowercase();
+            for w in [
+                "gold",
+                "market",
+                "xp",
+                "band",
+                "contested",
+                "wellsworn",
+                "oath",
+                "threshold",
+            ] {
+                assert!(!low.contains(w), "{line} says {w}");
+            }
+            assert!(!line.chars().any(|c| c.is_ascii_digit()), "{line}");
+            assert_eq!(line.matches(" · ").count(), 1, "{line}");
         }
     }
 }
