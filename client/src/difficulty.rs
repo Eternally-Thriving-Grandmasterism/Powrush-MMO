@@ -68,7 +68,9 @@ pub fn gate(tier: DifficultyTier, place: PlaceId, clears: u8, f: GateFacts) -> R
 }
 /// Per save: default tier, per-area override, tiers each area was cleared on, and a door pick for entry.
 #[derive(Resource, Debug, Default, Clone, PartialEq)]
-pub struct AreaDifficulty { pub default: DifficultyTier, pub area: [Option<DifficultyTier>; 3], pub clears: [u8; 3], pub pending: [Option<DifficultyTier>; 3] }
+pub struct AreaDifficulty { pub default: DifficultyTier, pub area: [Option<DifficultyTier>; 3], pub clears: [u8; 3], pub pending: [Option<DifficultyTier>; 3],
+    /// DIFFICULTY-REWARDS-1. This life stepped down from Unbroken here, so its in-progress Unbroken mark is gone.
+    pub stepped_down: [bool; 3] }
 impl AreaDifficulty {
     pub fn tier(&self, place: PlaceId) -> DifficultyTier {
         if place == PlaceId::Sanctuary { DifficultyTier::Sheltered } else { self.area[slot(place)].unwrap_or(self.default) }
@@ -80,10 +82,19 @@ impl AreaDifficulty {
             if !at_entry { return Err(PickError::StepUpOnlyAtEntry); }
             gate(tier, place, self.clears[slot(place)], f)?;
         }
+        let now = self.tier(place);
+        if tier < now && now == DifficultyTier::Unbroken { self.stepped_down[slot(place)] = true; } // never earned marks or XP
         self.area[slot(place)] = Some(tier);
         Ok(())
     }
-    pub fn record_clear(&mut self, place: PlaceId) { self.clears[slot(place)] |= self.tier(place).bit(); }
+    pub fn record_clear(&mut self, place: PlaceId) {
+        let t = self.tier(place);
+        if !(t == DifficultyTier::Unbroken && self.stepped_down[slot(place)]) { self.clears[slot(place)] |= t.bit(); }
+    }
+    /// A life runs from spawn or respawn to the next defeat; the defeat starts a fresh one.
+    pub fn new_life(&mut self) { self.stepped_down = [false; 3]; }
+    /// Earned area difficulty marks per area, read from `clears` (the saved earned state).
+    pub fn marks(&self) -> [Option<TierMark>; 3] { self.clears.map(TierMark::earned) }
     /// Door picker: the next tier that is lower (lands now) or unlocked (lands on entry).
     pub fn cycle_at_door(&mut self, place: PlaceId, f: GateFacts) {
         for t in (1..=4).map(|n| TIERS[(self.shown(place) as usize + n) % 4]) {
@@ -100,8 +111,45 @@ impl AreaDifficulty {
     pub fn from_save(default: Option<u8>, area: Option<[u8; 3]>, clears: Option<[u8; 3]>) -> Self {
         let tier = |n: u8| TIERS.get(n as usize).copied();
         let area = area.unwrap_or_default().map(|n| n.checked_sub(1).and_then(tier));
-        Self { default: default.and_then(tier).unwrap_or_default(), area, clears: clears.unwrap_or_default(), pending: [None; 3] }
+        Self { default: default.and_then(tier).unwrap_or_default(), area, clears: clears.unwrap_or_default(), pending: [None; 3], stepped_down: [false; 3] }
     }
+}
+/// DIFFICULTY-REWARDS-1. Combat XP per tier in integer percent, and its hard max.
+pub const COMBAT_XP_PCT: [u32; 4] = [100, 115, 130, 150];
+pub const XP_HARD_MAX_PCT: u32 = 175;
+const _: () = {
+    let mut i = 0;
+    while i < 4 { assert!(COMBAT_XP_PCT[i] >= 100 && COMBAT_XP_PCT[i] <= XP_HARD_MAX_PCT); i += 1; }
+    assert!(COMBAT_XP_PCT[0] == 100);
+};
+/// Never below x1.00 (Sheltered is never reduced), never above the hard max.
+pub const fn clamp_xp_pct(pct: u32) -> u32 { if pct > XP_HARD_MAX_PCT { XP_HARD_MAX_PCT } else if pct < 100 { 100 } else { pct } }
+/// One combat gain on this tier, rounded half up: 10 -> 10/12/13/15.
+pub const fn combat_xp(tier: DifficultyTier, base: u32) -> u32 { (base * clamp_xp_pct(COMBAT_XP_PCT[tier as usize]) + 50) / 100 }
+/// Inactive drop data until LOOT-DROPS-1. Nothing reads these outside tests.
+pub const DROP_CHANCE_PCT: [u32; 4] = [100, 115, 130, 150];
+pub const DROP_CHANCE_MAX: f32 = 0.95;
+pub const DROP_QTY_PCT: [u32; 4] = [100, 100, 125, 150];
+pub const DROP_QTY_HARD_MAX_PCT: u32 = 200;
+pub const DROP_QUALITY_STEPS: [u8; 4] = [0, 1, 2, 3];
+pub const UNBROKEN_COSMETIC_ONLY_POOL: bool = true;
+const _: () = {
+    let mut i = 0;
+    while i < 4 { assert!(DROP_QTY_PCT[i] >= 100 && DROP_QTY_PCT[i] <= DROP_QTY_HARD_MAX_PCT && DROP_CHANCE_PCT[i] <= XP_HARD_MAX_PCT); i += 1; }
+};
+pub fn drop_chance(tier: DifficultyTier, base: f32) -> f32 { (base.max(0.0) * DROP_CHANCE_PCT[tier as usize] as f32 / 100.0).min(DROP_CHANCE_MAX) }
+pub const fn clamp_qty_pct(pct: u32) -> u32 { if pct > DROP_QTY_HARD_MAX_PCT { DROP_QTY_HARD_MAX_PCT } else if pct < 100 { 100 } else { pct } }
+pub const fn drop_qty_at(pct: u32, base: u32) -> u32 { let q = (base * clamp_qty_pct(pct) + 50) / 100; if q < 1 { 1 } else { q } }
+pub const fn drop_qty(tier: DifficultyTier, base: u32) -> u32 { drop_qty_at(DROP_QTY_PCT[tier as usize], base) }
+/// Earned by clearing an area on Sworn or Unbroken. Player copy: "area difficulty mark".
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum TierMark { Sworn, Unbroken }
+impl TierMark {
+    pub const COPY: &'static str = "area difficulty mark";
+    pub const fn earned(clears: u8) -> Option<Self> {
+        if clears & DifficultyTier::Unbroken.bit() != 0 { Some(Self::Unbroken) } else if clears & DifficultyTier::Sworn.bit() != 0 { Some(Self::Sworn) } else { None }
+    }
+    pub fn line(self) -> String { format!("{}: {}", Self::COPY, if self == Self::Sworn { "Sworn" } else { "Unbroken" }) }
 }
 pub fn row_line(tier: DifficultyTier, at_door: bool) -> String {
     let hint = if at_door { "press to choose for entry" } else { "press to lower" };
@@ -220,5 +268,37 @@ mod tests {
             assert_eq!((s.reduced_motion, &s.colorblind_wells, s.key_use.display_label()), (before.reduced_motion, &before.colorblind_wells, before.key_use.display_label()));
             assert_eq!(crate::local_settings::LocalUiFeel::from_settings(&s).text_scale, ui.text_scale);
         }
+    }
+
+    #[test]
+    fn rewards_combat_xp_per_tier_and_hard_max() {
+        assert_eq!(TIERS.map(|t| combat_xp(t, 10)), [10, 12, 13, 15]);
+        assert_eq!(combat_xp(Sheltered, 10), 10);
+        assert_eq!((clamp_xp_pct(176), clamp_xp_pct(500), clamp_xp_pct(175), clamp_xp_pct(50)), (175, 175, 175, 100));
+        assert!(COMBAT_XP_PCT.iter().all(|&p| (100..=XP_HARD_MAX_PCT).contains(&p)));
+    }
+    #[test]
+    fn rewards_drop_data_clamps() {
+        for t in TIERS {
+            assert!((0..=20).all(|n| drop_chance(t, n as f32 / 10.0) <= 0.95));
+            assert!((0..=50).all(|b| drop_qty(t, b) >= 1 && drop_qty(t, b) <= (2 * b).max(1)));
+        }
+        assert_eq!((drop_qty_at(400, 10), drop_qty_at(0, 0), drop_qty(Unbroken, 2), drop_qty(Sworn, 4)), (20, 1, 3, 5));
+        assert_eq!((DROP_QUALITY_STEPS, UNBROKEN_COSMETIC_ONLY_POOL), ([0, 1, 2, 3], true));
+    }
+    #[test]
+    fn rewards_step_down_clears_only_this_lifes_unbroken_mark() {
+        let mut d = AreaDifficulty { area: [None, Some(Unbroken), None], clears: [0, Sworn.bit(), 0], ..Default::default() };
+        assert_eq!(d.marks()[slot(H)], Some(TierMark::Sworn));
+        d.pick(H, Sworn, false, HIGH).unwrap();
+        d.pick(H, Unbroken, true, HIGH).unwrap();
+        d.record_clear(H);
+        assert_eq!(d.marks()[slot(H)], Some(TierMark::Sworn), "stepped down this life: no Unbroken mark, earned Sworn mark kept");
+        d.new_life();
+        d.record_clear(H);
+        assert_eq!(d.marks()[slot(H)], Some(TierMark::Unbroken));
+        d.pick(H, Sheltered, false, HIGH).unwrap();
+        assert_eq!(d.marks()[slot(H)], Some(TierMark::Unbroken), "stepping down never removes an earned mark");
+        assert!(TierMark::Unbroken.line() == "area difficulty mark: Unbroken");
     }
 }

@@ -306,6 +306,19 @@ mod tests {
     }
 
     #[test]
+    fn old_save_loads_no_area_difficulty_marks() {
+        let temp = TempSession::new("tier_marks");
+        fs::write(&temp.path, r#"{"schema":"powrush_local_session_v1","vitality":1.0,"harmony":0.0,"joy":0.0,"harvests":0,"tends":0,"realm":0,"first_harvest_lived":false,"whisper_lived":false,"area_clears":[1,3,1]}"#).unwrap();
+        let a = load_blob_at(&temp.path).unwrap();
+        assert_eq!(AreaDifficulty::from_save(a.difficulty, a.area_difficulty, a.area_clears).marks(), [None; 3]);
+        let d = AreaDifficulty { clears: [0, 4, 9], ..Default::default() };
+        save_blob_at(&temp.path, &SessionBlob { area_clears: Some(d.to_save().2), ..Default::default() });
+        let b = load_blob_at(&temp.path).unwrap();
+        assert_eq!(AreaDifficulty::from_save(b.difficulty, b.area_difficulty, b.area_clears).marks(), d.marks());
+        assert_eq!((b.schema.as_str(), d.marks()[1].map(|m| m.line())), ("powrush_local_session_v1", Some("area difficulty mark: Sworn".into())));
+    }
+
+    #[test]
     fn blob_keeps_trust() {
         let blob = SessionBlob {
             companion_trust: 0.62,
