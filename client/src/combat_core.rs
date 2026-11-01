@@ -27,7 +27,7 @@ use crate::rbe_allocate_choice::RbeAllocateChoice;
 use crate::skill_xp::{level_up_line, SkillXp, COMBAT};
 use crate::soft_play_bindings::{FIRE, FIRE_PAD};
 use crate::title_screen::{HouseLabel, LaunchDoor};
-use crate::difficulty::{cue_line, enemy_hit, hides_cues, tell_onset, AreaDifficulty, DifficultyTier};
+use crate::difficulty::{combat_xp, cue_line, enemy_hit, hides_cues, tell_onset, AreaDifficulty, DifficultyTier};
 use shared::peace_audio::{audio_output_safe, STING_ASSET};
 
 pub const PREDATOR_NAME: &str = "[NAME TBD]";
@@ -229,13 +229,18 @@ pub fn land_hit(combat: &mut CombatState, skills: &mut SkillXp, reach: bool) -> 
 
 /// TOTAL-LEVEL-2 — `land_hit` plus the COMBAT level crossing from `gain`.
 pub fn land_hit_crossing(combat: &mut CombatState, skills: &mut SkillXp, reach: bool) -> (bool, Option<u32>) {
+    land_hit_on(combat, skills, reach, DifficultyTier::Sheltered)
+}
+
+/// DIFFICULTY-REWARDS-1 — `land_hit_crossing` on a tier: only the paid XP scales, the cap still counts hits.
+pub fn land_hit_on(combat: &mut CombatState, skills: &mut SkillXp, reach: bool, tier: DifficultyTier) -> (bool, Option<u32>) {
     if !reach || combat.predator_taken >= HEALTH {
         return (false, None);
     }
     combat.predator_taken = combat.predator_taken.saturating_add(HIT).min(HEALTH);
     if skills.combat_day_hits < crate::skill_xp::COMBAT_PAYING_HITS_PER_DAY {
         skills.combat_day_hits += 1;
-        (true, skills.gain(COMBAT, XP_PER_LANDED_HIT))
+        (true, skills.gain(COMBAT, combat_xp(tier, XP_PER_LANDED_HIT)))
     } else {
         (true, None) // COMBAT-XP-PACE-1: past the daily cap `gain` never runs
     }
@@ -447,7 +452,7 @@ pub fn combat_fire(
     if run {
         combat.strikes = combat.strikes.wrapping_add(1);
         let before = skills.xp[COMBAT];
-        let (hit, level) = land_hit_crossing(&mut combat, &mut skills, reach);
+        let (hit, level) = land_hit_on(&mut combat, &mut skills, reach, tier);
         if let (true, Some(mut diff)) = (hit && combat.predator_taken >= HEALTH, diff) {
             diff.record_clear(travel.current); // DIFFICULTY-TIERS-1: the predator defeat clears this area
         }
@@ -484,12 +489,12 @@ fn predator_lunge(
     mut combat: ResMut<CombatState>,
     mut epi: Option<ResMut<FirstHarvestEpiphany>>,
     mut shown: Query<&mut Visibility, With<Predator>>,
-    diff: Option<Res<AreaDifficulty>>,
+    mut diff: Option<ResMut<AreaDifficulty>>,
 ) {
     let (Some(travel), Some(mut presence)) = (travel, presence) else {
         return;
     };
-    let tier = diff.map_or(DifficultyTier::Sheltered, |d| d.tier(travel.current));
+    let tier = diff.as_deref().map_or(DifficultyTier::Sheltered, |d| d.tier(travel.current));
     let show = combat.predator_taken < HEALTH && predator_present(travel.current);
     for mut vis in &mut shown {
         vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
@@ -498,6 +503,7 @@ fn predator_lunge(
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
     if predator_tick(&mut combat, time.delta_secs(), reach, tier) {
         reseat_on_defeat(&mut combat, &mut presence);
+        if let Some(d) = diff.as_mut() { d.new_life(); } // DIFFICULTY-REWARDS-1: the defeat ends this life
         if let Some(epi) = epi.as_mut() {
             set_pulse(epi, wake_cue(), time.elapsed_secs_f64() + CUE_SECS);
         }
@@ -1207,5 +1213,25 @@ mod tests {
         }
         let low = LUNGE_TELL_TEXT.to_lowercase();
         assert!(["loot", "instance", "heroic", "mythic", "rebirth", "outrider", "online"].iter().all(|w| !low.contains(w)));
+    }
+
+    #[test]
+    fn rewards_unbroken_day_pays_300_and_hit_21_nothing() {
+        let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+        assert_eq!(crate::skill_xp::COMBAT_PAYING_HITS_PER_DAY, 20);
+        for _ in 0..20 {
+            c.predator_taken = 0;
+            assert!(land_hit_on(&mut c, &mut s, true, DifficultyTier::Unbroken).0);
+        }
+        assert_eq!(s.xp[COMBAT], 300);
+        c.predator_taken = 0;
+        assert!(land_hit_on(&mut c, &mut s, true, DifficultyTier::Unbroken).0 && s.xp[COMBAT] == 300, "hit 21 pays nothing");
+        let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+        land_hit_on(&mut c, &mut s, true, DifficultyTier::Sheltered);
+        assert_eq!(s.xp[COMBAT], 10, "Sheltered is exactly x1.00");
+        let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+        s.xp[COMBAT] = crate::skill_xp::XP_CAP - 5;
+        land_hit_on(&mut c, &mut s, true, DifficultyTier::Unbroken);
+        assert_eq!(s.xp[COMBAT], crate::skill_xp::XP_CAP, "XP_CAP still clamps");
     }
 }
