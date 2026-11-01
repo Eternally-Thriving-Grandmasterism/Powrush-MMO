@@ -404,7 +404,7 @@ pub fn combat_fire(
         Option<Res<HumanInventory>>,
         Option<Res<HumanSoftPanels>>,
     ),
-    (buffer, fixed): (Option<ResMut<StrikeBuffer>>, Option<Res<Time<Fixed>>>),
+    (buffer, fixed, diff): (Option<ResMut<StrikeBuffer>>, Option<Res<Time<Fixed>>>, Option<ResMut<crate::difficulty::AreaDifficulty>>),
 ) {
     let fire = buttons.is_some_and(|b| b.just_pressed(FIRE))
         || gamepads.iter().any(|g| g.just_pressed(FIRE_PAD));
@@ -445,6 +445,9 @@ pub fn combat_fire(
         combat.strikes = combat.strikes.wrapping_add(1);
         let before = skills.xp[COMBAT];
         let (hit, level) = land_hit_crossing(&mut combat, &mut skills, reach);
+        if let (true, Some(mut diff)) = (hit && combat.predator_taken >= HEALTH, diff) {
+            diff.record_clear(travel.current); // DIFFICULTY-TIERS-1: the predator defeat clears this area
+        }
         let gained = skills.xp[COMBAT].saturating_sub(before);
         if let (Some(line), Some(epi)) = (fire_line(travel.current, &combat, hit, gained, level), epi.as_mut()) {
             set_pulse(epi, line, now + CUE_SECS);

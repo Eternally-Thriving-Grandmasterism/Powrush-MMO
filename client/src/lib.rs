@@ -68,6 +68,7 @@ pub mod water;
 pub mod living_body;
 pub mod skill_xp;
 pub mod combat_core;
+pub mod difficulty;
 pub mod grazer;
 pub mod droid;
 pub mod living_freshness;
@@ -210,6 +211,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(feel_move::FeelMovePlugin);
         app.add_plugins(human_inventory::HumanInventoryPlugin);
         app.add_plugins(local_session_persist::LocalSessionPersistPlugin);
+        app.add_plugins(difficulty::DifficultyPlugin);
         app.add_plugins(skill_xp::SkillXpPlugin);
         app.add_plugins(combat_core::CombatCorePlugin);
         app.add_plugins(grazer::GrazerPlugin);
