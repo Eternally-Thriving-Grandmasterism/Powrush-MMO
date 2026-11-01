@@ -438,6 +438,14 @@ Jump is part of the dodge. Air time 0.4 s. Landing recovery 0.15 s. Height 1.2 m
 
 Hard crowd control diminishes. The second hard control inside 8 s lasts half as long. The third grants immunity for 8 s.
 
+**Control and fairness budget (CC-BUDGET-1).** These lines add to the law above and change none of it. The telegraph rule stays at :433 and diminishing hard control at :439. Healing limits stay in §15, in the Ration bar and Nano-medkit rows.
+
+- **Per-fight control cap.** One fight holds a player under hard control for at most 4 s in total. Design target, untuned. Enemy cards cite this line, and tuning moves it in §22.
+- **Readable tells (target).** Each tell should clear the 3.0 contrast floor against its place's fog and sky. This is a target, not a claim. The LOOK-READABILITY-1 snapshot in `client/src/climate_plane.rs` (:5556-5593) never asserts that floor (:5565) and pins 14 pairs below it today (:5586-5591), including the predator against fog or sky in Threshold, Heartwood and Depths. Fixing them is READABILITY-2 work.
+- **Skill pays.** A dodged tell is a clean outcome, with no hidden penalty, no leftover control and no catch-up hit. Skilled play earns clearly more than half-hearted play through the tier rewards of DIFFICULTY-REWARDS-1, not through new control numbers.
+- **Cleared stays cleared.** A cleared area stays visibly cleared until it respawns. Today the predator returns after `PREDATOR_RESPAWN_SECS` (`client/src/combat_core.rs:48`), and the RESPAWN-TELL-1 pillar marks the last stretch (:96-97). No cleared state is drawn yet. That gap is banked as CLEARED-STATE-1.
+- **Defeat reset.** `reseat_on_defeat` (`client/src/combat_core.rs:276-283`) returns the player to the entrance at full health. It is a defeat reset, not a combat heal, and §15's limits do not apply to it.
+
 ### 14.2 Role kits
 
 Kits are chosen at a match terminal, or carried as a crafted tool in the world. They are not a Title class lobby and not a race lobby (`docs/GDD_IMMERSION_REVISION.md` §4). Five kits, four shots each. Damage numbers are against 200 health.
