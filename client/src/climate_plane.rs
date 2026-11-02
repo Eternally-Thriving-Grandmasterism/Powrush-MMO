@@ -210,7 +210,7 @@ const SANCTUARY_YARD_ROUGHNESS: f32 = 0.90;
 /// ART_BIBLE HANDS Heartwood accent — amber lamp (not Sanctuary warm-gold,
 /// not currency gold). Climate owns its copy so this file stays the only F2
 /// edit path.
-const HEARTWOOD_AMBER_LAMP: Color = Color::srgb(0.91, 0.59, 0.27);
+pub(crate) const HEARTWOOD_AMBER_LAMP: Color = Color::srgb(0.91, 0.59, 0.27);
 
 /// Shared living-wood roughness for Heartwood ground + ring path stones
 /// (one material family — PLACE_DRESS_SPEC).
