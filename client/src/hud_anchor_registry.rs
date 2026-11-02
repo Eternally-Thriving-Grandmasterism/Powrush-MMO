@@ -1163,6 +1163,29 @@ mod tests {
         }
     }
 
+    /// HUD-CENTRE-GAP-1 — disclosed gaps, not passes: each ACTION_BAR occupant's px² inside the
+    /// centre-50% box (HR3a council default, Sherif may veto). ACTION_BAR is Yield (:53/:167), so one shows at a time.
+    #[test]
+    fn action_bar_centre_box_overlap_pinned_as_gap() {
+        let sizes = [(1024.0_f32, 640.0_f32), (1280.0, 800.0), (1920.0, 1080.0), (2560.0, 1440.0)];
+        let pins: [(&str, [i32; 4]); 4] = [
+            // CareStrip: gap at 1024x640 and 1280x800, clear from 1920x1080.
+            (ID_CARE_STRIP, [14720, 1536, 0, 0]),
+            // CarePrompt: gap at 1024x640, clear at 1280x800 (edge only, y0 600), clear from 1920x1080.
+            (ID_CARE_PROMPT, [8800, 0, 0, 0]),
+            // Guidance: gap at 1024x640 and 1280x800, clear from 1920x1080.
+            (ID_GUIDANCE, [14840, 2808, 0, 0]),
+            // Practice: gap at 1024x640 and 1280x800, clear from 1920x1080.
+            (ID_PRACTICE, [19200, 2688, 0, 0]),
+        ];
+        for (id, want) in pins {
+            for (i, (w, h)) in sizes.into_iter().enumerate() {
+                let centre = rect((w / 4.0) as i32, (h / 4.0) as i32, (w * 0.75) as i32, (h * 0.75) as i32);
+                assert_eq!(ACTION_BAR.occupant_rect(id, w, h).overlap_area(centre), want[i], "{id} at {w}x{h}");
+            }
+        }
+    }
+
     #[test]
     fn six_moves_land_on_design_2_5_rects() {
         let cases = [
