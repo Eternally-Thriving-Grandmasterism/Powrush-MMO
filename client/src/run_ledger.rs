@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use serde::{Deserialize, Deserializer};
 use shared::hex_travel::PlaceId;
 use crate::combat_core::{in_reach, predator_present, tell_visible, CombatState, HEALTH};
-use crate::difficulty::{slot, AreaDifficulty, DifficultyTier, RunModifier};
+use crate::difficulty::{clamp_xp_pct, combat_xp, slot, AreaDifficulty, DifficultyTier, RunModifier, COMBAT_XP_PCT};
 use crate::droid::{droid_in_reach, shot_armed, shot_tell_visible, DroidState};
 use crate::{hex_travel::HexTravelState, human_presence::SoftPresence, title_screen::LaunchDoor};
 /// One best row: `[clear_ms, damage_taken, tells_dodged]`. `clear_ms == 0` means no row yet.
@@ -73,7 +73,7 @@ fn watch_runs(time: Res<Time>, door: Option<Res<LaunchDoor>>, (travel, presence)
 }
 pub struct RunLedgerPlugin;
 impl Plugin for RunLedgerPlugin {
-    fn build(&self, app: &mut App) { app.init_resource::<RunLedger>().add_systems(Update, watch_runs); }
+    fn build(&self, app: &mut App) { app.init_resource::<RunLedger>().add_systems(Update, watch_runs.after(crate::combat_core::combat_fire)); }
 }
 /// RUN-LEDGER-REWARD-1. Skill curve steepness `a`; proposed, card-gated.
 pub const SKILL_CURVE_A: f32 = 3.0;
@@ -130,6 +130,14 @@ pub fn skill_premium(tier: DifficultyTier, row: RunRow, mods: &[RunModifier]) ->
 /// Earned XP and materials only; never loot rarity, the vendor ceiling, the upgrade meter or Lumen. Not wired.
 pub fn premium_xp_pct(clamped_pct: u32, premium: f32) -> f32 {
     clamped_pct as f32 * premium.clamp(1.0, SKILL_PREMIUM_MAX)
+}
+/// RUN-LEDGER-LIVE-1. Council wording, Sherif may veto (the 2.5x figure too); off until his own yes.
+pub const SKILL_PREMIUM_LIVE: bool = false;
+/// One paid combat gain. Off or no stored best: exactly `combat_xp`. On: premium on the clamped pct, floored, never below `combat_xp`.
+pub fn premium_paid(tier: DifficultyTier, base: u32, row: Option<RunRow>, live: bool) -> u32 {
+    let today = combat_xp(tier, base);
+    let Some(r) = row.filter(|_| live) else { return today };
+    ((base as f32 * premium_xp_pct(clamp_xp_pct(COMBAT_XP_PCT[tier as usize]), skill_premium(tier, r, &[])) / 100.0) as u32).max(today)
 }
 
 #[cfg(test)]
@@ -226,5 +234,24 @@ mod tests {
         }
         assert_eq!(stacked_xp_pct(Unbroken, &[]), 150);
         assert!(premium_xp_pct(stacked_xp_pct(Unbroken, &[]), skill_premium(Unbroken, [1, 0, 1000], &[])) > XP_HARD_MAX_PCT as f32, "own bucket");
+    }
+    #[test]
+    fn premium_paid_off_is_today_and_on_floors_the_premium() {
+        const _: () = assert!(!SKILL_PREMIUM_LIVE, "ships off until Sherif's own yes");
+        for t in TIERS4 {
+            for row in [None, Some([0, 0, 0]), Some([90_000, 50, 2]), Some([1, 0, 1000])] {
+                assert_eq!(premium_paid(t, 10, row, SKILL_PREMIUM_LIVE), combat_xp(t, 10), "{t:?}: off is byte-identical");
+            }
+            assert_eq!(premium_paid(t, 10, None, true), combat_xp(t, 10), "{t:?}: no stored best pays today");
+            for r in [[0, 0, 0], [90_000, 50, 2], [1, 0, 1000]] {
+                let on = (10.0 * premium_xp_pct(clamp_xp_pct(COMBAT_XP_PCT[t as usize]), skill_premium(t, r, &[])) / 100.0) as u32;
+                assert_eq!(premium_paid(t, 10, Some(r), true), on.max(combat_xp(t, 10)), "{t:?} {r:?}: parity");
+                assert!(premium_paid(t, 10, Some(r), true) >= premium_paid(t, 10, Some(r), false), "{t:?} {r:?}: CT7 on never below off");
+            }
+            assert_eq!(premium_paid(t, 10, Some([0, 0, 0]), true), combat_xp(t, 10), "{t:?}: CT7 a 1.0 premium pays exactly today");
+        }
+        let raw = 3.0 * premium_xp_pct(100, skill_premium(Sheltered, [1, 0, 1000], &[])) / 100.0;
+        assert!(raw > 3.5 && raw < 4.0 && premium_paid(Sheltered, 3, Some([1, 0, 1000]), true) == 3, "floor, never round up");
+        assert_eq!(premium_paid(Unbroken, 10, Some([1, 0, 1000]), true), 37, "10 x 375% = 37.5 floors to 37");
     }
 }
