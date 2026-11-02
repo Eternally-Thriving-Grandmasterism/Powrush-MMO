@@ -5550,15 +5550,15 @@ mod tests {
     }
 
     /// CARD LOOK-READABILITY-1 (RR3) — test copy of the neutral lunge ring literal
-    /// at `combat_core.rs:358` and `droid.rs:111` (RING-CONST-1 banked).
+    /// at `combat_core.rs:369` and `droid.rs:111` (RING-CONST-1 banked).
     const RR_RING: Color = Color::srgb(0.86, 0.85, 0.82);
 
     /// CARD LOOK-READABILITY-1 (RR5, CL-R3) — snapshot of every tell x place
     /// contrast ratio, pinned +/-0.02 so colour drift fails loudly. Columns:
     /// PREDATOR_COLOR, FLASH_COLOR, ring, the place's own `look.node`; rows: each
     /// place's base `look.fog` then `look.sky` (presets collapse to 1; mood and
-    /// weather tints are READABILITY-2). `FLOOR` only feeds the pinned
-    /// below-floor list; it is never asserted, so known fails land as data.
+    /// weather tints are READABILITY-2). `FLOOR` feeds the pinned below-floor
+    /// list and the live-tell asserts below; known non-live fails land as data.
     #[test]
     fn look_readability_tell_contrast_snapshot_and_below_floor_list() {
         use crate::combat_core::{FLASH_COLOR, PREDATOR_COLOR};
@@ -5583,7 +5583,7 @@ mod tests {
                 }
             }
         }
-        // Sanctuary predator cells are not live: predator_present (combat_core.rs:184-186) is Heartwood-only.
+        // Sanctuary predator cells are not live: predator_present (combat_core.rs:196-198) is Heartwood-only.
         // Sanctuary node fog/sky: honest known gap; a passing node would be dark bronze, failing
         // is_warm_gold_well and the well > earth + 0.25 law, so SANCTUARY_WELL_GOLD stays.
         let want_below = [
