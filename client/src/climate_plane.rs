@@ -5558,7 +5558,7 @@ mod tests {
     /// PREDATOR_COLOR, FLASH_COLOR, ring, the place's own `look.node`; rows: each
     /// place's base `look.fog` then `look.sky` (presets collapse to 1; mood and
     /// weather tints are READABILITY-2). `FLOOR` feeds the pinned below-floor
-    /// list and the live-tell asserts below; known non-live fails land as data.
+    /// list and the live-tell asserts below; known fails land as data.
     #[test]
     fn look_readability_tell_contrast_snapshot_and_below_floor_list() {
         use crate::combat_core::{FLASH_COLOR, PREDATOR_COLOR};
