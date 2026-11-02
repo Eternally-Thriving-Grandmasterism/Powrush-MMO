@@ -74,6 +74,8 @@ pub const LUNGE_TELL_DOT_HEIGHT: f32 = 0.02;
 /// Ground y: the capsule foot is y 0 (Capsule3d::new(0.35, 0.9) at y 0.8, :215/:217),
 /// plus the heartwood_lip.rs:199 lift.
 pub const LUNGE_TELL_LIFT: f32 = 0.01;
+/// RING-COLOR-CONST-1 — neutral colour of the lunge-tell ground ring (combat dots and droid).
+pub const LUNGE_TELL_COLOR: Color = Color::srgb(0.86, 0.85, 0.82);
 
 /// LUNGE-TELL-1 — one ground dot of the lunge telegraph.
 #[derive(Component)]
@@ -366,7 +368,7 @@ fn spawn_lunge_tell(
 ) {
     let mesh = meshes.add(Cylinder::new(LUNGE_TELL_DOT_RADIUS, LUNGE_TELL_DOT_HEIGHT));
     let material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.86, 0.85, 0.82),
+        base_color: LUNGE_TELL_COLOR,
         unlit: true,
         ..default()
     });

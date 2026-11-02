@@ -5549,8 +5549,7 @@ mod tests {
         (a.max(b) + 0.05) / (a.min(b) + 0.05)
     }
 
-    /// CARD LOOK-READABILITY-1 (RR3) — test copy of the neutral lunge ring literal
-    /// at `combat_core.rs:369` and `droid.rs:111` (RING-CONST-1 banked).
+    /// LOOK-READABILITY-1 (RR3) — pinned copy of the lunge ring colour, asserted equal to `LUNGE_TELL_COLOR`.
     const RR_RING: Color = Color::srgb(0.86, 0.85, 0.82);
 
     /// CARD LOOK-READABILITY-1 (RR5, CL-R3) — snapshot of every tell x place
@@ -5592,6 +5591,7 @@ mod tests {
             "Threshold sky node",
         ];
         assert_eq!(below, want_below, "below-floor list drifted");
+        assert_eq!(crate::combat_core::LUNGE_TELL_COLOR, RR_RING, "ring pin drifted from LUNGE_TELL_COLOR");
         let hw = look_for(Some(2));
         assert!(rr_ratio(PREDATOR_COLOR, hw.fog, 2) >= FLOOR && rr_ratio(PREDATOR_COLOR, hw.sky, 2) >= FLOOR, "live Heartwood predator under floor");
         // PATSAGi (2): the live Heartwood hit flash stays readable on fog and sky.

@@ -108,7 +108,7 @@ fn spawn_droid(mut cmd: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mats: Re
         (Visibility::Hidden, Droid, Name::new(DROID_NAME)),
     ));
     let mesh = meshes.add(Cylinder::new(LUNGE_TELL_DOT_RADIUS, LUNGE_TELL_DOT_HEIGHT));
-    let mat = mats.add(StandardMaterial { base_color: Color::srgb(0.86, 0.85, 0.82), unlit: true, ..default() });
+    let mat = mats.add(StandardMaterial { base_color: crate::combat_core::LUNGE_TELL_COLOR, unlit: true, ..default() });
     for at in droid_tell_ring(DROID_HOME) {
         cmd.spawn((Mesh3d(mesh.clone()), MeshMaterial3d(mat.clone()), Transform::from_translation(at)))
             .insert((Visibility::Hidden, DroidTell));
