@@ -72,6 +72,7 @@ pub mod difficulty;
 pub mod grazer;
 pub mod droid;
 pub mod run_ledger;
+pub mod loot_drops;
 pub mod living_freshness;
 pub mod living_day;
 pub mod companion_bond;
