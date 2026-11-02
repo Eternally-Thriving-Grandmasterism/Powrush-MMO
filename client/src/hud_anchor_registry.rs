@@ -96,8 +96,10 @@ pub const ID_GUIDANCE: &str = "Guidance";
 pub const ID_PRACTICE: &str = "Practice";
 pub const ID_VOICE: &str = "Voice";
 pub const ID_ALLOCATE: &str = "Allocate";
+/// HUD-LAYOUT-1. Data-only home for ABILITY-TOOLTIP-SHOW-1; no spawn, empty text slot.
+pub const ID_ABILITY_TIP: &str = "AbilityTip";
 
-const ACTION_BAR_OCCUPANTS: [HudOccupant; 4] = [
+const ACTION_BAR_OCCUPANTS: [HudOccupant; 5] = [
     HudOccupant {
         id: ID_CARE_STRIP,
         rank: 1,
@@ -125,6 +127,14 @@ const ACTION_BAR_OCCUPANTS: [HudOccupant; 4] = [
         class: 3,
         width: 640.0,
         height_b: 64.0,
+    },
+    // HUD-LAYOUT-1: 240x52 is council wording, Sherif may veto. Clears the centre-50% box and PULSE.
+    HudOccupant {
+        id: ID_ABILITY_TIP,
+        rank: 5,
+        class: 3,
+        width: 240.0,
+        height_b: 52.0,
     },
 ];
 
@@ -189,7 +199,7 @@ pub const ALLOCATE_DOCK: HudAnchor = HudAnchor {
 pub const ANCHORS: &[HudAnchor] = &[ACTION_BAR, VOICE, ALLOCATE_DOCK];
 
 /// Bumped when slab ids, classes, or preset tables change. Step 4a is rev 1.
-pub const HUD_REGISTRY_REV: u32 = 1;
+pub const HUD_REGISTRY_REV: u32 = 2;
 
 /// §6.2 / Q20. Snap onto this screen margin when an edge is within it.
 const SNAP_MARGIN_PX: i32 = 16;
@@ -669,6 +679,11 @@ impl HudAnchor {
         Val::Px(self.offset.x)
     }
 
+    /// HUD-LAYOUT-1. Pure: the ability tip home. Fixed px size, edges follow the viewport.
+    pub fn ability_tip_rect(view_w: f32, view_h: f32) -> HudRect {
+        ACTION_BAR.occupant_rect(ID_ABILITY_TIP, view_w, view_h)
+    }
+
     pub fn occupant_rect(&self, id: &str, view_w: f32, view_h: f32) -> HudRect {
         let occupant = self.occupant(id);
         assert_eq!(
@@ -1109,6 +1124,7 @@ mod tests {
                 (ID_CARE_PROMPT, 2, 2),
                 (ID_GUIDANCE, 3, 3),
                 (ID_PRACTICE, 4, 3),
+                (ID_ABILITY_TIP, 5, 3),
             ]
         );
         assert_eq!(ACTION_BAR.occupant(ID_CARE_STRIP).width, 560.0);
@@ -1131,6 +1147,20 @@ mod tests {
         assert_eq!(ALLOCATE_DOCK.class, 1);
         assert_eq!(ALLOCATE_DOCK.share, HudShare::Solo);
         assert_eq!(ALLOCATE_DOCK.occupant(ID_ALLOCATE).height_b, 135.0);
+    }
+
+    #[test]
+    fn ability_tip_rect_clears_pulse_and_centre_box() {
+        assert_eq!(HudAnchor::ability_tip_rect(1024.0, 640.0), rect(768, 444, 1008, 496));
+        assert_eq!(HudAnchor::ability_tip_rect(1920.0, 1080.0), rect(1664, 884, 1904, 936));
+        assert_eq!(HudAnchor::ability_tip_rect(2560.0, 1440.0), rect(2304, 1244, 2544, 1296));
+        for (w, h) in [(1024.0_f32, 640.0_f32), (1280.0, 800.0), (1920.0, 1080.0), (2560.0, 1440.0)] {
+            let tip = HudAnchor::ability_tip_rect(w, h);
+            let centre = rect((w / 4.0) as i32, (h / 4.0) as i32, (w * 0.75) as i32, (h * 0.75) as i32);
+            assert_eq!(tip.overlap_area(PULSE.rect(w, h)), 0, "PULSE at {w}x{h}");
+            assert_eq!(tip.overlap_area(centre), 0, "centre box at {w}x{h}");
+            assert!(tip.x0 >= 0 && tip.y0 >= 0 && tip.x1 <= w as i32 && tip.y1 <= h as i32, "on screen at {w}x{h}");
+        }
     }
 
     #[test]
@@ -1620,7 +1650,7 @@ mod tests {
 
     #[test]
     fn snap_to_sixteen_px_margin_on_all_four_screen_edges() {
-        assert_eq!(HUD_REGISTRY_REV, 1);
+        assert_eq!(HUD_REGISTRY_REV, 2);
         for (view_w, view_h) in [(1024.0_f32, 640.0_f32), (1280.0, 800.0)] {
             let view_w_px = view_w.round() as i32;
             let view_h_px = view_h.round() as i32;
