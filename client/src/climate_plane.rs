@@ -5608,6 +5608,22 @@ mod tests {
             "flash vs body {flash_body:.3}, pinned at measured 2.179"
         );
     }
+
+    /// CARD READABILITY-2 (RB4-RB7, CE1-CE3) — graded base-colour proxy for the CLEARED-STATE-1 disc
+    /// (`HEARTWOOD_AMBER_LAMP`, unlit, combat_core.rs:413) on what lies behind it: the Heartwood
+    /// ground (:297) and path stones (:302). Ground is lit, disc unlit: not on-screen truth; capture
+    /// stays with the playtester run. Fog is already pinned via the node colour (:5569, 4.05;
+    /// floor asserted :5604); the sky is never behind the flat disc, so no sky pair.
+    #[test]
+    fn readability_cleared_disc_on_heartwood_ground_and_stone() {
+        const FLOOR: f32 = 3.0;
+        let hw = look_for(Some(2));
+        for (bg_name, bg, pinned) in [("ground", hw.ground, 6.22), ("stone", hw.stone, 4.69)] {
+            let r = rr_ratio(HEARTWOOD_AMBER_LAMP, bg, 2);
+            assert!(r >= FLOOR, "cleared disc on Heartwood {bg_name} under floor: {r:.3}");
+            assert!((r - pinned).abs() <= 0.02, "cleared disc on {bg_name}: {r:.3} vs pinned {pinned}");
+        }
+    }
 }
 
 #[cfg(test)]
