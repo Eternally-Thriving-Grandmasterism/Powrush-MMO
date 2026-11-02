@@ -75,6 +75,51 @@ pub struct RunLedgerPlugin;
 impl Plugin for RunLedgerPlugin {
     fn build(&self, app: &mut App) { app.init_resource::<RunLedger>().add_systems(Update, watch_runs); }
 }
+/// RUN-LEDGER-REWARD-1. Skill curve steepness `a`; proposed, card-gated.
+pub const SKILL_CURVE_A: f32 = 3.0;
+/// Dodge saturation `k` in `1 - exp(-dodged / k)`; proposed, card-gated.
+pub const DODGE_K: f32 = 3.0;
+/// Weight of the time term; proposed, card-gated.
+pub const W_TIME: f32 = 0.40;
+/// Weight of the damage term; proposed, card-gated.
+pub const W_DAMAGE: f32 = 0.40;
+/// Weight of the dodge term; proposed, card-gated.
+pub const W_DODGE: f32 = 0.20;
+/// Par clear time in ms; a clear at or under par scores time 1. Proposed, card-gated.
+pub const RUN_PAR_MS: u32 = 60_000;
+/// Skill multiplier ceiling per `DifficultyTier as usize`; proposed, card-gated.
+pub const SKILL_CAP: [f32; 4] = [1.08, 1.12, 1.14, 1.16];
+pub fn skill_cap(tier: DifficultyTier) -> f32 {
+    SKILL_CAP[tier as usize]
+}
+/// Skill score in [0, 1]: weighted time, damage and saturating dodge terms. No row scores 0.
+pub fn skill_score(row: RunRow) -> f32 {
+    if row[0] == 0 {
+        return 0.0;
+    }
+    let time = (RUN_PAR_MS as f64 / row[0] as f64).min(1.0);
+    let damage = 1.0 - row[1].min(HEALTH) as f64 / HEALTH as f64;
+    let dodge = 1.0 - (-(row[2] as f64) / DODGE_K as f64).exp();
+    (W_TIME as f64 * time + W_DAMAGE as f64 * damage + W_DODGE as f64 * dodge).clamp(0.0, 1.0)
+        as f32
+}
+fn skill_curve(cap: f32, s: f32) -> f32 {
+    let a = SKILL_CURVE_A as f64;
+    let m = 1.0 + (cap as f64 - 1.0) * ((a * s as f64).exp() - 1.0) / (a.exp() - 1.0);
+    (m as f32).clamp(1.0, cap)
+}
+/// Convex skill multiplier in [1.0, skill_cap(tier)]; a `clear_ms == 0` row is exactly 1.0.
+/// Inactive: nothing reads it. Tier is a ceiling only, never a flat bonus. The wiring card
+/// RUN-LEDGER-WIRE-1 (banked) owns composition with COMBAT_XP_PCT and must decide whether the
+/// skill premium sits under clamp_xp_pct / XP_HARD_MAX_PCT 175 (additive vs multiplicative) or
+/// gets its own bounded bucket, and may retune the caps. Clerk: multiplicative at Unbroken
+/// leaves about 1.167 of headroom.
+pub fn skill_mult(tier: DifficultyTier, row: RunRow) -> f32 {
+    if row[0] == 0 {
+        return 1.0;
+    }
+    skill_curve(skill_cap(tier), skill_score(row))
+}
 
 #[cfg(test)]
 mod tests {
@@ -122,5 +167,27 @@ mod tests {
         assert!(!l.offer(H, Sworn, [5000, 45, 0]));
         assert!(l.offer(H, Sworn, [5000, 15, 0]));
         assert_eq!((l.row(H, Sworn), l.row(H, Sheltered)), (Some([5000, 15, 0]), None));
+    }
+    const TIERS4: [DifficultyTier; 4] = [Sheltered, Steady, Sworn, Unbroken];
+    #[test]
+    fn skill_mult_floor_cap_and_safe_inputs() {
+        let (worst, best) = ([u32::MAX, HEALTH * 2, 0], [1, 0, 1000]);
+        for t in TIERS4 {
+            let cap = skill_cap(t);
+            assert_eq!((skill_curve(cap, 0.0), skill_mult(t, [0, 0, 0]), skill_mult(t, [0, 9, 9])), (1.0, 1.0, 1.0));
+            assert!(skill_mult(t, worst) >= 1.0 && skill_mult(t, worst) < 1.0 + 1e-4, "{t:?}");
+            assert!(skill_mult(t, best) <= cap && cap - skill_mult(t, best) < 1e-4, "{t:?}");
+            assert!(skill_mult(t, [u32::MAX; 3]).is_finite() && skill_score([u32::MAX; 3]).is_finite());
+            assert!(skill_curve(cap, 0.5) < (1.0 + cap) / 2.0, "convex: midpoint below chord");
+        }
+    }
+    #[test]
+    fn skill_score_monotonic_saturating_and_tier_is_ceiling_only() {
+        let s = skill_score;
+        assert!(s([120_000, 50, 2]) < s([90_000, 50, 2]) && s([90_000, 50, 2]) < s([60_000, 50, 2]));
+        assert!(s([90_000, 100, 2]) < s([90_000, 50, 2]) && s([90_000, 50, 2]) < s([90_000, 50, 5]));
+        assert!(s([1, 0, 40]) - s([1, 0, 20]) < 0.001 && (W_TIME + W_DAMAGE + W_DODGE - 1.0).abs() < 1e-6);
+        assert!(SKILL_CAP[0] >= 1.0 && SKILL_CAP.windows(2).all(|w| w[0] < w[1]));
+        assert!([Steady, Sworn, Unbroken].iter().all(|&t| skill_mult(Sheltered, [1, 0, 1000]) < skill_cap(t)));
     }
 }
