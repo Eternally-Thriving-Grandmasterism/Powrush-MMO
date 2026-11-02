@@ -148,6 +148,33 @@ client/src/world_simulation/mirror_score.rs
 client/src/world_simulation/mod.rs
 ```
 
+### ability_bar.rs audit (ABILITY-BAR-AUDIT-1)
+
+Facts at `6abac1c4`, cite-only. Nothing in this subsection is a decision.
+
+- **Not compiled:** `client/src/lib.rs` declares no `ability_bar` module, and the file is listed above.
+- **Old Bevy API:** the client pins `bevy = "0.20"` (`client/Cargo.toml:26`). The file uses `NodeBundle` (`client/src/ability_bar.rs:55`, `:74`, `:111`), `TextBundle` with `Text::from_section` and `TextStyle` (`:95-96`), `add_event` (`:42`), `EventReader` (`:183`) and `time.delta_seconds()` (`:133`).
+- **Missing font:** `:97` loads `fonts/Inter-Bold.ttf`. `client/assets/fonts` holds only FiraSans-Regular, FiraSans-Bold and OFL.txt. The live UI font is `UI_FONT_REGULAR` (`client/src/ui_font.rs:17`).
+- **Stub input:** `handle_ability_input` (`:156-180`) reads Digit1–4 (`:162-165`), prints a line (`:173`) and sets a local cooldown (`:174`). It sends nothing.
+- **No producer:** `AbilityCooldownUpdate` (`:30`) is read at `:182-183`, and no compiled client code sends it. The server has its own type (`server/src/combat/mod.rs:141`).
+- **Double bind:** `client/src/input.rs:380-390` already maps Digit1–4 to `PlayerInput.ability_slot` (`client/src/input.rs:31`).
+- **Placement:** absolute, bottom 20, left 50% (`:57-59`), outside the live HUD registry.
+
+**Overlap with the live seams**
+
+- **Home:** `ID_ABILITY_TIP` (`client/src/hud_anchor_registry.rs:133`, id at `:100`) is the live data-only slot for ABILITY-TOOLTIP-SHOW-1. The file's own bar root (`client/src/ability_bar.rs:53-70`) duplicates that role.
+- **Text:** `slot_tooltip` (`client/src/combat_core.rs:201`) is the live slot text, and only slot 0 has a kit (`slot_strikes`, `:195`). The file shows only a slot number (`client/src/ability_bar.rs:96`).
+- **Only in this file:** a per-slot cooldown model and overlay fill (`client/src/ability_bar.rs:9-14`, `:128`, `:142-154`). Live combat has no cooldown, and the tooltip test refuses the word "cooldown" (`client/src/combat_core.rs:739`). Porting that overlay under option (a) would add a mechanic, not a display, so it needs its own card and ruling. It is named here as a gap, not proposed.
+- **Colours:** its palette (`client/src/ability_bar.rs:66`, `:82`, `:99`) is not the title palette, and no ratio has been measured. Any ratio would use `hud_contrast_ratio` (`client/src/hud_presets.rs:702`) with a named pair.
+
+**Options (listed neutrally; none is chosen)**
+
+- (a) Port the useful parts into ABILITY-TOOLTIP-SHOW-1 on the live seams, rewritten for Bevy 0.20.
+- (b) Keep the file as reference, uncompiled, as today.
+- (c) Retire the file. Deleting a file needs Sherif's own yes.
+
+Out of scope: `server/src/ascension/ui/ability_bars.rs` is a separate server module (`server/src/ascension/mod.rs:22`).
+
 ## Gap table
 
 One row per gap. `runtime` means a fix would touch `client/**`, `shared/**`, or the engine. `docs-only` is everything else. Size is one PR. Suggested names are not queued and not spent.
