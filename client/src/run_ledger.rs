@@ -246,7 +246,9 @@ mod tests {
             for r in [[0, 0, 0], [90_000, 50, 2], [1, 0, 1000]] {
                 let on = (10.0 * premium_xp_pct(clamp_xp_pct(COMBAT_XP_PCT[t as usize]), skill_premium(t, r, &[])) / 100.0) as u32;
                 assert_eq!(premium_paid(t, 10, Some(r), true), on.max(combat_xp(t, 10)), "{t:?} {r:?}: parity");
+                assert!(premium_paid(t, 10, Some(r), true) >= premium_paid(t, 10, Some(r), false), "{t:?} {r:?}: CT7 on never below off");
             }
+            assert_eq!(premium_paid(t, 10, Some([0, 0, 0]), true), combat_xp(t, 10), "{t:?}: CT7 a 1.0 premium pays exactly today");
         }
         let raw = 3.0 * premium_xp_pct(100, skill_premium(Sheltered, [1, 0, 1000], &[])) / 100.0;
         assert!(raw > 3.5 && raw < 4.0 && premium_paid(Sheltered, 3, Some([1, 0, 1000]), true) == 3, "floor, never round up");
