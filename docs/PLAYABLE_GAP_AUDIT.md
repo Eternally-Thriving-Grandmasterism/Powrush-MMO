@@ -175,6 +175,46 @@ Facts at `6abac1c4`, cite-only. Nothing in this subsection is a decision.
 
 Out of scope: `server/src/ascension/ui/ability_bars.rs` is a separate server module (`server/src/ascension/mod.rs:22`).
 
+## Combat presence audit (COMBAT-PRESENCE-AUDIT-1)
+
+Facts at `10d71e6d`, cite-only, from Sherif's playtester's report that no combat was recognised. Nothing in this section is a fix.
+
+**Headline: on default Play, combat is not reachable before hour three is complete.**
+
+**Path to the first enemy**
+- **Boot:** Play always lands in Sanctuary (`shared/hex_travel.rs:440-443`), and so does Continue without the book (`:444-446`). The client passes `book = hour.hour_three_complete` (`client/src/hex_travel.rs:239-242`).
+- **Enemies live in Heartwood only:** `predator_present` is `place == PlaceId::Heartwood` (`client/src/combat_core.rs:213-215`), and `in_reach` needs it (`:217-220`). The droid sits at the Threshold shelf, `DROID_HOME` [0, 13] (`client/src/droid.rs:12-13`), and is gated by the same `predator_present` (`droid.rs:41`, `:135`).
+- **The door is gated:** the Places list is live only when settled and the book is held (`shared/hex_travel.rs:387-390`, enforced at `client/src/hex_travel.rs:647-651`). `apply_place` sends Heartwood back to Sanctuary without the book (`client/src/hex_travel.rs:254-257`). The book is the fabricator pack unlocked and the embassy seated (`shared/hour_two.rs:71`).
+- **The People-door route has no live caller found:** the landing chain (`try_cross_people_door_land` `client/src/hex_travel.rs:294`, `try_unsealed_light_people_door_land` `:326`, `garden_cross_landing` `client/src/title_screen.rs:426`, `garden_cross_people_land` `client/src/first_session_guidance.rs:574`, `:767`) is reached only from test code (`hex_travel.rs:1571`, `:2010`, `:2060` after `#[cfg(test)]` `:807`; `title_screen.rs:5520` after `#[cfg(test)]` `:5256`; `first_session_guidance.rs:1639` after `:1208`).
+- **No signpost found:** the only Heartwood want line is `HEARTWOOD_WANT` "Heartwood Wards · Tend" (`client/src/first_session_guidance.rs:163`), which names Heartwood once you are there. No Sanctuary line pointing at Heartwood or its enemies was found by grep. Time to first enemy is not measured.
+
+**Count and spawn**
+- Two client-local enemies: one predator, `[NAME TBD]` with 200 health (`client/src/combat_core.rs:34-35`), and one droid, `[DROID NAME TBD]` (`client/src/droid.rs:20`), never saved (`droid.rs:2`).
+- The predator is a capsule primitive spawned hidden at `PREDATOR_HOME` [-18, -18] (`combat_core.rs:42`, `:373-379`). It shows only while present and alive (`:539-541`), and respawns after 30 s (`:49`).
+
+**What a fight looks like**
+- **Telegraphs:** the lunge is 0.6 s and hits 15 (`combat_core.rs:37-38`), and the droid shot has a 0.5 s tell and hits 25 (`droid.rs:16-19`). The tell is a ring of hidden primitive dots (`combat_core.rs:593-599`) with the text "Brace, it is about to lunge" (`:564`) or "Look out, the droid is about to fire" (`droid.rs:22`). The text shows only on Sworn and Unbroken, which hide the ring (`combat_core.rs:589-590`, `client/src/difficulty.rs:36-37`).
+- **Hit feedback (visual):** a landed hit gives a 0.10 s colour flash and a 12% scale pulse on the predator (`combat_core.rs:134`, `:159-166`, `:635-641`), a camera kick of 0.35 on a hit and 0.6 on the kill (`:135-137`, `:624`), and a gamepad rumble (`:625`).
+- **Hit feedback (text):** the pulse line reads "`[NAME TBD]` 185 / 200 · +10 combat XP" or "Missed" or "is down" (`combat_core.rs:318-328`), at 10 XP per landed hit (`:40`). The droid pays 0 XP (`droid.rs:2`). Sworn and Unbroken drop the HP number (`difficulty.rs:47-50`).
+- **Respawn and clear:** the respawn tell is a hidden pillar at `PREDATOR_HOME` (`combat_core.rs:405-421`), and a steady amber disc marks the cleared state (`:423-426`).
+- **Defeat:** the player is reseated with full health (`combat_core.rs:545-546`, `:309-315`) and the pulse reads "You wake at the Heartwood entrance" (`:341-343`, `:549`).
+
+**What a fight sounds like**
+- Three audio files are tracked: `assets/audio/peace_yard_bed.ogg`, `assets/audio/peace_well_sting.ogg` and `assets/music/epic_dark_ambient.ogg`. The music file is not wired (`client/assets/audio/README.md:9`).
+- The only combat sound is `play_tell` (`combat_core.rs:556-562`), which plays the peace `STING_ASSET` (`shared/peace_audio.rs:30`) on a predator tell (`combat_core.rs:587-588`) and a droid tell (`droid.rs:149-150`).
+- There is no strike, hit, defeat or respawn sound. The other live `AudioPlayer` spawns are the peace bed and sting (`client/src/peace_audio.rs:158`, `:192`, `:210`) and the harvest sting (`client/src/mercy_harvest_nodes.rs:804`). `client/src/rbe_ui_feedback.rs:74` and `:96` are in a file that `client/src/lib.rs` does not declare.
+
+**Gaps (suggested card names only; Core ranks them)**
+
+| ID | Gap | Evidence | Suggested card |
+|----|-----|----------|----------------|
+| CP-01 | Combat is not reachable on default Play before hour three plus a Places pick. | `shared/hex_travel.rs:443`; `shared/hex_travel.rs:388-390`; `shared/hour_two.rs:71` | COMBAT-REACH-1 |
+| CP-02 | Nothing in Sanctuary points toward Heartwood or its enemies. | `client/src/first_session_guidance.rs:163` | COMBAT-SIGNPOST-1 |
+| CP-03 | The only combat sound is the reused peace sting on a tell; there is no strike, hit or defeat sound. | `client/src/combat_core.rs:556-562`; `client/src/droid.rs:150` | COMBAT-FEEL-SFX-1 |
+| CP-04 | Both enemies are unnamed primitives (a capsule and dots). | `client/src/combat_core.rs:34`; `client/src/combat_core.rs:374`; `client/src/droid.rs:20` | COMBAT-FEEL-LOOK-1 |
+
+No capture: this audit adds no image (Hands standing rule, no media or binaries).
+
 ## Gap table
 
 One row per gap. `runtime` means a fix would touch `client/**`, `shared/**`, or the engine. `docs-only` is everything else. Size is one PR. PG-01 to PG-07 are spent (PR and short sha in each row, cites re-seated at `403ba3b9`). PG-08 is spent in part and stays open for its residue.
