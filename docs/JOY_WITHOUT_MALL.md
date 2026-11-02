@@ -28,6 +28,13 @@ AH · billion-run EV · perfect-or-trash trading · target-farm tables · RMT bo
 - **Named finds:** at most 6, one card each. No drop table or weights (that is LOOT-DROPS-1).
 - **Vendor law:** a vendor never offers above Worn, and nothing converts into a find.
 - **Dead roll:** the root `src/inventory.rs` `Rarity` roll is dead code. Do not revive it. Removal is banked as ROOT-SRC-PRUNE-1.
+- **Unbroken pool:** `client/src/difficulty.rs:135` declares `UNBROKEN_COSMETIC_ONLY_POOL = true`, and only its test at :332 reads it. No cosmetic pool exists in code yet.
+- **Named-find roll, inactive:** `client/src/loot_drops.rs` `roll_named_find` (:23) is the LOOT-DROPS-1 pure half, and nothing outside tests calls it (:1). It draws only from the 6 `NAMED_FINDS` (`shared/temper.rs:236`).
+- **Weights are council defaults:** Kept 8 · Proven 4 · Storied 2 · Worn 0 (`loot_drops.rs:15-17`), total 28 (test :50), with `ROLE_SKEW` ×2 (:9). This is council wording, not Sherif's ruling, and Sherif may veto or retune it.
+- **Above the vendor:** every rolled find sits above `VENDOR_STANDING_CEILING` (`shared/temper.rs:247`, test `loot_drops.rs:66-78`). The roll has no convert, exchange, trade, buy or sell fn (:74-77).
+- **Unbroken reads as Sworn:** `power_tier` (`loot_drops.rs:11-13`) means Unbroken's extra over Sworn yields no named find (test :57-64).
+- **Skill premium off:** `client/src/run_ledger.rs:135` sets `SKILL_PREMIUM_LIVE = false`. The 2.5× ceiling (`SKILL_PREMIUM_MAX`, :124) is a council default that Sherif may veto.
+- **Open for Sherif:** `ROLE_SKEW` ×2 leans finds toward a role, which sits beside the "target-farm tables" refusal at :22. Whether that counts is Sherif's call, and the skew stays inactive until he rules (LOOT-DROPS-WIRE-1 is held).
 
 ---
 
