@@ -42,6 +42,7 @@ use crate::hud_anchor_registry::{
     ID_SPILL, ID_THRIVING, ID_VOICE, ID_WATCH, ID_WELCOME, ID_WELL, ID_WHISPER,
 };
 use crate::hud_anchor_registry::{clamp_hud_width, write_hud_anchor_style, HUD_REGISTRY_REV};
+use crate::hud_anchor_registry::ID_ABILITY_TIP;
 use shared::hud_layout::{HudLayoutAnchor, HudLayoutCorner};
 use crate::human_soft_panels::HumanSoftPanels;
 use crate::rbe_allocate_choice::RbeAllocateChoice;
@@ -77,7 +78,7 @@ pub struct HudSlabMetrics {
     pub height_b: f32,
 }
 
-const SLAB_METRICS: [HudSlabMetrics; 27] = [
+const SLAB_METRICS: [HudSlabMetrics; 28] = [
     m(ID_FACTORY, 8, CLASS_STATUS, 520.0, 35.0, 52.0),
     m(ID_VOICE, 9, CLASS_PANEL, 560.0, 35.0, 52.0),
     m(ID_SPILL, 10, CLASS_STATUS, 520.0, 35.0, 52.0),
@@ -105,6 +106,7 @@ const SLAB_METRICS: [HudSlabMetrics; 27] = [
     m(ID_JOURNEY, 42, CLASS_PANEL, 360.0, 280.0, 280.0),
     m(ID_PEER, 43, CLASS_STATUS, 280.0, 37.0, 52.0),
     m(ID_PLACE_NAME, 44, CLASS_STATUS, 280.0, 31.0, 31.0),
+    m(ID_ABILITY_TIP, 47, CLASS_TUTOR, 240.0, 35.0, 52.0),
 ];
 
 const fn m(
@@ -259,11 +261,12 @@ const CLASSIC_TRACKER_2: [HudOccupant; 1] = [occ(ID_REDEMPTION, 1)];
 const CLASSIC_TRACKER_3: [HudOccupant; 1] = [occ(ID_HYBRID, 1)];
 const CLASSIC_TRACKER_4: [HudOccupant; 1] = [occ(ID_COMPASS, 1)];
 const CLASSIC_VOICE: [HudOccupant; 1] = [occ(ID_VOICE, 1)];
-const CLASSIC_ACTION_BAR: [HudOccupant; 4] = [
+const CLASSIC_ACTION_BAR: [HudOccupant; 5] = [
     occ(ID_CARE_STRIP, 1),
     occ(ID_CARE_PROMPT, 2),
     occ(ID_GUIDANCE, 3),
     occ(ID_PRACTICE, 4),
+    occ(ID_ABILITY_TIP, 5),
 ];
 const CLASSIC_WINDOW: [HudOccupant; 4] = [
     occ(ID_ALLOCATE, 1),
@@ -448,11 +451,12 @@ const MINIMAL_EDGE_STATUS: [HudOccupant; 9] = [
     occ(ID_WELL, 8),
     occ(ID_CLIMATE_STATE, 9),
 ];
-const MINIMAL_ACTION_BAR: [HudOccupant; 4] = [
+const MINIMAL_ACTION_BAR: [HudOccupant; 5] = [
     occ(ID_CARE_STRIP, 1),
     occ(ID_CARE_PROMPT, 2),
     occ(ID_GUIDANCE, 3),
     occ(ID_PRACTICE, 4),
+    occ(ID_ABILITY_TIP, 5),
 ];
 const MINIMAL_WINDOW: [HudOccupant; 5] = [
     occ(ID_VOICE, 1),
@@ -532,11 +536,12 @@ pub const MINIMAL: HudPreset<'static> = HudPreset {
 const MANAGEMENT_PLACE: [HudOccupant; 1] = [occ(ID_PLACE_NAME, 1)];
 const MANAGEMENT_WATCH: [HudOccupant; 1] = [occ(ID_WATCH, 1)];
 const MANAGEMENT_PEER: [HudOccupant; 1] = [occ(ID_PEER, 1)];
-const MANAGEMENT_ADVISOR: [HudOccupant; 4] = [
+const MANAGEMENT_ADVISOR: [HudOccupant; 5] = [
     occ(ID_CARE_STRIP, 1),
     occ(ID_CARE_PROMPT, 2),
     occ(ID_GUIDANCE, 3),
     occ(ID_PRACTICE, 4),
+    occ(ID_ABILITY_TIP, 5),
 ];
 const MANAGEMENT_LIST_1: [HudOccupant; 3] = [occ(ID_FACTORY, 1), occ(ID_FAB, 2), occ(ID_SPILL, 3)];
 const MANAGEMENT_LIST_2: [HudOccupant; 3] =
@@ -691,6 +696,16 @@ pub fn preset(id: HudPresetId) -> &'static HudPreset<'static> {
 /// Q1. The preset Reset restores.
 pub fn reset_preset() -> &'static HudPreset<'static> {
     preset(RESET_PRESET)
+}
+
+/// HUD-LAYOUT-1. WCAG contrast ratio via `standing_luminance`; HUD text on its slab must be at least 3.0.
+pub fn hud_contrast_ratio(fg: Color, bg: Color) -> f32 {
+    let lum = |c: Color| {
+        let s = c.to_srgba();
+        shared::temper::standing_luminance([s.red, s.green, s.blue])
+    };
+    let (a, b) = (lum(fg), lum(bg));
+    (a.max(b) + 0.05) / (a.min(b) + 0.05)
 }
 
 pub fn slab_metrics(id: &str) -> &'static HudSlabMetrics {
@@ -2113,7 +2128,7 @@ mod tests {
                 640.0,
                 HudHeightModel::A,
                 4,
-                29,
+                33,
                 38,
                 56,
             ),
@@ -2123,7 +2138,7 @@ mod tests {
                 640.0,
                 HudHeightModel::B,
                 4,
-                29,
+                33,
                 38,
                 57,
             ),
@@ -2133,7 +2148,7 @@ mod tests {
                 800.0,
                 HudHeightModel::A,
                 3,
-                29,
+                33,
                 26,
                 32,
             ),
@@ -2143,7 +2158,7 @@ mod tests {
                 800.0,
                 HudHeightModel::B,
                 3,
-                29,
+                33,
                 26,
                 37,
             ),
@@ -2153,7 +2168,7 @@ mod tests {
                 640.0,
                 HudHeightModel::A,
                 4,
-                72,
+                76,
                 62,
                 56,
             ),
@@ -2163,7 +2178,7 @@ mod tests {
                 640.0,
                 HudHeightModel::B,
                 4,
-                72,
+                76,
                 62,
                 56,
             ),
@@ -2173,7 +2188,7 @@ mod tests {
                 800.0,
                 HudHeightModel::A,
                 3,
-                72,
+                76,
                 51,
                 38,
             ),
@@ -2183,7 +2198,7 @@ mod tests {
                 800.0,
                 HudHeightModel::B,
                 3,
-                72,
+                76,
                 51,
                 39,
             ),
@@ -2193,9 +2208,9 @@ mod tests {
                 640.0,
                 HudHeightModel::A,
                 4,
-                36,
                 40,
-                52,
+                40,
+                53,
             ),
             (
                 HudPresetId::Management,
@@ -2203,9 +2218,9 @@ mod tests {
                 640.0,
                 HudHeightModel::B,
                 4,
-                36,
+                40,
                 41,
-                53,
+                55,
             ),
             (
                 HudPresetId::Management,
@@ -2213,9 +2228,9 @@ mod tests {
                 800.0,
                 HudHeightModel::A,
                 3,
-                36,
+                40,
                 6,
-                34,
+                35,
             ),
             (
                 HudPresetId::Management,
@@ -2223,9 +2238,9 @@ mod tests {
                 800.0,
                 HudHeightModel::B,
                 3,
-                36,
+                40,
                 6,
-                35,
+                36,
             ),
         ];
         assert_eq!(expect.len(), PRESETS.len() * PROOF_VIEWS.len() * 2);
@@ -2402,9 +2417,10 @@ mod tests {
         let rows = [
             8, 9, 10, 12, 13, 16, 17, 18, 19, 26, 27, 28, 29, 30, 31, 32, 34, 35, 36, 37, 38, 39,
             40, 41, 42, 43, 44,
+            47,
         ];
-        assert_eq!(rows.len(), 27);
-        assert_eq!(SLAB_METRICS.len(), 27);
+        assert_eq!(rows.len(), 28);
+        assert_eq!(SLAB_METRICS.len(), 28);
         for row in [14_u8, 15, 45, 46] {
             assert!(SLAB_METRICS.iter().all(|metrics| metrics.row != row));
         }
@@ -2467,7 +2483,7 @@ mod tests {
                     }
                 }
             }
-            assert_eq!(seen.len(), 27, "{}", preset.name);
+            assert_eq!(seen.len(), 28, "{}", preset.name);
             for metrics in SLAB_METRICS {
                 assert!(
                     seen.contains(&metrics.id),
@@ -2718,6 +2734,17 @@ mod tests {
         assert_eq!(CLASSIC.anchor("ACTION_BAR"), &ACTION_BAR);
         assert_eq!(MINIMAL.anchor("ACTION_BAR"), &ACTION_BAR);
         assert_eq!(CLASSIC.anchor("VOICE"), &VOICE);
+    }
+
+    #[test]
+    fn hud_contrast_ratio_named_palette_pairs_at_least_three() {
+        use crate::title_screen::{TITLE_BTN_BG, TITLE_BTN_FG, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
+        for (name, fg, bg) in [("PRIMARY on PLATE (PULSE slab)", TITLE_TEXT_PRIMARY, TITLE_PLATE_BG), ("SECONDARY on PLATE", TITLE_TEXT_SECONDARY, TITLE_PLATE_BG), ("BTN_FG on BTN_BG", TITLE_BTN_FG, TITLE_BTN_BG)] {
+            let ratio = hud_contrast_ratio(fg, bg);
+            assert!(ratio >= 3.0, "{name}: {ratio}");
+            assert_eq!(ratio, hud_contrast_ratio(bg, fg), "{name} symmetric");
+        }
+        assert!((hud_contrast_ratio(Color::WHITE, Color::BLACK) - 21.0).abs() < 0.01);
     }
 
     #[test]
@@ -3192,6 +3219,7 @@ mod tests {
             ID_CARE_PROMPT => bottom_right(144.0, 16.0, 460.0),
             ID_CARE_STRIP => bottom_right(144.0, 16.0, 560.0),
             ID_PRACTICE => bottom_right(144.0, 16.0, 640.0),
+            ID_ABILITY_TIP => bottom_right(144.0, 16.0, 240.0),
             ID_PULSE => centre(560.0),
             ID_WELCOME => centre(380.0),
             ID_PICKUP => centre(360.0),
