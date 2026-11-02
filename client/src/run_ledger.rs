@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use serde::{Deserialize, Deserializer};
 use shared::hex_travel::PlaceId;
 use crate::combat_core::{in_reach, predator_present, tell_visible, CombatState, HEALTH};
-use crate::difficulty::{slot, AreaDifficulty, DifficultyTier};
+use crate::difficulty::{slot, AreaDifficulty, DifficultyTier, RunModifier};
 use crate::droid::{droid_in_reach, shot_armed, shot_tell_visible, DroidState};
 use crate::{hex_travel::HexTravelState, human_presence::SoftPresence, title_screen::LaunchDoor};
 /// One best row: `[clear_ms, damage_taken, tells_dodged]`. `clear_ms == 0` means no row yet.
@@ -88,7 +88,7 @@ pub const W_DODGE: f32 = 0.20;
 /// Par clear time in ms; a clear at or under par scores time 1. Proposed, card-gated.
 pub const RUN_PAR_MS: u32 = 60_000;
 /// Skill multiplier ceiling per `DifficultyTier as usize`; proposed, card-gated.
-pub const SKILL_CAP: [f32; 4] = [1.08, 1.12, 1.14, 1.16];
+pub const SKILL_CAP: [f32; 4] = [1.20, 1.45, 1.85, 2.50];
 pub fn skill_cap(tier: DifficultyTier) -> f32 {
     SKILL_CAP[tier as usize]
 }
@@ -109,21 +109,33 @@ fn skill_curve(cap: f32, s: f32) -> f32 {
     (m as f32).clamp(1.0, cap)
 }
 /// Convex skill multiplier in [1.0, skill_cap(tier)]; a `clear_ms == 0` row is exactly 1.0.
-/// Inactive: nothing reads it. Tier is a ceiling only, never a flat bonus. The wiring card
-/// RUN-LEDGER-WIRE-1 (banked) owns composition with COMBAT_XP_PCT and must decide whether the
-/// skill premium sits under clamp_xp_pct / XP_HARD_MAX_PCT 175 (additive vs multiplicative) or
-/// gets its own bounded bucket, and may retune the caps. Clerk: multiplicative at Unbroken
-/// leaves about 1.167 of headroom.
+/// Inactive: nothing in a live payout reads it. Tier is a ceiling only, never a flat bonus.
+/// RUN-LEDGER-WIRE-1 gives it its own bucket after clamp_xp_pct / XP_HARD_MAX_PCT 175, never
+/// inside it: see `skill_premium` and `premium_xp_pct` below. Caps are tier-weighted so only
+/// Unbroken reaches 2.5x. Going live is a later card; the bucket can then lift XP past 175
+/// (437.5% max, banked as XP-CEILING-DOC-1).
 pub fn skill_mult(tier: DifficultyTier, row: RunRow) -> f32 {
     if row[0] == 0 {
         return 1.0;
     }
     skill_curve(skill_cap(tier), skill_score(row))
 }
+/// RUN-LEDGER-WIRE-1. Ceiling of the skill premium itself; its only cap.
+pub const SKILL_PREMIUM_MAX: f32 = 2.5;
+/// The skill premium: exactly 1.0 while any run modifier is set (a set Sheltered rejects too), else `skill_mult`.
+pub fn skill_premium(tier: DifficultyTier, row: RunRow, mods: &[RunModifier]) -> f32 {
+    if mods.is_empty() { skill_mult(tier, row) } else { 1.0 }
+}
+/// Its own bucket, applied after `clamp_xp_pct` 175 and never re-clamped: the result may pass 175 (437.5% max).
+/// Earned XP and materials only; never loot rarity, the vendor ceiling, the upgrade meter or Lumen. Not wired.
+pub fn premium_xp_pct(clamped_pct: u32, premium: f32) -> f32 {
+    clamped_pct as f32 * premium.clamp(1.0, SKILL_PREMIUM_MAX)
+}
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::difficulty::{stacked_xp_pct, RUN_MODIFIERS, XP_HARD_MAX_PCT};
     use DifficultyTier::*;
     const H: PlaceId = PlaceId::Heartwood;
     const O: Seen = Seen { place: H, tier: Some(Sheltered), player_taken: 0, predator_taken: 0, tell: false, shot_tell: false, dt: 1.0 };
@@ -189,5 +201,30 @@ mod tests {
         assert!(s([1, 0, 40]) - s([1, 0, 20]) < 0.001 && (W_TIME + W_DAMAGE + W_DODGE - 1.0).abs() < 1e-6);
         assert!(SKILL_CAP[0] >= 1.0 && SKILL_CAP.windows(2).all(|w| w[0] < w[1]));
         assert!([Steady, Sworn, Unbroken].iter().all(|&t| skill_mult(Sheltered, [1, 0, 1000]) < skill_cap(t)));
+    }
+    #[test]
+    fn premium_table_floor_ceiling_and_convex_bands() {
+        let best = [1, 0, 1000];
+        assert_eq!(SKILL_CAP, [1.20, 1.45, 1.85, 2.50], "council default table");
+        let steps: Vec<f32> = SKILL_CAP.windows(2).map(|w| w[1] - w[0]).collect();
+        assert!(steps.windows(2).all(|d| d[0] < d[1]) && SKILL_CAP[3] == SKILL_PREMIUM_MAX, "convex bands, only Unbroken at 2.5");
+        for t in TIERS4 {
+            assert_eq!(skill_premium(t, [0, 0, 0], &[]), 1.0, "no row is exactly 1.0");
+            let (mid, top) = (skill_premium(t, [90_000, 50, 2], &[]), skill_premium(t, best, &[]));
+            assert!(1.0 < mid && mid < top && (top - skill_cap(t)).abs() < 1e-4, "{t:?} monotonic to its own cap");
+            let today = stacked_xp_pct(t, &[]);
+            assert_eq!(premium_xp_pct(today, skill_premium(t, [0, 0, 0], &[])), today as f32, "default identical to today");
+        }
+        assert_eq!((premium_xp_pct(100, 0.0), premium_xp_pct(175, 9.0)), (100.0, 437.5), "never cuts; 2.5x is the only ceiling");
+    }
+    #[test]
+    fn premium_never_stacks_with_mods_and_sits_after_the_175_clamp() {
+        for t in TIERS4 {
+            for mods in [&RUN_MODIFIERS[..1], &RUN_MODIFIERS[..]] {
+                assert_eq!(skill_premium(t, [1, 0, 1000], mods), 1.0, "{t:?}: any non-empty set is 1.0, Sheltered-rejected too");
+            }
+        }
+        assert_eq!(stacked_xp_pct(Unbroken, &[]), 150);
+        assert!(premium_xp_pct(stacked_xp_pct(Unbroken, &[]), skill_premium(Unbroken, [1, 0, 1000], &[])) > XP_HARD_MAX_PCT as f32, "own bucket");
     }
 }
