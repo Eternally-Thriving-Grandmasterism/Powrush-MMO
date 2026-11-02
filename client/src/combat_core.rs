@@ -195,6 +195,14 @@ pub fn slot_strikes(slot: Option<u32>) -> bool {
     slot == Some(0)
 }
 
+/// ABILITY-TOOLTIP-1 — inactive tooltip text for an ability slot; nothing outside tests reads it.
+/// Council wording, not Sherif's; Sherif may veto. Slots with no kit get no text.
+pub fn slot_tooltip(slot: u32) -> Option<String> {
+    slot_strikes(Some(slot)).then(|| format!(
+        "Strike (left click, right trigger, or key 1 while no panel is open): hits the predator for {HIT} when it is within {REACH} of you."
+    ))
+}
+
 /// One strike decision per frame: LMB/pad as before, or key 1 while no panel is open.
 pub fn strike_pressed(fire: bool, slot: Option<u32>, gate: bool) -> bool {
     fire || (slot_strikes(slot) && gate)
@@ -710,6 +718,20 @@ mod tests {
         let ok = fire_grab_terms(true, false, false, true);
         for (plate, ui, prompts) in [(true, false, false), (false, true, false), (false, false, true)] {
             assert!(!(strike_pressed(false, Some(0), true) && fire_allowed(ok, plate, ui, prompts)));
+        }
+    }
+
+    #[test]
+    fn slot_tooltip_tracks_hit_reach_and_strike_slots() {
+        let text = slot_tooltip(0).expect("slot 0 strikes");
+        assert!(text.contains(&HIT.to_string()) && text.contains(&REACH.to_string()), "{text}");
+        assert!(text.contains("key 1 while no panel is open"), "{text}");
+        for s in 0..=4 {
+            assert_eq!(slot_tooltip(s).is_some(), slot_strikes(Some(s)), "slot {s}");
+        }
+        let lower = text.to_lowercase();
+        for banned in ["class", "soon", "coming", "unlock", "cooldown"] {
+            assert!(!lower.contains(banned), "{banned}");
         }
     }
 
