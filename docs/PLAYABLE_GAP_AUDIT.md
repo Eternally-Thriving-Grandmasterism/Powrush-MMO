@@ -215,6 +215,48 @@ Facts at `10d71e6d`, cite-only, from Sherif's playtester's report that no combat
 
 No capture: this audit adds no image (Hands standing rule, no media or binaries).
 
+## UI noise audit (UI-NOISE-AUDIT-1)
+
+Facts at `87031c99`, cite-only, from Sherif's playtester's report that the UI "reads like spam windows". Nothing in this section is a fix. Sizes are model heights, not enforced: `height_b` is "Not written onto `Style`" (`client/src/hud_anchor_registry.rs:244`). Times are seconds of app clock (`time.elapsed_secs_f64()`).
+
+**Auto-open candidates on fresh default Play (Sanctuary)**
+
+| ID | Panel | What opens it | How long | Where · size (model height, not enforced) |
+|----|-------|---------------|----------|-------------------------------------------|
+| U1 | Sovereign banner | Shows while not dismissed and app time < `banner_until` (`client/src/local_sovereign_session.rs:156`), default 8.5 s (`:26`, `:52`). Not gated on the yard door. Dismissed on any move, the first harvest or guidance dismiss (`:139-146`). | Until app time 8.5 s or the first move | Top-centre, top 52, 520 × 56 (`hud_anchor_registry.rs:452-462`) |
+| U2 | Guidance strip | `active` defaults true on MoveAround (`client/src/first_session_guidance.rs:473-475`); shows in the yard, hides while a glow is in range (`:966-975`). First line "WASD walk · Space jump · Shift sprint" (`:384`). | Until the objective chain ends or is dismissed | ACTION_BAR, bottom-right, 520 × 69 (`hud_anchor_registry.rs:117-123`) |
+| U3 | Pulse strip | Shows while `now < pulse_until` (`client/src/first_harvest_epiphany.rs:778`). | 2.0, 2.2 or 2.4 s (`:588`, `:636`, `:534`); 4.2 s on a harvest (`:45`, `:668`, `:725`); combat cues 4.2 s (`client/src/combat_core.rs:47`) | Top-centre, top 118, 560 × 60.8 (`hud_anchor_registry.rs:387-397`) |
+| U4 | Whisper | Once, when `first_harvest_lived` turns true (`client/src/first_whisper.rs:94-103`). | 5.2 s (`:20`, `:118`) | Centre, top 28%, 420 × 69 (`hud_anchor_registry.rs:504-514`) |
+| U5 | Climate slab and danger line | The slab always shows (`client/src/climate_visible.rs:504-514`). On each place entry, boot included, the text is the danger line (`:361-365`). | Slab: always. Danger line: 5.2 s (`:363`) | Bottom-left, bottom 176, 420 × 52 (`hud_anchor_registry.rs:413-423`) |
+| U6 | Thriving toast | Queued per kind, one at a time (`client/src/thriving_moments.rs:115-124`); the first harvest fires `FirstMercyHarvest` (`client/src/first_harvest_epiphany.rs:663`). | 5 s each (`thriving_moments.rs:123`) | Top-centre, top 48, 620 × 58 (`hud_anchor_registry.rs:465-475`) |
+| U7 | Satchel watch and pickup | Watch shows once the first harvest is lived (`client/src/human_inventory.rs:315`); pickup flashes per harvest (`:288`). | Watch: from then on. Pickup: 1.8 s (`:288`) | Watch bottom-left, 340 × 53.2 (`hud_anchor_registry.rs:426-436`); pickup centre, top 38%, 360 × 56.4 (`:439-449`) |
+| U8 | Practice card | On FreeExploration, or guidance dismissed with 1 or more harvests (`client/src/living_practice_loop.rs:134-142`). | While active (`:281`) | ACTION_BAR, 640 × 64 (`hud_anchor_registry.rs:124-130`) |
+| U9 | Care offer | After an idle tend (`client/src/mercy_harvest_nodes.rs:513-528`); shows while `offer.active` (`:644`). | Until the offer clears | ACTION_BAR, 560 × 62 (`hud_anchor_registry.rs:103-109`) |
+| U10 | Place-name chip | Spawned with no `Visibility` and no writer (`client/src/climate_plane.rs:1470-1502`), so it is always on. | Always | Top-centre, top 18, 280 × 31 (`hud_anchor_registry.rs:543-553`) |
+
+Conditional, not proven on for Sanctuary minute 0-10: Compass (`client/src/compass.rs:102`, needs a stored tell), Factory (`client/src/vertical_factory.rs:178`, non-Peace hex or a ready pack), Embassy (`client/src/embassy.rs:202-205`, needs `hour.complete`) and Spill (`client/src/infra_spill.rs:134`). Not on fresh Play: Welcome-back needs `hour.complete` or a loaded echo (`client/src/first_harvest_epiphany.rs:426-429`). Opt-in by key: Satchel I (`client/src/human_inventory.rs:241`), whose first-open line is held out of the pickup flash (`:244-246`, `:512`).
+
+**First 60 s after Play (only cited triggers; order within one frame is unordered)**
+- **At Play (P):** U10 and the U5 slab are on, U5 shows the danger line for 5.2 s, and U2 shows the WASD line. U1 is also on only if Play came before app time 8.5 s; that depends on how long the player sat on the title.
+- **First move (player-dependent):** U1 is dismissed (`local_sovereign_session.rs:139-146`).
+- **First harvest (player-dependent, no cited time):** in the same pass, U6 (5 s), U3 (4.2 s), U4 (5.2 s), the U7 pickup (1.8 s) and the U7 watch turn on, unordered. With U5 and U10 that is up to 7 text boxes at once. U2 is hidden only while the glow is in range (`first_session_guidance.rs:966`).
+- **After that (player-dependent):** U9 can raise after an idle tend, and U8 once FreeExploration arrives.
+
+**Overlap facts**
+- The top-centre column has six slabs with no yield rule: PlaceName 18-49, Factory 16-68, Thriving 48-106, Sovereign 52-108, Fab 88-140 and Pulse 118-178.8 (tops and model heights at `hud_anchor_registry.rs:543`, `:283`, `:465`, `:452`, `:309`, `:387`). Only the bottom-right anchors yield, through `r2_yields_to` (`:744`).
+- The first harvest also dismisses U1 (`local_sovereign_session.rs:144`), so U1 does not outlast the harvest burst; the frame order between the two systems is unordered.
+
+**Gaps (suggested card names only; Core ranks them)**
+
+| ID | Gap | Evidence | Suggested card |
+|----|-----|----------|----------------|
+| UN-01 | The first harvest opens up to five panels in one pass (Thriving, Pulse, Whisper, Pickup, Watch). | `client/src/first_harvest_epiphany.rs:663-668`; `client/src/first_whisper.rs:97-103`; `client/src/human_inventory.rs:288`, `:315` | UI-CALM-1 |
+| UN-02 | The top-centre column stacks six slabs with no yield rule. | `client/src/hud_anchor_registry.rs:744`; `:452`, `:465`, `:387` | HUD-TOP-YIELD-1 |
+| UN-03 | The Sovereign banner runs on app time and is not gated on the yard, so it can expire on the title or show over it. | `client/src/local_sovereign_session.rs:26`, `:156` | SOVEREIGN-YARD-GATE-1 |
+| UN-04 | The place-name chip and the climate slab are always on. | `client/src/climate_plane.rs:1470-1502`; `client/src/climate_visible.rs:504-514` | HUD-QUIET-REST-1 |
+
+No capture: this audit adds no image (Hands standing rule, no media or binaries).
+
 ## Gap table
 
 One row per gap. `runtime` means a fix would touch `client/**`, `shared/**`, or the engine. `docs-only` is everything else. Size is one PR. PG-01 to PG-07 are spent (PR and short sha in each row, cites re-seated at `403ba3b9`). PG-08 is spent in part and stays open for its residue.
