@@ -27,7 +27,8 @@ use crate::rbe_allocate_choice::RbeAllocateChoice;
 use crate::skill_xp::{level_up_line, SkillXp, COMBAT};
 use crate::soft_play_bindings::{FIRE, FIRE_PAD};
 use crate::title_screen::{HouseLabel, LaunchDoor};
-use crate::difficulty::{combat_xp, cue_line, enemy_hit, hides_cues, tell_onset, AreaDifficulty, DifficultyTier};
+use crate::difficulty::{cue_line, enemy_hit, hides_cues, tell_onset, AreaDifficulty, DifficultyTier};
+use crate::run_ledger::{premium_paid, RunLedger, RunRow, SKILL_PREMIUM_LIVE};
 use shared::peace_audio::{audio_output_safe, STING_ASSET};
 
 pub const PREDATOR_NAME: &str = "[NAME TBD]";
@@ -261,13 +262,17 @@ pub fn land_hit_crossing(combat: &mut CombatState, skills: &mut SkillXp, reach: 
 
 /// DIFFICULTY-REWARDS-1 — `land_hit_crossing` on a tier: only the paid XP scales, the cap still counts hits.
 pub fn land_hit_on(combat: &mut CombatState, skills: &mut SkillXp, reach: bool, tier: DifficultyTier) -> (bool, Option<u32>) {
+    land_hit_paid(combat, skills, reach, tier, None)
+}
+/// RUN-LEDGER-LIVE-1 — `land_hit_on` with the stored best row; pays through `premium_paid` (off: unchanged).
+pub fn land_hit_paid(combat: &mut CombatState, skills: &mut SkillXp, reach: bool, tier: DifficultyTier, row: Option<RunRow>) -> (bool, Option<u32>) {
     if !reach || combat.predator_taken >= HEALTH {
         return (false, None);
     }
     combat.predator_taken = combat.predator_taken.saturating_add(HIT).min(HEALTH);
     if skills.combat_day_hits < crate::skill_xp::COMBAT_PAYING_HITS_PER_DAY {
         skills.combat_day_hits += 1;
-        (true, skills.gain(COMBAT, combat_xp(tier, XP_PER_LANDED_HIT)))
+        (true, skills.gain(COMBAT, premium_paid(tier, XP_PER_LANDED_HIT, row, SKILL_PREMIUM_LIVE)))
     } else {
         (true, None) // COMBAT-XP-PACE-1: past the daily cap `gain` never runs
     }
@@ -446,7 +451,7 @@ pub fn combat_fire(
         Option<Res<HumanInventory>>,
         Option<Res<HumanSoftPanels>>,
     ),
-    (buffer, fixed, diff): (Option<ResMut<StrikeBuffer>>, Option<Res<Time<Fixed>>>, Option<ResMut<crate::difficulty::AreaDifficulty>>),
+    (buffer, fixed, diff, runs): (Option<ResMut<StrikeBuffer>>, Option<Res<Time<Fixed>>>, Option<ResMut<crate::difficulty::AreaDifficulty>>, Option<Res<RunLedger>>),
 ) {
     let fire = buttons.is_some_and(|b| b.just_pressed(FIRE))
         || gamepads.iter().any(|g| g.just_pressed(FIRE_PAD));
@@ -487,7 +492,8 @@ pub fn combat_fire(
     if run {
         combat.strikes = combat.strikes.wrapping_add(1);
         let before = skills.xp[COMBAT];
-        let (hit, level) = land_hit_on(&mut combat, &mut skills, reach, tier);
+        let row = runs.as_deref().and_then(|r| r.row(travel.current, tier));
+        let (hit, level) = land_hit_paid(&mut combat, &mut skills, reach, tier, row);
         if let (true, Some(mut diff)) = (hit && combat.predator_taken >= HEALTH, diff) {
             diff.record_clear(travel.current); // DIFFICULTY-TIERS-1: the predator defeat clears this area
         }
