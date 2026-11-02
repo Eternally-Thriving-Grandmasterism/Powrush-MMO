@@ -58,6 +58,7 @@ use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::{LocalColorblindWells, LocalSettingsState};
 use crate::mercy_harvest_nodes::{MercyHarvestNode, NearbyMercyNode};
 use crate::depths_landing::DepthsPeaceTend;
+use crate::difficulty::AreaDifficulty;
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 #[derive(Component)]
@@ -355,7 +356,13 @@ fn update_climate_state_slab(
         With<ClimateStateRoot>,
     >,
     mut text_q: Query<(&mut Text, &mut TextFont), With<ClimateStateText>>,
+    (time, diff, mut hold): (Res<Time>, Option<Res<AreaDifficulty>>, Local<DangerHold>),
 ) {
+    if danger_line_due(hold.last, travel.current) {
+        hold.last = Some(travel.current);
+        hold.until = time.elapsed_secs_f64() + crate::first_whisper::HOLD_SECS;
+    }
+    let danger = danger_hold_line(time.elapsed_secs_f64(), hold.until, travel.current, diff.as_deref());
     let threshold_line = threshold_speech_if_near(threshold.as_deref());
     let wards_line = wards_notice_if_near(wards.as_deref());
     let depths_line = depths_restore_line(depths.as_deref());
@@ -468,13 +475,13 @@ fn update_climate_state_slab(
         threshold_line,
         fallback,
     );
-    let line = speak_first_minutes_people_want(
+    let line = danger.unwrap_or_else(|| speak_first_minutes_people_want(
         place,
         travel.current,
         body,
         first_minutes,
         guidance_hidden,
-    );
+    ));
     let slab_px = settings
         .as_ref()
         .map(|state| climate_slab_font_px(state.inner.text_scale))
@@ -530,10 +537,26 @@ fn place_clarity_line(place: &str, body: String) -> String {
 
 /// CARD DANGER-READ-1 — entry danger line "Place · Tier" from existing words only:
 /// `place_clarity_label` (never the Threshold form) and the tier's `name()`. Pure
-/// and inactive; showing it once per entry is banked as DANGER-READ-SHOW-1.
-#[cfg_attr(not(test), allow(dead_code))]
+/// DANGER-READ-SHOW-1 shows it once per area entry on this slab, for `first_whisper::HOLD_SECS`.
 fn entry_danger_line(place: PlaceId, tier: crate::difficulty::DifficultyTier) -> String {
     place_clarity_line(place_clarity_label(place, false), tier.name().to_string())
+}
+
+/// DANGER-READ-SHOW-1 — last place the danger line was armed for, and when its hold ends.
+#[derive(Default)]
+struct DangerHold {
+    last: Option<PlaceId>,
+    until: f64,
+}
+
+/// DANGER-READ-SHOW-1 — true only on entry into a different place (boot entry counts).
+fn danger_line_due(prev: Option<PlaceId>, now: PlaceId) -> bool {
+    prev != Some(now)
+}
+
+/// DANGER-READ-SHOW-1 — the slab text during the hold; reads `tier()` each frame, never `shown()`.
+fn danger_hold_line(now: f64, until: f64, place: PlaceId, diff: Option<&AreaDifficulty>) -> Option<String> {
+    diff.filter(|_| now < until).map(|d| entry_danger_line(place, d.tier(place)))
 }
 
 /// CARD L1 SANCTUARY-WANT / CARD L6 LANDING-WANT — first minutes speak
@@ -1788,5 +1811,43 @@ mod tests {
             assert!(!line.chars().any(|c| c.is_ascii_digit()), "{line}");
             assert_eq!(line.matches(" · ").count(), 1, "{line}");
         }
+    }
+
+    /// DANGER-READ-SHOW-1 — entry into a different place is due, boot entry included.
+    #[test]
+    fn danger_line_due_on_entry_to_a_different_place() {
+        for p in [PlaceId::Sanctuary, PlaceId::Heartwood, PlaceId::Depths] {
+            assert!(danger_line_due(None, p));
+        }
+        assert!(danger_line_due(Some(PlaceId::Heartwood), PlaceId::Depths));
+        assert!(danger_line_due(Some(PlaceId::Depths), PlaceId::Heartwood));
+    }
+
+    /// DANGER-READ-SHOW-1 — staying in the same place is not due.
+    #[test]
+    fn danger_line_due_false_in_the_same_place() {
+        for p in [PlaceId::Sanctuary, PlaceId::Heartwood, PlaceId::Depths] {
+            assert!(!danger_line_due(Some(p), p));
+        }
+    }
+
+    /// DANGER-READ-SHOW-1 — Threshold is the Heartwood shelf label, not a PlaceId, so it is no entry.
+    #[test]
+    fn danger_line_due_threshold_is_no_entry() {
+        assert_eq!(place_clarity_label(PlaceId::Heartwood, true), "Threshold");
+        assert!(!danger_line_due(Some(PlaceId::Heartwood), PlaceId::Heartwood));
+    }
+
+    /// DANGER-READ-SHOW-1 — the held text equals `entry_danger_line(place, tier())`, never `shown()`.
+    #[test]
+    fn danger_hold_text_equals_entry_danger_line_from_tier() {
+        use crate::difficulty::DifficultyTier;
+        let d = AreaDifficulty { default: DifficultyTier::Sworn, pending: [Some(DifficultyTier::Unbroken); 3], ..Default::default() };
+        let got = danger_hold_line(1.0, 2.0, PlaceId::Heartwood, Some(&d));
+        assert_eq!(got.as_deref(), Some(entry_danger_line(PlaceId::Heartwood, d.tier(PlaceId::Heartwood)).as_str()));
+        assert_eq!(got.as_deref(), Some("Heartwood · Sworn"));
+        assert_eq!(danger_hold_line(1.0, 2.0, PlaceId::Sanctuary, Some(&d)).as_deref(), Some("Sanctuary · Sheltered"));
+        assert_eq!(danger_hold_line(2.0, 2.0, PlaceId::Heartwood, Some(&d)), None);
+        assert_eq!(danger_hold_line(1.0, 2.0, PlaceId::Heartwood, None), None);
     }
 }

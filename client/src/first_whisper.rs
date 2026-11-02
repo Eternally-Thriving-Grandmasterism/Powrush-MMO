@@ -17,7 +17,7 @@ use crate::hex_travel::HexTravelState;
 use crate::local_session_persist::LocalSessionPersist;
 
 const LINE: &str = "What you nurture, nurtures all.";
-const HOLD_SECS: f64 = 5.2;
+pub(crate) const HOLD_SECS: f64 = 5.2;
 
 /// CARD FLESH-WHISPER-PLACE — the one Lattice sentence may name the Place.
 /// Absent travel keeps `LINE` byte for byte. One sentence, then silence.
