@@ -3219,6 +3219,7 @@ mod tests {
             ID_CARE_PROMPT => bottom_right(144.0, 16.0, 460.0),
             ID_CARE_STRIP => bottom_right(144.0, 16.0, 560.0),
             ID_PRACTICE => bottom_right(144.0, 16.0, 640.0),
+            ID_ABILITY_TIP => bottom_right(144.0, 16.0, 240.0),
             ID_PULSE => centre(560.0),
             ID_WELCOME => centre(380.0),
             ID_PICKUP => centre(360.0),
