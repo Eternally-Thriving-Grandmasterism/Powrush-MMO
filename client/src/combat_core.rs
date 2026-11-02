@@ -111,6 +111,12 @@ pub fn rise_tell(place: PlaceId, predator_taken: u32, down_secs: f32) -> Option<
     (predator_present(place) && predator_taken >= HEALTH && down_secs >= onset)
         .then(|| ((down_secs - onset) / PREDATOR_TELL_SECS).clamp(0.0, 1.0))
 }
+/// CLEARED-STATE-1 — Heartwood reads cleared while the predator is down, until the rise tell takes over.
+pub fn cleared(place: PlaceId, predator_taken: u32, down_secs: f32) -> bool {
+    predator_present(place) && predator_taken >= HEALTH && down_secs < PREDATOR_RESPAWN_SECS - PREDATOR_TELL_SECS
+}
+#[derive(Component)]
+pub struct ClearedTell;
 
 /// The pillar grows up out of the ground: base pinned at y 0, height scales with the rise.
 pub fn rise_tell_transform(rise: f32) -> Transform {
@@ -338,8 +344,8 @@ impl Plugin for CombatCorePlugin {
             .init_resource::<StrikeBuffer>()
             .add_systems(Startup, spawn_predator)
             .add_systems(Startup, spawn_lunge_tell)
-            .add_systems(Startup, spawn_rise_tell)
-            .add_systems(Update, rise_tell_show.after(predator_respawn))
+            .add_systems(Startup, (spawn_rise_tell, spawn_cleared_tell))
+            .add_systems(Update, (rise_tell_show, cleared_show).after(predator_respawn))
             .add_systems(Update, (combat_fire, predator_lunge, lunge_tell).chain().after(InputMapSet))
             .add_systems(Update, hit_flash.after(combat_fire))
             .add_systems(Update, predator_respawn.after(combat_fire).before(predator_lunge).before(hit_flash))
@@ -398,6 +404,14 @@ fn spawn_rise_tell(
         rise_tell_transform(0.0),
         Visibility::Hidden,
         RiseTell,
+    ));
+}
+
+/// CLEARED-STATE-1 — one hidden steady disc at `PREDATOR_HOME`, unlit Heartwood amber, no animation.
+fn spawn_cleared_tell(mut commands: Commands, (mut meshes, mut materials): (ResMut<Assets<Mesh>>, ResMut<Assets<StandardMaterial>>)) {
+    commands.spawn((
+        (Mesh3d(meshes.add(Cylinder::new(RISE_TELL_RADIUS, LUNGE_TELL_DOT_HEIGHT))), MeshMaterial3d(materials.add(StandardMaterial { base_color: crate::climate_plane::HEARTWOOD_AMBER_LAMP, unlit: true, ..default() }))),
+        (Transform::from_xyz(PREDATOR_HOME[0], LUNGE_TELL_LIFT, PREDATOR_HOME[1]), Visibility::Hidden, ClearedTell),
     ));
 }
 
@@ -645,6 +659,12 @@ fn rise_tell_show(
             at.set_if_neq(rise_tell_transform(r));
         }
     }
+}
+
+/// CLEARED-STATE-1 — after `predator_respawn`, like `rise_tell_show`; toggles Visibility only.
+fn cleared_show(travel: Option<Res<HexTravelState>>, combat: Option<Res<CombatState>>, mut disc: Query<&mut Visibility, With<ClearedTell>>) {
+    let on = matches!((travel, combat), (Some(t), Some(c)) if cleared(t.current, c.predator_taken, c.down_secs));
+    disc.iter_mut().for_each(|mut vis| { vis.set_if_neq(if on { Visibility::Visible } else { Visibility::Hidden }); });
 }
 
 #[cfg(test)]
@@ -1231,6 +1251,22 @@ mod tests {
         let base = |t: Transform| t.translation.y - RISE_TELL_HEIGHT * t.scale.y * 0.5;
         assert!(base(low).abs() < 1e-5 && base(high).abs() < 1e-5, "grows from the ground");
         assert_eq!((high.translation.x, high.translation.z), (PREDATOR_HOME[0], PREDATOR_HOME[1]));
+    }
+
+    #[test]
+    fn cleared_edges_hand_off_to_rise_tell() {
+        let (hw, onset) = (PlaceId::Heartwood, PREDATOR_RESPAWN_SECS - PREDATOR_TELL_SECS);
+        assert!(!cleared(hw, HEALTH - HIT, 5.0), "alive reads uncleared");
+        assert!(cleared(hw, HEALTH, 0.0) && cleared(hw, HEALTH, 10.0) && cleared(hw, HEALTH, onset - 0.01), "kill or re-kill, mid-down, onset - eps");
+        assert!(!cleared(hw, HEALTH, onset) && rise_tell(hw, HEALTH, onset).is_some(), "the pillar takes over at onset");
+        assert!(!cleared(hw, 0, PREDATOR_RESPAWN_SECS) && !cleared(hw, 0, 0.0), "fire frame and respawned read uncleared");
+        assert!(!cleared(PlaceId::Sanctuary, HEALTH, 1.0) && !cleared(PlaceId::Depths, HEALTH, 1.0), "Heartwood only");
+    }
+    #[test]
+    fn cleared_never_overlaps_rise_tell() {
+        for (d, taken) in (0..=640).flat_map(|i| [(i as f32 * 0.05, HEALTH - HIT), (i as f32 * 0.05, HEALTH)]) {
+            assert!(!(cleared(PlaceId::Heartwood, taken, d) && rise_tell(PlaceId::Heartwood, taken, d).is_some()), "overlap at {d} s");
+        }
     }
 
     #[test]
