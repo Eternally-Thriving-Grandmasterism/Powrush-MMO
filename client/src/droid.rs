@@ -144,7 +144,7 @@ fn droid_tick(
     down_step(&mut state, dt);
     let before = combat.player_taken;
     let armed = shot_step(&mut state, &mut combat.player_taken, dt, gate, reach, tier);
-    if hurt_edge(before, combat.player_taken) { // DROID-HURT-READOUT-1: the predator's hurt path, combat_core.rs:619-627
+    if hurt_edge(before, combat.player_taken) { // DROID-HURT-READOUT-1: the predator's hurt path, combat_core.rs:636-644
         combat.hurt = combat.hurt.wrapping_add(1);
         play_hurt(&mut cmd, assets.as_deref(), mute.as_deref());
         if let (Some(epi), now) = (epi.as_mut(), time.elapsed_secs_f64()) {
