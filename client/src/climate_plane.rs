@@ -5618,7 +5618,7 @@ mod tests {
                 }
             }
         }
-        // Sanctuary predator cells are not live: predator_present (combat_core.rs:196-198) is Heartwood-only.
+        // Sanctuary predator, flash and ring are live via fight_present (combat_core.rs:236, the Stavehold practice fight) and read 1.13-1.92 on fog and sky per 
         // Sanctuary node fog/sky: honest known gap; a passing node would be dark bronze, failing
         // is_warm_gold_well and the well > earth + 0.25 law, so SANCTUARY_WELL_GOLD stays.
         let want_below = [
