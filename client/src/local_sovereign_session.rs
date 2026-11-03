@@ -163,10 +163,13 @@ fn update_banner(
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut root: Query<&mut Visibility, With<SovereignBannerRoot>>,
     mut text_q: Query<&mut Text, With<SovereignBannerText>>,
-    (door, house, yielded): (Option<Res<LaunchDoor>>, Option<Res<HouseLabel>>, Option<Res<crate::hud_presets::HudYielded>>),
+    (door, house, yielded, places, persona, edit): (
+        Option<Res<LaunchDoor>>, Option<Res<HouseLabel>>, Option<Res<crate::hud_presets::HudYielded>>,
+        Option<Res<crate::hex_travel::PlacesPlate>>, Option<Res<crate::title_screen::PersonaCreatorState>>, Option<Res<crate::hud_edit_mode::HudEditMode>>,
+    ),
 ) {
     let (dt, yielded) = (time.delta_secs_f64(), yielded.is_some_and(|y| y.0.contains(&ID_SOVEREIGN)));
-    let counts = banner_counts(door.as_deref().copied(), yielded, house.is_some_and(|h| h.settings_open));
+    let counts = banner_counts(door.as_deref().copied(), yielded, house.is_some_and(|h| h.settings_open) || ((places.is_some_and(|p| p.open) || persona.is_some_and(|p| p.open)) && !edit.is_some_and(|e| e.active)));
     if counts && dt > 0.0 && !session.dismissed && session.shown < session.banner_until { session.shown += dt; }
     let show = !session.dismissed && session.shown < session.banner_until;
     for mut vis in &mut root {
@@ -599,5 +602,23 @@ mod tests {
         app.insert_resource(LaunchDoor::InYard);
         app.update();
         assert!(app.world().resource::<LocalSovereignSession>().dismissed, "the same press InYard dismisses");
+    }
+
+    /// SOVEREIGN-MODAL-HOLD-1 — Places or Persona open holds the clock (R5 hides the banner), unless HUD edit mode is up.
+    #[test]
+    fn sovereign_modal_hold_places_and_persona_hold_the_clock() {
+        let src = include_str!("local_sovereign_session.rs");
+        assert!(src.contains(concat!("house.is_some_and(|h| h.settings_open) || ((places.is_some_and(|p| p.open) || persona.is_some_and(|p| p.open))", " && !edit.is_some_and(|e| e.active)));")));
+        let modal = |places: bool, persona: bool, edit: bool| ((places || persona) && !edit);
+        let mut s = LocalSovereignSession::default();
+        let run = |s: &mut LocalSovereignSession, paused: bool| (0..8).for_each(|_| { step(s, LaunchDoor::InYard, false, paused, 0.125); });
+        run(&mut s, modal(true, false, false));
+        assert!(s.shown == 0.0, "Places open holds");
+        run(&mut s, modal(false, true, false));
+        assert!(s.shown == 0.0, "Persona open holds");
+        run(&mut s, modal(true, false, true));
+        assert!(s.shown == 1.0, "Places with edit mode counts");
+        run(&mut s, modal(false, false, false));
+        assert!(s.shown == 2.0 && s.banner_until == BANNER_SECS, "closing resumes, no reset");
     }
 }
