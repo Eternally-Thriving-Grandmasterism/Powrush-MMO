@@ -1,6 +1,7 @@
-//! LOOT-DROPS-1. Inactive named-find roll with caller-supplied rolls; nothing outside tests calls it.
-//! Weights are council defaults (#738 CUT 6581050171), not Sherif's words; Sherif may veto or retune.
+//! LOOT-DROPS-1. Named-find roll with caller-supplied rolls; LOOT-DROPS-WIRE-1 calls it once per defeat (combat_core.rs).
+//! Weights from #738 CUT 6581050171, kept by Sherif ("3 yes keep", 7:28 PM ET); Sherif may veto or retune.
 //! No odds are shown to players.
+use bevy::prelude::*;
 use crate::difficulty::{drop_chance, DifficultyTier};
 use shared::temper::{NamedFind, Standing, NAMED_FINDS};
 /// Basis points in one whole: `chance_roll` lives in 0..10000.
@@ -31,6 +32,37 @@ pub fn roll_named_find(tier: DifficultyTier, base_chance: f32, role: Option<&str
     }
     None
 }
+/// LOOT-DROPS-WIRE-1: council base chance (#738 RULINGS 6595183027); Sherif may veto.
+pub const LOOT_BASE_CHANCE: f32 = 0.25;
+pub const FINDS_SAVE: &str = "powrush_finds.json";
+/// Pure mix of (strikes, place, finds owned): the same inputs give the same rolls.
+pub const fn loot_hash(strikes: u32, place: u32, owned: u32) -> u32 {
+    let h = (strikes.wrapping_mul(0x9E37_79B9) ^ place.wrapping_mul(0x85EB_CA6B) ^ owned.wrapping_mul(0xC2B2_AE35)).wrapping_mul(0x7FEB_352D);
+    (h ^ (h >> 15)).wrapping_mul(0x846C_A68B) ^ (h >> 16)
+}
+/// Named finds earned on defeats: names only, a record with no stats. `pending` is the line waiting for `show_find`.
+#[derive(Resource, Debug, Default, Clone, PartialEq)]
+pub struct FoundFinds { pub names: Vec<&'static str>, pub pending: Option<String> }
+impl FoundFinds {
+    /// One roll per defeat, role None. An owned pick is silent and a waiting line is never replaced. True when a new find lands.
+    pub fn drop_once(&mut self, tier: DifficultyTier, strikes: u32, place: u32) -> bool {
+        if self.pending.is_some() { return false; }
+        let h = loot_hash(strikes, place, self.names.len() as u32);
+        let Some(f) = roll_named_find(tier, LOOT_BASE_CHANCE, None, (h % LOOT_BPS) as u16, loot_hash(h, place, 1)) else { return false };
+        if self.names.contains(&f.name) { return false; }
+        self.names.push(f.name); self.pending = Some(find_line(f)); true
+    }
+    pub fn encode(&self) -> String { self.names.join("\n") }
+    pub fn decode(s: Option<&str>) -> Self {
+        let has = |n: &str| s.is_some_and(|s| s.lines().any(|l| l.trim() == n));
+        FoundFinds { names: NAMED_FINDS.iter().map(|f| f.name).filter(|n| has(n)).collect(), pending: None }
+    }
+}
+pub fn find_line(f: &NamedFind) -> String { format!("{} · {}", f.name, f.sentence) }
+/// The waiting line shows only once the calm queue is done and the current pulse line has expired.
+pub fn find_ready(calm_done: bool, pulse_until: f64, now: f64) -> bool { calm_done && pulse_until <= now }
+pub fn load_finds(mut finds: ResMut<FoundFinds>) { *finds = FoundFinds::decode(shared::user_persist::read_named(FINDS_SAVE).ok().as_deref()); }
+pub fn save_finds(finds: &FoundFinds) { let _ = shared::user_persist::write_named(FINDS_SAVE, finds.encode()); }
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -75,5 +107,30 @@ mod tests {
         for banned in ["fn convert", "fn exchange", "fn trade", "fn buy", "fn sell"] {
             assert!(!src.contains(banned), "no conversion fn: {banned}");
         }
+    }
+
+    #[test]
+    fn loot_drops_wire_seeded_rolls_repeat_owned_silent_all_owned_never() {
+        let (mut found, all) = (0, FoundFinds { names: NAMED_FINDS.iter().map(|f| f.name).collect(), pending: None });
+        for s in 0..2048 {
+            let (mut a, mut b, mut c) = (FoundFinds::default(), FoundFinds::default(), all.clone());
+            assert!(a.drop_once(DifficultyTier::Sworn, s, 1) == b.drop_once(DifficultyTier::Sworn, s, 1) && a == b && loot_hash(s, 1, 0) == loot_hash(s, 1, 0));
+            assert!(!c.drop_once(DifficultyTier::Sworn, s, 1) && c == all, "all owned never drops");
+            let Some(line) = a.pending.take() else { assert_eq!(a, FoundFinds::default()); continue };
+            found += 1;
+            assert!(NAMED_FINDS.iter().any(|n| n.name == a.names[0] && line == format!("{} · {}", n.name, n.sentence)));
+            let mut w = FoundFinds { names: vec![], pending: Some(line) };
+            assert!(!w.drop_once(DifficultyTier::Sworn, s, 1) && w.names.is_empty(), "no re-roll while a line waits");
+            let mut o = FoundFinds { names: a.names.clone(), pending: None };
+            if o.drop_once(DifficultyTier::Sworn, s, 0) { assert!(o.names[1] != o.names[0]) } else { assert!(o.names.len() == 1 && o.pending.is_none()) }
+        }
+        assert!(found > 0);
+    }
+    #[test]
+    fn loot_drops_wire_save_round_trip_and_ready_gate() {
+        let f = FoundFinds { names: vec![NAMED_FINDS[1].name, NAMED_FINDS[4].name], pending: Some("x".into()) };
+        assert_eq!(FoundFinds::decode(Some(&f.encode())), FoundFinds { pending: None, ..f.clone() });
+        assert!(FoundFinds::decode(Some("no such find\n")) == FoundFinds::default() && FoundFinds::decode(None) == FoundFinds::default());
+        assert!(!find_ready(false, 0.0, 10.0) && !find_ready(true, 12.0, 10.0) && find_ready(true, 10.0, 10.0) && FINDS_SAVE == "powrush_finds.json");
     }
 }
