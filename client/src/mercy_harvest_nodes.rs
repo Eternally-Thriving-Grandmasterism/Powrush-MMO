@@ -50,6 +50,8 @@ const STING_SHARED: &str = "audio/mercy_harvest_sting.ogg";
 const STING_SANCTUARY: &str = "audio/mercy_harvest_sting_sanctuary.ogg";
 const STING_VERDANT: &str = "audio/mercy_harvest_sting_verdant.ogg";
 const STING_HORIZON: &str = "audio/mercy_harvest_sting_horizon.ogg";
+/// HARVEST-STING-GUARD-1 — mirrors `combat_core.rs:717` under the same asset root; false means the sting is skipped.
+pub fn sting_file_present(path: &str) -> bool { bevy::asset::io::file::FileAssetReader::get_base_path().join("assets").join(path).is_file() }
 
 /// Tend writes pulse ≈ 0.55; harvest writes 1.0. Used to spot Idle-after-tend.
 const TEND_PULSE: f32 = 0.55;
@@ -800,6 +802,7 @@ fn try_soft_harvest_sting(
     }
     *last = Some(node.harvests);
     let path = sting_path_for_realm(realm.and_then(|r| r.current));
+    if !sting_file_present(path) { return; }
     commands.spawn((
         AudioPlayer::<AudioSource>(asset_server.load(path)),
         PlaybackSettings::DESPAWN,
@@ -810,6 +813,19 @@ fn try_soft_harvest_sting(
 mod tests {
     use super::*;
     use shared::temper::temper_copy_is_honest;
+    #[test]
+    fn harvest_sting_absent_files_spawn_nothing() {
+        use bevy::ecs::system::RunSystemOnce;
+        assert!([STING_SHARED, STING_SANCTUARY, STING_VERDANT, STING_HORIZON].iter().all(|p| !sting_file_present(p)));
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<AudioSource>();
+        let e = app.world_mut().spawn(MercyHarvestNode { name: "t", climate_id: 0, vitality: 1.0, harvests: 1, pulse: 0.0 }).id();
+        app.world_mut().insert_resource(NearbyMercyNode { last_harvested: Some(e), ..default() });
+        app.world_mut().run_system_once(try_soft_harvest_sting).unwrap();
+        assert_eq!(app.world_mut().query::<&AudioPlayer>().iter(app.world()).count(), 0);
+        let body = include_str!("mercy_harvest_nodes.rs").split("fn try_soft_harvest_sting(").nth(1).and_then(|s| s.split("\n}\n").next()).expect("sting fn");
+        assert!(body.find(concat!("if !sting_file_", "present(path)")).zip(body.find("commands.spawn(")).is_some_and(|(g, sp)| g < sp));
+    }
 
     /// CARD WELL-GLOW-OWNER-1 — `pulse_harvested_nodes` alone never touches
     /// the well material emissive or the child `PointLight`; it still decays
