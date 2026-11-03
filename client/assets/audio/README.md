@@ -6,6 +6,6 @@ This folder is not a premade stem catalog. Nothing here is registered at startup
 
 The lived mixer does not load this folder. It loads `assets/audio/peace_yard_bed.ogg` and `assets/audio/peace_well_sting.ogg` (`shared/peace_audio.rs` `BED_ASSET` and `STING_ASSET`).
 
-`epic_dark_ambient.ogg` is tracked at `assets/music/epic_dark_ambient.ogg`. It is not wired.
+`assets/music/epic_dark_ambient.ogg` was removed by owner decision on 2026-11-03.
 
 Contact: info@Rathor.ai
