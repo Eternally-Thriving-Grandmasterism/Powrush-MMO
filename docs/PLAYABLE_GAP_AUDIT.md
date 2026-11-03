@@ -211,7 +211,7 @@ Facts at `10d71e6d`, cite-only, from Sherif's playtester's report that no combat
 | CP-01 | Combat is not reachable on default Play before hour three plus a Places pick. | `shared/hex_travel.rs:443`; `shared/hex_travel.rs:388-390`; `shared/hour_two.rs:71` | COMBAT-REACH-1 |
 | CP-02 | Nothing in Sanctuary points toward Heartwood or its enemies. | `client/src/first_session_guidance.rs:163` | COMBAT-SIGNPOST-1 |
 | CP-03 | The only combat sound is the reused peace sting on a tell; there is no strike, hit or defeat sound. | `client/src/combat_core.rs:556-562`; `client/src/droid.rs:150` | COMBAT-FEEL-SFX-1 |
-| CP-04 | Both enemies are unnamed primitives (a capsule and dots). | `client/src/combat_core.rs:34`; `client/src/combat_core.rs:374`; `client/src/droid.rs:20` | COMBAT-FEEL-LOOK-1 |
+| CP-04 | Both enemies are unnamed primitives (a capsule and dots). The player now feels being hit (camera kick, gamepad rumble and a lower thud, once per landed lunge), and the creature leans in over the existing wind-up (COMBAT-FEEL-LOOK-1). The name and model stay open for the councils and Sherif. | `client/src/combat_core.rs:40`; `client/src/combat_core.rs:399-411`; `client/src/droid.rs:20` | COMBAT-FEEL-LOOK-1 |
 
 No capture: this audit adds no image (Hands standing rule, no media or binaries).
 

@@ -71,6 +71,8 @@ pub struct CombatState {
     pub strikes: u32,
     /// Seconds the predator has been down; reset to 0 while alive. Only writer: `predator_respawn`.
     pub down_secs: f32,
+    /// COMBAT-FEEL-LOOK-1 — landed lunges so far (wrapping); `hit_flash` kicks on a rise.
+    pub hurt: u32,
 }
 
 #[derive(Component)]
@@ -583,7 +585,8 @@ fn predator_lunge(
     mut epi: Option<ResMut<FirstHarvestEpiphany>>,
     mut shown: Query<&mut Visibility, With<Predator>>,
     mut diff: Option<ResMut<AreaDifficulty>>,
-    (mut seated, mut homed): (Local<Vec3>, Query<&mut Transform, Or<(With<Predator>, With<LungeTell>, With<ClearedTell>)>>),
+    (mut seated, mut homed): (Local<Vec3>, Query<(&mut Transform, Has<Predator>), Or<(With<Predator>, With<LungeTell>, With<ClearedTell>)>>),
+    (mut cmd, assets, mute): (Commands, Option<Res<AssetServer>>, Option<Res<crate::local_settings::MasterMuteGain>>),
 ) {
     let (Some(travel), Some(mut presence)) = (travel, presence) else {
         return;
@@ -597,12 +600,23 @@ fn predator_lunge(
     let shift = home_shift(travel.current);
     if shift != *seated {
         let delta = shift - *seated;
-        homed.iter_mut().for_each(|mut t| t.translation += delta);
+        homed.iter_mut().for_each(|(mut t, _)| t.translation += delta);
         *seated = shift;
     }
     let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
-    if predator_tick(&mut combat, time.delta_secs(), reach, tier) {
+    let before = combat.player_taken; // CL-C1: one edge per frame, read before the reseat
+    let defeated = predator_tick(&mut combat, time.delta_secs(), reach, tier);
+    if hurt_edge(before, combat.player_taken) {
+        combat.hurt = combat.hurt.wrapping_add(1);
+        if !tell_visible(combat.lunge_timer, reach) { play_hurt(&mut cmd, assets.as_deref(), mute.as_deref()); } // P4: never on a tell frame
+    }
+    let ([hx, hz], lean) = (fight_home(travel.current), lean_at(combat.lunge_timer, reach));
+    let to = Vec2::new(p.x - hx, p.z - hz).normalize_or_zero() * lean + Vec2::new(hx, hz);
+    for (mut t, _) in homed.iter_mut().filter(|(_, predator)| *predator) {
+        if (t.translation.x, t.translation.z) != (to.x, to.y) { (t.translation.x, t.translation.z) = (to.x, to.y); } // CL-C3: x/z only, absolute
+    }
+    if defeated {
         reseat_at(travel.current, &mut combat, &mut presence);
         if let Some(d) = diff.as_mut() { d.new_life(); } // DIFFICULTY-REWARDS-1: the defeat ends this life
         if let Some(epi) = epi.as_mut() {
@@ -633,6 +647,27 @@ pub fn play_hit(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&
         let play = PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain));
         cmd.spawn((AudioPlayer::<AudioSource>(assets.load(HIT_ASSET)), play));
     }
+}
+
+/// COMBAT-FEEL-LOOK-1 — the player's hurt thud: `combat_hit.ogg` played lower, so being hit and hitting differ.
+pub const HURT_SPEED: f32 = 0.8;
+const _: () = assert!(HURT_SPEED < 1.0);
+/// One hurt per frame with a `player_taken` rise.
+pub fn hurt_edge(before: u32, after: u32) -> bool { after > before }
+/// The same guard and gain path as `play_hit` (gain from `hit_volume`, so at most `HIT_GAIN`), slower playback.
+pub fn play_hurt(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&crate::local_settings::MasterMuteGain>) {
+    if let (true, Some(gain), Some(assets)) = (audio_output_safe(), hit_volume(true, mute), assets) {
+        let play = PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain)).with_speed(HURT_SPEED);
+        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(HIT_ASSET)), play));
+    }
+}
+/// The creature leans toward the player over the existing wind-up; 0 outside the tell, back to 0 on the wrap.
+pub const LUNGE_LEAN: f32 = 0.4;
+const _: () = assert!(LUNGE_LEAN <= 0.45);
+pub fn lean_at(lunge_timer: f32, reach: bool) -> f32 {
+    if !tell_visible(lunge_timer, reach) { return 0.0; }
+    let s = ((lunge_timer - (LUNGE_SECS - LUNGE_TELL_SECS)) / LUNGE_TELL_SECS).clamp(0.0, 1.0);
+    LUNGE_LEAN * s * s * (3.0 - 2.0 * s)
 }
 
 /// MUSIC-WIRE-1 — White Bat Audio "After The War" (MUSIC_CREDITS[12]); the file is gitignored and never committed.
@@ -730,7 +765,7 @@ fn lunge_tell(
 #[allow(clippy::too_many_arguments)]
 fn hit_flash(
     time: Res<Time>,
-    (mut last, mut since): (Local<u32>, Local<Option<f64>>),
+    (mut last, mut since, mut hurt_seen): (Local<u32>, Local<Option<f64>>, Local<u32>),
     combat: Option<Res<CombatState>>,
     pool: Option<ResMut<SoftRbePool>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
@@ -744,6 +779,10 @@ fn hit_flash(
     let (Some(combat), Some(mut pool), Some(mut materials)) = (combat, pool, materials) else {
         return;
     };
+    if combat.hurt != std::mem::replace(&mut *hurt_seen, combat.hurt) { // COMBAT-FEEL-LOOK-1 (CL-C2): the player was hit
+        pool.kick = pool.kick.max(HIT_KICK);
+        rumble_harvest(&mut rumble, gamepads.iter(), false);
+    }
     let (taken, now, live) = (combat.predator_taken, time.elapsed_secs_f64(), since.is_some());
     let (rise, kill) = (taken > std::mem::replace(&mut *last, taken), taken >= HEALTH);
     if rise {
@@ -950,6 +989,33 @@ mod tests {
         let body = include_str!("combat_core.rs").split("fn music_bed(").nth(1).and_then(|s| s.split("\n}\n").next()).expect("music_bed");
         assert!(body.contains(concat!("assets.load(", "MUSIC_ASSET)")) && !body.contains(concat!("STING", "_ASSET")) && !body.contains(concat!("HIT", "_ASSET")));
         assert_eq!(MUSIC_ASSET, "audio/music/after-the-war.ogg");
+    }
+
+    #[test]
+    fn combat_feel_look_kick_decays_and_constants_hold() {
+        let mut pool = SoftRbePool::default();
+        pool.kick = pool.kick.max(HIT_KICK);
+        let k: Vec<f32> = (0..4).map(|_| { pool.tick_juice(0.125); pool.kick }).collect();
+        assert!(k.windows(2).all(|w| w[1] <= w[0]) && pool.kick == 0.0, "the kick decays to 0");
+        assert!(HEALTH == 200 && HIT == 15 && LUNGE_SECS == 0.6 && LUNGE_TELL_SECS == 0.35 && REACH == HARVEST_REACH && HIT_KICK == 0.35);
+        assert!(HURT_SPEED != 1.0 && hit_volume(true, None) == Some(HIT_GAIN));
+    }
+
+    #[test]
+    fn combat_feel_look_lean_only_inside_the_wind_up() {
+        assert!(lean_at(0.125, true) == 0.0 && lean_at(0.25, true) == 0.0 && lean_at(0.5, false) == 0.0 && lean_at(0.0, true) == 0.0);
+        let (a, b) = (lean_at(0.375, true), lean_at(0.5, true));
+        assert!(0.0 < a && a < b && b <= LUNGE_LEAN && lean_at(0.5625, true) <= LUNGE_LEAN);
+        assert!(tell_visible(0.375, true) && !tell_visible(0.125, true), "the tell window is unchanged");
+    }
+
+    #[test]
+    fn combat_feel_look_hurt_edge_once_per_rise() {
+        let mut c = CombatState::default();
+        let step = |c: &mut CombatState, dt: f32| { let before = c.player_taken; predator_tick(c, dt, true, DifficultyTier::Sheltered); hurt_edge(before, c.player_taken) };
+        assert!((0..4).all(|_| !step(&mut c, 0.125)), "no edge before the strike");
+        assert!(step(&mut c, 0.125) && !step(&mut c, 0.0), "once on the wrap, not on an unchanged frame");
+        assert!(step(&mut c, 1.25) && c.player_taken == 3 * enemy_hit(DifficultyTier::Sheltered, HIT), "two wraps, one edge");
     }
 
     #[test]
