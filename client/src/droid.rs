@@ -6,19 +6,19 @@ use crate::combat_core::{combat_fire, predator_present, respawn_step, set_pulse,
 use crate::combat_core::{LUNGE_TELL_DOTS, LUNGE_TELL_DOT_HEIGHT, LUNGE_TELL_DOT_RADIUS, LUNGE_TELL_LIFT};
 use crate::{first_harvest_epiphany::FirstHarvestEpiphany, hex_travel::HexTravelState};
 use crate::{human_presence::SoftPresence, title_screen::LaunchDoor};
-use crate::combat_core::play_tell;
-use crate::difficulty::{cue_line, enemy_hit, hides_cues, tell_onset, AreaDifficulty, DifficultyTier};
+use crate::combat_core::{play_tell, tell_arm};
+use crate::difficulty::{cue_line, enemy_hit, hides_cues, AreaDifficulty, DifficultyTier};
 
 /// North of the Threshold shelf (0,6): clear of the node, lamp, pond, Wards, both enemies and the wake point.
 pub const DROID_HOME: [f32; 2] = [0.0, 13.0];
 pub const DROID_REACH: f32 = REACH; // R1
 /// Shot cycle: 0.75 s quiet, then a 0.5 s tell, then the shot. Playtest-tunable. Sherif may veto.
 pub const DROID_SHOT_SECS: f32 = 1.25;
-/// COMBAT_AND_PVP.md:479 "Shot, 0.5 s"; meets the 0.35 s telegraph rule (:433).
+/// COMBAT_AND_PVP.md:487 "Shot, 0.5 s"; meets the 0.35 s telegraph rule (:433).
 pub const DROID_SHOT_TELL_SECS: f32 = 0.5;
 pub const DROID_HIT: u32 = 25;
 pub const DROID_NAME: &str = "[DROID NAME TBD]"; // unnamed until NAME-PASS-1
-const DROID_CUE_SECS: f64 = 4.2; // same hold as the private `CUE_SECS` at combat_core.rs:44
+const DROID_CUE_SECS: f64 = 4.2; // same hold as the private `CUE_SECS` at combat_core.rs:58
 pub const DROID_TELL_TEXT: &str = "Look out, the droid is about to fire";
 
 /// The droid's pool and clocks. Client-local, never saved.
@@ -146,7 +146,7 @@ fn droid_tick(
     let alive = gate && droid_alive(&state);
     body.iter_mut().for_each(|mut v| _ = v.set_if_neq(show(alive)));
     let tell = alive && shot_tell_visible(state.shot_timer, armed);
-    if tell_onset(&mut was, tell) {
+    if tell_arm(&mut was, armed, tell) {
         play_tell(&mut cmd, assets.as_deref(), mute.as_deref());
         if let (true, Some(epi)) = (hides_cues(tier), epi.as_mut()) {
             set_pulse(epi, DROID_TELL_TEXT.to_string(), time.elapsed_secs_f64() + f64::from(DROID_SHOT_TELL_SECS));
@@ -160,6 +160,7 @@ fn droid_tick(
 mod tests {
     use super::*;
     use crate::combat_core::{HEARTWOOD_ENTRANCE, PREDATOR_HOME, PREDATOR_RESPAWN_SECS};
+    use crate::difficulty::tell_onset;
     use crate::grazer::{FLEE_RADIUS, GRAZER_HOME};
     use crate::{skill_xp::SkillXp, terrain::PLAY_HALF};
     use shared::heartwood_lamp::{LAMP_DISK_CENTER, LAMP_DISK_RADIUS, WATER_POND_CENTER, WATER_POND_RADIUS};
@@ -283,5 +284,45 @@ mod tests {
         }
         let low = DROID_TELL_TEXT.to_lowercase();
         assert!(["loot", "instance", "heroic", "mythic", "rebirth", "outrider", "online"].iter().all(|w| !low.contains(w)));
+    }
+    /// DROID-TELL-CADENCE-1 — one `droid_tick` frame of the shot clock: (sting, ring).
+    fn droid_cadence(s: &mut DroidState, p: &mut u32, was: &mut bool, reach: bool, dt: f32, t: DifficultyTier) -> (bool, bool) {
+        let armed = shot_step(s, p, dt, true, reach, t);
+        let tell = droid_alive(s) && shot_tell_visible(s.shot_timer, armed);
+        (tell_arm(was, armed, tell), tell && !hides_cues(t))
+    }
+    fn stings(s: &mut DroidState, p: &mut u32, was: &mut bool, n: usize, t: DifficultyTier) -> usize {
+        (0..n).filter(|_| droid_cadence(s, p, was, true, 0.25, t).0).count()
+    }
+    #[test]
+    fn droid_cadence_sting_once_per_entry_and_hit_every_shot() {
+        let (mut s, mut p, mut was, t) = (DroidState::default(), 0, false, DifficultyTier::Sheltered);
+        assert!(stings(&mut s, &mut p, &mut was, 15, t) == 1 && p == 3 * DROID_HIT, "3 cycles, one sting, 3 shots");
+        assert_eq!(stings(&mut DroidState::default(), &mut 0, &mut false, 15, DifficultyTier::Sworn), 1, "Sworn: one onset, so one text pulse per entry");
+    }
+    #[test]
+    fn droid_cadence_rearms_on_exit_droid_down_and_defeat() {
+        let (mut s, mut p, mut was, t) = (DroidState::default(), 0, false, DifficultyTier::Sheltered);
+        stings(&mut s, &mut p, &mut was, 4, t);
+        assert!(!droid_cadence(&mut s, &mut p, &mut was, false, 0.25, t).0 && !was && stings(&mut s, &mut p, &mut was, 5, t) == 1, "exit");
+        s.taken = HEALTH; assert!(!droid_cadence(&mut s, &mut p, &mut was, true, 0.25, t).0 && !was, "droid down");
+        (0..60).for_each(|_| down_step(&mut s, 0.5));
+        assert!(PREDATOR_RESPAWN_SECS == 30.0 && s.taken == 0 && stings(&mut s, &mut p, &mut was, 5, t) == 1, "respawn");
+        p = HEALTH; assert!(!droid_cadence(&mut s, &mut p, &mut was, true, 0.25, t).0 && !was, "player defeated");
+        p = 0; assert_eq!(stings(&mut s, &mut p, &mut was, 5, t), 1, "re-arms after the defeat");
+    }
+    #[test]
+    fn droid_cadence_ring_per_shot_unchanged() {
+        let (mut s, mut p, mut was) = (DroidState::default(), 0, false);
+        let ring: Vec<bool> = (0..15).map(|_| droid_cadence(&mut s, &mut p, &mut was, true, 0.25, DifficultyTier::Sheltered).1).collect();
+        assert!(ring.iter().filter(|r| **r).count() == 6 && ring.chunks(5).all(|c| c == [false, false, true, true, false]), "{ring:?}");
+        let (mut s, mut p, mut was) = (DroidState::default(), 0, false);
+        assert!((0..15).all(|_| !droid_cadence(&mut s, &mut p, &mut was, true, 0.25, DifficultyTier::Sworn).1));
+    }
+    #[test]
+    fn droid_sting_bytes_and_gain_unchanged() {
+        let src = include_str!("droid.rs");
+        let branch = &src[src.find(concat!("if tell_arm", "(&mut was, armed, tell) {")).unwrap()..][..260];
+        assert!(branch.contains(concat!("play_tell", "(&mut cmd, assets.as_deref(), mute.as_deref());")) && branch.contains(concat!("hides_cues(tier), epi", ".as_mut())")) && src.matches(concat!("play_tell", "(&mut cmd")).count() == 1);
     }
 }
