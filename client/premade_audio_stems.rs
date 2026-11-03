@@ -24,12 +24,6 @@ use std::path::{Path, PathBuf};
 pub fn builtin_stem_manifest() -> Vec<PremadeStemDef> {
     vec![
         PremadeStemDef {
-            title: "Epic Dark Ambient Pad".into(),
-            flavor: AudioMomentFlavor::AmbientPad,
-            asset_path: "audio/premade/epic_dark_ambient.ogg".into(),
-            context: "Premade ambient bed".into(),
-        },
-        PremadeStemDef {
             title: "Mercy Resonance Choir".into(),
             flavor: AudioMomentFlavor::MercyResonance,
             asset_path: "audio/premade/mercy_resonance_choir.ogg".into(),
