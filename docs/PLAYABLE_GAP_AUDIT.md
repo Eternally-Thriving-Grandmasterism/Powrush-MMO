@@ -200,7 +200,7 @@ Facts at `10d71e6d`, cite-only, from Sherif's playtester's report that no combat
 - **Defeat:** the player is reseated with full health (`combat_core.rs:545-546`, `:309-315`) and the pulse reads "You wake at the Heartwood entrance" (`:341-343`, `:549`).
 
 **What a fight sounds like**
-- Three audio files are tracked: `assets/audio/peace_yard_bed.ogg`, `assets/audio/peace_well_sting.ogg` and `assets/music/epic_dark_ambient.ogg`. The music file is not wired (`client/assets/audio/README.md:9`).
+- Three audio files are tracked: `assets/audio/combat_hit.ogg`, `assets/audio/peace_well_sting.ogg` and `assets/audio/peace_yard_bed.ogg`. `assets/music/epic_dark_ambient.ogg` was removed (`client/assets/audio/README.md:9`).
 - The only combat sound is `play_tell` (`combat_core.rs:556-562`), which plays the peace `STING_ASSET` (`shared/peace_audio.rs:30`) on a predator tell (`combat_core.rs:587-588`) and a droid tell (`droid.rs:149-150`).
 - There is no strike, hit, defeat or respawn sound. The other live `AudioPlayer` spawns are the peace bed and sting (`client/src/peace_audio.rs:158`, `:192`, `:210`) and the harvest sting (`client/src/mercy_harvest_nodes.rs:804`). `client/src/rbe_ui_feedback.rs:74` and `:96` are in a file that `client/src/lib.rs` does not declare.
 

@@ -265,7 +265,7 @@ Dormant rule: if `assets/radio/` does not exist, the check passes with a note. O
 
 1. **Parse**: the manifest parses; `schema_version` is known; every required field (§4.1) is present and non-empty; dates are ISO and not in the future; hashes are 64 hex chars; URLs are `https://`.
 2. **File ↔ entry, both ways**: every audio file under `assets/radio/**` has exactly one `[[track]]` with a matching `file`, and every `[[track]].file` exists. Its SHA-256 equals `file_sha256`.
-3. **No stray audio**: no `.ogg/.wav/.flac/.mp3/.opus` anywhere in the repo outside `assets/radio/**` and the existing allowlist (`assets/audio/peace_yard_bed.ogg`, `assets/audio/peace_well_sting.ogg`, `assets/music/epic_dark_ambient.ogg`, each generated in-house; Q4).
+3. **No stray audio**: no `.ogg/.wav/.flac/.mp3/.opus` anywhere in the repo outside `assets/radio/**` and the existing allowlist (`assets/audio/peace_yard_bed.ogg`, `assets/audio/peace_well_sting.ogg`, `assets/audio/combat_hit.ogg`; licences in `assets/asset-licenses.csv`; Q4).
 4. **Source policy inherited**: `track.source` names a `[[source]]`; `track.restrictions ⊇ source.required_restrictions`; the four distribution restrictions (`no_standalone_release`, `no_streaming_service_upload`, `no_player_export`, `no_rebroadcast`) are present on every third-party track.
 5. **Credit line**: `credit_line` equals `credit_template` with `{title}` replaced by `title`, byte for byte. Source-specific pins: `white_bat_audio` must contain `Music by Karl Casey @ White Bat Audio`; `soundimage` must contain `Eric Matyas` and `www.soundimage.org`; `creatorchords` must contain `https://creatorchords.com` and must not contain `serpentsoundstudios`.
 6. **Station gate**: a track with `game_station` in `allowed_uses` needs `source.station_use = "allowed"` (or a `confirmation_ref`). `blocked` sources (Epidemic single-track, Tabletop Audio) fail outright. A station is `live` only if all its tracks are `approved`.
@@ -361,7 +361,7 @@ Copy rules for every name and blurb: no health claims, no real artists or tracks
 - **Q1** — Which genres launch first? Proposal: orchestral, fantasy folk, sci-fi ambient, horror (all coverable by S2–S5 today); synthwave waits for S1 confirmation.
 - **Q2** — Does Sherif want the S1/S6/S7/S8 confirmation emails sent? (Outbound: his call; draft text not included in this card.)
 - **Q3** — Where are licence snapshots and source masters stored off-repo (asset store, Drive folder)? The manifest only holds hashes and pointers.
-- **Q4** — Should the three in-house generated `.ogg` files get manifest entries too (`acquired_via = "procedural"`) instead of an allowlist?
+- **Q4** — Should the three tracked `.ogg` files get manifest entries too, instead of an allowlist?
 - **Q5** — Is a premium station wanted at all, and with which catalogue? (Sherif's call.)
 - **Q6** — Station-name screening against trademarks and existing song/station titles before Sherif's OK (the innovations-generator `screen-name` heuristic is English word-list only and is not trademark clearance).
 - **Q7** — Default `radio_volume` and duck targets need a playtest pass; the numbers in §2.4 are starting points.
