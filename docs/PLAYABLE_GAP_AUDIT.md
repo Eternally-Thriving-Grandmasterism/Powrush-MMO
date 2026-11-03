@@ -252,7 +252,7 @@ Conditional, not proven on for Sanctuary minute 0-10: Compass (`client/src/compa
 |----|-----|----------|----------------|
 | UN-01 | The first harvest opens up to five panels in one pass (Thriving, Pulse, Whisper, Pickup, Watch). | `client/src/first_harvest_epiphany.rs:663-668`; `client/src/first_whisper.rs:97-103`; `client/src/human_inventory.rs:288`, `:315` | UI-CALM-1 |
 | UN-02 | Stale premise: the live presets already yield top-centre through one `TOP_TOAST` anchor. The real gap was that a yielded Thriving toast kept losing its 5 s while hidden; HUD-TOP-YIELD-1 pauses that clock while it is yielded. | `client/src/hud_presets.rs:281`; `client/src/thriving_moments.rs:123` | HUD-TOP-YIELD-1 |
-| UN-03 | The Sovereign banner runs on app time and is not gated on the yard, so it can expire on the title or show over it. | `client/src/local_sovereign_session.rs:26`, `:156` | SOVEREIGN-YARD-GATE-1 |
+| UN-03 | Stale premise: R5 (`client/src/hud_presets.rs:1915-1926`) already hides the Sovereign banner on Title, NameHouse and HouseDress. The real defect was the clock: 8.5 s of app time from boot could run out in the title flow. SOVEREIGN-YARD-GATE-1 counts only visible time (InYard, not yielded, not paused) and ignores intent before the yard. | `client/src/local_sovereign_session.rs:26`, `update_banner` | SOVEREIGN-YARD-GATE-1 |
 | UN-04 | The place-name chip and the climate slab are always on. | `client/src/climate_plane.rs:1470-1502`; `client/src/climate_visible.rs:504-514` | HUD-QUIET-REST-1 |
 
 No capture: this audit adds no image (Hands standing rule, no media or binaries).
