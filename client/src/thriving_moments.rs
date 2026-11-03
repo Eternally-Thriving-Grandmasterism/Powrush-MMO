@@ -123,6 +123,10 @@ impl ThrivingMoments {
             self.display_until = now + 5.0;
         }
     }
+    /// HUD-TOP-YIELD-1 — the clock pauses only while yielded: hidden time moves `display_until`, so 5.0 s stay visible.
+    pub fn hold(&mut self, yielded: bool, dt: f64) {
+        if yielded && self.current.is_some() { self.display_until += dt; }
+    }
 }
 
 #[derive(Component)]
@@ -179,10 +183,11 @@ TextColor(TITLE_TEXT_PRIMARY),
         });
 }
 
-fn tick_moments(time: Res<Time>, mut moments: ResMut<ThrivingMoments>, calm: Option<Res<crate::first_harvest_epiphany::CalmQueue>>) {
+fn tick_moments(time: Res<Time>, mut moments: ResMut<ThrivingMoments>, calm: Option<Res<crate::first_harvest_epiphany::CalmQueue>>, yielded: Option<Res<crate::hud_presets::HudYielded>>) {
     let now = time.elapsed_secs_f64(); // UI-CALM-1: the toast waits for its step; a pause keeps its clock (CL-U1)
     let left = match calm.as_deref().filter(|c| !c.done(now)) { Some(c) if !c.live(crate::first_harvest_epiphany::CalmStep::Thriving, now) => return, c => c.map(|c| c.left(now)) };
     if let (Some(l), Some(ThrivingKind::FirstMercyHarvest)) = (left, moments.current) { moments.display_until = now + l; }
+    if left.is_none() && moments.current.is_some() && yielded.is_some_and(|y| y.0.contains(&crate::hud_anchor_registry::ID_THRIVING)) { moments.hold(true, time.delta_secs_f64()); } // CL-Y3
     moments.tick(now);
     if let (Some(l), Some(ThrivingKind::FirstMercyHarvest)) = (left, moments.current) { moments.display_until = now + l; }
 }
@@ -356,5 +361,29 @@ mod tests {
             }
             assert!(!line.contains(other), "{line} also cites {other}");
         }
+    }
+
+    #[test]
+    fn hud_top_yield_pauses_then_resumes_for_five_seconds() {
+        let (mut m, mut u) = (ThrivingMoments::default(), ThrivingMoments::default());
+        (m.try_fire(ThrivingKind::FirstShare, 0.0), m.tick(0.0), u.try_fire(ThrivingKind::FirstShare, 0.0), u.tick(0.0));
+        (0..24).for_each(|_| m.hold(true, 0.125));
+        (m.hold(false, 1.0), m.tick(7.875), u.tick(4.875));
+        assert!(m.current.is_some() && u.current.is_some(), "3 s yielded leaves 5 s shown");
+        (m.tick(8.0), u.tick(5.0), u.hold(true, 0.5));
+        assert!(m.current.is_none() && u.current.is_none() && u.display_until == 5.0, "expires on time; nothing current, nothing held");
+        assert!(include_str!("thriving_moments.rs").contains(concat!("self.display_until = now + ", "5.0;")));
+    }
+
+    #[test]
+    fn hud_top_yield_calm_burst_wins() {
+        use bevy::ecs::system::RunSystemOnce;
+        let (mut world, mut time, mut calm, mut m) = (World::new(), Time::<()>::default(), crate::first_harvest_epiphany::CalmQueue::default(), ThrivingMoments::default());
+        time.advance_by(std::time::Duration::from_secs_f64(0.5)); calm.seed(-4.5, None, String::new()); m.try_fire(ThrivingKind::FirstMercyHarvest, 0.0);
+        let left = calm.left(0.5);
+        world.insert_resource(time); world.insert_resource(calm); world.insert_resource(m);
+        world.insert_resource(crate::hud_presets::HudYielded(vec![crate::hud_anchor_registry::ID_THRIVING]));
+        world.run_system_once(tick_moments).unwrap();
+        assert_eq!(world.resource::<ThrivingMoments>().display_until, 0.5 + left, "CalmQueue time, no double extension");
     }
 }

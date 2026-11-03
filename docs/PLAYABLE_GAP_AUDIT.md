@@ -243,7 +243,7 @@ Conditional, not proven on for Sanctuary minute 0-10: Compass (`client/src/compa
 - **After that (player-dependent):** U9 can raise after an idle tend, and U8 once FreeExploration arrives.
 
 **Overlap facts**
-- The top-centre column has six slabs with no yield rule: PlaceName 18-49, Factory 16-68, Thriving 48-106, Sovereign 52-108, Fab 88-140 and Pulse 118-178.8 (tops and model heights at `hud_anchor_registry.rs:543`, `:283`, `:465`, `:452`, `:309`, `:387`). Only the bottom-right anchors yield, through `r2_yields_to` (`:744`).
+- The premise of UN-02 was stale. The six top-centre positions (PlaceName, Factory, Thriving, Sovereign, Fab, Pulse at `hud_anchor_registry.rs:543`, `:283`, `:465`, `:452`, `:309`, `:387`) are coded positions only. Boot always applies a preset, with Classic as the fallback (`local_settings.rs:484-490`), and every preset gives top-centre one `TOP_TOAST` Yield anchor (`hud_presets.rs:281`) whose occupants yield through `r2_yields_to` (`:744`).
 - The first harvest also dismisses U1 (`local_sovereign_session.rs:144`), so U1 does not outlast the harvest burst; the frame order between the two systems is unordered.
 
 **Gaps (suggested card names only; Core ranks them)**
@@ -251,7 +251,7 @@ Conditional, not proven on for Sanctuary minute 0-10: Compass (`client/src/compa
 | ID | Gap | Evidence | Suggested card |
 |----|-----|----------|----------------|
 | UN-01 | The first harvest opens up to five panels in one pass (Thriving, Pulse, Whisper, Pickup, Watch). | `client/src/first_harvest_epiphany.rs:663-668`; `client/src/first_whisper.rs:97-103`; `client/src/human_inventory.rs:288`, `:315` | UI-CALM-1 |
-| UN-02 | The top-centre column stacks six slabs with no yield rule. | `client/src/hud_anchor_registry.rs:744`; `:452`, `:465`, `:387` | HUD-TOP-YIELD-1 |
+| UN-02 | Stale premise: the live presets already yield top-centre through one `TOP_TOAST` anchor. The real gap was that a yielded Thriving toast kept losing its 5 s while hidden; HUD-TOP-YIELD-1 pauses that clock while it is yielded. | `client/src/hud_presets.rs:281`; `client/src/thriving_moments.rs:123` | HUD-TOP-YIELD-1 |
 | UN-03 | The Sovereign banner runs on app time and is not gated on the yard, so it can expire on the title or show over it. | `client/src/local_sovereign_session.rs:26`, `:156` | SOVEREIGN-YARD-GATE-1 |
 | UN-04 | The place-name chip and the climate slab are always on. | `client/src/climate_plane.rs:1470-1502`; `client/src/climate_visible.rs:504-514` | HUD-QUIET-REST-1 |
 

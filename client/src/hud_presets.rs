@@ -1660,6 +1660,9 @@ pub enum HudLayoutCommand {
 struct HudYieldMemory {
     own: HashMap<Entity, Visibility>,
 }
+/// HUD-TOP-YIELD-1 — slab ids the R2 arm hid in the last PostUpdate; Thriving's clock pauses while listed.
+#[derive(Resource, Default, Debug, PartialEq)]
+pub struct HudYielded(pub Vec<&'static str>);
 
 /// Previous-frame open flags for R3. Not a panel flag.
 #[derive(Clone, Copy, Default)]
@@ -1680,6 +1683,7 @@ impl Plugin for HudLayoutPlugin {
         app.init_resource::<ActiveHudPreset>()
             .init_resource::<HudSessionLayout>()
             .init_resource::<HudYieldMemory>()
+            .init_resource::<HudYielded>()
             .add_message::<HudLayoutCommand>()
             .add_systems(PreUpdate, restore_yielded_visibility)
             .add_systems(
@@ -1888,6 +1892,7 @@ fn apply_active_preset(
     session: Res<HudSessionLayout>,
     edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
     mut memory: ResMut<HudYieldMemory>,
+    mut yielded: ResMut<HudYielded>,
     mut styles: Query<(&HudSlab, &mut Node)>,
     mut vis_q: Query<(Entity, &HudSlab, &mut Visibility)>,
     windows: Query<&Window, With<PrimaryWindow>>,
@@ -1896,6 +1901,7 @@ fn apply_active_preset(
     house: Option<Res<HouseLabel>>,
     persona: Option<Res<PersonaCreatorState>>,
 ) {
+    if active.id.is_none() && !yielded.0.is_empty() { yielded.0.clear(); } // CL-Y1: the no-preset exit leaves no stale yield
     let Some(id) = active.id else {
         return;
     };
@@ -1954,6 +1960,7 @@ fn apply_active_preset(
     }
 
     let mut hide = HashSet::new();
+    let mut r2 = Vec::new();
     if yield_hud {
         for item in &live {
             hide.insert(item.entity);
@@ -1987,6 +1994,7 @@ fn apply_active_preset(
             for item in &live {
                 if item.anchor_id == anchor.id && r2_yields_to(anchor, item.id, &showing) {
                     hide.insert(item.entity);
+                    r2.push(item.id); // CL-Y2: only the R2 arm marks a slab yielded
                 }
             }
         }
@@ -2010,6 +2018,7 @@ fn apply_active_preset(
         }
     }
 
+    if yielded.0 != r2 { yielded.0 = r2; } // CL-Y1: the yield_hud branch leaves it empty
     memory.own.clear();
     for (entity, _slab, mut vis) in &mut vis_q {
         if !hide.contains(&entity) {
@@ -3858,6 +3867,15 @@ child_style.clone(),
         app.update();
         assert_eq!(vis(&app, slab), Visibility::Visible);
         assert_eq!(vis(&app, plain), Visibility::Visible);
+    }
+
+    #[test]
+    fn hud_top_yield_none_clears_a_stale_yield() {
+        let mut app = layout_app();
+        app.world_mut().resource_mut::<HudYielded>().0 = vec![ID_THRIVING]; app.update();
+        assert!(app.world().resource::<ActiveHudPreset>().id.is_none() && app.world().resource::<HudYielded>().0.is_empty());
+        let src = include_str!("hud_presets.rs");
+        assert!(src.contains("        id: \"TOP_TOAST\",\n        corner: HudCorner::TopCentre,") && src.contains("    let Some(id) = active.id else {\n        return;\n    };"));
     }
 
     #[test]
