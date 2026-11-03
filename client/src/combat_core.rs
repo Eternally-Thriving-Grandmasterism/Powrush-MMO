@@ -10,7 +10,8 @@ use shared::hex_travel::PlaceId;
 
 use crate::coop_voice::VoiceYard;
 use crate::feel_move::{buffer_alive, USE_BUFFER_SECS};
-use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+use crate::first_harvest_epiphany::{CalmQueue, FirstHarvestEpiphany};
+use crate::loot_drops::{find_ready, load_finds, save_finds, FoundFinds};
 use crate::first_session_guidance::FirstSessionGuidance;
 use crate::harvest_feel::{rumble_harvest, SoftRbePool};
 use crate::hex_travel::{places_plate_open, HexTravelState, PlacesPlate};
@@ -381,6 +382,9 @@ impl Plugin for CombatCorePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CombatState>()
             .init_resource::<StrikeBuffer>()
+            .init_resource::<FoundFinds>()
+            .add_systems(Startup, load_finds)
+            .add_systems(Update, show_find.after(predator_lunge))
             .add_systems(Startup, spawn_predator)
             .add_systems(Startup, spawn_lunge_tell)
             .add_systems(Startup, (spawn_rise_tell, spawn_cleared_tell))
@@ -477,7 +481,7 @@ pub fn combat_fire(
         Option<Res<HumanInventory>>,
         Option<Res<HumanSoftPanels>>,
     ),
-    (buffer, fixed, diff, runs, mut cmd, assets, mute): (
+    (buffer, fixed, diff, runs, mut cmd, assets, mute, mut finds): (
         Option<ResMut<StrikeBuffer>>,
         Option<Res<Time<Fixed>>>,
         Option<ResMut<crate::difficulty::AreaDifficulty>>,
@@ -485,6 +489,7 @@ pub fn combat_fire(
         Commands,
         Option<Res<AssetServer>>,
         Option<Res<crate::local_settings::MasterMuteGain>>,
+        Option<ResMut<FoundFinds>>,
     ),
 ) {
     let fire = buttons.is_some_and(|b| b.just_pressed(FIRE))
@@ -529,14 +534,26 @@ pub fn combat_fire(
         let row = runs.as_deref().and_then(|r| r.row(travel.current, tier));
         let (hit, level) = land_hit_paid(&mut combat, &mut skills, reach, tier, row);
         play_hit(&mut cmd, assets.as_deref(), mute.as_deref(), hit); // COMBAT-FEEL-SFX-1: a landed hit only
-        if let (true, Some(mut diff)) = (hit && combat.predator_taken >= HEALTH && clears_area(travel.current), diff) {
+        let defeat = hit && combat.predator_taken >= HEALTH && clears_area(travel.current);
+        if let (true, Some(mut diff)) = (defeat, diff) {
             diff.record_clear(travel.current); // DIFFICULTY-TIERS-1: the predator defeat clears this area
+        }
+        if let (true, Some(f)) = (defeat, finds.as_mut()) {
+            if f.drop_once(tier, combat.strikes, travel.current as u32) { save_finds(f); } // LOOT-DROPS-WIRE-1: saved when a find lands
         }
         let gained = skills.xp[COMBAT].saturating_sub(before);
         if let (Some(line), Some(epi)) = (fire_line(travel.current, &combat, hit, gained, level), epi.as_mut()) {
             let line = cue_line(tier, line, HEALTH.saturating_sub(combat.predator_taken), HEALTH);
             set_pulse(epi, line, now + CUE_SECS);
         }
+    }
+}
+
+/// LOOT-DROPS-WIRE-1 — a waiting find line shows once the calm queue is done and the current pulse has expired.
+fn show_find(time: Res<Time>, finds: Option<ResMut<FoundFinds>>, mut epi: Option<ResMut<FirstHarvestEpiphany>>, calm: Option<Res<CalmQueue>>) {
+    let (Some(mut finds), Some(epi), now) = (finds, epi.as_mut(), time.elapsed_secs_f64()) else { return };
+    if finds.pending.is_some() && find_ready(calm.is_some_and(|c| c.done(now)), epi.pulse_until, now) {
+        if let Some(line) = finds.pending.take() { set_pulse(epi, line, now + CUE_SECS); }
     }
 }
 
@@ -835,6 +852,16 @@ mod tests {
             assert_eq!(land_hit_crossing(&mut c, &mut s, reach), (false, None));
         }
         assert!(c.predator_taken == 0 && s.xp[COMBAT] == 0);
+    }
+
+    #[test]
+    fn loot_drops_wire_drop_seam_once_per_defeat() {
+        let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+        let defeat = |c: &mut CombatState, s: &mut SkillXp| land_hit(c, s, true) && c.predator_taken >= HEALTH && clears_area(PlaceId::Heartwood);
+        assert!(!defeat(&mut c, &mut s), "a plain hit is no defeat");
+        c.predator_taken = HEALTH - HIT;
+        assert!(defeat(&mut c, &mut s) && !defeat(&mut c, &mut s), "once per kill, never after");
+        assert!(!clears_area(PlaceId::Sanctuary));
     }
 
     #[test]
