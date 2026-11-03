@@ -5596,11 +5596,11 @@ mod tests {
     /// list and the live-tell asserts below; known fails land as data.
     #[test]
     fn look_readability_tell_contrast_snapshot_and_below_floor_list() {
-        use crate::combat_core::{FLASH_COLOR, PREDATOR_COLOR};
+        use crate::combat_core::{FLASH_COLOR, PREDATOR_COLOR, SANCTUARY_FLASH_COLOR, SANCTUARY_LUNGE_TELL_COLOR, SANCTUARY_PREDATOR_COLOR};
         const FLOOR: f32 = 3.0;
         let tells = ["predator", "flash", "ring", "node"];
         let want: [(&str, u8, [[f32; 4]; 2]); 4] = [
-            ("Sanctuary", 0, [[1.39, 1.56, 1.19, 1.27], [1.13, 1.92, 1.47, 1.04]]),
+            ("Sanctuary", 0, [[10.22, 3.94, 4.13, 1.27], [8.32, 3.20, 3.36, 1.04]]),
             ("Threshold", 1, [[6.18, 13.44, 10.27, 3.03], [4.56, 9.93, 7.58, 2.24]]),
             ("Heartwood", 2, [[4.05, 8.83, 6.75, 4.05], [3.06, 6.66, 5.09, 3.05]]),
             ("Depths", 3, [[7.83, 17.04, 13.01, 11.90], [7.64, 16.64, 12.71, 11.62]]),
@@ -5608,8 +5608,9 @@ mod tests {
         let mut below = Vec::new();
         for (place, id, rows) in want {
             let look = look_for(Some(id));
+            let (body, flash, ring) = if id == 0 { (SANCTUARY_PREDATOR_COLOR, SANCTUARY_FLASH_COLOR, SANCTUARY_LUNGE_TELL_COLOR) } else { (PREDATOR_COLOR, FLASH_COLOR, RR_RING) }; // READ-FIX-SANCTUARY-TELLS-1: live fg per row
             for ((bg_name, bg), row) in [("fog", look.fog), ("sky", look.sky)].into_iter().zip(rows) {
-                for ((tell, fg), pinned) in tells.iter().zip([PREDATOR_COLOR, FLASH_COLOR, RR_RING, look.node]).zip(row) {
+                for ((tell, fg), pinned) in tells.iter().zip([body, flash, ring, look.node]).zip(row) {
                     let r = rr_ratio(fg, bg, id);
                     assert!((r - pinned).abs() <= 0.02, "{place} {bg_name} {tell}: {r:.3} vs pinned {pinned}");
                     if r < FLOOR {
@@ -5618,12 +5619,11 @@ mod tests {
                 }
             }
         }
-        // Sanctuary predator, flash and ring are live via fight_present (combat_core.rs:236, the Stavehold practice fight) and read 1.13-1.92 on fog and sky per `want`, under FLOOR: known gaps owed to READ-FIX-SANCTUARY-TELLS-1.
+        // Sanctuary predator, flash and ring (live via fight_present) take the Sanctuary tints and read 3.20-10.22 on fog and sky per `want`, over FLOOR on this graded base-colour proxy (lit body, no on-screen claim).
         // Sanctuary node fog/sky: honest known gap; a passing node would be dark bronze, failing
         // is_warm_gold_well and the well > earth + 0.25 law, so SANCTUARY_WELL_GOLD stays.
         let want_below = [
-            "Sanctuary fog predator", "Sanctuary fog flash", "Sanctuary fog ring", "Sanctuary fog node",
-            "Sanctuary sky predator", "Sanctuary sky flash", "Sanctuary sky ring", "Sanctuary sky node",
+            "Sanctuary fog node", "Sanctuary sky node",
             "Threshold sky node",
         ];
         assert_eq!(below, want_below, "below-floor list drifted");
@@ -5638,6 +5638,8 @@ mod tests {
         // Flash vs predator body: below floor, known gap, HIT-FLASH-SHAPE-1.
         // READ-FIX-NODE-1: the live Heartwood amber-lamp node clears the floor on fog and sky.
         assert!(rr_ratio(hw.node, hw.fog, 2) >= FLOOR && rr_ratio(hw.node, hw.sky, 2) >= FLOOR);
+        let sa = look_for(Some(0)); // READ-FIX-SANCTUARY-TELLS-1: live Sanctuary tells over the floor; flash vs body not below Heartwood's 2.179
+        assert!([SANCTUARY_PREDATOR_COLOR, SANCTUARY_FLASH_COLOR, SANCTUARY_LUNGE_TELL_COLOR].iter().all(|c| rr_ratio(*c, sa.fog, 0) >= FLOOR && rr_ratio(*c, sa.sky, 0) >= FLOOR) && (rr_ratio(SANCTUARY_FLASH_COLOR, SANCTUARY_PREDATOR_COLOR, 0) - 2.595).abs() <= 0.02 && rr_ratio(SANCTUARY_FLASH_COLOR, SANCTUARY_PREDATOR_COLOR, 0) >= 2.179);
         let flash_body = rr_ratio(FLASH_COLOR, PREDATOR_COLOR, 2);
         assert!(
             (flash_body - 2.179).abs() <= 0.02,

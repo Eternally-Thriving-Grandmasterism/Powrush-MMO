@@ -148,6 +148,10 @@ pub fn rise_tell_transform(rise: f32) -> Transform {
 pub const PREDATOR_COLOR: Color = Color::srgb(0.81, 0.62, 0.55);
 /// HIT-JUICE-1 — neutral warm white the Predator tints toward on a landed hit.
 pub const FLASH_COLOR: Color = Color::srgb(1.0, 0.96, 0.9);
+/// READ-FIX-SANCTUARY-TELLS-1 — Sanctuary-only body, flash and ring: same hue, lower value, to clear the 3.0 floor on the light Sanctuary fog and sky (council default; a veto reverts to the globals above).
+pub const SANCTUARY_PREDATOR_COLOR: Color = Color::srgb(0.13, 0.10, 0.09);
+pub const SANCTUARY_FLASH_COLOR: Color = Color::srgb(0.38, 0.36, 0.33);
+pub const SANCTUARY_LUNGE_TELL_COLOR: Color = Color::srgb(0.36, 0.35, 0.32);
 /// The flash is over by this many seconds after the hit.
 pub const FLASH_SECS: f32 = 0.10;
 /// Camera kick on a landed hit and on the kill. Both stay under the contest win's 1.0.
@@ -172,6 +176,17 @@ pub fn flash_color(strength: f32) -> Color {
     } else {
         PREDATOR_COLOR.mix(&FLASH_COLOR, strength.min(1.0))
     }
+}
+
+/// READ-FIX-SANCTUARY-TELLS-1 — (body, flash, ring) for `place`: the Sanctuary tints there, the globals elsewhere.
+pub fn tell_colors(place: PlaceId) -> (Color, Color, Color) {
+    if place == PlaceId::Sanctuary { (SANCTUARY_PREDATOR_COLOR, SANCTUARY_FLASH_COLOR, SANCTUARY_LUNGE_TELL_COLOR) } else { (PREDATOR_COLOR, FLASH_COLOR, LUNGE_TELL_COLOR) }
+}
+
+/// READ-FIX-SANCTUARY-TELLS-1 — `flash_color` on the place's base; identical to it off Sanctuary.
+pub fn flash_color_at(place: PlaceId, strength: f32) -> Color {
+    let (body, flash, _) = tell_colors(place);
+    if strength <= 0.0 { body } else { body.mix(&flash, strength.min(1.0)) }
 }
 
 /// HIT-FLASH-SHAPE-1 — peak extra Predator scale at flash strength 1 (visual only).
@@ -597,7 +612,7 @@ fn predator_lunge(
     mut shown: Query<&mut Visibility, With<Predator>>,
     mut diff: Option<ResMut<AreaDifficulty>>,
     (mut seated, mut homed): (Local<Vec3>, Query<(&mut Transform, Has<Predator>), Or<(With<Predator>, With<LungeTell>, With<ClearedTell>)>>),
-    (mut cmd, assets, mute): (Commands, Option<Res<AssetServer>>, Option<Res<crate::local_settings::MasterMuteGain>>),
+    (mut cmd, assets, mute, mut mats, tinted): (Commands, Option<Res<AssetServer>>, Option<Res<crate::local_settings::MasterMuteGain>>, Option<ResMut<Assets<StandardMaterial>>>, Query<(&MeshMaterial3d<StandardMaterial>, Has<Predator>), Or<(With<Predator>, With<LungeTell>)>>),
 ) {
     let (Some(travel), Some(mut presence)) = (travel, presence) else {
         return;
@@ -613,6 +628,8 @@ fn predator_lunge(
         let delta = shift - *seated;
         homed.iter_mut().for_each(|(mut t, _)| t.translation += delta);
         *seated = shift;
+        let (body, _, ring) = tell_colors(travel.current); // READ-FIX-SANCTUARY-TELLS-1 (CL-R2): tint only; never gates the re-seat
+        for (m, pred) in &tinted { if let Some(mut mat) = mats.as_mut().and_then(|a| a.get_mut(&m.0)) { let want = if pred { body } else { ring }; if mat.base_color != want { mat.base_color = want; } } }
     }
     let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
@@ -790,6 +807,7 @@ fn hit_flash(
     >,
     gamepads: Query<Entity, With<Gamepad>>,
     mut rumble: MessageWriter<GamepadRumbleRequest>,
+    travel: Option<Res<HexTravelState>>,
 ) {
     let (Some(combat), Some(mut pool), Some(mut materials)) = (combat, pool, materials) else {
         return;
@@ -814,7 +832,7 @@ fn hit_flash(
     }
     for (handle, transform) in &mut predator {
         if let Some(mut mat) = materials.get_mut(&handle.0) {
-            mat.base_color = flash_color(strength);
+            mat.base_color = flash_color_at(travel.as_deref().map_or(PlaceId::Heartwood, |t| t.current), strength);
         }
         if let Some(mut transform) = transform {
             transform.scale = Vec3::splat(hit_pulse_scale(strength));
@@ -1167,6 +1185,31 @@ mod tests {
         assert_eq!(world.resource::<CombatState>().player_taken, 0);
     }
 
+    #[test]
+    fn sanctuary_tints_only_in_sanctuary_and_globals_unchanged() {
+        assert_eq!((PREDATOR_COLOR, FLASH_COLOR, LUNGE_TELL_COLOR), (Color::srgb(0.81, 0.62, 0.55), Color::srgb(1.0, 0.96, 0.9), Color::srgb(0.86, 0.85, 0.82)), "P1 globals unchanged");
+        for p in [PlaceId::Heartwood, PlaceId::Depths] { assert!([0.0, 0.5, 1.0].iter().all(|s| flash_color_at(p, *s) == flash_color(*s)) && tell_colors(p) == (PREDATOR_COLOR, FLASH_COLOR, LUNGE_TELL_COLOR)); }
+        assert_eq!((flash_color_at(PlaceId::Sanctuary, 0.0), tell_colors(PlaceId::Sanctuary)), (SANCTUARY_PREDATOR_COLOR, (SANCTUARY_PREDATOR_COLOR, SANCTUARY_FLASH_COLOR, SANCTUARY_LUNGE_TELL_COLOR)));
+    }
+    #[test]
+    fn sanctuary_tint_on_entry_and_restore_on_leaving() {
+        let mut world = World::new();
+        world.insert_resource(Time::<()>::default());
+        world.insert_resource(SoftPresence::default());
+        world.init_resource::<CombatState>();
+        world.init_resource::<Assets<StandardMaterial>>();
+        let (body, ring) = { let mut a = world.resource_mut::<Assets<StandardMaterial>>(); (a.add(PREDATOR_COLOR), a.add(LUNGE_TELL_COLOR)) };
+        world.spawn((MeshMaterial3d(body.clone()), Predator));
+        world.spawn((MeshMaterial3d(ring.clone()), LungeTell));
+        let (id, mut travel) = (world.register_system(predator_lunge), HexTravelState::default());
+        let base = |w: &World, h: &Handle<StandardMaterial>| w.resource::<Assets<StandardMaterial>>().get(h).unwrap().base_color;
+        for (place, want) in [(PlaceId::Sanctuary, (SANCTUARY_PREDATOR_COLOR, SANCTUARY_LUNGE_TELL_COLOR)), (PlaceId::Heartwood, (PREDATOR_COLOR, LUNGE_TELL_COLOR))] {
+            travel.current = place;
+            world.insert_resource(travel.clone());
+            world.run_system(id).unwrap();
+            assert_eq!((base(&world, &body), base(&world, &ring)), want, "{place:?}");
+        }
+    }
     #[test]
     fn hurt_readout_line_and_matcher() {
         assert!(hurt_line(HIT) == "You 185 / 200" && hurt_line(enemy_hit(DifficultyTier::Unbroken, HIT)) == "You 183 / 200" && hurt_line(HEALTH + 5) == "You 0 / 200");
