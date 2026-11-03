@@ -39,7 +39,7 @@ pub const HIT_GAIN: f32 = 0.05;
 
 pub const PREDATOR_NAME: &str = "[NAME TBD]";
 pub const HEALTH: u32 = 200; // player and predator pools, per CUT A1
-/// COMBAT_AND_PVP.md:474 — Predator "Lunge, 0.6 s" hits 15. Fire lands the same 15.
+/// COMBAT_AND_PVP.md:486 — Predator "Lunge, 0.6 s" hits 15. Fire lands the same 15.
 pub const HIT: u32 = 15;
 pub const LUNGE_SECS: f32 = 0.6;
 pub const REACH: f32 = HARVEST_REACH; // both sides reuse the harvest reach
@@ -214,7 +214,7 @@ pub fn fire_grab_terms(in_yard: bool, settings_open: bool, hud_edit: bool, focus
     in_yard && !settings_open && !hud_edit && focused
 }
 
-/// `prompts` = CareStrip or CarePrompt showing (COMBAT_AND_PVP.md:522).
+/// `prompts` = CareStrip or CarePrompt showing (COMBAT_AND_PVP.md:534).
 pub fn fire_allowed(grab: bool, plate_open: bool, ui_busy: bool, prompts: bool) -> bool {
     grab && !plate_open && !ui_busy && !prompts
 }

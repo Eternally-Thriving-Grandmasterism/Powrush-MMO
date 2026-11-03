@@ -1,4 +1,4 @@
-//! ENEMY-GRAZER-1 — one Heartwood Grazer that flees and never fights (COMBAT_AND_PVP.md:477).
+//! ENEMY-GRAZER-1 — one Heartwood Grazer that flees and never fights (COMBAT_AND_PVP.md:485).
 //! Client-local, never saved. Cannot be struck, deals 0, pays 0.
 
 use bevy::prelude::*;
