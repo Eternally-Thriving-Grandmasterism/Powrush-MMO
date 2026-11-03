@@ -790,7 +790,8 @@ pub struct FirstSessionGuidancePlugin;
 impl Plugin for FirstSessionGuidancePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FirstSessionGuidance>()
-            .add_systems(Startup, spawn_guidance_strip)
+            .init_resource::<Signpost>()
+            .add_systems(Startup, (spawn_guidance_strip, load_signpost))
             .add_systems(
                 Update,
                 (
@@ -799,6 +800,7 @@ impl Plugin for FirstSessionGuidancePlugin {
                     update_guidance_visibility
                         .after(crate::first_harvest_epiphany::update_world_care_prompt)
                         .after(crate::mercy_harvest_nodes::update_care_cycle_strip),
+                    update_signpost,
                     update_guidance_text,
                 )
                     .chain(),
@@ -842,6 +844,42 @@ TextColor(TITLE_TEXT_PRIMARY),
 
 fn card_line(prompt: &str) -> String {
     format!("{prompt}  · H hides")
+}
+
+/// COMBAT-SIGNPOST-1 — one line, once ever, pointing past the gate to the Sanctuary practice fight.
+pub const SIGNPOST_LINE: &str = "Past the Stavehold gate · a practice fight";
+pub const SIGNPOST_SECS: f64 = 45.0; // council default, from arming; Sherif may veto
+pub const SIGNPOST_SAVE: &str = "powrush_signpost.json";
+#[derive(Resource, Default, Debug, Clone, PartialEq)]
+pub struct Signpost { pub seen: bool, pub until: Option<f64> }
+pub fn signpost_showing(sign: &Signpost) -> bool { !sign.seen && sign.until.is_some() }
+/// Arms once when `can_arm`; clears on arrival or timeout. Returns true once: the frame to save.
+pub fn signpost_step(sign: &mut Signpost, now: f64, can_arm: bool, arrived: bool) -> bool {
+    match (sign.seen, sign.until) {
+        (false, None) if can_arm => sign.until = Some(now + SIGNPOST_SECS),
+        (false, Some(until)) if arrived || now >= until => (sign.seen, sign.until) = (true, None),
+        _ => return false,
+    }
+    sign.seen
+}
+pub fn decode_seen(raw: Option<&str>) -> bool { raw.and_then(|s| serde_json::from_str::<bool>(s.trim()).ok()).unwrap_or(false) }
+fn load_signpost(mut sign: ResMut<Signpost>) { sign.seen = decode_seen(shared::user_persist::read_named(SIGNPOST_SAVE).ok().as_deref()); }
+fn signpost_can_arm(guidance: &FirstSessionGuidance, place: PlaceId, in_yard: bool) -> bool {
+    place == PlaceId::Sanctuary && in_yard && guidance.active && !guidance.dismissed && !guidance.objective.is_first_minutes() && door_line_on_card(guidance).is_none()
+}
+fn update_signpost(
+    time: Res<Time>,
+    (door, travel, presence): (Option<Res<LaunchDoor>>, Option<Res<HexTravelState>>, Option<Res<SoftPresence>>),
+    guidance: Res<FirstSessionGuidance>,
+    mut sign: ResMut<Signpost>,
+) {
+    let (Some(travel), Some(presence)) = (travel, presence) else { return };
+    let in_yard = door.as_deref().copied() == Some(LaunchDoor::InYard);
+    let (place, p) = (travel.current, presence.position);
+    let mut next = sign.clone();
+    let save = signpost_step(&mut next, time.elapsed_secs_f64(), signpost_can_arm(&guidance, place, in_yard), place == PlaceId::Sanctuary && crate::combat_core::at_fight_home(place, p.x, p.z));
+    if next != *sign { *sign = next; } // Clerk N1: write only on a real change, so the redraw gate stays quiet
+    if save { let _ = shared::user_persist::write_named(SIGNPOST_SAVE, "true"); }
 }
 
 /// CARD FLESH-GUIDANCE-PLACE — spoken room while standing.
@@ -995,6 +1033,7 @@ fn update_guidance_text(
     settings: Option<Res<LocalSettingsState>>,
     mut last_place: Local<Option<&'static str>>,
     mut query: Query<(&mut Text, &mut TextFont), With<FirstSessionGuidanceText>>,
+    sign: Option<Res<Signpost>>,
 ) {
     let place = stood_place_label(travel.as_deref(), presence.as_deref());
     let place_changed = *last_place != place;
@@ -1012,11 +1051,13 @@ fn update_guidance_text(
             FontSize::Px(current) => (current - card_px / 1.2).abs() > 0.01,
             _ => true,
         });
-    if !guidance.is_changed() && !place_changed && !settings_changed && !font_differs {
+    let sign_changed = sign.as_ref().is_some_and(|s| s.is_changed());
+    if !guidance.is_changed() && !place_changed && !settings_changed && !font_differs && !sign_changed {
         return;
     }
     *last_place = place;
-    let prompt = lived_card_line(&guidance, place);
+    let showing = sign.as_deref().is_some_and(signpost_showing) && !guidance.dismissed;
+    let prompt = if showing { card_line(SIGNPOST_LINE) } else { lived_card_line(&guidance, place) };
     for (mut text, mut font) in &mut query {
         match font.font_size {
             FontSize::Px(current) if (current - card_px / 1.2).abs() <= 0.01 => {}
@@ -1208,6 +1249,50 @@ pub fn credit_share(guidance: &mut FirstSessionGuidance) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn tended() -> FirstSessionGuidance {
+        FirstSessionGuidance { objective: GuidanceObjective::OpenInventory, ..Default::default() }
+    }
+
+    #[test]
+    fn signpost_shows_once_after_first_minutes() {
+        let first = FirstSessionGuidance { objective: GuidanceObjective::MoveAround, ..tended() };
+        assert!(!signpost_can_arm(&first, PlaceId::Sanctuary, true), "yields to walk, glow and tend");
+        assert!(!signpost_can_arm(&tended(), PlaceId::Sanctuary, false) && !signpost_can_arm(&tended(), PlaceId::Heartwood, true));
+        let can = signpost_can_arm(&tended(), PlaceId::Sanctuary, true);
+        let mut s = Signpost::default();
+        assert!(can && !signpost_step(&mut s, 1.0, can, false) && signpost_showing(&s) && s.until == Some(1.0 + SIGNPOST_SECS));
+        assert!(signpost_step(&mut s, 2.0, can, true) && !signpost_showing(&s));
+        assert!(!signpost_step(&mut s, 3.0, can, false) && !signpost_showing(&s), "never re-arms");
+        assert!(SIGNPOST_LINE.len() < 48 && card_line(SIGNPOST_LINE).starts_with(SIGNPOST_LINE));
+        assert!(crate::hud_presets::hud_contrast_ratio(TITLE_TEXT_PRIMARY, TITLE_PLATE_BG) >= 3.0, "PRIMARY on PLATE (PULSE slab)");
+    }
+
+    #[test]
+    fn signpost_clears_on_arrival_or_timeout() {
+        let ([x, z], at_fight_home) = (crate::combat_core::STAVEHOLD_FIGHT_HOME, crate::combat_core::at_fight_home);
+        assert!(at_fight_home(PlaceId::Sanctuary, x, z) && !at_fight_home(PlaceId::Sanctuary, 0.0, -11.0), "the gate is not arrival");
+        let mut s = Signpost::default();
+        signpost_step(&mut s, 0.0, true, false);
+        assert!(!signpost_step(&mut s, SIGNPOST_SECS - 0.1, true, false) && signpost_showing(&s));
+        assert!(signpost_step(&mut s, SIGNPOST_SECS, true, false) && s.seen, "timeout clears");
+    }
+
+    #[test]
+    fn signpost_never_rearms_in_a_new_session() {
+        assert!(decode_seen(Some("true")) && !decode_seen(Some("garbage")) && !decode_seen(None));
+        let mut s = Signpost { seen: decode_seen(Some("true")), until: None };
+        assert!(!signpost_step(&mut s, 0.0, true, false) && !signpost_showing(&s));
+    }
+
+    #[test]
+    fn signpost_leaves_the_heartwood_gate_unchanged() {
+        use crate::combat_core::{at_fight_home, predator_present};
+        assert!(!shared::hex_travel::places_eligible(true, false) && shared::hex_travel::places_eligible(true, true));
+        assert!(predator_present(PlaceId::Heartwood) && !predator_present(PlaceId::Sanctuary));
+        assert!(at_fight_home(PlaceId::Heartwood, -18.0, -18.0) && !at_fight_home(PlaceId::Depths, 0.0, -17.0));
+        assert!(!signpost_can_arm(&tended(), PlaceId::Heartwood, true) && !signpost_can_arm(&tended(), PlaceId::Depths, true));
+    }
 
     #[test]
     fn guidance_card_font_follows_text_scale() {

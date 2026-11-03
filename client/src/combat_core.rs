@@ -234,6 +234,8 @@ pub fn in_reach(place: PlaceId, combat: &CombatState, x: f32, z: f32) -> bool {
     let d = Vec2::new(x, z).distance(Vec2::from_array(fight_home(place)));
     fight_present(place) && combat.predator_taken < HEALTH && d <= REACH
 }
+/// COMBAT-SIGNPOST-1 — arrival at the fight home, predator up or down (not `in_reach`).
+pub fn at_fight_home(place: PlaceId, x: f32, z: f32) -> bool { fight_present(place) && Vec2::new(x, z).distance(Vec2::from_array(fight_home(place))) <= REACH }
 
 /// COMBAT-FEEL-1 — fixed tick: only expires the held strike or, in reach, sets the sticky pulse.
 pub fn strike_buffer_tick(buf: &mut StrikeBuffer, now: f64, reach: bool) {
