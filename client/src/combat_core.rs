@@ -100,6 +100,11 @@ pub fn tell_visible(lunge_timer: f32, reach: bool) -> bool {
     reach && lunge_timer >= LUNGE_SECS - LUNGE_TELL_SECS
 }
 
+/// TELL-CADENCE-1 — armed from the first tell onset after entering reach until reach is lost; true once per entry.
+pub fn tell_arm(armed: &mut bool, reach: bool, tell: bool) -> bool {
+    tell_onset(armed, reach && (*armed || tell))
+}
+
 /// Dot i sits at angle TAU*i/N, radius `REACH`, around `PREDATOR_HOME`, at the ground lift.
 pub fn lunge_tell_ring() -> [Vec3; LUNGE_TELL_DOTS] {
     std::array::from_fn(|i| {
@@ -727,7 +732,7 @@ pub const LUNGE_TELL_TEXT: &str = "Brace, it is about to lunge";
 /// LUNGE-TELL-1 — chained after `predator_lunge`, so the timer and reach are post-tick.
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn lunge_tell(
-    (mut cmd, assets, time, mut was): (Commands, Option<Res<AssetServer>>, Res<Time>, Local<bool>),
+    (mut cmd, assets, time, mut armed): (Commands, Option<Res<AssetServer>>, Res<Time>, Local<bool>),
     (diff, mut epi, mute): (Option<Res<AreaDifficulty>>, Option<ResMut<FirstHarvestEpiphany>>, Option<Res<crate::local_settings::MasterMuteGain>>),
     door: Option<Res<LaunchDoor>>,
     travel: Option<Res<HexTravelState>>,
@@ -739,20 +744,21 @@ fn lunge_tell(
         for mut vis in &mut dots {
             vis.set_if_neq(Visibility::Hidden);
         }
+        *armed = false;
         return;
     };
     // The exact reach term of predator_lunge, combat_core.rs:326-327. No second formula.
     let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
     let (tell, tier) = (tell_visible(combat.lunge_timer, reach), diff.map_or(DifficultyTier::Sheltered, |d| d.tier(travel.current)));
-    if tell_onset(&mut was, tell) {
+    if tell_arm(&mut armed, reach, tell) {
         play_tell(&mut cmd, assets.as_deref(), mute.as_deref());
         if let (true, Some(epi)) = (hides_cues(tier), epi.as_mut()) {
             set_pulse(epi, LUNGE_TELL_TEXT.to_string(), time.elapsed_secs_f64() + f64::from(LUNGE_TELL_SECS));
         }
     }
     for mut vis in &mut dots {
-        vis.set_if_neq(if tell && !hides_cues(tier) {
+        vis.set_if_neq(if *armed && !hides_cues(tier) {
             Visibility::Visible
         } else {
             Visibility::Hidden
@@ -1003,6 +1009,41 @@ mod tests {
     fn combat_feel_look_damage_and_timing_unchanged() {
         assert!(HEALTH == 200 && HIT == 15 && LUNGE_SECS == 0.6 && LUNGE_TELL_SECS == 0.35 && REACH == HARVEST_REACH && HIT_KICK == 0.35);
         assert!(HURT_SPEED != 1.0 && hit_volume(true, None) == Some(HIT_GAIN));
+    }
+
+    /// TELL-CADENCE-1 — one Sheltered frame at an exact dt: (sting this frame, lean).
+    fn cadence(c: &mut CombatState, armed: &mut bool, reach: bool, dt: f32) -> (bool, f32) {
+        predator_tick(c, dt, reach, DifficultyTier::Sheltered);
+        (tell_arm(armed, reach, tell_visible(c.lunge_timer, reach)), lean_at(c.lunge_timer, reach))
+    }
+    #[test]
+    fn tell_cadence_sting_once_per_entry() {
+        let (mut c, mut armed) = (CombatState::default(), false);
+        assert!((0..15).filter(|_| cadence(&mut c, &mut armed, true, 0.125).0).count() == 1 && !cadence(&mut c, &mut armed, true, 0.0).0 && c.player_taken == 3 * HIT, "3 wraps, one sting");
+    }
+    #[test]
+    fn tell_cadence_rearms_on_exit() {
+        let (mut c, mut armed) = (CombatState::default(), false);
+        (0..15).for_each(|_| { cadence(&mut c, &mut armed, true, 0.125); });
+        assert!(!cadence(&mut c, &mut armed, false, 0.125).0 && !armed, "leaving reach hides the ring and re-arms");
+        assert_eq!((0..8).filter(|_| cadence(&mut c, &mut armed, true, 0.125).0).count(), 1, "one sting on re-entry");
+    }
+    #[test]
+    fn tell_cadence_lean_every_lunge() {
+        let (mut c, mut armed, mut per) = (CombatState::default(), false, vec![0.0f32]);
+        for _ in 0..15 {
+            let (before, lean) = (c.lunge_timer, cadence(&mut c, &mut armed, true, 0.125).1);
+            if c.lunge_timer < before { per.push(0.0); }
+            if let Some(last) = per.last_mut() { *last = last.max(lean); }
+        }
+        assert!(per[..3].iter().all(|l| *l > 0.0 && *l <= LUNGE_LEAN), "{per:?}");
+    }
+    #[test]
+    fn tell_cadence_ring_steady_no_blink() {
+        let (mut c, mut armed) = (CombatState::default(), false);
+        while !cadence(&mut c, &mut armed, true, 0.125).0 {}
+        assert!((0..12).all(|_| { cadence(&mut c, &mut armed, true, 0.125); armed }), "steady across the wraps");
+        assert!(!(armed && !hides_cues(DifficultyTier::Sworn)) && tell_visible(0.375, true) && !tell_visible(0.125, true));
     }
 
     #[test]

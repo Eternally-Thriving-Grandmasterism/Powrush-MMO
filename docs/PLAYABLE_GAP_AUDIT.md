@@ -212,6 +212,7 @@ Facts at `10d71e6d`, cite-only, from Sherif's playtester's report that no combat
 | CP-02 | Nothing in Sanctuary points toward Heartwood or its enemies. | `client/src/first_session_guidance.rs:163` | COMBAT-SIGNPOST-1 |
 | CP-03 | The only combat sound is the reused peace sting on a tell; there is no strike, hit or defeat sound. | `client/src/combat_core.rs:556-562`; `client/src/droid.rs:150` | COMBAT-FEEL-SFX-1 |
 | CP-04 | Both enemies are unnamed primitives (a capsule and dots). The player now feels being hit (camera kick, gamepad rumble and a lower thud, once per landed lunge), and the creature leans in over the existing wind-up (COMBAT-FEEL-LOOK-1). The name and model stay open for the councils and Sherif. | `client/src/combat_core.rs:40`; `client/src/combat_core.rs:399-411`; `client/src/droid.rs:20` | COMBAT-FEEL-LOOK-1 |
+| CP-05 | The lunge ring blinked and the tell sting chimed on every 0.6 s loop while in reach, so the tell read as flicker. Now the ring stays steady while in reach, the sting and the Sworn/Unbroken text play once per reach entry and re-arm when the player leaves reach, and the lean still marks each lunge. | `client/src/combat_core.rs`, `lunge_tell`, `tell_arm` | TELL-CADENCE-1 |
 
 No capture: this audit adds no image (Hands standing rule, no media or binaries).
 
