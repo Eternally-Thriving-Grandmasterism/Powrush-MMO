@@ -42,16 +42,9 @@ use crate::lived_sim_bridge::{sync_lived_hour_use, LivedSimBridge};
 use crate::rbe_allocate_choice::{allocate_owns_digit2, RbeAllocateChoice};
 use crate::living_ecology::BiomeFeel;
 use crate::hud_anchor_registry::{HudSlab, ACTION_BAR, ID_CARE_STRIP};
-use crate::living_practice_loop::SoftPlayerRealm;
 
 pub const HARVEST_REACH: f32 = 2.85;
 const RECOVER_PER_SEC: f32 = 0.038;
-const STING_SHARED: &str = "audio/mercy_harvest_sting.ogg";
-const STING_SANCTUARY: &str = "audio/mercy_harvest_sting_sanctuary.ogg";
-const STING_VERDANT: &str = "audio/mercy_harvest_sting_verdant.ogg";
-const STING_HORIZON: &str = "audio/mercy_harvest_sting_horizon.ogg";
-/// HARVEST-STING-GUARD-1 — mirrors `combat_core.rs:717` under the same asset root; false means the sting is skipped.
-pub fn sting_file_present(path: &str) -> bool { bevy::asset::io::file::FileAssetReader::get_base_path().join("assets").join(path).is_file() }
 
 /// Tend writes pulse ≈ 0.55; harvest writes 1.0. Used to spot Idle-after-tend.
 const TEND_PULSE: f32 = 0.55;
@@ -274,15 +267,6 @@ pub fn item_has_shell_ward(item: &TemperedItem) -> bool {
     item.lumens.iter().any(|l| l.ward == Some(WardKind::Shell))
 }
 
-pub fn sting_path_for_realm(realm: Option<u8>) -> &'static str {
-    match realm {
-        Some(0) | Some(3) => STING_SANCTUARY,
-        Some(2) => STING_VERDANT,
-        Some(4) | Some(1) => STING_HORIZON,
-        _ => STING_SHARED,
-    }
-}
-
 #[derive(Component)]
 pub(crate) struct CareCycleStrip;
 
@@ -304,7 +288,6 @@ impl Plugin for MercyHarvestNodesPlugin {
                     watch_idle_after_tend,
                     handle_care_cycle_input,
                     update_care_cycle_strip,
-                    try_soft_harvest_sting,
                     sync_lived_hour_from_peace_use,
                 ),
             );
@@ -769,64 +752,10 @@ fn hold_tend_once(
     }
 }
 
-fn try_soft_harvest_sting(
-    mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    nearby: Res<NearbyMercyNode>,
-    realm: Option<Res<SoftPlayerRealm>>,
-    mut last: Local<Option<u32>>,
-    nodes: Query<&MercyHarvestNode>,
-    voice: Option<Res<crate::peace_audio::PeaceAudioState>>,
-    mute: Option<Res<crate::local_settings::MasterMuteGain>>,
-) {
-    // U4 owns the well sting on the existing Use. Skip this path when the
-    // Peace mixer is live so take does not double-fire. Still refuse to
-    // blast when mute is on or the box has no output.
-    if voice.is_some() {
-        return;
-    }
-    if mute.map(|m| m.muted || m.gain <= 0.0).unwrap_or(false) {
-        return;
-    }
-    if !shared::peace_audio::audio_output_safe() {
-        return;
-    }
-    let Some(entity) = nearby.last_harvested else {
-        return;
-    };
-    let Ok(node) = nodes.get(entity) else {
-        return;
-    };
-    if *last == Some(node.harvests) {
-        return;
-    }
-    *last = Some(node.harvests);
-    let path = sting_path_for_realm(realm.and_then(|r| r.current));
-    if !sting_file_present(path) { return; }
-    commands.spawn((
-        AudioPlayer::<AudioSource>(asset_server.load(path)),
-        PlaybackSettings::DESPAWN,
-    ));
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use shared::temper::temper_copy_is_honest;
-    #[test]
-    fn harvest_sting_absent_files_spawn_nothing() {
-        use bevy::ecs::system::RunSystemOnce;
-        assert!([STING_SHARED, STING_SANCTUARY, STING_VERDANT, STING_HORIZON].iter().all(|p| !sting_file_present(p)));
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<AudioSource>();
-        let e = app.world_mut().spawn(MercyHarvestNode { name: "t", climate_id: 0, vitality: 1.0, harvests: 1, pulse: 0.0 }).id();
-        app.world_mut().insert_resource(NearbyMercyNode { last_harvested: Some(e), ..default() });
-        app.world_mut().run_system_once(try_soft_harvest_sting).unwrap();
-        assert_eq!(app.world_mut().query::<&AudioPlayer>().iter(app.world()).count(), 0);
-        let body = include_str!("mercy_harvest_nodes.rs").split("fn try_soft_harvest_sting(").nth(1).and_then(|s| s.split("\n}\n").next()).expect("sting fn");
-        assert!(body.find(concat!("if !sting_file_", "present(path)")).zip(body.find("commands.spawn(")).is_some_and(|(g, sp)| g < sp));
-    }
-
     /// CARD WELL-GLOW-OWNER-1 — `pulse_harvested_nodes` alone never touches
     /// the well material emissive or the child `PointLight`; it still decays
     /// pulse and breathes scale.
