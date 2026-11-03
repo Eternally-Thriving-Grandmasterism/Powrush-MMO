@@ -20,3 +20,6 @@ Thumbs.db
 
 # Powrush-MMO runtime artifacts (Steam Auto-Cloud staging written on client boot)
 steam_cloud/
+
+# MUSIC-WIRE-1 — White Bat Audio track, local only; never committed (asset-licenses.csv:16)
+assets/audio/music/after-the-war.ogg

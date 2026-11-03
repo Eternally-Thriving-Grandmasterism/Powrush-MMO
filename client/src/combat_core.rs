@@ -383,8 +383,8 @@ impl Plugin for CombatCorePlugin {
         app.init_resource::<CombatState>()
             .init_resource::<StrikeBuffer>()
             .init_resource::<FoundFinds>()
-            .add_systems(Startup, load_finds)
-            .add_systems(Update, show_find.after(predator_lunge))
+            .add_systems(Startup, (load_finds, check_music))
+            .add_systems(Update, (show_find, music_bed).after(predator_lunge))
             .add_systems(Startup, spawn_predator)
             .add_systems(Startup, spawn_lunge_tell)
             .add_systems(Startup, (spawn_rise_tell, spawn_cleared_tell))
@@ -635,6 +635,58 @@ pub fn play_hit(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&
     }
 }
 
+/// MUSIC-WIRE-1 — White Bat Audio "After The War" (MUSIC_CREDITS[12]); the file is gitignored and never committed.
+pub const MUSIC_ASSET: &str = "audio/music/after-the-war.ogg";
+/// Ducked bed: x MasterMuteGain like the tell, and below `HIT_GAIN` (CL-M2).
+pub const MUSIC_GAIN: f32 = 0.04;
+const _: () = assert!(MUSIC_GAIN < HIT_GAIN);
+/// CL-S2 — the fade-out starts at 27.0 s, so the level is 0 when the rise tell starts at 28.5 s.
+pub const MUSIC_FADE_AT: f32 = PREDATOR_RESPAWN_SECS - 2.0 * PREDATOR_TELL_SECS;
+/// Set once at Startup from `music_file_present`; false means `load` is never called (CL-M1).
+#[derive(Resource, Debug, Default, Clone, Copy, PartialEq)]
+pub struct MusicPresent(pub bool);
+#[derive(Component)]
+pub struct MusicBed;
+/// D3 — checked under Bevy's asset root, the same root the loader reads.
+pub fn music_file_present() -> bool { bevy::asset::io::file::FileAssetReader::get_base_path().join("assets").join(MUSIC_ASSET).is_file() }
+fn check_music(mut cmd: Commands) { cmd.insert_resource(MusicPresent(music_file_present())); }
+/// CL-S1 — armed only on a Sanctuary defeat edge; a place change drops it and hushes for `HOLD_SECS` (D1, mirrors climate_visible.rs:361-364).
+#[derive(Debug, Default, Clone, Copy, PartialEq)]
+pub struct MusicLatch { pub armed: bool, pub was_down: bool, pub place: Option<PlaceId>, pub hush_until: f64, pub level: f32 }
+pub fn music_latch(l: &mut MusicLatch, place: PlaceId, down: bool, now: f64) {
+    if l.place != Some(place) { (l.place, l.armed, l.hush_until) = (Some(place), false, now + crate::first_whisper::HOLD_SECS); }
+    l.armed = down && (l.armed || (!l.was_down && place == PlaceId::Sanctuary));
+    l.was_down = down;
+}
+pub fn music_target(present: bool, l: &MusicLatch, combat: &CombatState, now: f64, gain: f32) -> f32 {
+    let calm = l.armed && l.place == Some(PlaceId::Sanctuary) && cleared(PlaceId::Sanctuary, combat.predator_taken, combat.down_secs);
+    if present && calm && now >= l.hush_until && combat.down_secs < MUSIC_FADE_AT { MUSIC_GAIN * gain } else { 0.0 }
+}
+/// D5 — fades only: the level moves toward the target by `MUSIC_GAIN` per `PREDATOR_TELL_SECS`.
+pub fn music_ramp(level: f32, target: f32, dt: f32) -> f32 {
+    let step = MUSIC_GAIN * dt / PREDATOR_TELL_SECS;
+    if level < target { (level + step).min(target) } else { (level - step).max(target) }
+}
+/// CL-S3 — the same `audio_output_safe` and gain guards as `play_tell`; one looping bed, despawned at 0.
+fn music_bed(
+    (mut cmd, assets, time, mut latch): (Commands, Option<Res<AssetServer>>, Res<Time>, Local<MusicLatch>),
+    (present, combat, travel, mute): (Option<Res<MusicPresent>>, Res<CombatState>, Option<Res<HexTravelState>>, Option<Res<crate::local_settings::MasterMuteGain>>),
+    mut beds: Query<(Entity, Option<&mut bevy::audio::AudioSink>), With<MusicBed>>,
+) {
+    let (Some(travel), now) = (travel, time.elapsed_secs_f64()) else { return };
+    music_latch(&mut latch, travel.current, combat.predator_taken >= HEALTH, now);
+    let gain = mute.map_or(1.0, |m| if m.muted { 0.0 } else { m.gain });
+    let present = present.is_some_and(|p| p.0) && audio_output_safe();
+    latch.level = music_ramp(latch.level, music_target(present, &latch, &combat, now, gain), time.delta_secs());
+    if latch.level <= 0.0 { return beds.iter().for_each(|(e, _)| { cmd.entity(e).despawn(); }); }
+    let mut any = false;
+    for (_, sink) in &mut beds { any = true; if let Some(mut s) = sink { s.set_volume(bevy::audio::Volume::Linear(latch.level)); } }
+    if let (false, Some(assets)) = (any, assets) {
+        let play = PlaybackSettings::LOOP.with_volume(bevy::audio::Volume::Linear(latch.level));
+        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(MUSIC_ASSET)), play, MusicBed));
+    }
+}
+
 pub const LUNGE_TELL_TEXT: &str = "Brace, it is about to lunge";
 
 /// LUNGE-TELL-1 — chained after `predator_lunge`, so the timer and reach are post-tick.
@@ -862,6 +914,42 @@ mod tests {
         c.predator_taken = HEALTH - HIT;
         assert!(defeat(&mut c, &mut s) && !defeat(&mut c, &mut s), "once per kill, never after");
         assert!(!clears_area(PlaceId::Sanctuary));
+    }
+
+    #[test]
+    fn music_wire_slot_latch_hush_and_fade() {
+        let (mut l, mut c) = (MusicLatch::default(), CombatState { predator_taken: HEALTH, ..default() });
+        (music_latch(&mut l, PlaceId::Heartwood, true, 0.0), music_latch(&mut l, PlaceId::Sanctuary, true, 1.0));
+        assert!(!l.armed && music_target(true, &l, &c, 10.0, 1.0) == 0.0, "a Heartwood defeat never arms Sanctuary");
+        let mut l = MusicLatch::default();
+        (music_latch(&mut l, PlaceId::Sanctuary, false, 0.0), music_latch(&mut l, PlaceId::Sanctuary, true, 1.0));
+        assert!(l.armed && music_target(true, &l, &c, 3.0, 1.0) == 0.0, "hush for HOLD_SECS after entry");
+        assert!(music_target(true, &l, &c, 6.0, 1.0) == MUSIC_GAIN && music_target(true, &l, &c, 6.0, 0.5) == MUSIC_GAIN * 0.5);
+        assert!(music_target(false, &l, &c, 6.0, 1.0) == 0.0 && music_target(true, &l, &c, 6.0, 0.0) == 0.0, "absent or muted");
+        c.down_secs = MUSIC_FADE_AT;
+        assert!(music_target(true, &l, &c, 6.0, 1.0) == 0.0 && rise_tell(PlaceId::Sanctuary, HEALTH, MUSIC_FADE_AT).is_none());
+        let mut level = MUSIC_GAIN;
+        for _ in 0..90 { level = music_ramp(level, 0.0, PREDATOR_TELL_SECS / 90.0); }
+        assert!(level <= 1e-6 && MUSIC_FADE_AT + PREDATOR_TELL_SECS <= PREDATOR_RESPAWN_SECS - PREDATOR_TELL_SECS, "0 at rise onset");
+        (c.down_secs, c.predator_taken) = (1.0, 0);
+        assert_eq!(music_target(true, &l, &c, 6.0, 1.0), 0.0, "never while the predator stands");
+        (music_latch(&mut l, PlaceId::Heartwood, true, 7.0), music_latch(&mut l, PlaceId::Sanctuary, true, 8.0));
+        assert!(!l.armed, "a place change drops the latch");
+    }
+
+    #[test]
+    fn music_wire_absent_file_spawns_nothing_and_stings_stay_apart() {
+        use bevy::ecs::system::RunSystemOnce;
+        let mut world = World::new();
+        world.insert_resource(Time::<()>::default());
+        world.insert_resource(HexTravelState { current: PlaceId::Sanctuary });
+        world.insert_resource(CombatState { predator_taken: HEALTH, ..default() });
+        world.insert_resource(MusicPresent(false));
+        for _ in 0..3 { world.run_system_once(music_bed).unwrap(); }
+        assert_eq!(world.query::<&AudioPlayer>().iter(&world).count() + world.query::<&MusicBed>().iter(&world).count(), 0);
+        let body = include_str!("combat_core.rs").split("fn music_bed(").nth(1).and_then(|s| s.split("\n}\n").next()).expect("music_bed");
+        assert!(body.contains(concat!("assets.load(", "MUSIC_ASSET)")) && !body.contains(concat!("STING", "_ASSET")) && !body.contains(concat!("HIT", "_ASSET")));
+        assert_eq!(MUSIC_ASSET, "audio/music/after-the-war.ogg");
     }
 
     #[test]

@@ -507,17 +507,19 @@ pub const MUSIC_CREDITS: [MusicCredit; 13] = [
 const MUSIC_CREDITS_FONT_PX: f32 = 13.0;
 const MUSIC_CREDITS_ROW_GAP: f32 = 2.0;
 
+/// MUSIC-WIRE-1 (D2) — [12] shows only while its file is present; every `shipped` stays false.
+pub fn credit_shown(c: &MusicCredit, present: bool) -> bool { c.shipped || (present && c.title == MUSIC_CREDITS[12].title) }
 /// MC5 gate — no music is credited before it plays. False while nothing ships.
-pub fn music_credits_unlocked() -> bool {
-    MUSIC_CREDITS.iter().any(|c| c.shipped)
+pub fn music_credits_unlocked(present: bool) -> bool {
+    MUSIC_CREDITS.iter().any(|c| credit_shown(c, present))
 }
 
 /// Marker for the hidden Credits panel (outside the PauseTab cycle, MC5).
 #[derive(Component)]
 pub struct MusicCreditsPanel;
 
-fn spawn_music_credits_rows(p: &mut ChildSpawnerCommands) {
-    for credit in MUSIC_CREDITS.iter().filter(|c| c.shipped) {
+fn spawn_music_credits_rows(p: &mut ChildSpawnerCommands, present: bool) {
+    for credit in MUSIC_CREDITS.iter().filter(|c| credit_shown(c, present)) {
         p.spawn((
             Text::new(credit.line),
             TextFont { font_size: FontSize::Px(MUSIC_CREDITS_FONT_PX / 1.2), ..default() },
@@ -2037,12 +2039,13 @@ Node {
                 );
             });
             // CARD MUSIC-CREDITS-1 (MC5) — Credits panel only once a track ships.
-            if music_credits_unlocked() {
+            let present = crate::combat_core::music_file_present();
+            if music_credits_unlocked(present) {
                 p.spawn((
                     settings_tab_panel_bundle_gap(false, MUSIC_CREDITS_ROW_GAP),
                     MusicCreditsPanel,
                 ))
-                .with_children(spawn_music_credits_rows);
+                .with_children(|rows| spawn_music_credits_rows(rows, present));
             }
             // Settled+book Places door — opens four-room plate; not a Settings row.
             // Hidden until refresh_pause_places_row (hex_travel) after Settled+book.
@@ -10151,10 +10154,16 @@ mod tests {
     /// no Credits panel or credit line spawns.
     #[test]
     fn music_credits_panel_gated_off_while_nothing_ships() {
-        assert!(!music_credits_unlocked());
+        assert!(!music_credits_unlocked(false) && music_credits_unlocked(true));
+        assert!(MUSIC_CREDITS.iter().enumerate().all(|(i, c)| credit_shown(c, true) == (i == 12) && !credit_shown(c, false)));
+        let mut shown = World::new();
+        shown.commands().spawn(Node::default()).with_children(|p| spawn_music_credits_rows(p, true));
+        shown.flush();
+        let lines: Vec<&str> = shown.query::<&Text>().iter(&shown).map(|t| t.0.as_str()).collect();
+        assert_eq!(lines, ["Music: 'After The War' by Karl Casey @ White Bat Audio"], "only [12], only while its file is present");
         assert_eq!(PauseTab::ALL.len(), 4);
         let mut world = World::new();
-        world.commands().spawn(Node::default()).with_children(spawn_music_credits_rows);
+        world.commands().spawn(Node::default()).with_children(|p| spawn_music_credits_rows(p, false));
         world.flush();
         assert_eq!(world.query::<&Text>().iter(&world).count(), 0, "no unshipped credit renders");
         assert_eq!(world.query::<&MusicCreditsPanel>().iter(&world).count(), 0);
