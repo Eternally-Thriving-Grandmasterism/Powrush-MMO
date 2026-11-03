@@ -475,8 +475,15 @@ pub fn combat_fire(
         Option<Res<HumanInventory>>,
         Option<Res<HumanSoftPanels>>,
     ),
-    (buffer, fixed, diff, runs): (Option<ResMut<StrikeBuffer>>, Option<Res<Time<Fixed>>>, Option<ResMut<crate::difficulty::AreaDifficulty>>, Option<Res<RunLedger>>),
-    (mut cmd, assets, mute): (Commands, Option<Res<AssetServer>>, Option<Res<crate::local_settings::MasterMuteGain>>),
+    (buffer, fixed, diff, runs, mut cmd, assets, mute): (
+        Option<ResMut<StrikeBuffer>>,
+        Option<Res<Time<Fixed>>>,
+        Option<ResMut<crate::difficulty::AreaDifficulty>>,
+        Option<Res<RunLedger>>,
+        Commands,
+        Option<Res<AssetServer>>,
+        Option<Res<crate::local_settings::MasterMuteGain>>,
+    ),
 ) {
     let fire = buttons.is_some_and(|b| b.just_pressed(FIRE))
         || gamepads.iter().any(|g| g.just_pressed(FIRE_PAD));
