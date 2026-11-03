@@ -157,7 +157,7 @@ mod tests {
         use shared::threshold_shelf::{THRESHOLD_SHELF_CENTER as T, THRESHOLD_SHELF_USE_RADIUS};
         let reach = crate::mercy_harvest_nodes::HARVEST_REACH;
         let clear = |c: [f32; 2], r: f32| dist_xz(PLAQUE_SPOT[0], PLAQUE_SPOT[1], c[0], c[1]) > r + PLAQUE_REACH;
-        // Node spawns at mercy_harvest_nodes.rs:323,330,337 equal shared WELL_ANCHORS.
+        // Node spawns at mercy_harvest_nodes.rs:308,315,322 equal shared WELL_ANCHORS.
         let well = reach.max(shared::skirmish_well::CONTEST_REACH);
         shared::skirmish_well::WELL_ANCHORS.iter().for_each(|&(x, _, z)| assert!(clear([x, z], well)));
         assert!(clear(LAMP_DISK_CENTER, LAMP_DISK_RADIUS));

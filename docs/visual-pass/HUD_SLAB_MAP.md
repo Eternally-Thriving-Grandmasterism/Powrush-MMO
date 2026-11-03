@@ -46,7 +46,7 @@ Notation: `Global N` = `ZIndex::Global(N)`. `default` = no `ZIndex` set. Offsets
 | 27 | `first_harvest_epiphany.rs:306` | WorldCarePromptRoot | bottom 128 | centred: left 50% + margin-left -230 | 460 | default | `update_world_care_prompt`: `world_care_prompt_visible` (not dismissed; nodes in range, or prompt window, or nodes exist before first harvest); spawned Visible |
 | 28 | `first_harvest_epiphany.rs:342` | HarvestPulseRoot | top 118 | centred: left 50% + margin-left -280 | 560 | default | `update_harvest_pulse`: `now < pulse_until && pulse_line non-empty` |
 | 29 | `first_harvest_epiphany.rs:378` | WelcomeBackRoot | top 16 | left 16 | 380 | default | `welcome_visible`: `welcome_until` set, `welcome_shown`, before deadline, no E interact since (LivedUiPlate) |
-| 30 | `mercy_harvest_nodes.rs:390` | CareCycleStrip | bottom 128 | centred: left 50% + margin-left -280 | 560 | default | `update_care_cycle_strip`: `CareCycleOffer.active` (Idle after tend) |
+| 30 | `mercy_harvest_nodes.rs:373` | CareCycleStrip | bottom 128 | centred: left 50% + margin-left -280 | 560 | default | `update_care_cycle_strip`: `CareCycleOffer.active` (Idle after tend) |
 | 31 | `climate_visible.rs:291` | ClimateStateRoot | bottom 176 | left 16 | 420 | default | `update_climate_state_slab`: speech/notice conditions (threshold, wards, depths lines; guidance-hidden rules); exact gate not summarised |
 | 32 | `human_inventory.rs:120` | WatchStripRoot | bottom 16 | left 16 | 340 | default | `update_watch_strip`: `first_harvest_lived || harvests > 0` |
 | 33 | `human_inventory.rs:154` | SatchelRoot (I satchel) | bottom 22% | left 16 | 300 | Global 125 (LIVED_UI_Z_LEDGER) | `update_satchel`: `inv.open` (I toggles); also LivedUiPlate |
