@@ -6,7 +6,7 @@ use crate::combat_core::{combat_fire, predator_present, respawn_step, set_pulse,
 use crate::combat_core::{LUNGE_TELL_DOTS, LUNGE_TELL_DOT_HEIGHT, LUNGE_TELL_DOT_RADIUS, LUNGE_TELL_LIFT};
 use crate::{first_harvest_epiphany::FirstHarvestEpiphany, hex_travel::HexTravelState};
 use crate::{human_presence::SoftPresence, title_screen::LaunchDoor};
-use crate::combat_core::{play_tell, tell_arm};
+use crate::combat_core::{hurt_edge, hurt_pulse, play_hurt, play_tell, tell_arm};
 use crate::difficulty::{cue_line, enemy_hit, hides_cues, AreaDifficulty, DifficultyTier};
 
 /// North of the Threshold shelf (0,6): clear of the node, lamp, pond, Wards, both enemies and the wake point.
@@ -142,7 +142,15 @@ fn droid_tick(
     }
     let dt = time.delta_secs();
     down_step(&mut state, dt);
+    let before = combat.player_taken;
     let armed = shot_step(&mut state, &mut combat.player_taken, dt, gate, reach, tier);
+    if hurt_edge(before, combat.player_taken) { // DROID-HURT-READOUT-1: the predator's hurt path, combat_core.rs:619-627
+        combat.hurt = combat.hurt.wrapping_add(1);
+        play_hurt(&mut cmd, assets.as_deref(), mute.as_deref());
+        if let (Some(epi), now) = (epi.as_mut(), time.elapsed_secs_f64()) {
+            if let Some(line) = hurt_pulse(tier, &epi.pulse_line, epi.pulse_until, now, combat.player_taken) { set_pulse(epi, line, now + DROID_CUE_SECS); }
+        }
+    }
     let alive = gate && droid_alive(&state);
     body.iter_mut().for_each(|mut v| _ = v.set_if_neq(show(alive)));
     let tell = alive && shot_tell_visible(state.shot_timer, armed);
@@ -324,5 +332,30 @@ mod tests {
         let src = include_str!("droid.rs");
         let branch = &src[src.find(concat!("if tell_arm", "(&mut was, armed, tell) {")).unwrap()..][..260];
         assert!(branch.contains(concat!("play_tell", "(&mut cmd, assets.as_deref(), mute.as_deref());")) && branch.contains(concat!("hides_cues(tier), epi", ".as_mut())")) && src.matches(concat!("play_tell", "(&mut cmd")).count() == 1);
+    }
+    /// DROID-HURT-READOUT-1 — one frame: (hurt edge, tell onset), `before` read around the shot step as `droid_tick` does.
+    fn droid_hurt(s: &mut DroidState, p: &mut u32, was: &mut bool, r: bool) -> (bool, bool) { let b = *p; let st = droid_cadence(s, p, was, r, 0.25, DifficultyTier::Sheltered).0; (crate::combat_core::hurt_edge(b, *p), st) }
+    fn entries() -> impl Iterator<Item = bool> { (0..15).map(|_| true).chain([false]).chain((0..5).map(|_| true)) }
+    #[test]
+    fn droid_hurt_edge_once_per_shot_and_tell_onsets_unchanged() {
+        let ((mut s, mut p, mut w), (mut s2, mut p2, mut w2)) = ((DroidState::default(), 0, false), (DroidState::default(), 0, false));
+        let run: Vec<(bool, bool)> = entries().map(|r| droid_hurt(&mut s, &mut p, &mut w, r)).collect();
+        let bare: Vec<bool> = entries().map(|r| droid_cadence(&mut s2, &mut p2, &mut w2, r, 0.25, DifficultyTier::Sheltered).0).collect();
+        assert!(run.iter().enumerate().filter(|(_, f)| f.0).map(|(i, _)| i).eq([4, 9, 14, 20]) && run.iter().map(|f| f.1).eq(bare), "one edge per landed shot, none on quiet or tell frames; P4 onsets identical");
+    }
+    #[test]
+    fn droid_hurt_line_tiers_clamp_replace_and_wake() {
+        use crate::combat_core::{hurt_line, hurt_pulse, wake_cue_at};
+        let sh = DifficultyTier::Sheltered;
+        assert!(hurt_pulse(sh, "", 0.0, 0.25, DROID_HIT) == Some(format!("You {} / {HEALTH}", HEALTH - DROID_HIT)) && [DifficultyTier::Sworn, DifficultyTier::Unbroken].iter().all(|t| hurt_pulse(*t, "", 0.0, 0.25, DROID_HIT).is_none()));
+        assert!(hurt_line(HEALTH + DROID_HIT) == format!("You 0 / {HEALTH}") && hurt_pulse(sh, &hurt_line(DROID_HIT), 0.5, 0.25, DROID_HIT + DROID_HIT) == Some(hurt_line(DROID_HIT + DROID_HIT)), "clamp; a hurt line replaces a hurt line");
+        assert!(hurt_pulse(sh, &wake_cue_at(PlaceId::Heartwood), 0.5, 0.25, HEALTH).is_none(), "a held wake line wins on a droid-caused defeat");
+    }
+    #[test]
+    fn droid_hurt_branch_sits_after_shot_step() {
+        let src = include_str!("droid.rs");
+        let next = src[src.find(concat!("let armed = shot_step", "(&mut state, &mut combat.player_taken")).unwrap()..].split_once('\n').unwrap().1;
+        let branch = &next[..next.find("\n    }\n").unwrap()];
+        assert!(next.starts_with(concat!("    if hurt_edge", "(before, combat.player_taken) {")) && ["was", "armed =", "tell", "play_tell"].iter().all(|w| !branch.contains(w)) && src.matches(concat!("hurt_edge", "(before, combat.player_taken)")).count() == 1);
     }
 }

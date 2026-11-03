@@ -215,6 +215,7 @@ Facts at `10d71e6d`, cite-only, from Sherif's playtester's report that no combat
 | CP-05 | The lunge ring blinked and the tell sting chimed on every 0.6 s loop while in reach, so the tell read as flicker. Now the ring stays steady while in reach, the sting and the Sworn/Unbroken text play once per reach entry and re-arm when the player leaves reach, and the lean still marks each lunge. | `client/src/combat_core.rs`, `lunge_tell`, `tell_arm` | TELL-CADENCE-1 |
 | CP-06 | The player's own health showed nowhere. Now a hurt line "You {left} / 200" shows on the shared Pulse line when the slot is free (idle or already a hurt line), never on Sworn or Unbroken, and the wake line still wins on defeat. | `client/src/combat_core.rs`, `hurt_line`, `hurt_pulse`, `predator_lunge` | HURT-READOUT-1 |
 | CP-07 | The droid's tell sting chimed on every 1.25 s shot cycle while in reach. Now it plays once per reach entry and re-arms when the player leaves reach, the droid goes down or the player is defeated; the ground ring still shows each 0.5 s shot tell. | `client/src/droid.rs`, `droid_tick`, `tell_arm` | DROID-TELL-CADENCE-1 |
+| CP-08 | A droid shot hurt the player with no cue. Now it gives the predator's hurt path: the same kick, rumble and hurt sting, and the "You {left} / 200" line on a free Pulse slot only, never on Sworn or Unbroken; a held wake line still wins. | `client/src/droid.rs`, `droid_tick`, `hurt_pulse` | DROID-HURT-READOUT-1 |
 
 No capture: this audit adds no image (Hands standing rule, no media or binaries).
 
