@@ -76,14 +76,6 @@ request_council_bloom_synth(&mut synth_events, intensity, session_id);
 // From Epiphany
 request_epiphany_synth(&mut synth_events, intensity, seed);
 
-// Register pre-made asset into the same catalog
-premade_events.send(RegisterPremadeAudio {
-    title: "Epic Dark Ambient".into(),
-    flavor: AudioMomentFlavor::AmbientPad,
-    asset_path: "assets/music/epic_dark_ambient.ogg".into(),
-    context: "Premade bed".into(),
-});
-
 // Recall later
 recall_events.send(RecallAudioMoment { moment_id: 3 });
 ```

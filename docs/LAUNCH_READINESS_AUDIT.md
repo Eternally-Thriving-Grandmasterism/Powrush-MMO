@@ -94,9 +94,9 @@ The lived body is capsules and spheres (`client/src/human_presence.rs:582-588`).
 
 `docs/PLACE_DRESS_SPEC.md:7-9` still says the dress is unbuilt and that no client edit follows from the file. `client/src/climate_plane.rs:25-46` describes Sanctuary, Heartwood, Threshold, and Depths dress as already in this file.
 
-The mixer loads two assets (`shared/peace_audio.rs:28-36`): `audio/peace_yard_bed.ogg` and `audio/peace_well_sting.ogg`. Heartwood and Depths reuse that bed at a lower gain (`shared/peace_audio.rs:34-37`). `client/src` does not mention `epic_dark_ambient`. `git ls-files` tracks that ogg and the two peace files only.
+The mixer loads two assets (`shared/peace_audio.rs:28-36`): `audio/peace_yard_bed.ogg` and `audio/peace_well_sting.ogg`. Heartwood and Depths reuse that bed at a lower gain (`shared/peace_audio.rs:34-37`). Combat loads `audio/combat_hit.ogg` (`HIT_ASSET`, `client/src/combat_core.rs:36`). `client/src` does not mention `epic_dark_ambient`. `git ls-files '*.ogg'` tracks `combat_hit.ogg` and the two peace files only.
 
-`assets/audio/README.md:12-20` names `mercy_harvest_sting.ogg`, place variants, `rollback_whoosh.ogg`, `epiphany_bloom.ogg`, and `emergence_resonance.ogg`. `client/assets/audio/README.md:9-15` names a premade set under `client/assets/audio/premade/`. `git ls-files` does not track those paths (command in Measurements).
+`assets/audio/README.md` and `client/assets/audio/README.md` name no untracked sound set; `client/assets/audio/README.md:5` says that folder is not a premade stem catalog.
 
 ## 8. Performance
 
@@ -131,14 +131,14 @@ git ls-files '*.glb' '*.gltf' | wc -l
 ```
 
 ```text
-wc -c assets/audio/peace_yard_bed.ogg assets/audio/peace_well_sting.ogg assets/music/epic_dark_ambient.ogg
+wc -c assets/audio/peace_yard_bed.ogg assets/audio/peace_well_sting.ogg assets/audio/combat_hit.ogg
 ```
 
 ```text
 15034 assets/audio/peace_yard_bed.ogg
  4296 assets/audio/peace_well_sting.ogg
- 1803 assets/music/epic_dark_ambient.ogg
-21133 total
+ 4265 assets/audio/combat_hit.ogg
+23595 total
 ```
 
 ```text
