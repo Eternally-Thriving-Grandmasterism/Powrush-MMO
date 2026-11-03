@@ -18,10 +18,10 @@
 use bevy::prelude::*;
 
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
-use crate::hud_anchor_registry::{HudSlab, SOVEREIGN};
+use crate::hud_anchor_registry::{HudSlab, ID_SOVEREIGN, SOVEREIGN};
 use crate::first_session_guidance::FirstSessionGuidance;
 use crate::input::{InputMapSet, PlayerInput};
-use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
+use crate::title_screen::{HouseLabel, LaunchDoor, TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 const BANNER_SECS: f64 = 8.5;
 
@@ -41,9 +41,12 @@ fn sovereign_banner_line(place: Option<&str>) -> String {
 
 #[derive(Resource, Debug)]
 pub struct LocalSovereignSession {
+    /// SOVEREIGN-YARD-GATE-1 — the visible budget in seconds, not an app-time end.
     pub banner_until: f64,
     pub dismissed: bool,
     pub announced: bool,
+    /// Visible seconds so far: counted only InYard, not yielded and not paused.
+    pub shown: f64,
 }
 
 impl Default for LocalSovereignSession {
@@ -52,6 +55,7 @@ impl Default for LocalSovereignSession {
             banner_until: BANNER_SECS,
             dismissed: false,
             announced: false,
+            shown: 0.0,
         }
     }
 }
@@ -113,6 +117,11 @@ TextColor(TITLE_TEXT_PRIMARY),
         });
 }
 
+/// SOVEREIGN-YARD-GATE-1 — the clock counts InYard only (an absent door, tests only, counts as InYard), not yielded, not paused.
+pub fn banner_counts(door: Option<LaunchDoor>, yielded: bool, paused: bool) -> bool {
+    door.is_none_or(|d| d == LaunchDoor::InYard) && !yielded && !paused
+}
+
 fn announce_once(mut session: ResMut<LocalSovereignSession>) {
     if session.announced {
         return;
@@ -130,10 +139,12 @@ fn dismiss_on_intent(
     guidance: Res<FirstSessionGuidance>,
     mut session: ResMut<LocalSovereignSession>,
     player_input: Option<Res<PlayerInput>>,
+    door: Option<Res<LaunchDoor>>,
 ) {
     if session.dismissed {
         return;
     }
+    if door.is_some_and(|d| *d != LaunchDoor::InYard) { return; } // SOVEREIGN-YARD-GATE-1: no intent before the yard
     // WASD stays the keyboard check. Arrows, the stick, and touch arrive as
     // this frame's `PlayerInput.movement` (deadzone stays in input.rs).
     let moving = keyboard.pressed(KeyCode::KeyW)
@@ -148,12 +159,16 @@ fn dismiss_on_intent(
 
 fn update_banner(
     time: Res<Time>,
-    session: Res<LocalSovereignSession>,
+    mut session: ResMut<LocalSovereignSession>,
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut root: Query<&mut Visibility, With<SovereignBannerRoot>>,
     mut text_q: Query<&mut Text, With<SovereignBannerText>>,
+    (door, house, yielded): (Option<Res<LaunchDoor>>, Option<Res<HouseLabel>>, Option<Res<crate::hud_presets::HudYielded>>),
 ) {
-    let show = !session.dismissed && time.elapsed_secs_f64() < session.banner_until;
+    let (dt, yielded) = (time.delta_secs_f64(), yielded.is_some_and(|y| y.0.contains(&ID_SOVEREIGN)));
+    let counts = banner_counts(door.as_deref().copied(), yielded, house.is_some_and(|h| h.settings_open));
+    if counts && dt > 0.0 && !session.dismissed && session.shown < session.banner_until { session.shown += dt; }
+    let show = !session.dismissed && session.shown < session.banner_until;
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible
@@ -547,5 +562,42 @@ mod tests {
                 .resource::<LocalSovereignSession>()
                 .dismissed
         );
+    }
+
+    /// SOVEREIGN-YARD-GATE-1 — one frame of the visible clock, the same rule as `update_banner`.
+    fn step(s: &mut LocalSovereignSession, door: LaunchDoor, yielded: bool, paused: bool, dt: f64) -> bool {
+        if banner_counts(Some(door), yielded, paused) && s.shown < s.banner_until { s.shown += dt; }
+        !s.dismissed && s.shown < s.banner_until
+    }
+
+    #[test]
+    fn sovereign_yard_gate_title_time_yield_and_pause_do_not_count() {
+        let mut s = LocalSovereignSession::default();
+        assert!((0..40).all(|_| step(&mut s, LaunchDoor::Title, false, false, 0.5)) && s.shown == 0.0, "20 s of title flow");
+        assert!((0..24).all(|_| step(&mut s, LaunchDoor::InYard, true, false, 0.125) && step(&mut s, LaunchDoor::InYard, false, true, 0.125)));
+        assert!(s.shown == 0.0 && banner_counts(None, false, false), "yield and pause hold the clock");
+        assert!((0..16).all(|_| step(&mut s, LaunchDoor::InYard, false, false, 0.5)) && s.shown == 8.0);
+        assert!(!step(&mut s, LaunchDoor::InYard, false, false, 0.5) && s.shown == 8.5, "8.5 s visible, then hidden");
+    }
+
+    #[test]
+    fn sovereign_yard_gate_title_and_back_resumes_without_reset() {
+        let mut s = LocalSovereignSession::default();
+        (0..8).for_each(|_| { step(&mut s, LaunchDoor::InYard, false, false, 0.5); });
+        (0..20).for_each(|_| { step(&mut s, LaunchDoor::Title, false, false, 0.5); });
+        assert!(s.shown == 4.0 && s.banner_until - s.shown == 4.5 && s.banner_until == BANNER_SECS);
+        assert!((0..8).all(|_| step(&mut s, LaunchDoor::InYard, false, false, 0.5)) && !step(&mut s, LaunchDoor::InYard, false, false, 0.5));
+    }
+
+    #[test]
+    fn sovereign_yard_gate_intent_before_the_yard_does_not_dismiss() {
+        let mut app = intent_app(false);
+        app.insert_resource(LaunchDoor::Title);
+        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::KeyW);
+        app.update();
+        assert!(!app.world().resource::<LocalSovereignSession>().dismissed, "WASD on Title keeps the banner");
+        app.insert_resource(LaunchDoor::InYard);
+        app.update();
+        assert!(app.world().resource::<LocalSovereignSession>().dismissed, "the same press InYard dismisses");
     }
 }
