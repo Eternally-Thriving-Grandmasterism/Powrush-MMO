@@ -992,11 +992,15 @@ mod tests {
     }
 
     #[test]
-    fn combat_feel_look_kick_decays_and_constants_hold() {
+    fn combat_feel_look_kick_decays_to_zero() {
         let mut pool = SoftRbePool::default();
         pool.kick = pool.kick.max(HIT_KICK);
         let k: Vec<f32> = (0..4).map(|_| { pool.tick_juice(0.125); pool.kick }).collect();
         assert!(k.windows(2).all(|w| w[1] <= w[0]) && pool.kick == 0.0, "the kick decays to 0");
+    }
+
+    #[test]
+    fn combat_feel_look_damage_and_timing_unchanged() {
         assert!(HEALTH == 200 && HIT == 15 && LUNGE_SECS == 0.6 && LUNGE_TELL_SECS == 0.35 && REACH == HARVEST_REACH && HIT_KICK == 0.35);
         assert!(HURT_SPEED != 1.0 && hit_volume(true, None) == Some(HIT_GAIN));
     }
