@@ -88,7 +88,7 @@ pub const W_DODGE: f32 = 0.20;
 /// Par clear time in ms; a clear at or under par scores time 1. Proposed, card-gated.
 pub const RUN_PAR_MS: u32 = 60_000;
 /// Skill multiplier ceiling per `DifficultyTier as usize`; proposed, card-gated.
-pub const SKILL_CAP: [f32; 4] = [1.20, 1.45, 1.85, 2.50];
+pub const SKILL_CAP: [f32; 4] = [1.20, 1.45, 1.85, 3.00];
 pub fn skill_cap(tier: DifficultyTier) -> f32 {
     SKILL_CAP[tier as usize]
 }
@@ -109,11 +109,11 @@ fn skill_curve(cap: f32, s: f32) -> f32 {
     (m as f32).clamp(1.0, cap)
 }
 /// Convex skill multiplier in [1.0, skill_cap(tier)]; a `clear_ms == 0` row is exactly 1.0.
-/// Inactive: nothing in a live payout reads it. Tier is a ceiling only, never a flat bonus.
+/// Live through `premium_paid` (SKILL-PREMIUM-ON-1). Tier is a ceiling only, never a flat bonus.
 /// RUN-LEDGER-WIRE-1 gives it its own bucket after clamp_xp_pct / XP_HARD_MAX_PCT 175, never
 /// inside it: see `skill_premium` and `premium_xp_pct` below. Caps are tier-weighted so only
-/// Unbroken reaches 2.5x. Going live is a later card; the bucket can then lift XP past 175
-/// (437.5% max, banked as XP-CEILING-DOC-1).
+/// Unbroken reaches 3.0x. Live on Sherif's 2026-11-02 yes; the bucket can lift XP past 175
+/// (525% max, banked as XP-CEILING-DOC-1).
 pub fn skill_mult(tier: DifficultyTier, row: RunRow) -> f32 {
     if row[0] == 0 {
         return 1.0;
@@ -121,18 +121,18 @@ pub fn skill_mult(tier: DifficultyTier, row: RunRow) -> f32 {
     skill_curve(skill_cap(tier), skill_score(row))
 }
 /// RUN-LEDGER-WIRE-1. Ceiling of the skill premium itself; its only cap.
-pub const SKILL_PREMIUM_MAX: f32 = 2.5;
+pub const SKILL_PREMIUM_MAX: f32 = 3.0;
 /// The skill premium: exactly 1.0 while any run modifier is set (a set Sheltered rejects too), else `skill_mult`.
 pub fn skill_premium(tier: DifficultyTier, row: RunRow, mods: &[RunModifier]) -> f32 {
     if mods.is_empty() { skill_mult(tier, row) } else { 1.0 }
 }
-/// Its own bucket, applied after `clamp_xp_pct` 175 and never re-clamped: the result may pass 175 (437.5% max).
-/// Earned XP and materials only; never loot rarity, the vendor ceiling, the upgrade meter or Lumen. Not wired.
+/// Its own bucket, applied after `clamp_xp_pct` 175 and never re-clamped: the result may pass 175 (525% max).
+/// Earned XP and materials only; never loot rarity, the vendor ceiling, the upgrade meter or Lumen. Wired via `premium_paid`.
 pub fn premium_xp_pct(clamped_pct: u32, premium: f32) -> f32 {
     clamped_pct as f32 * premium.clamp(1.0, SKILL_PREMIUM_MAX)
 }
-/// RUN-LEDGER-LIVE-1. Council wording, Sherif may veto (the 2.5x figure too); off until his own yes.
-pub const SKILL_PREMIUM_LIVE: bool = false;
+/// RUN-LEDGER-LIVE-1 / SKILL-PREMIUM-ON-1: live on Sherif's 2026-11-02 yes, 3.0x top. Sherif may veto.
+pub const SKILL_PREMIUM_LIVE: bool = true;
 /// One paid combat gain. Off or no stored best: exactly `combat_xp`. On: premium on the clamped pct, floored, never below `combat_xp`.
 pub fn premium_paid(tier: DifficultyTier, base: u32, row: Option<RunRow>, live: bool) -> u32 {
     let today = combat_xp(tier, base);
@@ -213,9 +213,10 @@ mod tests {
     #[test]
     fn premium_table_floor_ceiling_and_convex_bands() {
         let best = [1, 0, 1000];
-        assert_eq!(SKILL_CAP, [1.20, 1.45, 1.85, 2.50], "council default table");
+        assert_eq!(SKILL_CAP, [1.20, 1.45, 1.85, 3.00], "council default table");
         let steps: Vec<f32> = SKILL_CAP.windows(2).map(|w| w[1] - w[0]).collect();
-        assert!(steps.windows(2).all(|d| d[0] < d[1]) && SKILL_CAP[3] == SKILL_PREMIUM_MAX, "convex bands, only Unbroken at 2.5");
+        assert!(steps.windows(2).all(|d| d[0] < d[1]) && SKILL_CAP[3] == SKILL_PREMIUM_MAX, "convex bands, only Unbroken at 3.0");
+        assert!(SKILL_CAP[3] == SKILL_PREMIUM_MAX && SKILL_PREMIUM_MAX == 3.0, "top premium pinned at 3.0");
         for t in TIERS4 {
             assert_eq!(skill_premium(t, [0, 0, 0], &[]), 1.0, "no row is exactly 1.0");
             let (mid, top) = (skill_premium(t, [90_000, 50, 2], &[]), skill_premium(t, best, &[]));
@@ -223,7 +224,7 @@ mod tests {
             let today = stacked_xp_pct(t, &[]);
             assert_eq!(premium_xp_pct(today, skill_premium(t, [0, 0, 0], &[])), today as f32, "default identical to today");
         }
-        assert_eq!((premium_xp_pct(100, 0.0), premium_xp_pct(175, 9.0)), (100.0, 437.5), "never cuts; 2.5x is the only ceiling");
+        assert_eq!((premium_xp_pct(100, 0.0), premium_xp_pct(175, 9.0)), (100.0, 525.0), "never cuts; 3.0x is the only ceiling");
     }
     #[test]
     fn premium_never_stacks_with_mods_and_sits_after_the_175_clamp() {
@@ -237,10 +238,10 @@ mod tests {
     }
     #[test]
     fn premium_paid_off_is_today_and_on_floors_the_premium() {
-        const _: () = assert!(!SKILL_PREMIUM_LIVE, "ships off until Sherif's own yes");
+        const _: () = assert!(SKILL_PREMIUM_LIVE, "live on Sherif's 2026-11-02 yes");
         for t in TIERS4 {
             for row in [None, Some([0, 0, 0]), Some([90_000, 50, 2]), Some([1, 0, 1000])] {
-                assert_eq!(premium_paid(t, 10, row, SKILL_PREMIUM_LIVE), combat_xp(t, 10), "{t:?}: off is byte-identical");
+                assert_eq!(premium_paid(t, 10, row, false), combat_xp(t, 10), "{t:?}: off is byte-identical");
             }
             assert_eq!(premium_paid(t, 10, None, true), combat_xp(t, 10), "{t:?}: no stored best pays today");
             for r in [[0, 0, 0], [90_000, 50, 2], [1, 0, 1000]] {
@@ -252,6 +253,6 @@ mod tests {
         }
         let raw = 3.0 * premium_xp_pct(100, skill_premium(Sheltered, [1, 0, 1000], &[])) / 100.0;
         assert!(raw > 3.5 && raw < 4.0 && premium_paid(Sheltered, 3, Some([1, 0, 1000]), true) == 3, "floor, never round up");
-        assert_eq!(premium_paid(Unbroken, 10, Some([1, 0, 1000]), true), 37, "10 x 375% = 37.5 floors to 37");
+        assert_eq!(premium_paid(Unbroken, 10, Some([1, 0, 1000]), true), 45, "10 x 450% = 45 (skill_mult(Unbroken, best) is exactly 3.0 in f32)");
     }
 }
