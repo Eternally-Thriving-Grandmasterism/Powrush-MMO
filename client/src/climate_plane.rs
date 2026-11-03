@@ -162,11 +162,11 @@ use shared::local_settings::{GraphicsPreset, WeatherFidelity};
 use shared::hex_travel::PlaceId;
 
 use crate::hour_sacred::PeopleLanding;
-use crate::hud_anchor_registry::{HudSlab, PLACE_NAME};
+use crate::hud_anchor_registry::{HudSlab, ID_PLACE_NAME, PLACE_NAME};
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::local_settings::{LocalMeshLodFeel, LocalSettingsState};
 use crate::mercy_harvest_nodes::MercyHarvestNode;
-use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
+use crate::title_screen::{HouseLabel, LaunchDoor, TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 /// CARD H-2026-09-16-PLACE-LOD — Comfort MeshLodPlan (PATHS-only compile).
 #[path = "gltf_integration.rs"]
@@ -1486,6 +1486,7 @@ fn spawn_climate_chip(mut commands: Commands) {
                 },
                 BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
                 BorderColor::all(TITLE_BORDER.with_alpha(1.0)),
+                Visibility::Visible,
             ),
             ClimateNameRoot,
             HudSlab(PLACE_NAME.id),
@@ -1881,10 +1882,22 @@ fn breathe_weather_bed(
         .clamp(40.0, 520.0);
 }
 
+/// HUD-QUIET-REST-1 — the chip's hold: the last place shown and the visible seconds spent on it.
+#[derive(Default, Debug, Clone, Copy, PartialEq)]
+pub struct ChipHold { pub last: Option<PlaceId>, pub shown: f64 }
+/// Only a real place change restarts the hold; time counts only when `counts` (InYard, not paused, not yielded).
+pub fn chip_step(h: &mut ChipHold, place: PlaceId, counts: bool, dt: f64) -> bool {
+    if h.last != Some(place) { (h.last, h.shown) = (Some(place), 0.0); }
+    if counts && h.shown < crate::first_whisper::HOLD_SECS { h.shown += dt; }
+    h.shown < crate::first_whisper::HOLD_SECS
+}
+
 fn update_climate_chip(
     realm: Res<SoftPlayerRealm>,
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
     mut text_q: Query<&mut Text, With<ClimateNameText>>,
+    mut root: Query<&mut Visibility, With<ClimateNameRoot>>,
+    (time, door, house, yielded, mut hold): (Res<Time>, Option<Res<LaunchDoor>>, Option<Res<HouseLabel>>, Option<Res<crate::hud_presets::HudYielded>>, Local<ChipHold>),
 ) {
     // CARD L4 — chip follows HexTravelState. SoftPlayerRealm is synced from
     // the same PlaceId so apply_climate_look (not a second dresser) turns on.
@@ -1897,6 +1910,10 @@ fn update_climate_chip(
             **text = name.to_string();
         }
     }
+    let Some(travel) = travel else { return }; // CL-Q1: no travel, no Visibility write
+    let counts = door.is_none_or(|d| *d == LaunchDoor::InYard) && !house.is_some_and(|h| h.settings_open) && !yielded.is_some_and(|y| y.0.contains(&ID_PLACE_NAME));
+    let want = if chip_step(&mut hold, travel.current, counts, time.delta_secs_f64()) { Visibility::Visible } else { Visibility::Hidden };
+    for mut vis in &mut root { if *vis != want { *vis = want; } }
 }
 
 /// Presentation-copy honesty for Place dress (refuse Brood / Market / Online /
@@ -2066,6 +2083,25 @@ fn is_teal_peace(c: Color) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn hud_quiet_rest_chip_holds_then_hides_and_reshows_only_on_a_real_change() {
+        let mut h = ChipHold::default();
+        assert!((0..10).all(|_| chip_step(&mut h, PlaceId::Sanctuary, true, 0.5)) && h.shown == 5.0, "shown at 5.0");
+        assert!(!chip_step(&mut h, PlaceId::Sanctuary, true, 0.5) && h.shown == 5.5, "hidden at 5.5");
+        assert!(!chip_step(&mut h, PlaceId::Sanctuary, true, 0.125), "the same place never re-shows");
+        assert!((0..10).all(|_| chip_step(&mut h, PlaceId::Heartwood, true, 0.5)) && !chip_step(&mut h, PlaceId::Heartwood, true, 0.5));
+        assert!(!chip_step(&mut h, PlaceId::Heartwood, true, 0.5) && h.last == Some(PlaceId::Heartwood), "re-entering the same place keeps it quiet");
+    }
+
+    #[test]
+    fn hud_quiet_rest_title_pause_and_yield_spend_nothing_slab_stays_on() {
+        let mut h = ChipHold::default();
+        (0..40).for_each(|_| { chip_step(&mut h, PlaceId::Sanctuary, false, 0.5); });
+        (0..16).for_each(|_| { chip_step(&mut h, PlaceId::Sanctuary, false, 0.125); });
+        assert!(h.shown == 0.0 && chip_step(&mut h, PlaceId::Sanctuary, true, 0.5), "title, pause and yield do not count");
+        let slab = include_str!("climate_visible.rs");
+        assert!(slab.contains("    // H-2026-09-10-1: one climate slab always carries the place name; well mood\n    // and near-speech still compose on top. H hides the guidance card, not this line.\n    true\n}"));
+    }
 
     /// CARD LOOK-PALETTE-1 (R4) — LOOK-CAPTURE pose, shared by the before and after runs.
     const LOOK_RES: (u32, u32) = (640, 360);
