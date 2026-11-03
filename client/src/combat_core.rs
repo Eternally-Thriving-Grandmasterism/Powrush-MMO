@@ -124,7 +124,7 @@ pub const RISE_TELL_HEIGHT: f32 = 1.7;
 #[derive(Component)]
 pub struct RiseTell;
 
-/// Rise fraction (0..=1) while the tell shows: Heartwood only, predator down, last `PREDATOR_TELL_SECS`.
+/// Rise fraction (0..=1) while the tell shows: where `fight_present` (Heartwood, Sanctuary), predator down, last `PREDATOR_TELL_SECS`.
 pub fn rise_tell(place: PlaceId, predator_taken: u32, down_secs: f32) -> Option<f32> {
     let onset = PREDATOR_RESPAWN_SECS - PREDATOR_TELL_SECS;
     (fight_present(place) && predator_taken >= HEALTH && down_secs >= onset)
@@ -612,7 +612,7 @@ fn predator_lunge(
     mut shown: Query<&mut Visibility, With<Predator>>,
     mut diff: Option<ResMut<AreaDifficulty>>,
     (mut seated, mut homed): (Local<Vec3>, Query<(&mut Transform, Has<Predator>), Or<(With<Predator>, With<LungeTell>, With<ClearedTell>)>>),
-    (mut cmd, assets, mute, mut mats, tinted): (Commands, Option<Res<AssetServer>>, Option<Res<crate::local_settings::MasterMuteGain>>, Option<ResMut<Assets<StandardMaterial>>>, Query<(&MeshMaterial3d<StandardMaterial>, Has<Predator>), Or<(With<Predator>, With<LungeTell>)>>),
+    (mut cmd, assets, mute, mut mats, tinted): (Commands, Option<Res<AssetServer>>, Option<Res<crate::local_settings::MasterMuteGain>>, Option<ResMut<Assets<StandardMaterial>>>, Query<(&MeshMaterial3d<StandardMaterial>, Has<Predator>, Has<RiseTell>), Or<(With<Predator>, With<LungeTell>, With<RiseTell>)>>),
 ) {
     let (Some(travel), Some(mut presence)) = (travel, presence) else {
         return;
@@ -629,7 +629,7 @@ fn predator_lunge(
         homed.iter_mut().for_each(|(mut t, _)| t.translation += delta);
         *seated = shift;
         let (body, _, ring) = tell_colors(travel.current); // READ-FIX-SANCTUARY-TELLS-1 (CL-R2): tint only; never gates the re-seat
-        for (m, pred) in &tinted { if let Some(mut mat) = mats.as_mut().and_then(|a| a.get_mut(&m.0)) { let want = if pred { body } else { ring }; if mat.base_color != want { mat.base_color = want; } } }
+        for (m, pred, rise) in &tinted { if let Some(mut mat) = mats.as_mut().and_then(|a| a.get_mut(&m.0)) { let want = if pred || rise { body } else { ring }; if mat.base_color != want { mat.base_color = want; } } }
     }
     let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
@@ -1209,6 +1209,15 @@ mod tests {
             world.run_system(id).unwrap();
             assert_eq!((base(&world, &body), base(&world, &ring)), want, "{place:?}");
         }
+    }
+    #[test]
+    fn sanctuary_pillar_takes_the_body_tint_and_restores() {
+        let mut world = World::new();
+        world.insert_resource(Time::<()>::default()); world.insert_resource(SoftPresence::default()); world.init_resource::<CombatState>(); world.init_resource::<Assets<StandardMaterial>>();
+        let (pillar, ring) = { let mut a = world.resource_mut::<Assets<StandardMaterial>>(); (a.add(PREDATOR_COLOR), a.add(LUNGE_TELL_COLOR)) };
+        world.spawn((MeshMaterial3d(pillar.clone()), RiseTell)); world.spawn((MeshMaterial3d(ring.clone()), LungeTell));
+        let (id, mut travel) = (world.register_system(predator_lunge), HexTravelState::default());
+        for (place, want) in [(PlaceId::Sanctuary, (SANCTUARY_PREDATOR_COLOR, SANCTUARY_LUNGE_TELL_COLOR)), (PlaceId::Heartwood, (PREDATOR_COLOR, LUNGE_TELL_COLOR))] { travel.current = place; world.insert_resource(travel.clone()); world.run_system(id).unwrap(); let m = world.resource::<Assets<StandardMaterial>>(); assert_eq!((m.get(&pillar).unwrap().base_color, m.get(&ring).unwrap().base_color), want, "{place:?}"); }
     }
     #[test]
     fn hurt_readout_line_and_matcher() {

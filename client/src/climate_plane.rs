@@ -5619,7 +5619,7 @@ mod tests {
                 }
             }
         }
-        // Sanctuary predator, flash and ring (live via fight_present) take the Sanctuary tints and read 3.20-10.22 on fog and sky per `want`, over FLOOR on this graded base-colour proxy (lit body, no on-screen claim).
+        // Sanctuary predator, flash, ring and rise pillar (live via fight_present) take the Sanctuary tints and read 3.20-10.22 on fog and sky per `want`, over FLOOR on this graded base-colour proxy (lit body, no on-screen claim).
         // Sanctuary node fog/sky: honest known gap; a passing node would be dark bronze, failing
         // is_warm_gold_well and the well > earth + 0.25 law, so SANCTUARY_WELL_GOLD stays.
         let want_below = [
@@ -5640,6 +5640,8 @@ mod tests {
         assert!(rr_ratio(hw.node, hw.fog, 2) >= FLOOR && rr_ratio(hw.node, hw.sky, 2) >= FLOOR);
         let sa = look_for(Some(0)); // READ-FIX-SANCTUARY-TELLS-1: live Sanctuary tells over the floor; flash vs body not below Heartwood's 2.179
         assert!([SANCTUARY_PREDATOR_COLOR, SANCTUARY_FLASH_COLOR, SANCTUARY_LUNGE_TELL_COLOR].iter().all(|c| rr_ratio(*c, sa.fog, 0) >= FLOOR && rr_ratio(*c, sa.sky, 0) >= FLOOR) && (rr_ratio(SANCTUARY_FLASH_COLOR, SANCTUARY_PREDATOR_COLOR, 0) - 2.595).abs() <= 0.02 && rr_ratio(SANCTUARY_FLASH_COLOR, SANCTUARY_PREDATOR_COLOR, 0) >= 2.179);
+        let pillar = ("Sanctuary pillar", crate::combat_core::tell_colors(PlaceId::Sanctuary).0, [10.22, 8.32]); // SANCTUARY-PILLAR-TINT-1 (P2): the unlit pillar takes the body tint
+        assert!([sa.fog, sa.sky].into_iter().zip(pillar.2).all(|(bg, pin)| { let r = rr_ratio(pillar.1, bg, 0); (r - pin).abs() <= 0.02 && r >= FLOOR }), "{} drifted or under floor", pillar.0);
         let flash_body = rr_ratio(FLASH_COLOR, PREDATOR_COLOR, 2);
         assert!(
             (flash_body - 2.179).abs() <= 0.02,
