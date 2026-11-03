@@ -375,6 +375,12 @@ pub fn wake_cue() -> String {
 
 /// COMBAT-REACH-1 — the wake line for the place of the defeat.
 pub fn wake_cue_at(place: PlaceId) -> String { if place == PlaceId::Sanctuary { "You wake at the Stavehold gate".to_string() } else { wake_cue() } }
+/// HURT-READOUT-1 — the player's health on the shared Pulse line, e.g. "You 185 / 200". Council default copy; Sherif may veto.
+pub fn hurt_line(player_taken: u32) -> String { format!("You {} / {HEALTH}", HEALTH.saturating_sub(player_taken)) }
+/// True only for `hurt_line` output; the wake line ("You wake at …") never matches.
+pub fn is_hurt_line(line: &str) -> bool { line.strip_prefix("You ").and_then(|r| r.split_once(" / ")).and_then(|(n, _)| n.parse::<u32>().ok()).is_some_and(|n| n <= HEALTH && hurt_line(HEALTH - n) == line) }
+/// The hurt line, only when the Pulse slot is free (idle, or already a hurt line) and never on `hides_cues` tiers.
+pub fn hurt_pulse(tier: DifficultyTier, line: &str, until: f64, now: f64, player_taken: u32) -> Option<String> { (!hides_cues(tier) && (until <= now || is_hurt_line(line))).then(|| hurt_line(player_taken)) }
 
 /// Compare before write: an unchanged cue leaves the resource untouched.
 pub fn set_pulse(epi: &mut impl std::ops::DerefMut<Target = FirstHarvestEpiphany>, line: String, until: f64) {
@@ -615,6 +621,9 @@ fn predator_lunge(
     if hurt_edge(before, combat.player_taken) {
         combat.hurt = combat.hurt.wrapping_add(1);
         if !tell_visible(combat.lunge_timer, reach) { play_hurt(&mut cmd, assets.as_deref(), mute.as_deref()); } // P4: never on a tell frame
+        if let (Some(epi), now) = (epi.as_mut(), time.elapsed_secs_f64()) {
+            if let Some(line) = hurt_pulse(tier, &epi.pulse_line, epi.pulse_until, now, combat.player_taken) { set_pulse(epi, line, now + CUE_SECS); }
+        }
     }
     let ([hx, hz], lean) = (fight_home(travel.current), lean_at(combat.lunge_timer, reach));
     let to = Vec2::new(p.x - hx, p.z - hz).normalize_or_zero() * lean + Vec2::new(hx, hz);
@@ -1156,6 +1165,36 @@ mod tests {
         world.run_system_once(predator_lunge).unwrap();
         assert_eq!(world.resource::<FirstHarvestEpiphany>().pulse_line, wake_cue());
         assert_eq!(world.resource::<CombatState>().player_taken, 0);
+    }
+
+    #[test]
+    fn hurt_readout_line_and_matcher() {
+        assert!(hurt_line(HIT) == "You 185 / 200" && hurt_line(enemy_hit(DifficultyTier::Unbroken, HIT)) == "You 183 / 200" && hurt_line(HEALTH + 5) == "You 0 / 200");
+        assert!([hurt_line(HIT), hurt_line(HEALTH + 5)].iter().all(|l| is_hurt_line(l) && ["loot", "instance", "heroic", "mythic", "rebirth", "outrider", "online"].iter().all(|w| !l.to_lowercase().contains(w))));
+        assert!([wake_cue(), wake_cue_at(PlaceId::Sanctuary), fire_cue(PlaceId::Heartwood, &CombatState::default(), true, 0).unwrap(), LUNGE_TELL_TEXT.into(), "You +5 / 200".into(), "You 1x / 200".into(), String::new()].iter().all(|l| !is_hurt_line(l)));
+    }
+    #[test]
+    fn hurt_readout_only_on_a_free_slot() {
+        let (s, fire) = (DifficultyTier::Sheltered, format!("{PREDATOR_NAME} 185 / 200"));
+        assert!(hurt_pulse(s, "", 0.25, 0.25, HIT).as_deref() == Some("You 185 / 200") && hurt_pulse(s, &fire, 0.5, 0.25, HIT).is_none() && hurt_pulse(s, &wake_cue(), 0.5, 0.25, HIT).is_none() && hurt_pulse(s, &fire, 0.5, 0.5, HIT).is_some(), "a live wake line is kept");
+        assert_eq!(hurt_pulse(s, &hurt_line(HIT), 0.5, 0.25, 2 * HIT).as_deref(), Some("You 170 / 200"), "a hurt line replaces a hurt line");
+    }
+    #[test]
+    fn hurt_readout_hidden_on_sworn_and_unbroken() { assert!(crate::difficulty::TIERS.iter().all(|t| hurt_pulse(*t, "", 0.0, 0.25, HIT).is_some() != hides_cues(*t))); }
+    #[test]
+    fn hurt_frame_writes_the_readout() {
+        use bevy::ecs::system::RunSystemOnce;
+        let mut world = World::new();
+        let mut time = Time::<()>::default();
+        time.advance_by(std::time::Duration::from_secs_f64(0.125));
+        world.insert_resource(time);
+        world.insert_resource(HexTravelState { current: PlaceId::Heartwood });
+        world.insert_resource(LaunchDoor::InYard);
+        world.insert_resource(SoftPresence { position: Vec3::new(PREDATOR_HOME[0], STAND_HEIGHT, PREDATOR_HOME[1]), ..Default::default() });
+        world.insert_resource(CombatState { lunge_timer: 0.5, ..Default::default() });
+        world.insert_resource(FirstHarvestEpiphany::default());
+        world.run_system_once(predator_lunge).unwrap();
+        let (epi, c) = (world.resource::<FirstHarvestEpiphany>(), world.resource::<CombatState>()); assert!(c.player_taken == HIT && epi.pulse_line == "You 185 / 200" && epi.pulse_until == 0.125 + CUE_SECS);
     }
 
     #[test]
