@@ -5650,7 +5650,7 @@ mod tests {
     }
 
     /// CARD READABILITY-2 (RB4-RB7, CE1-CE3) — graded base-colour proxy for the CLEARED-STATE-1 disc
-    /// (`HEARTWOOD_AMBER_LAMP` climate_plane.rs:213, unlit, combat_core.rs:469) on what lies behind it: the Heartwood
+    /// (`HEARTWOOD_AMBER_LAMP` climate_plane.rs:213, unlit, combat_core.rs:484) on what lies behind it: the Heartwood
     /// ground (:297) and path stones (:302). Ground is lit, disc unlit: not on-screen truth; capture
     /// stays with the playtester run. Fog is already pinned via the node colour (:5605, 4.05;
     /// floor asserted :5640); the sky is never behind the flat disc, so no sky pair.
