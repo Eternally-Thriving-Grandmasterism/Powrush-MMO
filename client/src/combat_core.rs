@@ -756,7 +756,7 @@ fn lunge_tell(
         *armed = false;
         return;
     };
-    // The exact reach term of predator_lunge, combat_core.rs:326-327. No second formula.
+    // The exact reach term of predator_lunge, combat_core.rs:617-618. No second formula.
     let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
     let (tell, tier) = (tell_visible(combat.lunge_timer, reach), diff.map_or(DifficultyTier::Sheltered, |d| d.tier(travel.current)));
