@@ -1,4 +1,4 @@
-//! ENEMY-DROID-1 — one hostile droid at Threshold (COMBAT_AND_PVP.md:479): a 0.5 s telegraphed shot for 25.
+//! ENEMY-DROID-1 — one hostile droid at Threshold (COMBAT_AND_PVP.md:487): a 0.5 s telegraphed shot for 25.
 //! Client-local, never saved. Struck by the existing fire path via `CombatState::strikes`; pays 0 XP.
 
 use {bevy::prelude::*, shared::hex_travel::PlaceId};
