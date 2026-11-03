@@ -32,7 +32,7 @@ Other facts this design relies on:
 
 - `client/src/ui_above_world.rs` L36–L40: `LIVED_UI_Z_TITLE = 120`, `LIVED_UI_Z_LEDGER = 125`, `LIVED_UI_Z_PAUSE = 130`. `client/src/hex_travel.rs` L70: `PLACES_PLATE_Z = LIVED_UI_Z_PAUSE + 2`. `client/src/touch_controls.rs` L19: `TOUCH_HIT_MIN = 44.0`. `client/src/title_screen.rs` L206: `TITLE_SAFE_INSET = 24.0`.
 - Separate open flags: ledger `LedgerYard.sash_open` (L key, `ledger_bind.rs` L159), voice `VoiceYard.sash_open` (G key `soft_play_bindings::SASH`, `coop_voice.rs` L102), war `sash_open` (Tab key `CHART`, `war_week.rs` L85). Allocate `panel_open` (R, `rbe_allocate_choice.rs` L399–L408; auto-opens at L388–L389). `mercy_open` / `realm_open` (M / Z, `human_soft_panels.rs` L169–L172). Journey `panel_open` (J, `abundance_journey_echo.rs` L310). No code makes any two of these exclusive.
-- Root markers that are not `pub`: `VoiceSlabRoot` (`coop_voice.rs` L24), `CareCycleStrip` (`mercy_harvest_nodes.rs` L284), `RedemptionSlabRoot` (`species_redemption.rs` L25), `HybridSlabRoot` (`hybrid_matrix.rs` L25). A registry cannot reach these roots without editing their files.
+- Root markers that are not `pub`: `VoiceSlabRoot` (`coop_voice.rs` L24), `CareCycleStrip` (`mercy_harvest_nodes.rs` L271), `RedemptionSlabRoot` (`species_redemption.rs` L25), `HybridSlabRoot` (`hybrid_matrix.rs` L25). A registry cannot reach these roots without editing their files.
 - Only one test pins a slab offset: `coop_voice.rs` L196 (`assert_eq!(bottom, Val::Px(144.0))`).
 
 ### 1.3 Baseline at `027c9802`
@@ -179,7 +179,7 @@ Coded anchors are FACT (map section 2 at `027c9802`). Role and step 2 action are
 | 27 | WorldCarePromptRoot (CarePrompt) | `first_harvest_epiphany.rs:308` | bottom 128, centred, 460 | HUD | class 2 | **moves** |
 | 28 | HarvestPulseRoot (Pulse) | `first_harvest_epiphany.rs:344` | top 118, centred, 560 | HUD | class 4 | joins as-is |
 | 29 | WelcomeBackRoot (Welcome) | `first_harvest_epiphany.rs:380` | top 16, left 16, 380 | HUD | class 4 | joins as-is |
-| 30 | CareCycleStrip (CareStrip) | `mercy_harvest_nodes.rs:390` | bottom 128, centred, 560 | HUD | class 2 | **moves** |
+| 30 | CareCycleStrip (CareStrip) | `mercy_harvest_nodes.rs:373` | bottom 128, centred, 560 | HUD | class 2 | **moves** |
 | 31 | ClimateStateRoot (ClimateState) | `climate_visible.rs:291` | bottom 176, left 16, 420 | HUD | class 5 | joins as-is |
 | 32 | WatchStripRoot (Watch) | `human_inventory.rs:120` | bottom 16, left 16, 340 | HUD | class 5 | joins as-is |
 | 33 | SatchelRoot (Satchel) | `human_inventory.rs:154` | bottom 22%, left 16, 300 | 125 | fixed rect | none |

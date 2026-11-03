@@ -161,7 +161,7 @@ Live bindings at `a7f21506`, copied from Clerk's PRE-PATH (6490612328). Live mea
 | C · P / Shift+P | lineage · practice toggle / dismiss | player_lineage.rs:85 · living_practice_loop.rs:250-251 |
 | 1-4 | ability_slot 0-3 (always read) | input.rs:381-387 |
 | 1 / 2 (sash open) · 1 (with E) · 3 | coop vote aye / nay · ledger go · ledger confirm | coop_voice.rs:107-108 · ledger_bind.rs:213 · ledger_bind.rs:185 |
-| 1 / 2 / 3, Esc | care offer: tend hook / shell ward / dismiss | mercy_harvest_nodes.rs:586,601,574 |
+| 1 / 2 / 3, Esc | care offer: tend hook / shell ward / dismiss | mercy_harvest_nodes.rs:571,586,559 |
 | 1-3 (satchel open) · 1-5 (realm open) | satchel slot · realm pick | human_inventory.rs:260-264 · human_soft_panels.rs:175-183 |
 | 1/Enter, 2, 3, Esc · 3 (InYard) | Title: Play / Continue / Settings / back · yard pause, same as Esc | title_screen.rs:2636,2645,2661,2663 · title_screen.rs:2672 |
 | Esc (+ pad Start) | pause toggle | title_screen.rs:2865; pad input.rs:427 |
@@ -176,11 +176,11 @@ Declared with no live reader: `FOUNDATION_LATTICE` L :22, `RESONANCE_CYCLE` G :2
 
 *Council ruling, not Sherif's words* (KEYMAP-RULING-1, CUT 6490676109), under his 9:32 PM words quoted above. Sherif did not pick these keys. Sherif may veto, and a veto reopens the keymap.
 
-- **K1. Skills on 1–4** (*council ruling, not Sherif's words*). input.rs:381-387 reads the digits into `ability_slot`, but the only consumer (systems.rs:42) is not compiled, so nothing fires until SKILL-KEYS-1 wires them. LMB stays FIRE; pad RT2 stays FIRE_PAD. SKILL-KEYS-1 requirement: gate 1–4 off while any digit-reading panel is open (Allocate rbe_allocate_choice.rs:488,490; sash coop_voice.rs:107-108; ledger ledger_bind.rs:185,213; care offer mercy_harvest_nodes.rs:586,601,574; satchel human_inventory.rs:260-264; realm human_soft_panels.rs:175-183; title and yard title_screen.rs:2636,2645,2661,2672). Keys 1–5 stay reserved from remapping (title_screen.rs:3549-3563); a remappable hotbar is its own card.
+- **K1. Skills on 1–4** (*council ruling, not Sherif's words*). input.rs:381-387 reads the digits into `ability_slot`, but the only consumer (systems.rs:42) is not compiled, so nothing fires until SKILL-KEYS-1 wires them. LMB stays FIRE; pad RT2 stays FIRE_PAD. SKILL-KEYS-1 requirement: gate 1–4 off while any digit-reading panel is open (Allocate rbe_allocate_choice.rs:488,490; sash coop_voice.rs:107-108; ledger ledger_bind.rs:185,213; care offer mercy_harvest_nodes.rs:571,586,559; satchel human_inventory.rs:260-264; realm human_soft_panels.rs:175-183; title and yard title_screen.rs:2636,2645,2661,2672). Keys 1–5 stay reserved from remapping (title_screen.rs:3549-3563); a remappable hotbar is its own card.
 - **K2. E stays Use / Interact** (*council ruling, not Sherif's words*). All 16 live readers keep E.
 - **K3. R stays Allocate, Q stays the build / house face, I stays the satchel, L stays the ledger, Tab stays the chart** (*council ruling, not Sherif's words*). None collides with K1. Any later move needs its own card.
 - **K4. PeaceKey F stays free, with no default** (*council ruling, not Sherif's words*). A Use→F remap collides with nothing.
-- **K5. Record only, no code change** (*council ruling, not Sherif's words*): the L/G double constants (soft_play_bindings.rs:36,22 and :34,:23), T vs Shift+T (not a live clash), and the doc-vs-code drift Clerk listed. COMBAT-FEEL-1 traces the Digit3-in-yard triple meaning (title_screen.rs:2672; ledger_bind.rs:185; mercy_harvest_nodes.rs:574).
+- **K5. Record only, no code change** (*council ruling, not Sherif's words*): the L/G double constants (soft_play_bindings.rs:36,22 and :34,:23), T vs Shift+T (not a live clash), and the doc-vs-code drift Clerk listed. COMBAT-FEEL-1 traces the Digit3-in-yard triple meaning (title_screen.rs:2672; ledger_bind.rs:185; mercy_harvest_nodes.rs:559).
 - Cooldowns stay data-driven, with no numbers here.
 
 Council decision under Sherif's delegation. Sherif may veto.
