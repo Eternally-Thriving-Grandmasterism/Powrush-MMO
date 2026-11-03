@@ -113,7 +113,7 @@ fn skill_curve(cap: f32, s: f32) -> f32 {
 /// RUN-LEDGER-WIRE-1 gives it its own bucket after clamp_xp_pct / XP_HARD_MAX_PCT 175, never
 /// inside it: see `skill_premium` and `premium_xp_pct` below. Caps are tier-weighted so only
 /// Unbroken reaches 3.0x. Live on Sherif's 2026-11-02 yes; the bucket can lift XP past 175
-/// (525% max, banked as XP-CEILING-DOC-1).
+/// (525% max).
 pub fn skill_mult(tier: DifficultyTier, row: RunRow) -> f32 {
     if row[0] == 0 {
         return 1.0;
