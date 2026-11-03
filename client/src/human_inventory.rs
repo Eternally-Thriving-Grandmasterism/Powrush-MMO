@@ -285,6 +285,7 @@ fn notice_pickup(
         return;
     }
     inv.last_seen_harvests = pool.harvests;
+    if pool.harvests == 1 { return; } // UI-CALM-1: the first harvest's credit rides the Pulse
     inv.pickup_until = time.elapsed_secs_f64() + 1.8;
     let place = travel.as_ref().map(|state| state.chip_name());
     inv.pickup_line = satchel_grew_line(pool.last_credit, place);
@@ -311,8 +312,10 @@ fn update_watch_strip(
     bond: Option<Res<CompanionBond>>,
     mut root: Query<&mut Visibility, With<WatchStripRoot>>,
     mut text_q: Query<&mut Text, With<WatchStripText>>,
+    (time, calm): (Option<Res<Time>>, Option<Res<crate::first_harvest_epiphany::CalmQueue>>),
 ) {
-    let show = harvest.first_harvest_lived || pool.harvests > 0;
+    let now = time.map_or(0.0, |t| t.elapsed_secs_f64()); // UI-CALM-1: Watch waits for the burst
+    let show = (harvest.first_harvest_lived || pool.harvests > 0) && calm.as_deref().map_or(true, |c| c.done(now));
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible

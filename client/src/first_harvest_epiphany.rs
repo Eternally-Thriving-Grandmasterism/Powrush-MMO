@@ -45,6 +45,28 @@ const PROMPT_LINGER: f64 = 2.4;
 const PULSE_SECS: f64 = 4.2;
 const WELCOME_SECS: f64 = 6.0;
 const REPEAT_COOLDOWN: f64 = 1.2;
+/// UI-CALM-1 — first-harvest holds, one panel at a time (council defaults, Sherif may veto).
+pub const CALM_WHISPER_SECS: f64 = 4.2;
+pub const CALM_THRIVING_SECS: f64 = 4.0;
+pub const CALM_PULSE_SECS: f64 = 3.4;
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CalmStep { Whisper, Thriving, Pulse, Done }
+const CALM_ENDS: [f64; 3] = [CALM_WHISPER_SECS, CALM_WHISPER_SECS + CALM_THRIVING_SECS, CALM_WHISPER_SECS + CALM_THRIVING_SECS + CALM_PULSE_SECS];
+pub fn calm_step(t: f64) -> CalmStep { [CalmStep::Whisper, CalmStep::Thriving, CalmStep::Pulse][..].get(CALM_ENDS.iter().filter(|e| t >= **e).count()).copied().unwrap_or(CalmStep::Done) }
+#[derive(Resource, Debug, Default, Clone)]
+pub struct CalmQueue { pub start: Option<f64>, pub paused: f64, pub holding: bool, pub last_now: f64, pub last_place: Option<PlaceId>, pub place_hold_until: f64, pub held_line: String }
+impl CalmQueue {
+    pub fn seed(&mut self, now: f64, place: Option<PlaceId>, line: String) { *self = CalmQueue { start: Some(now), last_now: now, last_place: place, held_line: line, ..Default::default() }; }
+    pub fn advance(&mut self, now: f64, place: Option<PlaceId>, tell: bool) {
+        if place.is_some() && place != self.last_place { (self.last_place, self.place_hold_until) = (place, now + crate::first_whisper::HOLD_SECS); }
+        if self.holding { self.paused += now - self.last_now; }
+        (self.holding, self.last_now) = (tell || now < self.place_hold_until, now);
+    }
+    fn t(&self, now: f64) -> f64 { self.start.map_or(f64::INFINITY, |s| now - s - self.paused) }
+    pub fn done(&self, now: f64) -> bool { calm_step(self.t(now)) == CalmStep::Done }
+    pub fn live(&self, step: CalmStep, now: f64) -> bool { !self.holding && calm_step(self.t(now)) == step }
+    pub fn left(&self, now: f64) -> f64 { let t = self.t(now); CALM_ENDS.into_iter().find(|e| t < *e).map_or(0.0, |e| e - t) }
+}
 /// Hold duration that distinguishes tap-E take from hold-E tend.
 pub const TEND_HOLD: f64 = 0.42;
 
@@ -297,6 +319,7 @@ pub struct FirstHarvestEpiphanyPlugin;
 impl Plugin for FirstHarvestEpiphanyPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<CalmQueue>()
             .add_systems(Startup, spawn_lived_surfaces)
             .add_systems(
                 Update,
@@ -308,6 +331,7 @@ impl Plugin for FirstHarvestEpiphanyPlugin {
                         .after(crate::first_session_guidance::track_simple_progress_signals)
                         .after(crate::input::InputMapSet),
                     update_world_care_prompt,
+                    advance_calm,
                     update_harvest_pulse,
                     update_welcome_back,
                 ).chain(),
@@ -768,14 +792,32 @@ pub(crate) fn update_world_care_prompt(
     }
 }
 
+/// UI-CALM-1 — seeds on the first take of this session's first harvest; danger read is read-only.
+fn advance_calm(
+    (time, state): (Res<Time>, Res<FirstHarvestEpiphany>),
+    (mut calm, mut lived): (ResMut<CalmQueue>, Local<Option<bool>>),
+    travel: Option<Res<HexTravelState>>,
+    (combat, presence): (Option<Res<crate::combat_core::CombatState>>, Option<Res<SoftPresence>>),
+) {
+    let (now, place) = (time.elapsed_secs_f64(), travel.as_deref().map(|t| t.current));
+    if lived.replace(state.first_harvest_lived) == Some(false) && state.first_harvest_lived && state.harvests_this_session > 0 {
+        calm.seed(now, place, state.pulse_line.clone()); // CL-U2: the mirror seeds to the current place
+    }
+    if calm.start.is_none() || calm.done(now) { return; }
+    let tell = matches!((combat.as_deref(), presence.as_deref(), place), (Some(c), Some(p), Some(pl)) if crate::combat_core::tell_visible(c.lunge_timer, crate::combat_core::in_reach(pl, c, p.position.x, p.position.z)));
+    calm.advance(now, place, tell);
+}
+
 fn update_harvest_pulse(
     state: Res<FirstHarvestEpiphany>,
     time: Res<Time>,
     mut root: Query<&mut Visibility, With<HarvestPulseRoot>>,
     mut text_q: Query<&mut Text, With<HarvestPulseText>>,
+    calm: Option<Res<CalmQueue>>,
 ) {
     let now = time.elapsed_secs_f64();
-    let show = now < state.pulse_until && !state.pulse_line.is_empty();
+    let held = calm.as_deref().filter(|c| !c.done(now) && c.held_line == state.pulse_line); // UI-CALM-1: combat cues never wait
+    let show = held.map_or(now < state.pulse_until, |c| c.live(CalmStep::Pulse, now)) && !state.pulse_line.is_empty();
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible
@@ -1995,5 +2037,44 @@ mod tests {
                     .before(handle_interact_harvest),
             );
         app
+    }
+
+    fn calm_at(now: f64) -> CalmQueue { let mut c = CalmQueue::default(); c.seed(0.0, Some(PlaceId::Sanctuary), "held".into()); c.advance(now, Some(PlaceId::Sanctuary), false); c }
+    #[test]
+    fn calm_one_visible_at_a_time() {
+        for now in (0..=130).map(|i| i as f64 * 0.1) {
+            let (c, steps) = (calm_at(now), [CalmStep::Whisper, CalmStep::Thriving, CalmStep::Pulse]);
+            assert_eq!(steps.iter().filter(|s| c.live(**s, now)).count(), usize::from(!c.done(now)), "t={now}");
+        }
+    }
+    #[test]
+    fn calm_order_and_first_pickup_skip() {
+        assert_eq!([0.0, CALM_ENDS[0], CALM_ENDS[1], CALM_ENDS[2]].map(calm_step), [CalmStep::Whisper, CalmStep::Thriving, CalmStep::Pulse, CalmStep::Done]);
+        assert!(include_str!("human_inventory.rs").contains(concat!("if pool.harvests == 1 {", " return; }")), "first-harvest pickup skip");
+    }
+    #[test]
+    fn calm_holds_fit_the_cap() {
+        assert!(CALM_ENDS[2] <= 12.0 && [CALM_WHISPER_SECS, CALM_THRIVING_SECS, CALM_PULSE_SECS].iter().all(|h| *h >= 3.0));
+    }
+    #[test]
+    fn calm_danger_pauses_then_resumes() {
+        for (step, at, start, hold) in [(CalmStep::Whisper, 1.0, 0.0, CALM_WHISPER_SECS), (CalmStep::Thriving, 5.0, 4.2, CALM_THRIVING_SECS), (CalmStep::Pulse, 9.0, 8.2, CALM_PULSE_SECS)] {
+            let mut c = calm_at(at);
+            c.advance(at + 0.1, Some(PlaceId::Sanctuary), true);
+            assert!(!c.live(step, at + 0.1) && !c.done(at + 0.1), "a tell pauses {step:?}");
+            c.advance(at + 6.1, Some(PlaceId::Sanctuary), false);
+            assert!(c.live(step, at + 6.1) && ((at + 0.1 - start) + c.left(at + 6.1) - hold).abs() < 1e-6, "{step:?} keeps its full hold");
+        }
+        let (mut c, back) = (calm_at(1.5), 2.0 + crate::first_whisper::HOLD_SECS);
+        assert!(c.live(CalmStep::Whisper, 1.5), "the seed place is no change (CL-U2)");
+        c.advance(2.0, Some(PlaceId::Heartwood), false);
+        assert!(!c.live(CalmStep::Whisper, 2.0), "a real place change pauses");
+        c.advance(back, Some(PlaceId::Heartwood), false); assert!(c.live(CalmStep::Whisper, back));
+    }
+    #[test]
+    fn calm_defers_watch_and_allocate_not_drops() {
+        assert!(!calm_at(11.5).done(11.5) && calm_at(CALM_ENDS[2]).done(CALM_ENDS[2]) && CalmQueue::default().done(0.0));
+        let src = include_str!("rbe_allocate_choice.rs");
+        assert!(src.find(concat!("c.done(", "time")).unwrap() < src.find(concat!("if last.as_ref() ", "== Some(fb)")).unwrap(), "defers before the dedupe");
     }
 }

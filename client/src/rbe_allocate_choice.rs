@@ -350,6 +350,7 @@ fn soft_surplus_from_rbe_feedback(
     rbe_ui: Option<Res<crate::lived_hour_support::RbeUiSync>>,
     mut allocate: ResMut<RbeAllocateChoice>,
     mut last: Local<Option<String>>,
+    (time, calm): (Option<Res<Time>>, Option<Res<crate::first_harvest_epiphany::CalmQueue>>),
 ) {
     let Some(rbe_ui) = rbe_ui else {
         return;
@@ -357,6 +358,7 @@ fn soft_surplus_from_rbe_feedback(
     let Some(ref fb) = rbe_ui.last_harvest_feedback else {
         return;
     };
+    if calm.as_deref().is_some_and(|c| !c.done(time.as_deref().map_or(0.0, |t| t.elapsed_secs_f64()))) { return; } // UI-CALM-1: defer, not drop
     if last.as_ref() == Some(fb) {
         return;
     }

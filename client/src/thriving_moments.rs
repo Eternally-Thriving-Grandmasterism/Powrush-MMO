@@ -179,16 +179,22 @@ TextColor(TITLE_TEXT_PRIMARY),
         });
 }
 
-fn tick_moments(time: Res<Time>, mut moments: ResMut<ThrivingMoments>) {
-    moments.tick(time.elapsed_secs_f64());
+fn tick_moments(time: Res<Time>, mut moments: ResMut<ThrivingMoments>, calm: Option<Res<crate::first_harvest_epiphany::CalmQueue>>) {
+    let now = time.elapsed_secs_f64(); // UI-CALM-1: the toast waits for its step; a pause keeps its clock (CL-U1)
+    let left = match calm.as_deref().filter(|c| !c.done(now)) { Some(c) if !c.live(crate::first_harvest_epiphany::CalmStep::Thriving, now) => return, c => c.map(|c| c.left(now)) };
+    if let (Some(l), Some(ThrivingKind::FirstMercyHarvest)) = (left, moments.current) { moments.display_until = now + l; }
+    moments.tick(now);
+    if let (Some(l), Some(ThrivingKind::FirstMercyHarvest)) = (left, moments.current) { moments.display_until = now + l; }
 }
 
 fn update_toast_ui(
     moments: Res<ThrivingMoments>,
     mut root: Query<&mut Visibility, With<ThrivingToastRoot>>,
     mut text_q: Query<&mut Text, With<ThrivingToastText>>,
+    (time, calm): (Option<Res<Time>>, Option<Res<crate::first_harvest_epiphany::CalmQueue>>),
 ) {
-    let show = moments.current.is_some();
+    let now = time.map_or(0.0, |t| t.elapsed_secs_f64());
+    let show = moments.current.is_some() && calm.as_deref().filter(|c| !c.done(now)).map_or(true, |c| c.live(crate::first_harvest_epiphany::CalmStep::Thriving, now));
     for mut vis in &mut root {
         *vis = if show {
             Visibility::Visible
