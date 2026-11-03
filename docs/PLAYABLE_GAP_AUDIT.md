@@ -201,8 +201,9 @@ Facts at `10d71e6d`, cite-only, from Sherif's playtester's report that no combat
 
 **What a fight sounds like**
 - Three audio files are tracked: `assets/audio/combat_hit.ogg`, `assets/audio/peace_well_sting.ogg` and `assets/audio/peace_yard_bed.ogg`. `assets/music/epic_dark_ambient.ogg` was removed (`client/assets/audio/README.md:9`).
-- The only combat sound is `play_tell` (`combat_core.rs:556-562`), which plays the peace `STING_ASSET` (`shared/peace_audio.rs:30`) on a predator tell (`combat_core.rs:587-588`) and a droid tell (`droid.rs:149-150`).
-- There is no strike, hit, defeat or respawn sound. The other live `AudioPlayer` spawns are the peace bed and sting (`client/src/peace_audio.rs:158`, `:192`, `:210`) and the harvest sting (`client/src/mercy_harvest_nodes.rs:804`). `client/src/rbe_ui_feedback.rs:74` and `:96` are in a file that `client/src/lib.rs` does not declare.
+- Combat plays four sounds: the tell `play_tell` (`combat_core.rs:661-667`, spawn :665), the peace `STING_ASSET` (`shared/peace_audio.rs:30`) on a predator tell (`combat_core.rs:780-781`) and a droid tell (`droid.rs:158`); the hit `play_hit` (`combat_core.rs:679`) on a landed hit only (:564), playing `combat_hit.ogg` (`HIT_ASSET` :36; Kenney Impact Sounds, CC0-1.0, as `assets/asset-licenses.csv:4` records it); the hurt `play_hurt` (`combat_core.rs:692`, `HIT_ASSET` at `HURT_SPEED` :684) when the player is hurt (:640, `droid.rs:149`); and a music bed (`combat_core.rs:752`, `MUSIC_ASSET` :705) in Sanctuary only, after the predator is down (:724, :728), and only if its gitignored file is present (:717, `.gitignore:25`). All four are silent without audio output (`audio_output_safe`, :663, :677, :690, :745).
+- There is no defeat or respawn sound. The other live `AudioPlayer` spawns are the peace bed and sting (`client/src/peace_audio.rs:158`, `:192`, `:210`) and the harvest sting (`client/src/mercy_harvest_nodes.rs:804`). `client/src/rbe_ui_feedback.rs:74` and `:96` are in a file that `client/src/lib.rs` does not declare.
+- The harvest sting paths (`client/src/mercy_harvest_nodes.rs:49-52`) name files that `git ls-files` does not track, and `:802-806` loads them with no file check (HARVEST-STING-GUARD-1).
 
 **Gaps (suggested card names only; Core ranks them)**
 
