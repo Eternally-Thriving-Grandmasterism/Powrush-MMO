@@ -29,6 +29,7 @@ use crate::soft_play_bindings::{FIRE, FIRE_PAD};
 use crate::title_screen::{HouseLabel, LaunchDoor};
 use crate::difficulty::{cue_line, enemy_hit, hides_cues, tell_onset, AreaDifficulty, DifficultyTier};
 use crate::run_ledger::{premium_paid, RunLedger, RunRow, SKILL_PREMIUM_LIVE};
+use crate::wellsworn::STAVEHOLD_GATE_SPOT;
 use shared::peace_audio::{audio_output_safe, STING_ASSET};
 
 pub const PREDATOR_NAME: &str = "[NAME TBD]";
@@ -40,6 +41,11 @@ pub const REACH: f32 = HARVEST_REACH; // both sides reuse the harvest reach
 pub const XP_PER_LANDED_HIT: u32 = 10; // tuning value, set in playtest
 /// Teeth band: past the lamp, pond, Wards and threshold node, inside PLAY_HALF.
 pub const PREDATOR_HOME: [f32; 2] = [-18.0, -18.0];
+/// COMBAT-REACH-1 — the Sanctuary practice fight, south of the Stavehold gate on the Contested side.
+pub const STAVEHOLD_FIGHT_HOME: [f32; 2] = [0.0, -17.0];
+// CL-R1: clear of the gate by REACH + SPOT_REACH (2.0, wellsworn.rs:27), and the ring plus margins fit the yard.
+const _: () = assert!(STAVEHOLD_GATE_SPOT[1] - STAVEHOLD_FIGHT_HOME[1] > REACH + 2.0);
+const _: () = assert!(-STAVEHOLD_FIGHT_HOME[1] + REACH + crate::grazer::RING_MARGIN + crate::grazer::EDGE_MARGIN < crate::terrain::PLAY_HALF);
 /// Defeat wakes here: the dry-Lip return of heartwood_lip.rs:209, rebuilt locally.
 pub const HEARTWOOD_ENTRANCE: [f32; 2] = HEARTWOOD_BATH_RETURN;
 const STAND_HEIGHT: f32 = 0.90; // copy of private heartwood_lip.rs:30
@@ -109,12 +115,12 @@ pub struct RiseTell;
 /// Rise fraction (0..=1) while the tell shows: Heartwood only, predator down, last `PREDATOR_TELL_SECS`.
 pub fn rise_tell(place: PlaceId, predator_taken: u32, down_secs: f32) -> Option<f32> {
     let onset = PREDATOR_RESPAWN_SECS - PREDATOR_TELL_SECS;
-    (predator_present(place) && predator_taken >= HEALTH && down_secs >= onset)
+    (fight_present(place) && predator_taken >= HEALTH && down_secs >= onset)
         .then(|| ((down_secs - onset) / PREDATOR_TELL_SECS).clamp(0.0, 1.0))
 }
 /// CLEARED-STATE-1 — Heartwood reads cleared while the predator is down, until the rise tell takes over.
 pub fn cleared(place: PlaceId, predator_taken: u32, down_secs: f32) -> bool {
-    predator_present(place) && predator_taken >= HEALTH && down_secs < PREDATOR_RESPAWN_SECS - PREDATOR_TELL_SECS
+    fight_present(place) && predator_taken >= HEALTH && down_secs < PREDATOR_RESPAWN_SECS - PREDATOR_TELL_SECS
 }
 #[derive(Component)]
 pub struct ClearedTell;
@@ -214,9 +220,15 @@ pub fn predator_present(place: PlaceId) -> bool {
     place == PlaceId::Heartwood
 }
 
+/// COMBAT-REACH-1 — the fight lives in Heartwood plus the Sanctuary practice fight (no book); homes, shift and clears.
+pub fn fight_present(place: PlaceId) -> bool { place == PlaceId::Heartwood || place == PlaceId::Sanctuary }
+pub fn fight_home(place: PlaceId) -> [f32; 2] { if place == PlaceId::Sanctuary { STAVEHOLD_FIGHT_HOME } else { PREDATOR_HOME } }
+pub fn home_shift(place: PlaceId) -> Vec3 { let ([hx, hz], [px, pz]) = (fight_home(place), PREDATOR_HOME); Vec3::new(hx - px, 0.0, hz - pz) }
+pub fn clears_area(place: PlaceId) -> bool { place != PlaceId::Sanctuary } // Sanctuary clears on entry
+
 pub fn in_reach(place: PlaceId, combat: &CombatState, x: f32, z: f32) -> bool {
-    let d = Vec2::new(x, z).distance(Vec2::from_array(PREDATOR_HOME));
-    predator_present(place) && combat.predator_taken < HEALTH && d <= REACH
+    let d = Vec2::new(x, z).distance(Vec2::from_array(fight_home(place)));
+    fight_present(place) && combat.predator_taken < HEALTH && d <= REACH
 }
 
 /// COMBAT-FEEL-1 — fixed tick: only expires the held strike or, in reach, sets the sticky pulse.
@@ -307,8 +319,13 @@ pub fn respawn_step(elapsed: f32, dt: f32, down: bool) -> (f32, bool) {
 
 /// Wake at the entrance at full health. Only presence and health move.
 pub fn reseat_on_defeat(combat: &mut CombatState, presence: &mut SoftPresence) {
+    reseat_at(PlaceId::Heartwood, combat, presence);
+}
+
+/// COMBAT-REACH-1 — a Sanctuary defeat wakes at the Stavehold gate; Heartwood is unchanged.
+pub fn reseat_at(place: PlaceId, combat: &mut CombatState, presence: &mut SoftPresence) {
     let [px, pz] = WATER_POND_CENTER;
-    let [x, z] = heartwood_bath_return(PlaceId::Heartwood, px, pz).unwrap_or(HEARTWOOD_ENTRANCE);
+    let [x, z] = if place == PlaceId::Sanctuary { STAVEHOLD_GATE_SPOT } else { heartwood_bath_return(PlaceId::Heartwood, px, pz).unwrap_or(HEARTWOOD_ENTRANCE) };
     (presence.position, presence.velocity) = (Vec3::new(x, STAND_HEIGHT, z), Vec3::ZERO);
     presence.grounded = true;
     (combat.player_taken, combat.lunge_timer) = (0, 0.0);
@@ -341,6 +358,9 @@ pub fn fire_line(place: PlaceId, combat: &CombatState, hit: bool, gained: u32, l
 pub fn wake_cue() -> String {
     "You wake at the Heartwood entrance".to_string()
 }
+
+/// COMBAT-REACH-1 — the wake line for the place of the defeat.
+pub fn wake_cue_at(place: PlaceId) -> String { if place == PlaceId::Sanctuary { "You wake at the Stavehold gate".to_string() } else { wake_cue() } }
 
 /// Compare before write: an unchanged cue leaves the resource untouched.
 pub fn set_pulse(epi: &mut impl std::ops::DerefMut<Target = FirstHarvestEpiphany>, line: String, until: f64) {
@@ -494,7 +514,7 @@ pub fn combat_fire(
         let before = skills.xp[COMBAT];
         let row = runs.as_deref().and_then(|r| r.row(travel.current, tier));
         let (hit, level) = land_hit_paid(&mut combat, &mut skills, reach, tier, row);
-        if let (true, Some(mut diff)) = (hit && combat.predator_taken >= HEALTH, diff) {
+        if let (true, Some(mut diff)) = (hit && combat.predator_taken >= HEALTH && clears_area(travel.current), diff) {
             diff.record_clear(travel.current); // DIFFICULTY-TIERS-1: the predator defeat clears this area
         }
         let gained = skills.xp[COMBAT].saturating_sub(before);
@@ -521,7 +541,7 @@ fn hold_strike_buffer(
     strike_buffer_tick(&mut buf, time.elapsed_secs_f64(), reach);
 }
 
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
 fn predator_lunge(
     time: Res<Time>,
     door: Option<Res<LaunchDoor>>,
@@ -531,22 +551,30 @@ fn predator_lunge(
     mut epi: Option<ResMut<FirstHarvestEpiphany>>,
     mut shown: Query<&mut Visibility, With<Predator>>,
     mut diff: Option<ResMut<AreaDifficulty>>,
+    (mut seated, mut homed): (Local<Vec3>, Query<&mut Transform, Or<(With<Predator>, With<LungeTell>, With<ClearedTell>)>>),
 ) {
     let (Some(travel), Some(mut presence)) = (travel, presence) else {
         return;
     };
     let tier = diff.as_deref().map_or(DifficultyTier::Sheltered, |d| d.tier(travel.current));
-    let show = combat.predator_taken < HEALTH && predator_present(travel.current);
+    let show = combat.predator_taken < HEALTH && fight_present(travel.current);
     for mut vis in &mut shown {
         vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
+    }
+    // COMBAT-REACH-1 D4: re-seat the predator, ring and disc once per home change (Heartwood: zero shift).
+    let shift = home_shift(travel.current);
+    if shift != *seated {
+        let delta = shift - *seated;
+        homed.iter_mut().for_each(|mut t| t.translation += delta);
+        *seated = shift;
     }
     let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
     if predator_tick(&mut combat, time.delta_secs(), reach, tier) {
-        reseat_on_defeat(&mut combat, &mut presence);
+        reseat_at(travel.current, &mut combat, &mut presence);
         if let Some(d) = diff.as_mut() { d.new_life(); } // DIFFICULTY-REWARDS-1: the defeat ends this life
         if let Some(epi) = epi.as_mut() {
-            set_pulse(epi, wake_cue(), time.elapsed_secs_f64() + CUE_SECS);
+            set_pulse(epi, wake_cue_at(travel.current), time.elapsed_secs_f64() + CUE_SECS);
         }
     }
 }
@@ -663,6 +691,7 @@ fn rise_tell_show(
     combat: Option<Res<CombatState>>,
     mut pillar: Query<(&mut Visibility, &mut Transform), With<RiseTell>>,
 ) {
+    let shift = travel.as_deref().map_or(Vec3::ZERO, |t| home_shift(t.current));
     let rise = match (travel, combat) {
         (Some(t), Some(c)) => rise_tell(t.current, c.predator_taken, c.down_secs),
         _ => None,
@@ -670,7 +699,9 @@ fn rise_tell_show(
     for (mut vis, mut at) in &mut pillar {
         vis.set_if_neq(if rise.is_some() { Visibility::Visible } else { Visibility::Hidden });
         if let Some(r) = rise {
-            at.set_if_neq(rise_tell_transform(r));
+            let mut t = rise_tell_transform(r);
+            t.translation += shift;
+            at.set_if_neq(t);
         }
     }
 }
@@ -1272,7 +1303,6 @@ mod tests {
         assert_eq!(rise_tell(hw, HEALTH, onset - 0.1), None, "hidden at 28.4 s");
         assert_eq!(rise_tell(hw, HEALTH, PREDATOR_RESPAWN_SECS), Some(1.0));
         assert_eq!(rise_tell(hw, HEALTH - HIT, onset + 1.0), None, "hidden while alive");
-        assert_eq!(rise_tell(PlaceId::Sanctuary, HEALTH, onset + 1.0), None, "never in Sanctuary");
         assert_eq!(rise_tell(PlaceId::Depths, HEALTH, onset + 1.0), None, "never in Depths");
         let (low, high) = (rise_tell_transform(0.2), rise_tell_transform(0.8));
         assert!(high.scale.y > low.scale.y && high.translation.y > low.translation.y, "it rises");
@@ -1288,7 +1318,7 @@ mod tests {
         assert!(cleared(hw, HEALTH, 0.0) && cleared(hw, HEALTH, 10.0) && cleared(hw, HEALTH, onset - 0.01), "kill or re-kill, mid-down, onset - eps");
         assert!(!cleared(hw, HEALTH, onset) && rise_tell(hw, HEALTH, onset).is_some(), "the pillar takes over at onset");
         assert!(!cleared(hw, 0, PREDATOR_RESPAWN_SECS) && !cleared(hw, 0, 0.0), "fire frame and respawned read uncleared");
-        assert!(!cleared(PlaceId::Sanctuary, HEALTH, 1.0) && !cleared(PlaceId::Depths, HEALTH, 1.0), "Heartwood only");
+        assert!(!cleared(PlaceId::Depths, HEALTH, 1.0), "never in Depths");
     }
     #[test]
     fn cleared_never_overlaps_rise_tell() {
@@ -1314,8 +1344,8 @@ mod tests {
         app.world_mut().resource_mut::<CombatState>().predator_taken = HEALTH;
         assert_eq!(tick(&mut app, PREDATOR_RESPAWN_SECS - PREDATOR_TELL_SECS - 0.1), Visibility::Hidden);
         assert_eq!(tick(&mut app, 0.5), Visibility::Visible, "the creature rises");
-        app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Sanctuary;
-        assert_eq!(tick(&mut app, 0.1), Visibility::Hidden, "hidden in Sanctuary");
+        app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Depths;
+        assert_eq!(tick(&mut app, 0.1), Visibility::Hidden, "hidden in Depths");
         app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Heartwood;
         assert_eq!(tick(&mut app, 0.1), Visibility::Visible);
         assert_eq!(tick(&mut app, 1.0), Visibility::Hidden, "hidden after respawn");
@@ -1383,5 +1413,42 @@ mod tests {
                 assert_eq!((line, vis), (FirstHarvestEpiphany::default().pulse_line, Visibility::Visible), "{t:?} muted writes no text tell");
             }
         }
+    }
+
+    /// COMBAT-REACH-1 (a) — the Sanctuary fight is reachable with no book and no settle.
+    #[test]
+    fn sanctuary_fight_reachable_without_the_book() {
+        let c = CombatState::default();
+        let [x, z] = STAVEHOLD_FIGHT_HOME;
+        assert!(fight_present(PlaceId::Sanctuary) && in_reach(PlaceId::Sanctuary, &c, x, z));
+        assert!(!shared::hex_travel::places_eligible(false, false));
+        assert!(!fight_present(PlaceId::Depths) && !in_reach(PlaceId::Depths, &c, x, z));
+    }
+
+    /// COMBAT-REACH-1 (b) + CL-R3 — `predator_present` unchanged, and the Heartwood home is byte-identical.
+    #[test]
+    fn predator_present_and_heartwood_home_unchanged() {
+        assert!(predator_present(PlaceId::Heartwood) && !predator_present(PlaceId::Sanctuary));
+        assert_eq!((fight_home(PlaceId::Heartwood), home_shift(PlaceId::Heartwood)), ([-18.0, -18.0], Vec3::ZERO));
+    }
+
+    /// COMBAT-REACH-1 (c) + CL-R5 — Heartwood still needs the book, and only a Heartwood win records a clear.
+    #[test]
+    fn heartwood_still_needs_the_book_and_only_it_clears() {
+        assert!(!shared::hex_travel::places_eligible(true, false) && shared::hex_travel::places_eligible(true, true));
+        assert!(clears_area(PlaceId::Heartwood) && !clears_area(PlaceId::Sanctuary));
+    }
+
+    /// COMBAT-REACH-1 (d) + CL-R2/R4 + A1 — a Sanctuary defeat wakes at the gate, out of reach, so no tell stacks.
+    #[test]
+    fn sanctuary_defeat_wakes_at_the_gate_out_of_reach() {
+        let (mut c, mut p) = (CombatState { player_taken: HEALTH, ..default() }, SoftPresence::default());
+        reseat_at(PlaceId::Sanctuary, &mut c, &mut p);
+        assert_eq!((p.position.x, p.position.z, c.player_taken), (STAVEHOLD_GATE_SPOT[0], STAVEHOLD_GATE_SPOT[1], 0));
+        assert!(!in_reach(PlaceId::Sanctuary, &c, p.position.x, p.position.z) && !tell_visible(LUNGE_SECS, false));
+        assert_eq!(wake_cue_at(PlaceId::Sanctuary), "You wake at the Stavehold gate");
+        assert_eq!(wake_cue_at(PlaceId::Heartwood), wake_cue());
+        assert_eq!(fire_cue(PlaceId::Sanctuary, &c, false, 0), None, "A1: no miss line out of reach");
+        assert!(fire_cue(PlaceId::Sanctuary, &c, true, 0).is_some(), "A1: in reach a strike lands and speaks");
     }
 }
