@@ -31,6 +31,10 @@ use crate::difficulty::{cue_line, enemy_hit, hides_cues, tell_onset, AreaDifficu
 use crate::run_ledger::{premium_paid, RunLedger, RunRow, SKILL_PREMIUM_LIVE};
 use crate::wellsworn::STAVEHOLD_GATE_SPOT;
 use shared::peace_audio::{audio_output_safe, STING_ASSET};
+/// COMBAT-FEEL-SFX-1 — the landed-hit thud (Kenney Impact Sounds, CC0), distinct from the sting.
+pub const HIT_ASSET: &str = "audio/combat_hit.ogg";
+/// The hit file peaks at -4.0 dBFS; x0.05 (-26 dB) keeps it under the sting's -27.7 dBFS.
+pub const HIT_GAIN: f32 = 0.05;
 
 pub const PREDATOR_NAME: &str = "[NAME TBD]";
 pub const HEALTH: u32 = 200; // player and predator pools, per CUT A1
@@ -472,6 +476,7 @@ pub fn combat_fire(
         Option<Res<HumanSoftPanels>>,
     ),
     (buffer, fixed, diff, runs): (Option<ResMut<StrikeBuffer>>, Option<Res<Time<Fixed>>>, Option<ResMut<crate::difficulty::AreaDifficulty>>, Option<Res<RunLedger>>),
+    (mut cmd, assets, mute): (Commands, Option<Res<AssetServer>>, Option<Res<crate::local_settings::MasterMuteGain>>),
 ) {
     let fire = buttons.is_some_and(|b| b.just_pressed(FIRE))
         || gamepads.iter().any(|g| g.just_pressed(FIRE_PAD));
@@ -514,6 +519,7 @@ pub fn combat_fire(
         let before = skills.xp[COMBAT];
         let row = runs.as_deref().and_then(|r| r.row(travel.current, tier));
         let (hit, level) = land_hit_paid(&mut combat, &mut skills, reach, tier, row);
+        play_hit(&mut cmd, assets.as_deref(), mute.as_deref(), hit); // COMBAT-FEEL-SFX-1: a landed hit only
         if let (true, Some(mut diff)) = (hit && combat.predator_taken >= HEALTH && clears_area(travel.current), diff) {
             diff.record_clear(travel.current); // DIFFICULTY-TIERS-1: the predator defeat clears this area
         }
@@ -586,6 +592,20 @@ pub fn play_tell(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<
     if let (true, true, Some(assets)) = (audio_output_safe(), gain > 0.0, assets) {
         let play = PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain));
         cmd.spawn((AudioPlayer::<AudioSource>(assets.load(STING_ASSET)), play));
+    }
+}
+
+/// COMBAT-FEEL-SFX-1 — the hit volume: None on a miss, muted or zero gain; else the tell's gain x `HIT_GAIN`.
+pub fn hit_volume(hit: bool, mute: Option<&crate::local_settings::MasterMuteGain>) -> Option<f32> {
+    let gain = mute.map_or(1.0, |m| if m.muted { 0.0 } else { m.gain }) * HIT_GAIN;
+    (hit && gain > 0.0).then_some(gain)
+}
+
+/// COMBAT-FEEL-SFX-1 — the same spawn as `play_tell`, behind `audio_output_safe`, for a landed hit only.
+pub fn play_hit(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&crate::local_settings::MasterMuteGain>, hit: bool) {
+    if let (true, Some(gain), Some(assets)) = (audio_output_safe(), hit_volume(hit, mute), assets) {
+        let play = PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain));
+        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(HIT_ASSET)), play));
     }
 }
 
@@ -1450,5 +1470,42 @@ mod tests {
         assert_eq!(wake_cue_at(PlaceId::Heartwood), wake_cue());
         assert_eq!(fire_cue(PlaceId::Sanctuary, &c, false, 0), None, "A1: no miss line out of reach");
         assert!(fire_cue(PlaceId::Sanctuary, &c, true, 0).is_some(), "A1: in reach a strike lands and speaks");
+    }
+
+    /// COMBAT-FEEL-SFX-1 (a) — the hit is its own file, never the sting.
+    #[test]
+    fn hit_asset_is_not_the_sting() {
+        assert_ne!(HIT_ASSET, STING_ASSET);
+        assert_eq!(HIT_ASSET, "audio/combat_hit.ogg");
+    }
+
+    /// COMBAT-FEEL-SFX-1 (b) — source pin: the tell still loads the sting, and the hit call sits after the landed strike.
+    #[test]
+    fn tell_still_loads_the_sting() {
+        let src = include_str!("combat_core.rs");
+        let start = src.find(concat!("pub fn play", "_tell(")).unwrap();
+        let body = &src[start..start + src[start..].find("\n}\n").unwrap()];
+        assert!(body.contains(concat!("assets.load(", "STING_ASSET)")) && !body.contains(concat!("HIT", "_ASSET")));
+        assert_eq!(src.matches(concat!("play_hit", "(&mut cmd")).count(), 1, "one call site");
+    }
+
+    /// COMBAT-FEEL-SFX-1 (c) — never louder than the sting: -4.0 dBFS file peak x HIT_GAIN <= -27.7 dBFS.
+    #[test]
+    fn hit_gain_stays_under_the_sting() {
+        assert!(HIT_GAIN <= 0.05 && HIT_GAIN > 0.0);
+        assert!(-4.0 + 20.0 * HIT_GAIN.log10() <= -27.7);
+        let full = crate::local_settings::MasterMuteGain { gain: 1.0, muted: false };
+        assert_eq!(hit_volume(true, Some(&full)), Some(HIT_GAIN));
+        assert_eq!(hit_volume(true, None), Some(HIT_GAIN));
+    }
+
+    /// COMBAT-FEEL-SFX-1 (d) — a miss, mute or zero gain gives no hit sound.
+    #[test]
+    fn miss_or_mute_gives_no_hit_sound() {
+        let (full, muted) = (crate::local_settings::MasterMuteGain { gain: 1.0, muted: false }, crate::local_settings::MasterMuteGain { gain: 1.0, muted: true });
+        assert_eq!(hit_volume(false, Some(&full)), None);
+        assert_eq!(hit_volume(false, None), None);
+        assert_eq!(hit_volume(true, Some(&muted)), None);
+        assert_eq!(hit_volume(true, Some(&crate::local_settings::MasterMuteGain { gain: 0.0, muted: false })), None);
     }
 }
