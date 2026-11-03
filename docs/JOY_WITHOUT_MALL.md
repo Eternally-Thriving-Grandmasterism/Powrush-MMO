@@ -33,7 +33,7 @@ AH · billion-run EV · perfect-or-trash trading · target-farm tables · RMT bo
 - **Weights are council defaults:** Kept 8 · Proven 4 · Storied 2 · Worn 0 (`loot_drops.rs:15-17`), total 28 (test :50), with `ROLE_SKEW` ×2 (:9). This is council wording, not Sherif's ruling, and Sherif may veto or retune it.
 - **Above the vendor:** every rolled find sits above `VENDOR_STANDING_CEILING` (`shared/temper.rs:247`, test `loot_drops.rs:66-78`). The roll has no convert, exchange, trade, buy or sell fn (:74-77).
 - **Unbroken reads as Sworn:** `power_tier` (`loot_drops.rs:11-13`) means Unbroken's extra over Sworn yields no named find (test :57-64).
-- **Skill premium off:** `client/src/run_ledger.rs:135` sets `SKILL_PREMIUM_LIVE = false`. The 2.5× ceiling (`SKILL_PREMIUM_MAX`, :124) is a council default that Sherif may veto.
+- **Skill premium live:** `client/src/run_ledger.rs:135` sets `SKILL_PREMIUM_LIVE = true`, live on Sherif's 2026-11-02 yes · Sherif may veto. The 3.0 ceiling (`SKILL_PREMIUM_MAX`, :124) is a council default that Sherif may veto or retune.
 - **Open for Sherif:** `ROLE_SKEW` ×2 leans finds toward a role, which sits beside the "target-farm tables" refusal at :22. Whether that counts is Sherif's call, and the skew stays inactive until he rules (LOOT-DROPS-WIRE-1 is held).
 
 ---
