@@ -27,7 +27,7 @@ Epiphanies are not taught — they are **discovered** through consequence, refle
 - `simulation/src/epiphany_catalyst.rs` — `check_overflow_lesson()` detector + `EpiphanyOutcome` struct (PATSAGi sealed).
 - `simulation/src/harvest.rs` — `attempt_harvest()` now returns `(yield, Option<EpiphanyOutcome>)` and applies world effects.
 - `server/divine_integration.rs` — `on_overflow_lesson_epiphany()` generates profound, context-aware Divine Whispers.
-- Wired into `simulation/src/lib.rs` public API.
+- Wired into `simulation/src/lib.rs` public API (`:17` mod, `:66` re-export), but `simulation/` is parked (root `Cargo.toml:11`), so it is not built and the live client does not use it.
 - All paths mercy-gated, TOLC 8 validated, zero coercion, maximum grace.
 
 ### 2. Social Mercy & Cooperation Epiphanies (Council Mercy Trial) — Design Ready, Next Pass
