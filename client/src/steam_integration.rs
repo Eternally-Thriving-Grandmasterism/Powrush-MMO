@@ -5,8 +5,8 @@
 //
 // REQUIRED SETUP (one-time for production):
 // 1. In client/Cargo.toml add (optional feature):
-//    bevy_steamworks = { version = "0.11", optional = true }   // adjust to Bevy 0.14 compatible
-//    steamworks = { version = "0.11", optional = true }
+//    bevy_steamworks: not in client/Cargo.toml (bevy is 0.20 at :26); no compatible version is verified.
+//    steamworks = { version = "0.11", optional = true }  // already in client/Cargo.toml:52, feature "steam" (:14)
 // 2. Set STEAM_APP_ID env var (your real Powrush AppID from Steamworks partner site)
 // 3. Set STEAM_DEV_MODE=0 (or false) to leave dev simulation
 // 4. Enable the "steam" feature on the client crate
