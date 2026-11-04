@@ -33,7 +33,7 @@ All changes performed exclusively through GitHub connector tools with full histo
 
 ## Near-Term Roadmap (Next Steps)
 
-- Complete sequential polish of all remaining shaders in client/assets/shaders/ and client/src/shaders/
+- Complete sequential polish of all remaining shaders in client/assets/shaders/ and client/shaders/ (no live client module loads either folder yet; the only live shader is inline WGSL in `client/src/ultra_paint.rs:32`)
 - Full review and polish of simulation/src/ (remaining .rs files)
 - Full review of client/src/ key systems
 - shared/, engine/, powrush-divine-module/ review
