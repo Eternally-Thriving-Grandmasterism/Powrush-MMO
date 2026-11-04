@@ -27,7 +27,7 @@ All changes performed exclusively through GitHub connector tools with full histo
 
 ## Current Focus Areas (Active)
 
-1. **VFX / Particle Pipeline** — Core complete. Remaining shaders and visual polish ongoing.
+1. **VFX / Particle Pipeline** — **Partly wired**: only `tend_flow_vfx` is live (`client/src/lib.rs:82`, plugin at :209), a capped mote burst on Tend and Flow; `client/src/particles.rs` and the particle shaders are not loaded by any client module, and `bevy_hanabi` is only an optional dependency of parked `simulation/` (`simulation/Cargo.toml:15`).
 2. **Epiphany & Joy Systems** — **Partly wired**: only `first_harvest_epiphany` is live (`client/src/lib.rs:44`, plugin at :210); `epiphany_catalyst` is in parked `simulation/` (`Cargo.toml:11`), `epiphany_scenario_wiring.rs` is not a client module, and no joy-system module exists.
 3. **Ra-Thor AGI Integration** — **Not wired (planned)**: no live module modulates visuals from Ra-Thor; `ra_thor_bridge` is only in parked `simulation/` (`simulation/src/lib.rs:23`), `client/src/visual/` is not a client module, and the shader mentions are comments only.
 
