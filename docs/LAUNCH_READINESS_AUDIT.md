@@ -24,7 +24,7 @@ Pointers only. The sentences live in those files.
 
 ## 1. Stability, crashes and save integrity
 
-The lived client is `cargo run -p powrush-client` (`client/src/main.rs:9-37`). `PowrushClientBundle` is the plugin list in `client/src/lib.rs:93-157`.
+The lived client is `cargo run -p powrush-client` (`client/src/main.rs:58-105`). `PowrushClientBundle` is the plugin list in `client/src/lib.rs:160-243`.
 
 House save and the local session file already use a temp file, a rename, and a `.bak` that is copied only when the live file parses (`shared/house_name.rs:374-387`, `client/src/local_session_persist.rs:105-119`). The shared helper most other JSON uses does not. `shared/user_persist.rs:56-62` is `write_named`: create the directory, then `fs::write` the whole file.
 
@@ -198,7 +198,7 @@ INFO bevy_winit::system: Creating new window "Powrush-MMO — first hour"
 Listed only. No cards. Online stays grey.
 
 - **Online play.** `docs/LAUNCH_UX.md:45-46`. Title row stays off. No listen and no public bind from this audit.
-- **Steam and App ID.** `docs/OFFLINE_SKU.md:22`. `client/src/steam_integration.rs:10` and `:112-114` describe an App ID and a commented production plugin. That file is not a module in `client/src/lib.rs`. `client/Cargo.toml` keeps `steamworks` optional. The lived bundle does include `SteamAbundanceMirrorPlugin` (`client/src/lib.rs:146`), which staged local directories on the boot above. No App ID is set here.
+- **Steam and App ID.** `docs/OFFLINE_SKU.md:22`. `client/src/steam_integration.rs:10` and `:112-114` describe an App ID and a commented production plugin. That file is not a module in `client/src/lib.rs`. `client/Cargo.toml` keeps `steamworks` optional. The lived bundle does include `SteamAbundanceMirrorPlugin` (`client/src/lib.rs:226`), which staged local directories on the boot above. No App ID is set here.
 - **MESH (new 3D assets).** `git ls-files` shows zero `.glb` / `.gltf`. `docs/PLACE_DRESS_SPEC.md:23` budgets 0 meshes from that stamp. New meshes wait on the steward.
 - **Bevy version climb.** `client/Cargo.toml:17` is `bevy` `0.14`. This audit does not change it.
 - **Payments.** `docs/PARKED_SURFACES.md:7` parks `payments/`. `README.md:51` leaves payments out of the first hour.
