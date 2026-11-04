@@ -10,7 +10,7 @@
 
 # Powrush-MMO Roadmap v19.20
 
-**Current Version:** v19.20 (Eternal Polish Cycle)
+**Current Version:** 21.88.0 (workspace version, root `Cargo.toml:19`); this roadmap was written at v19.20
 **Date:** 2026-06-22
 **Status:** Core VFX, Particle, Epiphany, Harvest, and Ra-Thor integration layers at high production readiness.
 
