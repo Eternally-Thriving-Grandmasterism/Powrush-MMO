@@ -33,7 +33,7 @@ Epiphanies are not taught — they are **discovered** through consequence, refle
 ### 2. Social Mercy & Cooperation Epiphanies (Council Mercy Trial) — Design Ready, Next Pass
 ... (rest of archetypes unchanged) ...
 
-## Implementation Architecture (Now Partially Live)
+## Implementation Architecture (Not Live in the Client Yet)
 
 - **Data Layer**: `content/epiphany_scenarios/overflow_lesson.json` live. Future archetypes will follow identical JSON schema.
 - **Integration Points**: `harvesting_system` + `epiphany_catalyst` + `divine_whispers` — **not wired (planned)**: `harvesting_system` is in parked `server/` (`Cargo.toml:9`), and `epiphany_catalyst` + `divine_whispers` are modules only of parked `simulation/` (`Cargo.toml:11`).
