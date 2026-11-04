@@ -135,7 +135,7 @@ If Hour-3 fabricator lives under `client/src/` hour modules, **call it**; do not
 Keep fields tiny. No floating combat stats.
 
 ```rust
-// shared/src/temper.rs
+// shared/temper.rs
 use serde::{Deserialize, Serialize};
 
 pub const TEMPER_MAX: u8 = 9;
