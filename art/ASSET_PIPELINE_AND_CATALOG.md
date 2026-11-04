@@ -54,7 +54,7 @@ art/
 - WebXR Ready: Full hand/controller tracking integration via webxr_input_controller.rs.
 
 ### 4. UI & HUD Elements (Hot-Reloadable 11-Lang)
-- All UI in `client/inventory_ui.rs`, `divine_whispers_ui.rs`, `settings_menu.rs` etc. uses hot-reload assets.
+- All UI in `client/inventory_ui.rs`, `divine_whispers_ui.rs` etc. uses hot-reload assets.
 - Fonts, icons, panels: Sacred geometry borders, mercy-gated color palettes (never red-alert; always abundance tones).
 - Dynamic: Text content pulled from Divine Whispers system with RBE educational depth.
 
