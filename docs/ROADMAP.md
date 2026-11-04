@@ -34,7 +34,7 @@ All changes performed exclusively through GitHub connector tools with full histo
 ## Near-Term Roadmap (Next Steps)
 
 - Complete sequential polish of all remaining shaders in client/assets/shaders/ and client/shaders/ (no live client module loads either folder yet; the only live shader is inline WGSL in `client/src/ultra_paint.rs:32`)
-- Full review and polish of simulation/src/ (remaining .rs files)
+- Full review and polish of simulation/src/ (remaining .rs files) — parked: not a workspace member (root `Cargo.toml:11`, `shamirs-secret-sharing` is not on crates.io), so none of its files build; un-parking needs Sherif's yes
 - Full review of client/src/ key systems
 - shared/, engine/, powrush-divine-module/ review (only `shared/` is a live workspace member, `Cargo.toml:3`; `powrush-divine-module/` is parked at `Cargo.toml:14` with its `ra-thor-core` path-dep missing, and `engine/` has no Cargo.toml, so it is not a crate)
 - Update all design docs to the live architecture (workspace version 21.88.0, root `Cargo.toml:19`); the v19.20 view in `docs/ARCHITECTURE_LAYERS_AND_DATAFLOW.md` treats parked `simulation/` as the authoritative layer, not the live client
