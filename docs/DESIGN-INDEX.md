@@ -33,7 +33,7 @@ All core systems below are derived from the living Ra-Thor monorepo (https://git
 - `docker-compose.yml` + `Dockerfile` + `k8s/` — Sovereign deployment ready for public humans.
 - `DEPLOYMENT-SOVEREIGN.md` — Production hardening + Hetzner path.
 - New: `persistence_polish.rs` + `PlayerSaveData` extensions for `AscensionProgress` + `check_mercy_ascent_eligibility()`.
-- New: `ascension_mercy_ascent.rs` + `ascension_abilities.rs` fully wired.
+- New: `ascension_mercy_ascent.rs` + `ascension_abilities.rs` — **not wired (planned)**: both are in parked `server/` (`Cargo.toml:9`) and neither is declared in `server/src/lib.rs` or `main.rs`.
 - New: `ra_thor_mercy_bridge.rs` now includes dedicated Mercy Ascent Divine Whisper method.
 - New: `council_mercy_trial.rs` extended with Ascension Mercy Trial variant + unlock hook.
 
