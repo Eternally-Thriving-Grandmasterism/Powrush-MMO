@@ -48,7 +48,7 @@ Better Ra-Thor/PATSAGi → Better Powrush RBE simulation & education → Better 
 Powrush-MMO has made significant progress in turning conflict into redemptive, mercy-gated experiences:
 
 - **Full TickResult Integration (v19.2.9)** — `synergy_events` + `policy_highlights` from `ability_tree` (stage-aware + cross-race) now flow end-to-end: Orchestrator → Persistence (`record_synergy_and_policy_highlights`) → LegacyJournal → Client "My Mercy Journey" UI.
-- **Proactive Joy + RBE Abundance** — Fully wired into persistence, LegacyJournal, and UI (v19.2).
+- **Proactive Joy + RBE Abundance** — **Partly wired**: the client saves a local joy value (`client/src/local_session_persist.rs:32`) and logs RBE allocate choices (`abundance_journey_echo`, `client/src/lib.rs:80`); proactive joy and `LegacyJournal` exist only in parked `simulation/` (`Cargo.toml:11`) and `game/` (`Cargo.toml:13`), and `my_mercy_journey_panel.rs` is not a client module.
 - **InterRealmDiplomacyEvent v19** — Council-influenced outcomes, RBE abundance sharing, and automatic GraceBlessing cascades after Forgiveness Waves.
 - **GraceBlessing System** — Live with `PostForgivenessWave` context bonus and LegacyJournal integration.
 - **LegacyJournal** — Persistent cross-realm tracking of player actions and relationships, now including synergy/policy highlights.
