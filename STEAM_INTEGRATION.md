@@ -53,7 +53,7 @@ Achievements must celebrate both cooperative abundance **and** permitted strateg
 - **Eternal Flow Guardian** — Reach the highest Abundance tier (Seedling → Eternal Flow Guardian)
 - **Server War Victor** — Contribute to your server’s victory in a weekly Server War
 - **Mercy Gate Keeper** — Complete actions aligned with a full cycle of the TOLC 8 Mercy Gates
-- **Divine Whisper Listener** — Receive and act on proactive Ra-Thor / PATSAGi guidance during gameplay (now wired via async multilingual epiphany flow)
+- **Divine Whisper Listener** — Receive and act on proactive Ra-Thor / PATSAGi guidance during gameplay (**not wired (planned)**: `epiphany_scenario_wiring.rs` and `divine_whispers.rs` are not modules in `client/src/lib.rs`, and no Steam achievement code is wired)
 - **Cosmic Harmony Weaver** — Help restore balance to a server after heavy entropy events
 - **Council Bloom Architect** — Successfully participate in and resolve a full multiplayer Council Mercy Trial with spatial audio celebration (new — maps to persist_trial_outcome + enriched notes + Hanabi valence bursts)
 - **Maximal Speaker** — Engage in global or faction chat with high positive impact (no violations)
