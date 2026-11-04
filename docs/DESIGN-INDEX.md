@@ -32,10 +32,10 @@ All core systems below are derived from the living Ra-Thor monorepo (https://git
 - `shared/src/protocol.rs` — DivineCouncilQuery / RbeAbundanceQuery + mercy-gated responses.
 - `docker-compose.yml` + `Dockerfile` + `k8s/` — Sovereign deployment ready for public humans.
 - `DEPLOYMENT-SOVEREIGN.md` — Production hardening + Hetzner path.
-- New: `persistence_polish.rs` + `PlayerSaveData` extensions for `AscensionProgress` + `check_mercy_ascent_eligibility()`.
+- New: `persistence_polish.rs` (`PlayerSaveData`, :16) — **not wired (planned)**: in parked `server/` and not declared in `server/src/lib.rs` or `main.rs`; it has no `AscensionProgress` field, and no `check_mercy_ascent_eligibility()` exists in any `*.rs`.
 - New: `ascension_mercy_ascent.rs` + `ascension_abilities.rs` — **not wired (planned)**: both are in parked `server/` (`Cargo.toml:9`) and neither is declared in `server/src/lib.rs` or `main.rs`.
-- New: `ra_thor_mercy_bridge.rs` now includes dedicated Mercy Ascent Divine Whisper method.
-- New: `council_mercy_trial.rs` extended with Ascension Mercy Trial variant + unlock hook.
+- New: `ra_thor_mercy_bridge.rs` now includes dedicated Mercy Ascent Divine Whisper method — **not wired (planned)**: in parked `server/`, not declared in `server/src/lib.rs` or `main.rs`.
+- New: `council_mercy_trial.rs` extended with Ascension Mercy Trial variant + unlock hook — **not wired (planned)**: in parked `server/`, not declared in `server/src/lib.rs` or `main.rs`.
 
 **Next implementation priorities** (PATSAGi guidance): 
 1. UI implementation of The Mercy Ascent panel (Leptos) + transformation visuals.
