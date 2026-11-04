@@ -35,7 +35,7 @@ Epiphanies are not taught — they are **discovered** through consequence, refle
 
 ## Implementation Architecture (Not Live in the Client Yet)
 
-- **Data Layer**: `content/epiphany_scenarios/overflow_lesson.json` live. Future archetypes will follow identical JSON schema.
+- **Data Layer**: `content/epiphany_scenarios/overflow_lesson.json` exists, but the client doesn't load it yet: its only loader, `load_epiphany_scenarios()` in `client/src/epiphany_scenario_wiring.rs`, has no `mod` line in `client/src/lib.rs`. Future archetypes will follow identical JSON schema.
 - **Integration Points**: `harvesting_system` + `epiphany_catalyst` + `divine_whispers` — **not wired (planned)**: `harvesting_system` is in parked `server/` (`Cargo.toml:9`), and `epiphany_catalyst` + `divine_whispers` are modules only of parked `simulation/` (`Cargo.toml:11`).
 - **Feedback Systems**: Valence deltas, particle cues (via existing particles.rs), persistent wisdom journal ready for extension, milestone titles.
 
