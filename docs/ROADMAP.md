@@ -37,7 +37,7 @@ All changes performed exclusively through GitHub connector tools with full histo
 - Full review and polish of simulation/src/ (remaining .rs files)
 - Full review of client/src/ key systems
 - shared/, engine/, powrush-divine-module/ review (only `shared/` is a live workspace member, `Cargo.toml:3`; `powrush-divine-module/` is parked at `Cargo.toml:14` with its `ra-thor-core` path-dep missing, and `engine/` has no Cargo.toml, so it is not a crate)
-- Update all design docs for v19.20 architecture
+- Update all design docs to the live architecture (workspace version 21.88.0, root `Cargo.toml:19`); the v19.20 view in `docs/ARCHITECTURE_LAYERS_AND_DATAFLOW.md` treats parked `simulation/` as the authoritative layer, not the live client
 - Final zero-placeholder + integrity sweep
 - Public MMOARPG beta preparation (Steam integration, trailer, press kit)
 
