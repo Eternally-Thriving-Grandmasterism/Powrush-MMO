@@ -24,7 +24,7 @@ Epiphanies are not taught — they are **discovered** through consequence, refle
 
 **Implementation Delivered**:
 - `content/epiphany_scenarios/overflow_lesson.json` — Canonical data definition (authorable, versioned).
-- `simulation/src/epiphany_catalyst.rs` — `check_overflow_lesson()` detector + `EpiphanyOutcome` struct (PATSAGi sealed).
+- `simulation/src/epiphany_catalyst.rs` — not implemented: `check_overflow_lesson()` is called at :73 but defined nowhere, and `EpiphanyOutcome` (:27) is an empty stub; the file is in parked `simulation/` (root `Cargo.toml:11`).
 - `simulation/src/harvest.rs` — `attempt_harvest()` now returns `(yield, Option<EpiphanyOutcome>)` and applies world effects.
 - `server/divine_integration.rs` — `on_overflow_lesson_epiphany()` generates profound, context-aware Divine Whispers.
 - Wired into `simulation/src/lib.rs` public API (`:17` mod, `:66` re-export), but `simulation/` is parked (root `Cargo.toml:11`), so it is not built and the live client does not use it.
