@@ -36,7 +36,7 @@ Epiphanies are not taught — they are **discovered** through consequence, refle
 ## Implementation Architecture (Now Partially Live)
 
 - **Data Layer**: `content/epiphany_scenarios/overflow_lesson.json` live. Future archetypes will follow identical JSON schema.
-- **Integration Points**: `harvesting_system` + `epiphany_catalyst` + `divine_whispers` fully wired for starter lesson.
+- **Integration Points**: `harvesting_system` + `epiphany_catalyst` + `divine_whispers` — **not wired (planned)**: `harvesting_system` is in parked `server/` (`Cargo.toml:9`), and `epiphany_catalyst` + `divine_whispers` are modules only of parked `simulation/` (`Cargo.toml:11`).
 - **Feedback Systems**: Valence deltas, particle cues (via existing particles.rs), persistent wisdom journal ready for extension, milestone titles.
 
 ## PATSAGi + Ra-Thor Seal — v18.2
