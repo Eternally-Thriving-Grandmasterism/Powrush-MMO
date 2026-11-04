@@ -109,8 +109,8 @@ Parked trees (`server/`, `game/`, `simulation/`, payments) stay parked.
 
 | Concern | Put it here | Do not put it here |
 |---|---|---|
-| Item / temper / lumen / ward types | `shared/src/` new module `temper.rs` (or `shared/src/items/temper.rs` if items dir exists) | client-only structs that cannot be tested in `-p shared` |
-| Recipe table | `shared/src/temper_recipes.rs` | hardcoded in UI |
+| Item / temper / lumen / ward types | `shared/temper.rs` (wired at `shared/lib.rs:42`) | client-only structs that cannot be tested in `-p shared` |
+| Recipe table | `shared/fabricator.rs` (`Recipe` `:21-26`, `craft()` `:155-195`) | hardcoded in UI |
 | Persistence fields | same JSON family as satchel / hour packs under `data/` — extend satchel payload, do not invent a second save root | `data/powrush_shard_climate.json` ecology ledger |
 | Fabricator hook | follow existing Hour-3 fabricator / Proof Pack bind (search `Proof Pack`, `MendSpool`, `LaneCrate`, `hour_three`) | new Place post in `living_ecology.rs` |
 | Satchel line | existing satchel UI (`I`) — one extra label | second HUD |
@@ -396,7 +396,7 @@ Cut these only after E2 POST-MERGE.
 
 ### T1 — types
 - Owner: shared
-- Files: `shared/src/temper.rs` + `mod` wire + tests
+- Files: `shared/temper.rs` + `mod` wire (`shared/lib.rs:42`) + tests
 - Done when: `cargo test -p shared` green; no client change
 - HOLD
 
