@@ -2,7 +2,7 @@
 // Powrush-MMO v17.35 — Faction Diplomacy UI (updated for Treaty Negotiation integration)
 // Production quality • Mercy-gated • Beautiful abundance-themed panel
 // Exact visual language match with onboarding_ui.rs
-// Toggle via Pause Menu button or hotkey 'D' (World Council)
+// Toggle: none live. This module is not in client/src/lib.rs on 0aaede6e; the 'D' handler (:263-267) is unwired, and live D is MOVE_RIGHT (soft_play_bindings.rs:19).
 // Live-updating standings, color-coded mercy/abundance bars, action buttons with feedback
 // Now wires Propose Treaty → Interactive Treaty Negotiation Panel (hotkey N support in treaty_negotiation_ui.rs)
 // Foundation ready for full networking replication + server event integration
