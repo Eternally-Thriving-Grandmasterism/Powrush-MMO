@@ -12,7 +12,7 @@
 
 **Current Version:** 21.88.0 (workspace version, root `Cargo.toml:19`); this roadmap was written at v19.20
 **Date:** 2026-06-22
-**Status:** Core VFX, Particle, Epiphany, Harvest, and Ra-Thor integration layers at high production readiness.
+**Status:** Partly wired: Harvest is live in the client, VFX and Epiphany are partly wired, and the Particle and Ra-Thor layers are not wired yet (see Current Focus Areas below).
 
 ## v19.20 Achievements (This Cycle)
 
