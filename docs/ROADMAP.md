@@ -36,7 +36,7 @@ All changes performed exclusively through GitHub connector tools with full histo
 - Complete sequential polish of all remaining shaders in client/assets/shaders/ and client/shaders/ (no live client module loads either folder yet; the only live shader is inline WGSL in `client/src/ultra_paint.rs:32`)
 - Full review and polish of simulation/src/ (remaining .rs files)
 - Full review of client/src/ key systems
-- shared/, engine/, powrush-divine-module/ review
+- shared/, engine/, powrush-divine-module/ review (only `shared/` is a live workspace member, `Cargo.toml:3`; `powrush-divine-module/` is parked at `Cargo.toml:14` with its `ra-thor-core` path-dep missing, and `engine/` has no Cargo.toml, so it is not a crate)
 - Update all design docs for v19.20 architecture
 - Final zero-placeholder + integrity sweep
 - Public MMOARPG beta preparation (Steam integration, trailer, press kit)
