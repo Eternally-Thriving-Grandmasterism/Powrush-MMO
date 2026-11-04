@@ -18,7 +18,6 @@ Low-leverage UI changes (cosmetic rearrangements, temporary polish, non-core lay
 - `client/src/inventory_ui.rs`
 - `client/src/my_mercy_journey_panel.rs`
 - `client/src/council_trial_ui.rs` / `council_ui.rs`
-- `client/settings_menu.rs` / `client/pause_menu.rs` (not in the client build graph on 1222a9fe; live wiring unverified)
 - `client/src/onboarding_ui.rs`
 - `simulation/src/hardware_sovereignty.rs` (the sovereign_hardware_ascension_ui)
 - Any egui panel that is already production-polished and wired to live data
