@@ -97,14 +97,34 @@ fn paint_body(
     lineage: Res<PlayerLineage>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     q: Query<&MeshMaterial3d<StandardMaterial>, With<HumanPresence>>,
+    roots: Query<Entity, With<HumanPresence>>,
+    children: Query<&Children>,
+    scene_mats: Query<&MeshMaterial3d<StandardMaterial>>,
 ) {
-    if !lineage.is_changed() {
-        return;
-    }
     let tint = lineage.current.tint();
-    for handle in &q {
-        if let Some(mut mat) = materials.get_mut(handle) {
-            mat.base_color = tint;
+    let lineage_changed = lineage.is_changed();
+    // Primitive lane: one shared root handle paints the whole stacked person.
+    if lineage_changed {
+        for handle in &q {
+            if let Some(mut mat) = materials.get_mut(handle) {
+                mat.base_color = tint;
+            }
+        }
+    }
+    // Authored lane: glTF body materials live on HumanPresence descendants and
+    // arrive asynchronously after spawn, so the first tint also lands when a
+    // scene material appears (base_color still not the lineage tint).
+    for root in &roots {
+        for desc in children.iter_descendants(root) {
+            let Ok(handle) = scene_mats.get(desc) else {
+                continue;
+            };
+            let Some(mut mat) = materials.get_mut(handle) else {
+                continue;
+            };
+            if lineage_changed || mat.base_color != tint {
+                mat.base_color = tint;
+            }
         }
     }
 }

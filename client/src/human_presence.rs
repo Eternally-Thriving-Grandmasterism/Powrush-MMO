@@ -105,6 +105,7 @@
 
 use std::collections::HashSet;
 use std::f32::consts::{FRAC_PI_2, PI};
+use std::time::Duration;
 
 use bevy::ecs::system::SystemParam;
 use bevy::input::mouse::{
@@ -223,6 +224,39 @@ pub const STRIDE_SPEED: f32 = 0.35;
 
 #[derive(Component)]
 pub struct HumanPresence;
+
+/// Medium/High authored UAL1 body root — no PersonPart children, so pose_person is empty.
+#[derive(Component)]
+struct AuthoredBodyRoot;
+
+/// Child that holds the UAL1 `WorldAssetRoot` scene (Bevy 0.20 SceneRoot rename).
+#[derive(Component)]
+struct AuthoredBodyScene;
+
+/// Pending UAL1 glTF handle while named clips are still loading.
+#[derive(Resource)]
+struct Ual1GltfHandle(Handle<Gltf>);
+
+/// AnimationGraph + the nine RA4 clip node indices for the authored body.
+#[derive(Resource)]
+struct Ual1Anim {
+    graph: Handle<AnimationGraph>,
+    nodes: [AnimationNodeIndex; 9],
+}
+
+/// Clip indices into [`Ual1Anim::nodes`] — order matches RA4 names.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Ual1Clip {
+    IdleLoop = 0,
+    WalkLoop = 1,
+    JogFwdLoop = 2,
+    SprintLoop = 3,
+    JumpStart = 4,
+    JumpLoop = 5,
+    JumpLand = 6,
+    CrouchIdleLoop = 7,
+    CrouchFwdLoop = 8,
+}
 
 /// Rig joints the pose systems drive. `f32` is the side: -1 left, +1 right.
 #[derive(Component, Clone, Copy, Debug)]
@@ -754,6 +788,11 @@ impl Plugin for HumanPresencePlugin {
                     )
                         .chain(),
                     pull_camera_from_walls.after(follow_camera),
+                    (
+                        setup_ual1_animation_graph,
+                        attach_ual1_animation_player,
+                        pick_ual1_clip,
+                    ),
                 ),
             )
             .add_systems(FixedUpdate, apply_locomotion);
@@ -764,6 +803,7 @@ fn spawn_human_presence(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    asset_server: Res<AssetServer>,
     existing: Query<Entity, With<HumanPresence>>,
     feel: Option<Res<LocalMeshLodFeel>>,
 ) {
@@ -777,6 +817,12 @@ fn spawn_human_presence(
         &plan,
         mesh_lod::optional_authored_glb_present(),
     );
+    // Medium/High + private UAL1 pack: authored skinned body. Low / no-file keep
+    // today's primitives below byte-for-byte. Lane is chosen once at Startup.
+    if mesh_lod::use_optional_glb(&plan, mesh_lod::optional_ual1_standard_glb_present()) {
+        spawn_authored_ual1_presence(&mut commands, &asset_server);
+        return;
+    }
     // One material family for every part, so the lineage tint still paints the
     // whole person from the root handle.
     let mat_plan = character_material_plan(preset);
@@ -1477,6 +1523,173 @@ fn pose_person(
         if let Some(mut mat) = materials.get_mut(handle) {
             mat.emissive = LinearRgba::from(SANCTUARY_GOLD) * glow;
         }
+    }
+}
+
+const UAL1_ASSET: &str =
+    "private/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb";
+
+const UAL1_CLIP_NAMES: [&str; 9] = [
+    "Idle_Loop",
+    "Walk_Loop",
+    "Jog_Fwd_Loop",
+    "Sprint_Loop",
+    "Jump_Start",
+    "Jump_Loop",
+    "Jump_Land",
+    "Crouch_Idle_Loop",
+    "Crouch_Fwd_Loop",
+];
+
+/// Spawn the UAL1 skinned body as a `WorldAssetRoot` child of HumanPresence.
+/// Bevy 0.20 renamed SceneRoot → WorldAssetRoot; Scene(0) of the same glb.
+fn spawn_authored_ual1_presence(commands: &mut Commands, asset_server: &AssetServer) {
+    let gltf_handle: Handle<Gltf> = asset_server.load(UAL1_ASSET);
+    commands.insert_resource(Ual1GltfHandle(gltf_handle));
+    commands
+        .spawn((
+            Transform::from_xyz(0.0, STAND, 0.0),
+            Visibility::default(),
+            HumanPresence,
+            AuthoredBodyRoot,
+            Name::new("HumanPresence"),
+        ))
+        .with_children(|root| {
+            // Feet sit at model origin; SoftPresence y is hip height (STAND).
+            root.spawn((
+                WorldAssetRoot(
+                    asset_server.load(GltfAssetLabel::Scene(0).from_asset(UAL1_ASSET)),
+                ),
+                Transform::from_xyz(0.0, -STAND, 0.0),
+                Visibility::default(),
+                AuthoredBodyScene,
+                Name::new("Ual1BodyScene"),
+            ));
+        });
+    info!(
+        target: "powrush::presence",
+        "authored UAL1 body on the climate plane — primitives lane skipped"
+    );
+}
+
+/// Build the nine-clip AnimationGraph once the UAL1 glTF named animations load.
+fn setup_ual1_animation_graph(
+    mut commands: Commands,
+    handle: Option<Res<Ual1GltfHandle>>,
+    gltfs: Res<Assets<Gltf>>,
+    mut graphs: ResMut<Assets<AnimationGraph>>,
+    existing: Option<Res<Ual1Anim>>,
+) {
+    if existing.is_some() {
+        return;
+    }
+    let Some(handle) = handle else {
+        return;
+    };
+    let Some(gltf) = gltfs.get(&handle.0) else {
+        return;
+    };
+    let mut clips = Vec::with_capacity(9);
+    for name in UAL1_CLIP_NAMES {
+        let Some(clip) = gltf.named_animations.get(name) else {
+            return;
+        };
+        clips.push(clip.clone());
+    }
+    let (graph, indices) = AnimationGraph::from_clips(clips);
+    let Ok(nodes) = <[AnimationNodeIndex; 9]>::try_from(indices) else {
+        return;
+    };
+    commands.insert_resource(Ual1Anim {
+        graph: graphs.add(graph),
+        nodes,
+    });
+}
+
+/// Attach the graph to the scene's AnimationPlayer once WorldAssetRoot has spawned it.
+fn attach_ual1_animation_player(
+    mut commands: Commands,
+    anim: Option<Res<Ual1Anim>>,
+    roots: Query<Entity, With<AuthoredBodyRoot>>,
+    children: Query<&Children>,
+    mut players: Query<(Entity, &mut AnimationPlayer), Without<AnimationGraphHandle>>,
+) {
+    let Some(anim) = anim else {
+        return;
+    };
+    for root in &roots {
+        for desc in children.iter_descendants(root) {
+            let Ok((entity, mut player)) = players.get_mut(desc) else {
+                continue;
+            };
+            let mut transitions = AnimationTransitions::new();
+            transitions
+                .play(&mut player, anim.nodes[Ual1Clip::IdleLoop as usize], Duration::ZERO)
+                .repeat();
+            commands
+                .entity(entity)
+                .insert(AnimationGraphHandle(anim.graph.clone()))
+                .insert(transitions);
+        }
+    }
+}
+
+/// Map today's pose_person inputs onto a UAL1 clip name index.
+/// Jump uses SoftPresence grounded / vertical velocity; crouch uses BodyTell
+/// Heavy/Winded (the same tell that drives crouch_drop in pose_person).
+fn ual1_clip_for_pose(speed: f32, grounded: bool, vel_y: f32, tell: BodyTell) -> Ual1Clip {
+    if !grounded {
+        if vel_y > 0.8 {
+            return Ual1Clip::JumpStart;
+        }
+        if vel_y < -1.2 {
+            return Ual1Clip::JumpLand;
+        }
+        return Ual1Clip::JumpLoop;
+    }
+    let crouched = matches!(tell, BodyTell::Heavy | BodyTell::Winded);
+    if crouched {
+        return if speed > STRIDE_SPEED {
+            Ual1Clip::CrouchFwdLoop
+        } else {
+            Ual1Clip::CrouchIdleLoop
+        };
+    }
+    if speed < STRIDE_SPEED {
+        Ual1Clip::IdleLoop
+    } else if speed < WALK * 0.85 {
+        Ual1Clip::WalkLoop
+    } else if speed < SPRINT * 0.92 {
+        Ual1Clip::JogFwdLoop
+    } else {
+        Ual1Clip::SprintLoop
+    }
+}
+
+/// Clip picker for the authored body — reads only SoftPresence / LivingBody tells
+/// that pose_person already consumes (:1437-1449 family).
+fn pick_ual1_clip(
+    presence: Res<SoftPresence>,
+    body: Option<Res<LivingBody>>,
+    anim: Option<Res<Ual1Anim>>,
+    mut players: Query<(&mut AnimationPlayer, &mut AnimationTransitions)>,
+    mut current: Local<Option<Ual1Clip>>,
+) {
+    let Some(anim) = anim else {
+        return;
+    };
+    let speed = Vec2::new(presence.velocity.x, presence.velocity.z).length();
+    let tell = body.as_ref().map(|b| b.tell()).unwrap_or_default();
+    let wanted = ual1_clip_for_pose(speed, presence.grounded, presence.velocity.y, tell);
+    if *current == Some(wanted) {
+        return;
+    }
+    *current = Some(wanted);
+    let node = anim.nodes[wanted as usize];
+    for (mut player, mut transitions) in &mut players {
+        transitions
+            .play(&mut player, node, Duration::from_millis(150))
+            .repeat();
     }
 }
 
@@ -2700,6 +2913,72 @@ mod tests {
             presence_dress_active(GraphicsPreset::High, mesh_lod::optional_authored_glb_present()),
             mesh_lod::lived_persona_dress_active(&mesh_lod::plan_for_preset(GraphicsPreset::High))
         );
+    }
+
+    #[test]
+    fn ual1_clip_picker_maps_pose_inputs() {
+        assert_eq!(
+            ual1_clip_for_pose(0.0, true, 0.0, BodyTell::Easy),
+            Ual1Clip::IdleLoop
+        );
+        assert_eq!(
+            ual1_clip_for_pose(1.0, true, 0.0, BodyTell::Easy),
+            Ual1Clip::WalkLoop
+        );
+        assert_eq!(
+            ual1_clip_for_pose(WALK, true, 0.0, BodyTell::Easy),
+            Ual1Clip::JogFwdLoop
+        );
+        assert_eq!(
+            ual1_clip_for_pose(SPRINT, true, 0.0, BodyTell::Easy),
+            Ual1Clip::SprintLoop
+        );
+        assert_eq!(
+            ual1_clip_for_pose(0.0, false, 2.0, BodyTell::Easy),
+            Ual1Clip::JumpStart
+        );
+        assert_eq!(
+            ual1_clip_for_pose(0.0, false, 0.0, BodyTell::Easy),
+            Ual1Clip::JumpLoop
+        );
+        assert_eq!(
+            ual1_clip_for_pose(0.0, false, -2.0, BodyTell::Easy),
+            Ual1Clip::JumpLand
+        );
+        assert_eq!(
+            ual1_clip_for_pose(0.0, true, 0.0, BodyTell::Heavy),
+            Ual1Clip::CrouchIdleLoop
+        );
+        assert_eq!(
+            ual1_clip_for_pose(1.0, true, 0.0, BodyTell::Winded),
+            Ual1Clip::CrouchFwdLoop
+        );
+    }
+
+    #[test]
+    fn ual1_absent_file_keeps_primitives_lane() {
+        let mid = mesh_lod::plan_for_preset(GraphicsPreset::Medium);
+        let high = mesh_lod::plan_for_preset(GraphicsPreset::High);
+        let low = mesh_lod::plan_for_preset(GraphicsPreset::Low);
+        // Explicit absent-file gate: authored lane stays off.
+        assert!(!mesh_lod::use_optional_glb(&mid, false));
+        assert!(!mesh_lod::use_optional_glb(&high, false));
+        assert!(!mesh_lod::use_optional_glb(&low, true));
+        // Low never takes the authored body even if the private file exists.
+        assert!(low.primitives_only);
+        assert!(!mesh_lod::lived_presence_uses_authored_glb(&low));
+        // When the private pack is missing on this machine, the AssetServer-root
+        // probe is false and Medium/High stay on today's primitives.
+        if !mesh_lod::optional_ual1_standard_glb_present() {
+            assert!(!mesh_lod::use_optional_glb(
+                &mid,
+                mesh_lod::optional_ual1_standard_glb_present()
+            ));
+            assert!(!mesh_lod::use_optional_glb(
+                &high,
+                mesh_lod::optional_ual1_standard_glb_present()
+            ));
+        }
     }
 
     #[test]
