@@ -1745,7 +1745,6 @@ fn apply_climate_look(
     };
     clear.0 = sky_for(Some(id), preset);
     ambient.color = look.ambient;
-    ambient.brightness = look.ambient_bright;
 
     for handle in &grounds {
         if let Some(mut mat) = materials.get_mut(handle) {
