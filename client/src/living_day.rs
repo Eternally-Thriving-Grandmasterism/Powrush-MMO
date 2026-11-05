@@ -44,8 +44,8 @@ impl Plugin for LivingDayPlugin {
             .add_systems(
                 Update,
                 turn_the_clock
-                    .after(FogWriteSet::PlaceBed)
-                    .before(FogWriteSet::AnswerBeat),
+                    .after(FogWriteSet::ClimateLook)
+                    .before(FogWriteSet::ClimateFeel),
             );
     }
 }
