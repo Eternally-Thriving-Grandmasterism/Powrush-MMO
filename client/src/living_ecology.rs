@@ -224,6 +224,7 @@ fn spawn_ecology(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut painted: ResMut<Assets<crate::painterly_shader::PainterlyMaterial>>,
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
     settings: Option<Res<crate::local_settings::LocalSettingsState>>,
     mut ramps: Option<ResMut<crate::painterly_mat::PainterlyRampMeshes>>,
@@ -295,7 +296,7 @@ fn spawn_ecology(
         perceptual_roughness: 0.9,
         ..default()
     });
-    let leaf = materials.add(crate::painterly_mat::painterly_material(
+    let leaf = painted.add(crate::painterly_mat::painterly_material(
         crate::painterly_mat::PainterlyRole::Foliage,
         YARD_LEAF,
         preset,
@@ -608,6 +609,7 @@ mod tests {
         app.add_plugins((MinimalPlugins, AssetPlugin::default()))
             .init_asset::<Mesh>()
             .init_asset::<StandardMaterial>()
+            .init_asset::<crate::painterly_shader::PainterlyMaterial>()
             .add_systems(Startup, spawn_ecology);
         app.finish();
         app.cleanup();
@@ -708,6 +710,7 @@ mod tests {
         app.add_plugins((MinimalPlugins, AssetPlugin::default()))
             .init_asset::<Mesh>()
             .init_asset::<StandardMaterial>()
+            .init_asset::<crate::painterly_shader::PainterlyMaterial>()
             .add_plugins((
                 LivingEcologyPlugin,
                 SkyBackdropPlugin,
@@ -719,7 +722,7 @@ mod tests {
         app.world_mut().run_schedule(Startup);
 
         let world = app.world_mut();
-        let mut q = world.query::<(
+        let mut plain = world.query::<(
             Entity,
             &MeshMaterial3d<StandardMaterial>,
             Option<&Mesh3d>,
@@ -727,19 +730,56 @@ mod tests {
             Option<&SkyBackdropPart>,
             Option<&Name>,
         )>();
-        let rows: Vec<_> = q
+        let plain_rows: Vec<_> = plain
             .iter(world)
             .map(|(e, m, mesh, eco, sky, name)| {
                 (
                     e,
-                    m.clone(),
-                    mesh.cloned(),
+                    m.0.id(),
+                    mesh.map(|mesh| mesh.0.id()),
                     eco.map(|p| p.kind),
                     sky.copied(),
                     name.map(|n| n.as_str().to_string()),
                 )
             })
             .collect();
+        let mut painted_q = world.query::<(
+            Entity,
+            &MeshMaterial3d<crate::painterly_shader::PainterlyMaterial>,
+            Option<&Mesh3d>,
+            Option<&EcologyProp>,
+            Option<&SkyBackdropPart>,
+            Option<&Name>,
+        )>();
+        let painted_rows: Vec<_> = painted_q
+            .iter(world)
+            .map(|(e, m, mesh, eco, sky, name)| {
+                (
+                    e,
+                    m.0.id(),
+                    mesh.map(|mesh| mesh.0.id()),
+                    eco.map(|p| p.kind),
+                    sky.copied(),
+                    name.map(|n| n.as_str().to_string()),
+                )
+            })
+            .collect();
+        let mut rows = Vec::new();
+        {
+            let mats = world.resource::<Assets<StandardMaterial>>();
+            for (e, mat, mesh, eco, sky, name) in plain_rows {
+                let color = mats.get(mat).expect("material").base_color;
+                rows.push((e, mat.untyped(), color, mesh, eco, sky, name));
+            }
+        }
+        {
+            let painted_mats =
+                world.resource::<Assets<crate::painterly_shader::PainterlyMaterial>>();
+            for (e, mat, mesh, eco, sky, name) in painted_rows {
+                let color = painted_mats.get(mat).expect("painted").base.base_color;
+                rows.push((e, mat.untyped(), color, mesh, eco, sky, name));
+            }
+        }
         // Rig = the player person (HumanPresence root and every descendant)
         // and the practice travelers (named roster).
         let mut rigs = std::collections::HashSet::new();
@@ -753,14 +793,13 @@ mod tests {
             }
         }
         let travelers = ["Mira", "Ko", "Ren"];
-        for (e, _, _, _, _, name) in &rows {
+        for (e, _, _, _, _, _, name) in &rows {
             if name.as_deref().is_some_and(|n| travelers.contains(&n)) {
                 rigs.insert(*e);
             }
         }
         assert!(rigs.len() > travelers.len(), "rigs found: {}", rigs.len());
 
-        let mats = world.resource::<Assets<StandardMaterial>>();
         let is_tree = |eco: &Option<PropKind>, sky: &Option<SkyBackdropPart>| {
             *eco == Some(PropKind::Tree)
                 || matches!(sky, Some(SkyBackdropPart::BeltFull | SkyBackdropPart::BeltLow))
@@ -776,32 +815,35 @@ mod tests {
         // Tree meshes and materials: every handle used by a tree entity.
         let tree_meshes: std::collections::HashSet<_> = rows
             .iter()
-            .filter(|r| is_tree(&r.3, &r.4))
-            .filter_map(|r| r.2.as_ref().map(|m| m.id()))
+            .filter(|r| is_tree(&r.4, &r.5))
+            .filter_map(|r| r.3)
             .collect();
         let tree_mats: std::collections::HashSet<_> = rows
             .iter()
-            .filter(|r| is_tree(&r.3, &r.4))
-            .map(|r| r.1.id())
+            .filter(|r| is_tree(&r.4, &r.5))
+            .map(|r| r.1)
             .collect();
         let mut tree_leaf = 0;
-        for (e, mat, mesh, eco, sky, name) in &rows {
-            let c = mats.get(mat).expect("material").base_color;
+        for (e, mat, color, mesh, eco, sky, name) in &rows {
             if rigs.contains(e) {
                 assert!(
-                    !is_leaf_or_green_skin(c) && !is_bark(c),
+                    !is_leaf_or_green_skin(*color) && !is_bark(*color),
                     "rig {name:?} wears leaf/bark/green-skin {:?}",
-                    c.to_srgba()
+                    color.to_srgba()
                 );
                 assert!(eco.is_none() && sky.is_none(), "rig {name:?} is tagged as dress");
             }
             let tree = is_tree(eco, sky);
-            if tree_tones.contains(&c.to_srgba()) || tree_mats.contains(&mat.id()) {
-                assert!(tree, "tree material off the trees on {name:?} {:?}", c.to_srgba());
+            if tree_tones.contains(&color.to_srgba()) || tree_mats.contains(mat) {
+                assert!(
+                    tree,
+                    "tree material off the trees on {name:?} {:?}",
+                    color.to_srgba()
+                );
                 tree_leaf += 1;
             }
             if let Some(m) = mesh {
-                if tree_meshes.contains(&m.id()) {
+                if tree_meshes.contains(m) {
                     assert!(tree, "tree mesh off the trees on {name:?}");
                 }
             }

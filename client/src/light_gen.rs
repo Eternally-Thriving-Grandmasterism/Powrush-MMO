@@ -104,9 +104,9 @@ struct LightGenAtlas {
     rock: Handle<Mesh>,
     bush: Handle<Mesh>,
     wood: Handle<StandardMaterial>,
-    leaf: Handle<StandardMaterial>,
+    leaf: Handle<crate::painterly_shader::PainterlyMaterial>,
     stone: Handle<StandardMaterial>,
-    bush_mat: Handle<StandardMaterial>,
+    bush_mat: Handle<crate::painterly_shader::PainterlyMaterial>,
 }
 
 pub struct LightGenPlugin;
@@ -173,6 +173,7 @@ fn ensure_atlas_when_light(
     atlas: Option<Res<LightGenAtlas>>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut painted: ResMut<Assets<crate::painterly_shader::PainterlyMaterial>>,
     settings: Option<Res<crate::local_settings::LocalSettingsState>>,
     mut ramps: Option<ResMut<crate::painterly_mat::PainterlyRampMeshes>>,
 ) {
@@ -183,6 +184,7 @@ fn ensure_atlas_when_light(
         &mut commands,
         &mut meshes,
         &mut materials,
+        &mut painted,
         settings.as_deref(),
         &mut ramps,
     );
@@ -192,6 +194,7 @@ fn insert_atlas(
     commands: &mut Commands,
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    painted: &mut Assets<crate::painterly_shader::PainterlyMaterial>,
     settings: Option<&crate::local_settings::LocalSettingsState>,
     ramps: &mut Option<ResMut<crate::painterly_mat::PainterlyRampMeshes>>,
 ) {
@@ -263,7 +266,7 @@ fn insert_atlas(
             perceptual_roughness: 0.92,
             ..default()
         }),
-        leaf: materials.add(crate::painterly_mat::painterly_material(
+        leaf: painted.add(crate::painterly_mat::painterly_material(
             crate::painterly_mat::PainterlyRole::Foliage,
             GEN_LEAF,
             preset,
@@ -273,7 +276,7 @@ fn insert_atlas(
             perceptual_roughness: 0.95,
             ..default()
         }),
-        bush_mat: materials.add(crate::painterly_mat::painterly_material(
+        bush_mat: painted.add(crate::painterly_mat::painterly_material(
             crate::painterly_mat::PainterlyRole::Foliage,
             GEN_BUSH,
             preset,
@@ -286,6 +289,7 @@ fn prepare_atlas(
     door: Res<LightGenDoor>,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut painted: ResMut<Assets<crate::painterly_shader::PainterlyMaterial>>,
     settings: Option<Res<crate::local_settings::LocalSettingsState>>,
     mut ramps: Option<ResMut<crate::painterly_mat::PainterlyRampMeshes>>,
 ) {
@@ -296,6 +300,7 @@ fn prepare_atlas(
         &mut commands,
         &mut meshes,
         &mut materials,
+        &mut painted,
         settings.as_deref(),
         &mut ramps,
     );
@@ -411,40 +416,56 @@ fn sync_scatter(
     };
     let spots = scatter_from_seed(seed);
     for spot in spots {
-        let (mesh, material, scale) = match spot.kind {
-            ScatterKind::Trunk => (
-                atlas.trunk.clone(),
-                atlas.wood.clone(),
-                Vec3::new(spot.scale, spot.scale, spot.scale),
-            ),
-            ScatterKind::Canopy => (
-                atlas.canopy.clone(),
-                atlas.leaf.clone(),
-                Vec3::splat(spot.scale),
-            ),
-            ScatterKind::Rock => (
-                atlas.rock.clone(),
-                atlas.stone.clone(),
-                Vec3::new(spot.scale * 1.3, spot.scale * 0.55, spot.scale * 1.1),
-            ),
-            ScatterKind::Bush => (
-                atlas.bush.clone(),
-                atlas.bush_mat.clone(),
-                Vec3::splat(spot.scale),
-            ),
+        let scale = match spot.kind {
+            ScatterKind::Trunk => Vec3::new(spot.scale, spot.scale, spot.scale),
+            ScatterKind::Rock => Vec3::new(spot.scale * 1.3, spot.scale * 0.55, spot.scale * 1.1),
+            ScatterKind::Canopy | ScatterKind::Bush => Vec3::splat(spot.scale),
         };
-        let mut entity = commands.spawn((
-            (
-                Mesh3d(mesh),
-                MeshMaterial3d(material),
-                Transform::from_xyz(spot.x, spot.y, spot.z)
-                    .with_scale(scale)
-                    .with_rotation(Quat::from_rotation_y(yaw_at(spot.x, spot.z))),
-            ),
-            LightGenProp,
-            HexScatter,
-            Name::new("LightGenProp"),
-        ));
+        let transform = Transform::from_xyz(spot.x, spot.y, spot.z)
+            .with_scale(scale)
+            .with_rotation(Quat::from_rotation_y(yaw_at(spot.x, spot.z)));
+        let mut entity = match spot.kind {
+            ScatterKind::Trunk => commands.spawn((
+                (
+                    Mesh3d(atlas.trunk.clone()),
+                    MeshMaterial3d(atlas.wood.clone()),
+                    transform,
+                ),
+                LightGenProp,
+                HexScatter,
+                Name::new("LightGenProp"),
+            )),
+            ScatterKind::Rock => commands.spawn((
+                (
+                    Mesh3d(atlas.rock.clone()),
+                    MeshMaterial3d(atlas.stone.clone()),
+                    transform,
+                ),
+                LightGenProp,
+                HexScatter,
+                Name::new("LightGenProp"),
+            )),
+            ScatterKind::Canopy => commands.spawn((
+                (
+                    Mesh3d(atlas.canopy.clone()),
+                    MeshMaterial3d(atlas.leaf.clone()),
+                    transform,
+                ),
+                LightGenProp,
+                HexScatter,
+                Name::new("LightGenProp"),
+            )),
+            ScatterKind::Bush => commands.spawn((
+                (
+                    Mesh3d(atlas.bush.clone()),
+                    MeshMaterial3d(atlas.bush_mat.clone()),
+                    transform,
+                ),
+                LightGenProp,
+                HexScatter,
+                Name::new("LightGenProp"),
+            )),
+        };
         // CARD VP-MAT-1 — canopy and bush only. Wood and stone stay earth.
         let authored = match spot.kind {
             ScatterKind::Canopy => Some([0.14, 0.40, 0.18]),
@@ -583,9 +604,17 @@ mod tests {
         mut commands: Commands,
         mut meshes: ResMut<Assets<Mesh>>,
         mut materials: ResMut<Assets<StandardMaterial>>,
+        mut painted: ResMut<Assets<crate::painterly_shader::PainterlyMaterial>>,
         mut ramps: Option<ResMut<crate::painterly_mat::PainterlyRampMeshes>>,
     ) {
-        insert_atlas(&mut commands, &mut meshes, &mut materials, None, &mut ramps);
+        insert_atlas(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut painted,
+            None,
+            &mut ramps,
+        );
     }
 
     fn atlas_build() -> App {
@@ -593,6 +622,7 @@ mod tests {
         app.add_plugins((MinimalPlugins, AssetPlugin::default()))
             .init_asset::<Mesh>()
             .init_asset::<StandardMaterial>()
+            .init_asset::<crate::painterly_shader::PainterlyMaterial>()
             .add_systems(Startup, build_atlas_for_test);
         app.finish();
         app.cleanup();

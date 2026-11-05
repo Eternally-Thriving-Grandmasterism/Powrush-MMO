@@ -61,6 +61,7 @@ pub mod local_human_sim;
 pub mod player_lineage;
 pub mod living_ecology;
 pub mod painterly_mat;
+pub mod painterly_shader;
 pub mod sky_backdrop;
 pub mod terrain;
 pub mod vegetation;
@@ -138,6 +139,7 @@ pub(crate) mod test_env {
 }
 
 pub use first_session_guidance::{FirstSessionGuidancePlugin, FirstSessionGuidance};
+pub use painterly_shader::{PainterlyExtension, PainterlyMaterial};
 pub use input::InputPlugin;
 pub use lived_hour_support::LivedHourEconomyPlugin;
 

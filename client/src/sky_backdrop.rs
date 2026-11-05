@@ -517,10 +517,19 @@ fn silhouette_material(c: [f32; 3]) -> StandardMaterial {
     }
 }
 
+enum BackdropShade {
+    Plain(StandardMaterial),
+    Painted(
+        crate::painterly_shader::PainterlyMaterial,
+        crate::painterly_mat::PainterlyMat,
+    ),
+}
+
 fn spawn_sky_backdrop(
     mut commands: Commands,
     meshes: Option<ResMut<Assets<Mesh>>>,
     materials: Option<ResMut<Assets<StandardMaterial>>>,
+    mut painted: Option<ResMut<Assets<crate::painterly_shader::PainterlyMaterial>>>,
     settings: Option<Res<LocalSettingsState>>,
     mut ramps: Option<ResMut<crate::painterly_mat::PainterlyRampMeshes>>,
 ) {
@@ -552,26 +561,32 @@ fn spawn_sky_backdrop(
         bevy::light::NotShadowCaster,
         bevy::light::NotShadowReceiver,
     ));
-    let mut spawn = |mesh: Mesh,
-                     mat: StandardMaterial,
-                     part: SkyBackdropPart,
-                     t: Transform,
-                     painted: Option<crate::painterly_mat::PainterlyMat>| {
-        let handle = meshes.add(mesh);
-        if let Some(painted) = painted {
-            crate::painterly_mat::remember_ramp(&mut ramps, &handle, painted.role);
-            commands.spawn((
-                (Mesh3d(handle), MeshMaterial3d(materials.add(mat)), t),
-                part,
-                Name::new("VP-SKY-1 backdrop"),
-                painted,
-            ));
-        } else {
-            commands.spawn((
-                (Mesh3d(handle), MeshMaterial3d(materials.add(mat)), t),
-                part,
-                Name::new("VP-SKY-1 backdrop"),
-            ));
+    let mut spawn = |mesh: Mesh, mat: BackdropShade, part: SkyBackdropPart, t: Transform| {
+        match mat {
+            BackdropShade::Plain(material) => {
+                commands.spawn((
+                    (
+                        Mesh3d(meshes.add(mesh)),
+                        MeshMaterial3d(materials.add(material)),
+                        t,
+                    ),
+                    part,
+                    Name::new("VP-SKY-1 backdrop"),
+                ));
+            }
+            BackdropShade::Painted(material, mark) => {
+                let Some(painted) = painted.as_mut() else {
+                    return;
+                };
+                let handle = meshes.add(mesh);
+                crate::painterly_mat::remember_ramp(&mut ramps, &handle, mark.role);
+                commands.spawn((
+                    (Mesh3d(handle), MeshMaterial3d(painted.add(material)), t),
+                    part,
+                    Name::new("VP-SKY-1 backdrop"),
+                    mark,
+                ));
+            }
         }
     };
     // CARD VP-MAT-1 — valley earth hue stays. Bark stays. Foliage, ridge,
@@ -580,10 +595,9 @@ fn spawn_sky_backdrop(
     // (the court is GROUND_Y). Segments follow the preset.
     spawn(
         crate::terrain::terrace_mesh(crate::terrain::terrain_plan(preset)),
-        lit(VALLEY_EARTH, 0.95),
+        BackdropShade::Plain(lit(VALLEY_EARTH, 0.95)),
         SkyBackdropPart::Ground,
         Transform::IDENTITY,
-        None,
     );
     let (rock, snow) = ridge_meshes();
     if let Some(mut m) = rock {
@@ -596,17 +610,19 @@ fn spawn_sky_backdrop(
         );
         spawn(
             m,
-            crate::painterly_mat::painterly_material(
-                crate::painterly_mat::PainterlyRole::SkyStone,
-                RIDGE_ROCK,
-                preset,
+            BackdropShade::Painted(
+                crate::painterly_mat::painterly_material(
+                    crate::painterly_mat::PainterlyRole::SkyStone,
+                    RIDGE_ROCK,
+                    preset,
+                ),
+                crate::painterly_mat::PainterlyMat {
+                    role: crate::painterly_mat::PainterlyRole::SkyStone,
+                    authored: RIDGE_ROCK,
+                },
             ),
             SkyBackdropPart::Ridge,
             Transform::IDENTITY,
-            Some(crate::painterly_mat::PainterlyMat {
-                role: crate::painterly_mat::PainterlyRole::SkyStone,
-                authored: RIDGE_ROCK,
-            }),
         );
     }
     if let Some(mut m) = snow {
@@ -619,17 +635,19 @@ fn spawn_sky_backdrop(
         );
         spawn(
             m,
-            crate::painterly_mat::painterly_material(
-                crate::painterly_mat::PainterlyRole::Snow,
-                RIDGE_SNOW,
-                preset,
+            BackdropShade::Painted(
+                crate::painterly_mat::painterly_material(
+                    crate::painterly_mat::PainterlyRole::Snow,
+                    RIDGE_SNOW,
+                    preset,
+                ),
+                crate::painterly_mat::PainterlyMat {
+                    role: crate::painterly_mat::PainterlyRole::Snow,
+                    authored: RIDGE_SNOW,
+                },
             ),
             SkyBackdropPart::Ridge,
             Transform::IDENTITY,
-            Some(crate::painterly_mat::PainterlyMat {
-                role: crate::painterly_mat::PainterlyRole::Snow,
-                authored: RIDGE_SNOW,
-            }),
         );
     }
     for (count, part) in [
@@ -638,7 +656,12 @@ fn spawn_sky_backdrop(
     ] {
         let (bark, needle) = belt_meshes(count);
         if let Some(m) = bark {
-            spawn(m, lit(CONIFER_BARK, 0.9), part, Transform::IDENTITY, None);
+            spawn(
+                m,
+                BackdropShade::Plain(lit(CONIFER_BARK, 0.9)),
+                part,
+                Transform::IDENTITY,
+            );
         }
         if let Some(mut m) = needle {
             crate::painterly_mat::paint_height_ramp(
@@ -650,17 +673,19 @@ fn spawn_sky_backdrop(
             );
             spawn(
                 m,
-                crate::painterly_mat::painterly_material(
-                    crate::painterly_mat::PainterlyRole::Foliage,
-                    CONIFER_NEEDLE,
-                    preset,
+                BackdropShade::Painted(
+                    crate::painterly_mat::painterly_material(
+                        crate::painterly_mat::PainterlyRole::Foliage,
+                        CONIFER_NEEDLE,
+                        preset,
+                    ),
+                    crate::painterly_mat::PainterlyMat {
+                        role: crate::painterly_mat::PainterlyRole::Foliage,
+                        authored: CONIFER_NEEDLE,
+                    },
                 ),
                 part,
                 Transform::IDENTITY,
-                Some(crate::painterly_mat::PainterlyMat {
-                    role: crate::painterly_mat::PainterlyRole::Foliage,
-                    authored: CONIFER_NEEDLE,
-                }),
             );
         }
     }
@@ -1025,6 +1050,7 @@ mod tests {
         app.add_plugins((MinimalPlugins, AssetPlugin::default()))
             .init_asset::<Mesh>()
             .init_asset::<StandardMaterial>()
+            .init_asset::<crate::painterly_shader::PainterlyMaterial>()
             // bevy_render reorganization: Mesh3d no longer `#[require(Visibility)]`.
             // VisibilityPlugin registers that requirement (and the visibility-class hook).
             // SystemParam validation now errors inside the system instead of
@@ -1047,24 +1073,59 @@ mod tests {
         })
         .count_vertices();
         let world = app.world_mut();
-        let mut q = world.query::<(
+        let mut plain = world.query::<(
             &SkyBackdropPart,
             &Visibility,
             &Mesh3d,
             &MeshMaterial3d<StandardMaterial>,
         )>();
-        let rows: Vec<_> = q
+        let plain_rows: Vec<_> = plain
             .iter(world)
             .filter(|(_, v, _, _)| **v != Visibility::Hidden)
-            .map(|(p, _, m, mat)| (*p, m.clone(), mat.clone()))
+            .map(|(p, _, m, mat)| (*p, m.0.clone(), mat.0.clone()))
             .collect();
+        let mut painted_q = world.query::<(
+            &SkyBackdropPart,
+            &Visibility,
+            &Mesh3d,
+            &MeshMaterial3d<crate::painterly_shader::PainterlyMaterial>,
+        )>();
+        let painted_rows: Vec<_> = painted_q
+            .iter(world)
+            .filter(|(_, v, _, _)| **v != Visibility::Hidden)
+            .map(|(p, _, m, mat)| (*p, m.0.clone(), mat.0.clone()))
+            .collect();
+        let mut rows = Vec::new();
+        {
+            let mats = world.resource::<Assets<StandardMaterial>>();
+            for (part, mesh, mat) in &plain_rows {
+                let material = mats.get(mat).unwrap();
+                rows.push((
+                    *part,
+                    mesh.clone(),
+                    material.base_color,
+                    material.perceptual_roughness,
+                ));
+            }
+        }
+        {
+            let painted_mats =
+                world.resource::<Assets<crate::painterly_shader::PainterlyMaterial>>();
+            for (part, mesh, mat) in &painted_rows {
+                let material = painted_mats.get(mat).unwrap();
+                rows.push((
+                    *part,
+                    mesh.clone(),
+                    material.base.base_color,
+                    material.base.perceptual_roughness,
+                ));
+            }
+        }
         let meshes = world.resource::<Assets<Mesh>>();
-        let mats = world.resource::<Assets<StandardMaterial>>();
         let mut conifers = 0;
         let mut ridge = false;
-        for (part, mesh, mat) in &rows {
-            let material = mats.get(mat).unwrap();
-            let c = material.base_color.to_srgba();
+        for (part, mesh, color, roughness) in &rows {
+            let c = color.to_srgba();
             let earth = Color::srgb(VALLEY_EARTH[0], VALLEY_EARTH[1], VALLEY_EARTH[2]).to_srgba();
             let bark = Color::srgb(CONIFER_BARK[0], CONIFER_BARK[1], CONIFER_BARK[2]).to_srgba();
             let snow = Color::srgb(RIDGE_SNOW[0], RIDGE_SNOW[1], RIDGE_SNOW[2]).to_srgba();
@@ -1080,7 +1141,7 @@ mod tests {
             let rock = Color::srgb(rock_rgb[0], rock_rgb[1], rock_rgb[2]).to_srgba();
             if *part == SkyBackdropPart::Ground {
                 assert_eq!(c, earth, "VP-MAT-1 leaves valley earth");
-                assert_eq!(material.perceptual_roughness, 0.95);
+                assert_eq!(*roughness, 0.95);
                 let verts = meshes.get(mesh).unwrap().count_vertices();
                 assert_eq!(
                     verts,
@@ -1224,6 +1285,7 @@ mod tests {
         app.add_plugins((MinimalPlugins, AssetPlugin::default()))
             .init_asset::<Mesh>()
             .init_asset::<StandardMaterial>()
+            .init_asset::<crate::painterly_shader::PainterlyMaterial>()
             // bevy_render reorganization: Mesh3d no longer `#[require(Visibility)]`.
             // VisibilityPlugin registers that requirement (and the visibility-class hook).
             // SystemParam validation now errors inside the system instead of
@@ -1325,6 +1387,7 @@ mod tests {
             GraphicsPreset::Low,
         )))
         .insert_resource(SkyProbe::new())
+        .add_plugins(crate::painterly_mat::PainterlyPlugin)
         .add_plugins(SkyBackdropPlugin)
         .add_systems(Update, drive_sky_probe);
 
