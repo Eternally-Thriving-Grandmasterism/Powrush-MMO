@@ -6,12 +6,12 @@ Not live at the tip (planned): the Sovereign Simulation Harness and its Leptos U
 
 ## Completed in v17.99.25
 
-- `client/Cargo.toml` updated with optional `steamworks = "0.11"` dependency and `steamworks` feature flag.
-- New `client/src/steamworks_integration.rs` — full production-grade `SteamworksIntegrationPlugin` with:
-  - Safe `SteamworksClient` resource initialization (graceful fallback if Steam not running).
-  - Mercy-gated achievement unlock system wired to archetype evolution milestones and RBE abundance events (TOLC 8 non-bypassable Layer 0).
-  - Placeholder hooks for Big Picture / Steam Deck overlay notifications and rich presence.
-- All code follows PERFECTION_PHILOSOPHY.md and integrates cleanly with existing RbeClientSyncPlugin and divine_whispers_ui.
+- `client/Cargo.toml` has an optional `steamworks = "0.11"` dependency behind a feature named `steam`, off by default (`default = []`).
+- `client/src/steamworks_integration.rs` (`SteamworksIntegrationPlugin`): not wired (planned): it has no `mod` line in `client/src/lib.rs`, and its Steam calls are gated on `cfg(feature = "steamworks")`, a feature `client/Cargo.toml` does not define.
+  - `SteamworksClient` resource: declared, not compiled.
+  - Achievement unlocks: not wired (planned): `unlock_if_ready` only logs, its one call passes `true`, and the `achievements().set` line is a comment; no archetype or RBE event is read.
+  - Big Picture / Steam Deck overlay and rich presence: not wired (planned): the `set_rich_presence` call is a comment.
+- `RbeClientSyncPlugin` is defined nowhere (its only use is the uncompiled `client/src/bevy_ecs_scheduling.rs`), and `client/divine_whispers_ui.rs` sits outside `client/src` with no `mod` line.
 
 ## Immediate Next Actions (Sequential, Protocol-Bound)
 
