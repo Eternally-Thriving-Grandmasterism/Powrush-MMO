@@ -65,6 +65,15 @@ WoW / SC2 lesson = **readable beauty that holds on weak hardware**, not Ultra ci
 
 Exact triangle / draw-call numbers stay **blank** for a later Core / Hands measurement CARD. **Do not invent fake metrics.**
 
+### Frame pace (VIS-PERF-1)
+
+| Target | p50 frame time | p95 frame time |
+|---|---|---|
+| Medium (default) · 1080p | not measured | not measured |
+| Steam Deck | unmeasured | unmeasured |
+
+Run a release build with `cargo run --release -p powrush-client` and read the once-per-second `frame_pace:` log line (`p50_ms<=` / `p95_ms<=`). Caveat: that line is vsync-capped at the default 1280×800 window, so it is not a Medium 1080p measurement.
+
 Delivery spirit (law, not PATHS): modern methods for optimal delivery — LOD and Comfort scaling already named; no binary pack in this tree this tick.
 
 ---
