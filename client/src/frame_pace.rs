@@ -23,6 +23,8 @@ pub struct FramePace {
     pub frames: u32,
     pub over_budget: u32,
     pub hitches: u32,
+    /// Frame-time histogram: bucket i holds frames of [i, i+1) ms; bucket 31 holds 31 ms and over.
+    pub frame_ms: [u32; 32],
 }
 
 impl FramePace {
@@ -40,6 +42,7 @@ impl FramePace {
         if over_line(dt, HITCH_SECS) {
             self.hitches += 1;
         }
+        self.frame_ms[((dt * 1000.0).floor() as usize).min(31)] += 1;
         if self.elapsed < roll_secs {
             return None;
         }
@@ -60,9 +63,25 @@ impl Plugin for FramePacePlugin {
 fn frame_pace_system(time: Res<Time<Real>>, mut pace: ResMut<FramePace>) {
     let roll_secs = LogDiagnosticsPlugin::default().wait_duration.as_secs_f64();
     if let Some(c) = pace.tick(time.delta_secs_f64(), roll_secs) {
+        // p50 / p95 as the upper ms edge of the first bucket reaching that share of frames.
+        let (mut seen, mut p50, mut p95) = (0u32, None, None);
+        for (i, n) in c.frame_ms.iter().enumerate() {
+            seen += n;
+            if p50.is_none() && seen * 2 >= c.frames {
+                p50 = Some(i);
+            }
+            if p95.is_none() && seen * 20 >= c.frames * 19 {
+                p95 = Some(i);
+            }
+        }
+        let edge = |i: usize| if i == 31 { "31+".to_string() } else { (i + 1).to_string() };
         info!(
-            "frame_pace: frames={} over_budget={} hitches={}",
-            c.frames, c.over_budget, c.hitches
+            "frame_pace: frames={} over_budget={} hitches={} p50_ms<={} p95_ms<={}",
+            c.frames,
+            c.over_budget,
+            c.hitches,
+            edge(p50.unwrap_or(31)),
+            edge(p95.unwrap_or(31))
         );
     }
 }
@@ -121,5 +140,33 @@ mod tests {
         let mut p = FramePace::default();
         assert_eq!(p.tick(0.0, ROLL), None);
         assert_eq!(p, FramePace::default());
+    }
+
+    #[test]
+    fn frame_ms_buckets_known_deltas_and_overflow() {
+        let mut p = FramePace::default();
+        for _ in 0..19 {
+            p.tick(0.0165, ROLL);
+        }
+        p.tick(0.0405, ROLL);
+        p.tick(0.5, ROLL);
+        assert_eq!(p.frame_ms[16], 19);
+        assert_eq!(p.frame_ms[31], 2);
+        assert_eq!(p.frame_ms.iter().sum::<u32>(), p.frames);
+    }
+
+    #[test]
+    fn frame_ms_buckets_clear_on_roll() {
+        let mut p = FramePace::default();
+        let mut rolled = None;
+        for _ in 0..200 {
+            if let Some(c) = p.tick(0.0055, ROLL) {
+                rolled = Some(c);
+                break;
+            }
+        }
+        let c = rolled.expect("rolls within 1 s of frames");
+        assert_eq!(c.frame_ms[5], c.frames);
+        assert_eq!(p.frame_ms, [0; 32]);
     }
 }
