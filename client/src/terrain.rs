@@ -136,6 +136,24 @@ pub fn terrace_mesh(plan: TerrainPlan) -> Mesh {
     let court_y = SHELF_Y[0];
     let court_r = SHELF_OUTER[0];
     let center = [0.0, court_y, 0.0];
+    // CARD VIS-TERRAIN-1 — seeded radial wobble on rings 165 and 250 only.
+    // Keyed on (ring index, i % n): the riser and tread sharing a ring get the
+    // same radius (watertight) and index n reuses index 0 (the rim closes).
+    // Rings 42, 70, 110 and 860 stay exact so seated props keep their step.
+    let wobble = |ring_ix: usize, radius: f32, i: u32| -> f32 {
+        if ring_ix != 3 && ring_ix != 4 {
+            return radius;
+        }
+        let mut h = (ring_ix as u32).wrapping_mul(0x9E37_79B9) ^ (i % n).wrapping_mul(0x85EB_CA6B);
+        h ^= h >> 15;
+        h = h.wrapping_mul(0x2C1B_3C6D);
+        h ^= h >> 12;
+        h = h.wrapping_mul(0x297A_2D39);
+        h ^= h >> 15;
+        let unit = (h as f32 / u32::MAX as f32) * 2.0 - 1.0;
+        // Amplitude 0.02: at most ±2% of the ring radius.
+        radius * (1.0 + 0.02 * unit)
+    };
     for i in 0..n {
         // Decreasing angle so the face points up (Y-up, right-handed).
         push_tri(
@@ -151,16 +169,16 @@ pub fn terrace_mesh(plan: TerrainPlan) -> Mesh {
         let y_top = SHELF_Y[shelf - 1];
         let y = SHELF_Y[shelf];
         for i in 0..n {
-            let b0 = ring(inner_r, y, i, n);
-            let b1 = ring(inner_r, y, i + 1, n);
-            let t0 = ring(inner_r, y_top, i, n);
-            let t1 = ring(inner_r, y_top, i + 1, n);
+            let b0 = ring(wobble(shelf - 1, inner_r, i), y, i, n);
+            let b1 = ring(wobble(shelf - 1, inner_r, i + 1), y, i + 1, n);
+            let t0 = ring(wobble(shelf - 1, inner_r, i), y_top, i, n);
+            let t1 = ring(wobble(shelf - 1, inner_r, i + 1), y_top, i + 1, n);
             push_tri(&mut positions, b0, t0, t1);
             push_tri(&mut positions, b0, t1, b1);
-            let i0 = ring(inner_r, y, i, n);
-            let i1 = ring(inner_r, y, i + 1, n);
-            let o0 = ring(outer_r, y, i, n);
-            let o1 = ring(outer_r, y, i + 1, n);
+            let i0 = ring(wobble(shelf - 1, inner_r, i), y, i, n);
+            let i1 = ring(wobble(shelf - 1, inner_r, i + 1), y, i + 1, n);
+            let o0 = ring(wobble(shelf, outer_r, i), y, i, n);
+            let o1 = ring(wobble(shelf, outer_r, i + 1), y, i + 1, n);
             push_tri(&mut positions, i0, o1, o0);
             push_tri(&mut positions, i0, i1, o1);
         }
@@ -374,5 +392,47 @@ mod tests {
             }
         }
         assert!(saw_court_center);
+    }
+
+    #[test]
+    fn terrace_wobble_is_deterministic() {
+        for preset in [GraphicsPreset::Medium, GraphicsPreset::Ultra] {
+            let plan = terrain_plan(preset);
+            assert_eq!(
+                positions(&terrace_mesh(plan)),
+                positions(&terrace_mesh(plan)),
+                "{preset:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn terrace_wobble_only_on_rings_165_and_250() {
+        for preset in [GraphicsPreset::Mobile, GraphicsPreset::Medium, GraphicsPreset::Ultra] {
+            let plan = terrain_plan(preset);
+            let n = plan.segments;
+            let pos = positions(&terrace_mesh(plan));
+            for (shelf, &r) in SHELF_OUTER.iter().enumerate() {
+                if shelf == 3 || shelf == 4 {
+                    let mut moved = false;
+                    for p in &pos {
+                        let pr = (p[0] * p[0] + p[2] * p[2]).sqrt();
+                        if (pr / r - 1.0).abs() < 0.03 {
+                            assert!(
+                                (pr / r - 1.0).abs() <= 0.02 + 1.0e-4,
+                                "{preset:?} r {r}: {pr}"
+                            );
+                            moved |= (pr - r).abs() > 1.0e-3;
+                        }
+                    }
+                    assert!(moved, "{preset:?} ring {r} never wobbles");
+                } else {
+                    for i in 0..n {
+                        let exact = ring(r, SHELF_Y[shelf], i, n);
+                        assert!(pos.contains(&exact), "{preset:?} ring {r} index {i} moved");
+                    }
+                }
+            }
+        }
     }
 }
