@@ -202,7 +202,8 @@ pub fn backdrop_plan(realm: Option<u8>, preset: GraphicsPreset) -> BackdropPlan 
 pub fn silhouette_band_srgb(index: usize) -> [f32; 3] {
     let last = (SILHOUETTE_BAND_COUNT - 1) as f32;
     let t = (index.min(SILHOUETTE_BAND_COUNT - 1) as f32) / last;
-    [0.22 + 0.30 * t, 0.30 + 0.34 * t, 0.44 + 0.36 * t]
+    // VIS-SKY-3 — same depth order, nearer AERIAL_HAZE_SRGB.
+    [0.32 + 0.32 * t, 0.48 + 0.30 * t, 0.53 + 0.36 * t]
 }
 
 fn band_ridge_height(index: usize, angle: f32, peak: f32) -> f32 {
@@ -306,7 +307,15 @@ pub fn dome_color_at(h: f32) -> [f32; 3] {
         ]
     };
     if h >= 0.0 {
-        lerp(SKY_HORIZON, SKY_ZENITH, sky_climb(h.min(1.0)))
+        // VIS-SKY-3 — one painted stop between horizon and zenith.
+        let mid = [0.63, 0.74, 0.87];
+        let climb = sky_climb(h.min(1.0));
+        let (from, to, t) = if climb < 0.5 {
+            (SKY_HORIZON, mid, climb * 2.0)
+        } else {
+            (mid, SKY_ZENITH, (climb - 0.5) * 2.0)
+        };
+        lerp(from, to, t)
     } else {
         lerp(SKY_HORIZON, SKY_BELOW, -h)
     }
@@ -845,6 +854,53 @@ mod tests {
             );
             assert!(luminance(far) > luminance(near));
             assert!(haze_distance(far) < haze_distance(near));
+        }
+    }
+
+    /// CARD VIS-SKY-3 — the stop at sky_climb ~0.5 lies between the horizon
+    /// and the zenith in hue, and warmth does not rise along the climb.
+    #[test]
+    fn mid_stop_lies_between_horizon_and_zenith_in_hue() {
+        let hor = dome_color_at(0.0);
+        let zen = dome_color_at(1.0);
+        let mid_h = 0.25;
+        assert!(
+            (sky_climb(mid_h) - 0.5).abs() < 1.0e-4,
+            "sample is the mid stop, climb {}",
+            sky_climb(mid_h)
+        );
+        let mid = dome_color_at(mid_h);
+        let hue = |c: [f32; 3]| -> f32 {
+            let (r, g, b) = (c[0], c[1], c[2]);
+            let max = r.max(g).max(b);
+            let d = max - r.min(g).min(b);
+            if d <= 1.0e-6 {
+                return 0.0;
+            }
+            let h = if (max - r).abs() <= 1.0e-6 {
+                (g - b) / d
+            } else if (max - g).abs() <= 1.0e-6 {
+                (b - r) / d + 2.0
+            } else {
+                (r - g) / d + 4.0
+            };
+            let h = if h < 0.0 { h + 6.0 } else { h };
+            h * 60.0
+        };
+        let hh = hue(hor);
+        let hm = hue(mid);
+        let hz = hue(zen);
+        assert!(
+            hh < hm && hm < hz,
+            "hue not between horizon {hh} mid {hm} zenith {hz}"
+        );
+        assert!(warmth(hor) > warmth(mid) && warmth(mid) > warmth(zen));
+        let mut prev = warmth(hor);
+        for i in 1..=16 {
+            let c = dome_color_at(i as f32 / 16.0);
+            let w = warmth(c);
+            assert!(w <= prev + 1.0e-4, "warmth rose at step {i}: {c:?}");
+            prev = w;
         }
     }
 
