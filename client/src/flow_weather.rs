@@ -21,7 +21,7 @@ use bevy::prelude::*;
 use shared::local_settings::WeatherFidelity;
 
 use crate::climate_plane::{
-    place_mood_for, PlaceMood, WeatherBandCoupling, WeatherBandKind,
+    place_mood_for, FogWriteSet, PlaceMood, WeatherBandCoupling, WeatherBandKind,
 };
 use crate::first_harvest_epiphany::FirstHarvestEpiphany;
 use crate::human_presence::SoftPresence;
@@ -166,7 +166,7 @@ impl Plugin for FlowWeatherPlugin {
                 (
                     read_band,
                     maybe_awe,
-                    apply_awe_light,
+                    apply_awe_light.after(FogWriteSet::ArrivalBeat),
                     drop_beads,
                     fade_beads,
                     ride_nectar,

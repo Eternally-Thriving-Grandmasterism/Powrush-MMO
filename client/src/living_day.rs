@@ -9,6 +9,7 @@
 
 use bevy::prelude::*;
 
+use crate::climate_plane::FogWriteSet;
 use crate::living_practice_loop::SoftPlayerRealm;
 
 const DAY_SECS: f32 = 240.0;
@@ -40,7 +41,12 @@ pub struct LivingDayPlugin;
 impl Plugin for LivingDayPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LivingDay>()
-            .add_systems(Update, turn_the_clock);
+            .add_systems(
+                Update,
+                turn_the_clock
+                    .after(FogWriteSet::PlaceBed)
+                    .before(FogWriteSet::AnswerBeat),
+            );
     }
 }
 
