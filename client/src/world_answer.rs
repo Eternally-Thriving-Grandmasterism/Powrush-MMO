@@ -194,7 +194,9 @@ fn paint_world_answer(
         0.0
     };
     let extra = answer.warmth * fade;
-    ambient.brightness = 280.0 + extra * 220.0;
+    if live {
+        ambient.brightness = 280.0 + extra * 220.0;
+    }
 
     for mut fog in &mut fogs {
         if live && matches!(answer.kind, AnswerKind::Flow) {
@@ -228,6 +230,44 @@ fn paint_world_answer(
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::living_day::{ambient_light_factor, LivingDay, LivingDayPlugin};
+    use crate::living_practice_loop::SoftPlayerRealm;
+    use bevy::time::TimeUpdateStrategy;
+    use std::time::Duration;
+
+    fn light_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
+        configure_fog_write_sets(&mut app);
+        app.init_resource::<SoftPlayerRealm>();
+        app.init_resource::<GlobalAmbientLight>();
+        app.init_resource::<WorldAnswer>();
+        app.add_plugins(LivingDayPlugin);
+        app.add_systems(Update, paint_world_answer.in_set(FogWriteSet::AnswerBeat));
+        app
+    }
+
+    #[test]
+    fn idle_answer_leaves_the_day_clock_brightness() {
+        let mut app = light_app();
+        app.update();
+        let phase = app.world().resource::<LivingDay>().phase;
+        let want = 90.0 + 200.0 * ambient_light_factor(phase, false);
+        let brightness = app.world().resource::<GlobalAmbientLight>().brightness;
+        assert!((brightness - want).abs() < 1e-3, "{brightness} vs {want}");
+    }
+
+    #[test]
+    fn live_answer_overrides_the_day_clock_brightness() {
+        let mut app = light_app();
+        app.world_mut()
+            .resource_mut::<WorldAnswer>()
+            .fire(AnswerKind::Flow, 0.0, "");
+        app.update();
+        let brightness = app.world().resource::<GlobalAmbientLight>().brightness;
+        assert!((brightness - 467.0).abs() < 1e-3, "{brightness}");
+    }
 
     #[test]
     fn reserve_confirm_is_a_bank_not_zero_spend() {
