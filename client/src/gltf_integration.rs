@@ -131,6 +131,26 @@ pub fn optional_authored_glb_present_in(dir: &std::path::Path) -> bool {
     })
 }
 
+/// Presence of the UAL1 Standard body under the AssetServer root
+/// (`assets/`), resolved the same way Bevy's default `FileAssetReader`
+/// does: `BEVY_ASSET_ROOT`, else `CARGO_MANIFEST_DIR`, else the
+/// executable directory, then `assets/`. Pack path is private pin :28 only.
+pub fn optional_ual1_standard_glb_present() -> bool {
+    let base = if let Ok(root) = std::env::var("BEVY_ASSET_ROOT") {
+        std::path::PathBuf::from(root)
+    } else if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
+        std::path::PathBuf::from(manifest)
+    } else {
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+    };
+    base.join("assets")
+        .join("private/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb")
+        .is_file()
+}
+
 /// High PersonaCommit dress for lived presence — only when the plan asks
 /// **and** an authored glb already exists. Never dumps a binary.
 pub fn lived_persona_dress_active(plan: &MeshLodPlan) -> bool {
