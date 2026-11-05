@@ -43,6 +43,14 @@ jobs:
           if bash scripts/check_asset_licenses.sh "$t"; then echo "self-test: unlisted .glb passed"; exit 1; fi
           echo assets/models/x.glb,self,CC0,ci,https://example.com >> "$t/assets/asset-licenses.csv"
           bash scripts/check_asset_licenses.sh "$t"
+          echo test > "$t/assets/models/y.glb"; echo assets/models/y.glb,self,CC-BY-4.0,ci,https://example.com >> "$t/assets/asset-licenses.csv"
+          if bash scripts/check_asset_licenses.sh "$t"; then echo "self-test: CC-BY .glb passed"; exit 1; fi
+          bash scripts/check_asset_licenses.sh --private "$t"
+          p="$t/client/assets/private"; mkdir -p "$p/models/pack-a"; echo test > "$p/models/pack-a/m.glb"
+          printf "| path | licence | cost | notes |\n| --- | --- | --- | --- |\n" > "$p/LICENCES.md"
+          if bash scripts/check_asset_licenses.sh --private "$t"; then echo "self-test: unlisted private pack passed"; exit 1; fi
+          echo "| \`models/pack-a\` | CC0 1.0 | \$0 | pending Sherif approval |" >> "$p/LICENCES.md"
+          if bash scripts/check_asset_licenses.sh --private "$t"; then echo "self-test: pending private pack passed"; exit 1; fi
 
       - name: Core tests (shared + identity)
         run: cargo test -p shared -p rsil-identity
