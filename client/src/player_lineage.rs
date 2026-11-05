@@ -97,7 +97,7 @@ fn paint_body(
     lineage: Res<PlayerLineage>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     q: Query<&MeshMaterial3d<StandardMaterial>, With<HumanPresence>>,
-    roots: Query<Entity, With<HumanPresence>>,
+    roots: Query<Entity, (With<HumanPresence>, Without<Mesh3d>)>,
     children: Query<&Children>,
     scene_mats: Query<&MeshMaterial3d<StandardMaterial>>,
 ) {
@@ -113,7 +113,8 @@ fn paint_body(
     }
     // Authored lane: glTF body materials live on HumanPresence descendants and
     // arrive asynchronously after spawn, so the first tint also lands when a
-    // scene material appears (base_color still not the lineage tint).
+    // scene material appears (base_color still not the lineage tint). The
+    // primitive root carries Mesh3d, so its gold accent child is never walked.
     for root in &roots {
         for desc in children.iter_descendants(root) {
             let Ok(handle) = scene_mats.get(desc) else {
