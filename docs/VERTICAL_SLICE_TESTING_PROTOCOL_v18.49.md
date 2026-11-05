@@ -103,7 +103,7 @@ Every test run includes mercy tone review. All recent polishes (v18.49–v18.57)
 - Council bloom now triggers SafetyNet `CouncilStateSync` emission (v18.53).
 - Client `rbe_client_sync.rs` consumes `CouncilStateSync` and updates dashboard + ActionContext (v18.54).
 - Persistence round-trip for Council participation/blooms confirmed solid.
-- Onboarding reflection after bloom fully wired: persisted data → `OnboardingState` → UI reflection panel (v18.55–v18.57).
+- Onboarding reflection after bloom: not wired (planned): the chain persisted data → `OnboardingState` → UI reflection panel is in `client/src/onboarding.rs` and `client/src/onboarding_ui.rs`, neither has a `mod` line in `client/src/lib.rs`, and nothing sends `LoadPriorCouncilData` (v18.55–v18.57).
 - RBE education content expanded and integrated into onboarding steps, whispers, and UI.
 
 **Remaining Areas for Continued Execution:**
