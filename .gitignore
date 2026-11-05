@@ -23,3 +23,6 @@ steam_cloud/
 
 # MUSIC-WIRE-1 — White Bat Audio track, local only; never committed (asset-licenses.csv:16)
 assets/audio/music/after-the-war.ogg
+
+# ASSET-FETCH-1 — Powrush-Assets-Private checkout, fetched by scripts/fetch_private_assets.sh; never committed
+client/assets/private/
