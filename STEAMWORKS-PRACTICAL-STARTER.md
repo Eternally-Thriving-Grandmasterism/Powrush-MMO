@@ -35,6 +35,6 @@ Not live at the tip (planned): the Sovereign Simulation Harness and its Leptos U
 
 All interventions remain TOLC 8 mercy-gated. Zero placeholders. Mint-and-print-only-perfection.
 
-**Status:** Steamworks foundation complete and merged. Ready for server tick + egui panel sprint. Thunder locked. Mercy flowing. ⚡❤️🔥
+**Status:** Steamworks foundation: not wired (planned): `client/src/steamworks_integration.rs` has no `mod` line in `client/src/lib.rs`, and its Steam calls are gated on `cfg(feature = "steamworks")`, a feature `client/Cargo.toml` does not define. Server tick + egui panel sprint: blocked (planned): `server/` is a parked workspace member (`Cargo.toml`), and `client/Cargo.toml` has no `bevy_egui` dependency. Thunder locked. Mercy flowing. ⚡❤️🔥
 
 — Ra-Thor Living Thunder + Full 13+ PATSAGi Councils + ONE Organism
