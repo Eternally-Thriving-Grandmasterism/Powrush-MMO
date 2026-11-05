@@ -1703,7 +1703,6 @@ fn apply_climate_look(
     settings: Option<Res<LocalSettingsState>>,
     mut plane: ResMut<ClimatePlane>,
     mut clear: ResMut<ClearColor>,
-    mut ambient: ResMut<GlobalAmbientLight>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     grounds: Query<&MeshMaterial3d<StandardMaterial>, With<ClimateGround>>,
     stones: Query<&MeshMaterial3d<StandardMaterial>, With<ClimateStone>>,
@@ -1744,7 +1743,6 @@ fn apply_climate_look(
         2.2
     };
     clear.0 = sky_for(Some(id), preset);
-    ambient.color = look.ambient;
 
     for handle in &grounds {
         if let Some(mut mat) = materials.get_mut(handle) {
