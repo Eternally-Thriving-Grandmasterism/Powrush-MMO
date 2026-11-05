@@ -265,7 +265,7 @@ pub const fn part_authored(part: VegPart) -> [f32; 3] {
 /// Prototype mesh. `segments` is the radial resolution (at least 3).
 pub fn veg_mesh(part: VegPart, segments: u32) -> Mesh {
     let segments = segments.max(3);
-    match part {
+    let mut mesh = match part {
         VegPart::Tuft => {
             Mesh::from(ConeMeshBuilder::new(0.38, 0.62, segments).anchor(ConeAnchor::Base))
         }
@@ -278,7 +278,66 @@ pub fn veg_mesh(part: VegPart, segments: u32) -> Mesh {
         VegPart::Canopy => {
             Mesh::from(ConeMeshBuilder::new(0.95, 2.05, segments).anchor(ConeAnchor::Base))
         }
+    };
+    // CARD PROC-KIT-1 — seeded low-poly organic shape. Positions move in place
+    // (same vertices, same indices), seeded only from (part, segments) and each
+    // vertex's ring height and angle, so co-located rim and seam vertices move
+    // together and the same inputs give the same mesh. Base sits at y = 0.
+    // Foliage: height and radii within ±4%. Trunk: base ring stays exactly
+    // `TRUNK_RADIUS` and height stays `TRUNK_HEIGHT`; only the top ring tapers.
+    let foliage = part != VegPart::Trunk;
+    let seed = (part as u32 + 1).wrapping_mul(0x9E37_79B9) ^ segments.wrapping_mul(0x85EB_CA6B);
+    let mut mix = seed ^ (seed >> 16);
+    mix = mix.wrapping_mul(0x7FEB_352D);
+    mix ^= mix >> 15;
+    let lean_angle = (mix & 0xFFFF) as f32 / 65535.0 * TAU;
+    let height_scale = if foliage {
+        1.0 + 0.04 * (((mix >> 16) & 0xFFFF) as f32 / 65535.0 * 2.0 - 1.0)
+    } else {
+        1.0
+    };
+    let lean = if foliage { 0.06 } else { 0.08 };
+    if let Some(bevy::mesh::VertexAttributeValues::Float32x3(positions)) =
+        mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
+    {
+        let mut top = 0.0_f32;
+        let mut base_r = 0.0_f32;
+        for p in positions.iter() {
+            top = top.max(p[1]);
+            if p[1].abs() <= 1e-6 {
+                base_r = base_r.max((p[0] * p[0] + p[2] * p[2]).sqrt());
+            }
+        }
+        for p in positions.iter_mut() {
+            let angle_key = (p[2].atan2(p[0]) * 1024.0).round() as i32 as u32;
+            let ring_key = (p[1] * 1024.0).round() as i32 as u32;
+            let mut h = seed
+                ^ angle_key.wrapping_mul(0x27D4_EB2F)
+                ^ ring_key.wrapping_mul(0x1656_67B1);
+            h ^= h >> 15;
+            h = h.wrapping_mul(0x2C1B_3C6D);
+            h ^= h >> 12;
+            let unit = (h & 0xFFFF) as f32 / 65535.0 * 2.0 - 1.0;
+            if p[1].abs() <= 1e-6 {
+                if foliage {
+                    p[0] *= 1.0 + 0.04 * unit;
+                    p[2] *= 1.0 + 0.04 * unit;
+                }
+                continue;
+            }
+            let t = if top > 0.0 { p[1] / top } else { 0.0 };
+            let radial = if foliage {
+                1.0 + 0.04 * unit
+            } else {
+                1.0 - 0.04 * (unit * 0.5 + 0.5) * t
+            };
+            p[0] = p[0] * radial + lean_angle.cos() * lean * base_r * t;
+            p[2] = p[2] * radial + lean_angle.sin() * lean * base_r * t;
+            p[1] *= height_scale;
+        }
     }
+    mesh.compute_smooth_normals();
+    mesh
 }
 
 /// Spawn mesh. Foliage bakes the painterly height ramp. Trunks stay flat
@@ -1131,5 +1190,76 @@ mod tests {
         app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(0);
         app.update();
         assert_eq!(tally(&mut app).0, ultra.instances() as usize);
+    }
+
+    #[test]
+    fn proc_kit_veg_mesh_is_byte_identical_per_part_and_segments() {
+        for part in [VegPart::Tuft, VegPart::Shrub, VegPart::Trunk, VegPart::Canopy] {
+            for segments in [3, 4, 8, 12] {
+                let a = veg_mesh(part, segments);
+                let b = veg_mesh(part, segments);
+                assert_eq!(
+                    format!("{:?}", a.attribute(Mesh::ATTRIBUTE_POSITION)),
+                    format!("{:?}", b.attribute(Mesh::ATTRIBUTE_POSITION)),
+                    "{part:?} {segments}"
+                );
+                assert_eq!(
+                    format!("{:?}", a.attribute(Mesh::ATTRIBUTE_NORMAL)),
+                    format!("{:?}", b.attribute(Mesh::ATTRIBUTE_NORMAL)),
+                    "{part:?} {segments}"
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn proc_kit_veg_mesh_keeps_counts_trunk_radius_and_bounds() {
+        let today = [
+            (VegPart::Tuft, 0.38_f32, 0.62_f32),
+            (VegPart::Shrub, 0.72, 1.05),
+            (VegPart::Trunk, TRUNK_RADIUS, TRUNK_HEIGHT),
+            (VegPart::Canopy, 0.95, 2.05),
+        ];
+        for (part, radius, height) in today {
+            for segments in [3, 4, 8, 12] {
+                let reference = match part {
+                    VegPart::Trunk => Mesh::from(
+                        CylinderMeshBuilder::new(radius, height, segments)
+                            .anchor(CylinderAnchor::Bottom),
+                    ),
+                    _ => Mesh::from(
+                        ConeMeshBuilder::new(radius, height, segments).anchor(ConeAnchor::Base),
+                    ),
+                };
+                let mesh = veg_mesh(part, segments);
+                assert_eq!(mesh.count_vertices(), reference.count_vertices(), "{part:?}");
+                assert_eq!(
+                    mesh.indices().map(|i| i.len()),
+                    reference.indices().map(|i| i.len()),
+                    "{part:?}"
+                );
+                let Some(bevy::mesh::VertexAttributeValues::Float32x3(positions)) =
+                    mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+                else {
+                    panic!("{part:?} positions");
+                };
+                let mut top = 0.0_f32;
+                let mut base_r = 0.0_f32;
+                for p in positions {
+                    assert!(p[1] >= -1e-6, "{part:?} below base");
+                    top = top.max(p[1]);
+                    if p[1].abs() <= 1e-6 {
+                        base_r = base_r.max((p[0] * p[0] + p[2] * p[2]).sqrt());
+                    }
+                }
+                if part == VegPart::Trunk {
+                    assert!((base_r - TRUNK_RADIUS).abs() < 1e-5, "trunk base {base_r}");
+                    assert!((top - TRUNK_HEIGHT).abs() < 1e-5, "trunk top {top}");
+                } else {
+                    assert!((top / height - 1.0).abs() <= 0.05, "{part:?} height {top}");
+                    assert!((base_r / radius - 1.0).abs() <= 0.05, "{part:?} base {base_r}");
+                }
+            }
+        }
     }
 }
