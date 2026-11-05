@@ -102,7 +102,7 @@ Every test run includes mercy tone review. All recent polishes (v18.49–v18.57)
 **Major Progress Achieved:**
 - Council bloom → SafetyNet `CouncilStateSync`: parked: the emit is in `server/src/council_session.rs` and `server/src/safety_net_broadcast.rs`, and `server/` is a parked workspace member (`Cargo.toml`) (v18.53).
 - Client consumer of SafetyNet `CouncilStateSync`: not wired (planned): `client/src/rbe_client_sync.rs` and the stray `client/rbe_client_sync.rs` have no `mod` line in `client/src/lib.rs`, neither names `CouncilStateSync`, and no live client file reads it (v18.54).
-- Persistence round-trip for Council participation/blooms confirmed solid.
+- Persistence round-trip for Council participation/blooms: not wired (planned): `save_council_participation` and `load_council_participation` exist only in parked `server/persistence.rs`, where both backends return `Ok(())` / `Ok(None)`, `CouncilParticipationRecord` is defined nowhere in `shared/`, and no live test round-trips it.
 - Onboarding reflection after bloom: not wired (planned): the chain persisted data → `OnboardingState` → UI reflection panel is in `client/src/onboarding.rs` and `client/src/onboarding_ui.rs`, neither has a `mod` line in `client/src/lib.rs`, and nothing sends `LoadPriorCouncilData` (v18.55–v18.57).
 - RBE education content expanded and integrated into onboarding steps, whispers, and UI.
 
