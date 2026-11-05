@@ -235,11 +235,48 @@ fn spawn_ecology(
     // CARD VP-MAT-1 — trunk wood stays the earth hue. Canopy walks toward
     // lively valley green with the cheap height ramp.
     const YARD_LEAF: [f32; 3] = [0.10, 0.32, 0.16];
+    // CARD PROC-KIT-2 — in-place organic jitter on a shared mesh. Fixed-seeded
+    // per kind (`tag`) and keyed on each vertex's position rounded to 1e-4, so
+    // seam and pole twins move together and the mesh stays closed. Only
+    // positions scale, by 1 + a·h with h in [−1, 1]: foliage a = 0.04, rocks
+    // a = 0.06. Same vertices, same indices. Normals are rebuilt after.
+    let jitter = |mesh: &mut Mesh, tag: u32, a: f32| {
+        if let Some(bevy::mesh::VertexAttributeValues::Float32x3(positions)) =
+            mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
+        {
+            for p in positions.iter_mut() {
+                let mut h = tag.wrapping_mul(0x9E37_79B9);
+                for c in *p {
+                    let key = (c * 10_000.0).round() as i32 as u32;
+                    h = (h ^ key).wrapping_mul(0x85EB_CA6B);
+                    h ^= h >> 13;
+                }
+                h = h.wrapping_mul(0x2C1B_3C6D);
+                h ^= h >> 12;
+                let unit = (h & 0xFFFF) as f32 / 65535.0 * 2.0 - 1.0;
+                let s = 1.0 + a * unit;
+                p[0] *= s;
+                p[1] *= s;
+                p[2] *= s;
+            }
+        }
+        mesh.compute_smooth_normals();
+    };
+    // CARD PROC-KIT-2 — yaw-only variety, hashed from the spawn's own x/z.
+    let yaw_at = |x: f32, z: f32| -> f32 {
+        let mut h = ((x * 10_000.0).round() as i32 as u32).wrapping_mul(0x27D4_EB2F)
+            ^ ((z * 10_000.0).round() as i32 as u32).wrapping_mul(0x1656_67B1);
+        h ^= h >> 15;
+        h = h.wrapping_mul(0x2C1B_3C6D);
+        h ^= h >> 12;
+        (h & 0xFFFF) as f32 / 65535.0 * std::f32::consts::TAU
+    };
     let trunk = meshes.add(Cylinder::new(0.22, 2.4));
     let mut canopy_mesh = Mesh::from(Cone {
         radius: 1.05,
         height: 2.6,
     });
+    jitter(&mut canopy_mesh, 1, 0.04);
     crate::painterly_mat::paint_height_ramp(
         &mut canopy_mesh,
         &crate::painterly_mat::painterly_shade(
@@ -277,7 +314,8 @@ fn spawn_ecology(
             (
                 Mesh3d(canopy.clone()),
                 MeshMaterial3d(leaf.clone()),
-                Transform::from_translation(pos + Vec3::Y * 1.35),
+                Transform::from_translation(pos + Vec3::Y * 1.35)
+                    .with_rotation(Quat::from_rotation_y(yaw_at(pos.x, pos.z))),
             ),
             EcologyProp { kind: PropKind::Tree },
             crate::painterly_mat::PainterlyMat {
@@ -287,7 +325,9 @@ fn spawn_ecology(
         ));
     }
 
-    let rock = meshes.add(Sphere::new(0.42));
+    let mut rock_mesh = Mesh::from(Sphere::new(0.42));
+    jitter(&mut rock_mesh, 2, 0.06);
+    let rock = meshes.add(rock_mesh);
     let stone = materials.add(StandardMaterial {
         base_color: Color::srgb(0.32, 0.30, 0.28),
         perceptual_roughness: 0.95,
@@ -302,7 +342,9 @@ fn spawn_ecology(
             (
                 Mesh3d(rock.clone()),
                 MeshMaterial3d(stone.clone()),
-                Transform::from_translation(pos).with_scale(Vec3::new(1.4, 0.6, 1.1)),
+                Transform::from_translation(pos)
+                    .with_scale(Vec3::new(1.4, 0.6, 1.1))
+                    .with_rotation(Quat::from_rotation_y(yaw_at(pos.x, pos.z))),
             ),
             EcologyProp {
                 kind: PropKind::Stone,
@@ -522,6 +564,122 @@ fn pulse_mycelium(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn mesh_positions(app: &App, handle: &Handle<Mesh>) -> Vec<[f32; 3]> {
+        let mesh = app.world().resource::<Assets<Mesh>>().get(handle).expect("mesh");
+        mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+            .and_then(|v| v.as_float3())
+            .expect("positions")
+            .to_vec()
+    }
+
+    fn primitive_positions(mesh: Mesh) -> Vec<[f32; 3]> {
+        mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+            .and_then(|v| v.as_float3())
+            .expect("positions")
+            .to_vec()
+    }
+
+    /// CARD PROC-KIT-2 — jitter is in place: same count, within 1 ± a of the
+    /// primitive, twins stay twins, and something actually moved.
+    fn assert_jittered(fresh: &[[f32; 3]], got: &[[f32; 3]], a: f32) {
+        assert_eq!(fresh.len(), got.len());
+        let len = |p: &[f32; 3]| (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+        let mut moved = false;
+        for (i, (f, g)) in fresh.iter().zip(got).enumerate() {
+            if len(f) > 1e-6 {
+                let r = len(g) / len(f);
+                assert!(r >= 1.0 - a - 1e-5 && r <= 1.0 + a + 1e-5, "vertex {i} ratio {r}");
+            }
+            moved |= f != g;
+            for (j, f2) in fresh.iter().enumerate().skip(i + 1) {
+                if f == f2 {
+                    let g2 = got[j];
+                    let d = (g[0] - g2[0]).abs() + (g[1] - g2[1]).abs() + (g[2] - g2[2]).abs();
+                    assert!(d < 1e-6, "twins {i}/{j} split by {d}");
+                }
+            }
+        }
+        assert!(moved, "jitter left the primitive unchanged");
+    }
+
+    fn ecology_build() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .init_asset::<Mesh>()
+            .init_asset::<StandardMaterial>()
+            .add_systems(Startup, spawn_ecology);
+        app.finish();
+        app.cleanup();
+        app.update();
+        app
+    }
+
+    /// (canopy mesh, canopy transforms, rock mesh, rock transforms), sorted by x.
+    #[allow(clippy::type_complexity)]
+    fn yard_canopy_and_rocks(
+        app: &mut App,
+    ) -> (Handle<Mesh>, Vec<Transform>, Handle<Mesh>, Vec<Transform>) {
+        let mut canopy = Vec::new();
+        let mut rocks = Vec::new();
+        let mut q = app.world_mut().query::<(
+            &Mesh3d,
+            &Transform,
+            &EcologyProp,
+            Option<&crate::painterly_mat::PainterlyMat>,
+        )>();
+        for (mesh, tf, prop, painted) in q.iter(app.world()) {
+            match prop.kind {
+                PropKind::Tree if painted.is_some() => canopy.push((mesh.0.clone(), *tf)),
+                PropKind::Stone => rocks.push((mesh.0.clone(), *tf)),
+                _ => {}
+            }
+        }
+        canopy.sort_by(|a, b| a.1.translation.x.total_cmp(&b.1.translation.x));
+        rocks.sort_by(|a, b| a.1.translation.x.total_cmp(&b.1.translation.x));
+        assert_eq!(canopy.len(), 5);
+        assert_eq!(rocks.len(), 3);
+        (
+            canopy[0].0.clone(),
+            canopy.iter().map(|c| c.1).collect(),
+            rocks[0].0.clone(),
+            rocks.iter().map(|r| r.1).collect(),
+        )
+    }
+
+    /// CARD PROC-KIT-2 — two builds give the same jittered canopy and rock
+    /// meshes and the same yaw; seating and scale stay byte-true.
+    #[test]
+    fn proc_kit_2_yard_jitter_and_yaw_are_deterministic() {
+        let mut first = ecology_build();
+        let mut second = ecology_build();
+        let (c1, ct1, r1, rt1) = yard_canopy_and_rocks(&mut first);
+        let (c2, ct2, r2, rt2) = yard_canopy_and_rocks(&mut second);
+        let canopy_a = mesh_positions(&first, &c1);
+        let rock_a = mesh_positions(&first, &r1);
+        assert_eq!(canopy_a, mesh_positions(&second, &c2));
+        assert_eq!(rock_a, mesh_positions(&second, &r2));
+        let fresh_canopy = primitive_positions(Mesh::from(Cone {
+            radius: 1.05,
+            height: 2.6,
+        }));
+        assert_jittered(&fresh_canopy, &canopy_a, 0.04);
+        assert_jittered(&primitive_positions(Mesh::from(Sphere::new(0.42))), &rock_a, 0.06);
+
+        assert_eq!(ct1, ct2);
+        assert_eq!(rt1, rt2);
+        let mut spots: Vec<Vec3> = YARD_TREE_SPOTS.iter().map(|p| *p + Vec3::Y * 1.35).collect();
+        spots.sort_by(|a, b| a.x.total_cmp(&b.x));
+        for (tf, want) in ct1.iter().zip(&spots) {
+            assert_eq!(tf.translation, *want);
+            assert_eq!(tf.scale, Vec3::ONE);
+        }
+        for tf in &rt1 {
+            assert_eq!(tf.translation.y, 0.22);
+            assert_eq!(tf.scale, Vec3::new(1.4, 0.6, 1.1));
+        }
+        assert!(ct1.iter().chain(&rt1).any(|tf| tf.rotation != Quat::IDENTITY));
+    }
 
     /// Leaf / needle green: green clearly leads both other channels.
     fn is_leaf_or_green_skin(c: Color) -> bool {

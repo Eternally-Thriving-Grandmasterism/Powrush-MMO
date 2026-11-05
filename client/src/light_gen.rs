@@ -202,8 +202,39 @@ fn insert_atlas(
     // valley green and the cheap height ramp.
     const GEN_LEAF: [f32; 3] = [0.14, 0.40, 0.18];
     const GEN_BUSH: [f32; 3] = [0.18, 0.36, 0.16];
+    // CARD PROC-KIT-2 — in-place organic jitter on a shared mesh. Fixed-seeded
+    // per kind (`tag`) and keyed on each vertex's position rounded to 1e-4, so
+    // seam and pole twins move together and the mesh stays closed. Only
+    // positions scale, by 1 + a·h with h in [−1, 1]: foliage a = 0.04, rocks
+    // a = 0.06. Same vertices, same indices. Normals are rebuilt after.
+    let jitter = |mesh: &mut Mesh, tag: u32, a: f32| {
+        if let Some(bevy::mesh::VertexAttributeValues::Float32x3(positions)) =
+            mesh.attribute_mut(Mesh::ATTRIBUTE_POSITION)
+        {
+            for p in positions.iter_mut() {
+                let mut h = tag.wrapping_mul(0x9E37_79B9);
+                for c in *p {
+                    let key = (c * 10_000.0).round() as i32 as u32;
+                    h = (h ^ key).wrapping_mul(0x85EB_CA6B);
+                    h ^= h >> 13;
+                }
+                h = h.wrapping_mul(0x2C1B_3C6D);
+                h ^= h >> 12;
+                let unit = (h & 0xFFFF) as f32 / 65535.0 * 2.0 - 1.0;
+                let s = 1.0 + a * unit;
+                p[0] *= s;
+                p[1] *= s;
+                p[2] *= s;
+            }
+        }
+        mesh.compute_smooth_normals();
+    };
     let mut canopy = Mesh::from(Sphere::new(0.72));
     let mut bush = Mesh::from(Sphere::new(0.32));
+    let mut rock = Mesh::from(Sphere::new(0.38));
+    jitter(&mut canopy, 3, 0.04);
+    jitter(&mut bush, 4, 0.04);
+    jitter(&mut rock, 5, 0.06);
     let foliage = crate::painterly_mat::painterly_shade(
         crate::painterly_mat::PainterlyRole::Foliage,
         preset,
@@ -225,7 +256,7 @@ fn insert_atlas(
     commands.insert_resource(LightGenAtlas {
         trunk: meshes.add(Cylinder::new(0.18, 2.0)),
         canopy,
-        rock: meshes.add(Sphere::new(0.38)),
+        rock: meshes.add(rock),
         bush,
         wood: materials.add(StandardMaterial {
             base_color: Color::srgb(0.26, 0.16, 0.09),
@@ -369,6 +400,15 @@ fn sync_scatter(
         commands.entity(e).despawn();
     }
 
+    // CARD PROC-KIT-2 — yaw-only variety, hashed from the spawn's own x/z.
+    let yaw_at = |x: f32, z: f32| -> f32 {
+        let mut h = ((x * 10_000.0).round() as i32 as u32).wrapping_mul(0x27D4_EB2F)
+            ^ ((z * 10_000.0).round() as i32 as u32).wrapping_mul(0x1656_67B1);
+        h ^= h >> 15;
+        h = h.wrapping_mul(0x2C1B_3C6D);
+        h ^= h >> 12;
+        (h & 0xFFFF) as f32 / 65535.0 * std::f32::consts::TAU
+    };
     let spots = scatter_from_seed(seed);
     for spot in spots {
         let (mesh, material, scale) = match spot.kind {
@@ -397,7 +437,9 @@ fn sync_scatter(
             (
                 Mesh3d(mesh),
                 MeshMaterial3d(material),
-                Transform::from_xyz(spot.x, spot.y, spot.z).with_scale(scale),
+                Transform::from_xyz(spot.x, spot.y, spot.z)
+                    .with_scale(scale)
+                    .with_rotation(Quat::from_rotation_y(yaw_at(spot.x, spot.z))),
             ),
             LightGenProp,
             HexScatter,
@@ -498,6 +540,88 @@ fn cull_scatter_when_plates_open(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    fn mesh_positions(app: &App, handle: &Handle<Mesh>) -> Vec<[f32; 3]> {
+        let mesh = app.world().resource::<Assets<Mesh>>().get(handle).expect("mesh");
+        mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+            .and_then(|v| v.as_float3())
+            .expect("positions")
+            .to_vec()
+    }
+
+    fn primitive_positions(mesh: Mesh) -> Vec<[f32; 3]> {
+        mesh.attribute(Mesh::ATTRIBUTE_POSITION)
+            .and_then(|v| v.as_float3())
+            .expect("positions")
+            .to_vec()
+    }
+
+    /// CARD PROC-KIT-2 — jitter is in place: same count, within 1 ± a of the
+    /// primitive, twins stay twins, and something actually moved.
+    fn assert_jittered(fresh: &[[f32; 3]], got: &[[f32; 3]], a: f32) {
+        assert_eq!(fresh.len(), got.len());
+        let len = |p: &[f32; 3]| (p[0] * p[0] + p[1] * p[1] + p[2] * p[2]).sqrt();
+        let mut moved = false;
+        for (i, (f, g)) in fresh.iter().zip(got).enumerate() {
+            if len(f) > 1e-6 {
+                let r = len(g) / len(f);
+                assert!(r >= 1.0 - a - 1e-5 && r <= 1.0 + a + 1e-5, "vertex {i} ratio {r}");
+            }
+            moved |= f != g;
+            for (j, f2) in fresh.iter().enumerate().skip(i + 1) {
+                if f == f2 {
+                    let g2 = got[j];
+                    let d = (g[0] - g2[0]).abs() + (g[1] - g2[1]).abs() + (g[2] - g2[2]).abs();
+                    assert!(d < 1e-6, "twins {i}/{j} split by {d}");
+                }
+            }
+        }
+        assert!(moved, "jitter left the primitive unchanged");
+    }
+
+    fn build_atlas_for_test(
+        mut commands: Commands,
+        mut meshes: ResMut<Assets<Mesh>>,
+        mut materials: ResMut<Assets<StandardMaterial>>,
+        mut ramps: Option<ResMut<crate::painterly_mat::PainterlyRampMeshes>>,
+    ) {
+        insert_atlas(&mut commands, &mut meshes, &mut materials, None, &mut ramps);
+    }
+
+    fn atlas_build() -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .init_asset::<Mesh>()
+            .init_asset::<StandardMaterial>()
+            .add_systems(Startup, build_atlas_for_test);
+        app.finish();
+        app.cleanup();
+        app.update();
+        app
+    }
+
+    /// CARD PROC-KIT-2 — two atlas builds give the same jittered canopy, bush
+    /// and rock; the trunk stays the plain cylinder.
+    #[test]
+    fn proc_kit_2_atlas_jitter_is_deterministic_and_trunk_untouched() {
+        let first = atlas_build();
+        let second = atlas_build();
+        let a1 = first.world().resource::<LightGenAtlas>();
+        let a2 = second.world().resource::<LightGenAtlas>();
+        for (h1, h2, fresh, a) in [
+            (&a1.canopy, &a2.canopy, Mesh::from(Sphere::new(0.72)), 0.04),
+            (&a1.bush, &a2.bush, Mesh::from(Sphere::new(0.32)), 0.04),
+            (&a1.rock, &a2.rock, Mesh::from(Sphere::new(0.38)), 0.06),
+        ] {
+            let got = mesh_positions(&first, h1);
+            assert_eq!(got, mesh_positions(&second, h2));
+            assert_jittered(&primitive_positions(fresh), &got, a);
+        }
+        assert_eq!(
+            mesh_positions(&first, &a1.trunk),
+            primitive_positions(Mesh::from(Cylinder::new(0.18, 2.0)))
+        );
+    }
     use shared::powrush_gen::{
         cull_gen_when_plate_open, grove_seed, light_gen_enabled_from, light_gen_enabled_or,
     };
