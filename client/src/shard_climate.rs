@@ -107,9 +107,8 @@ fn paint_climate_feel(
     let harmony = bind.climate.harmony;
     let regen = bind.climate.regen;
 
-    // Base ambient rides harmony (no new UI).
-    let target_brightness = 240.0 + harmony * 160.0 - stress * 90.0;
-    ambient.brightness += (target_brightness - ambient.brightness) * 0.08;
+    // Ambient rides harmony and stress as a factor on the day-clock base (no new UI).
+    ambient.brightness *= 1.0 + 0.15 * harmony - 0.10 * stress;
 
     let fog_start = 6.0 + (1.0 - stress) * 10.0 + regen * 2.0;
     let fog_end = 28.0 + (1.0 - stress) * 24.0 + harmony * 8.0;
@@ -237,6 +236,38 @@ mod tests {
         let raw = c.to_json().unwrap();
         let loaded = ShardClimate::from_json(&raw).unwrap();
         assert!((loaded.stress - c.stress).abs() < 1e-6);
+    }
+
+    /// CARD VIS-LIGHT-2B — clock then feel: phase 0.18 gives light 1.0, so the
+    /// base is 90 + 200 = 290, and harmony 1 / stress 0 gives 290 * 1.15 = 333.5.
+    #[test]
+    fn climate_feel_scales_the_day_clock_base() {
+        use crate::climate_plane::{configure_fog_write_sets, FogWriteSet};
+        use crate::living_day::LivingDayPlugin;
+        use crate::living_practice_loop::SoftPlayerRealm;
+        use bevy::prelude::*;
+        use bevy::time::TimeUpdateStrategy;
+        use std::time::Duration;
+
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
+        configure_fog_write_sets(&mut app);
+        app.init_resource::<SoftPlayerRealm>();
+        app.init_resource::<GlobalAmbientLight>();
+        app.init_resource::<super::ClimateFeelMemory>();
+        app.init_resource::<crate::mercy_harvest_nodes::NearbyMercyNode>();
+        let mut bind = crate::lived_hour_bind::LivedHourBind::default();
+        bind.climate.harmony = 1.0;
+        bind.climate.stress = 0.0;
+        app.insert_resource(bind);
+        app.add_plugins(LivingDayPlugin);
+        app.add_systems(Update, super::paint_climate_feel.in_set(FogWriteSet::ClimateFeel));
+        app.finish();
+        app.cleanup();
+        app.update();
+        let brightness = app.world().resource::<GlobalAmbientLight>().brightness;
+        assert!((brightness - 333.5).abs() < 1e-3, "{brightness}");
     }
 
     #[test]

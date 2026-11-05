@@ -1878,7 +1878,7 @@ fn breathe_weather_bed(
     }
     // Ambient tint strength follows fidelity; color stays Place dress.
     ambient.color = bed.ambient;
-    ambient.brightness = (bed.ambient_bright * (1.0 + pulse * 0.45 * bed.tint_strength))
+    ambient.brightness = (ambient.brightness * (1.0 + pulse * 0.45 * bed.tint_strength))
         .clamp(40.0, 520.0);
 }
 
@@ -3766,6 +3766,27 @@ mod tests {
             app.world().resource::<ClimatePlane>().applied_preset,
             Some(GraphicsPreset::Mobile)
         );
+    }
+
+    /// CARD VIS-LIGHT-2B — the breath multiplies the incoming base. At
+    /// elapsed 0 the pulse is sin(0) * amp = 0, so the base holds, and the
+    /// 40..520 clamp still bounds a base outside it.
+    #[test]
+    fn breathe_weather_bed_scales_the_base_and_holds_the_clamp() {
+        for (base, want) in [(290.0_f32, 290.0_f32), (600.0, 520.0), (10.0, 40.0)] {
+            let mut app = App::new();
+            app.init_resource::<Time>();
+            app.init_resource::<WeatherBandCoupling>();
+            app.insert_resource(GlobalAmbientLight {
+                brightness: base,
+                ..GlobalAmbientLight::default()
+            });
+            app.insert_resource(SoftPlayerRealm { current: Some(0) });
+            app.add_systems(Update, breathe_weather_bed);
+            app.update();
+            let got = app.world().resource::<GlobalAmbientLight>().brightness;
+            assert!((got - want).abs() < 1e-3, "base {base}: {got} vs {want}");
+        }
     }
 
     /// CARD VP-AIR-1 — the live PlaceBed writer lands the haze on the world
