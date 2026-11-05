@@ -5,18 +5,23 @@
 //! already has. Ground and earth hues are returned unchanged, so the open
 //! earth-tone question (muted earth vs no brown/beige) stays open.
 //!
-//! The colour ramp is vertex colour on the existing `StandardMaterial`
-//! shader (`VERTEX_COLORS` multiplies `base_color`). No extra pass, no
-//! texture, no new asset. Mobile, Low, and Medium use two stops (cool
-//! shadow, then the base). High and Ultra add a golden-hour tip and a warm
-//! specular tint. Roughness stays soft on every tier. Fog, the sun, and the
-//! sky dome stay with VP-AIR-1, VP-LIGHT-1, and VP-SKY-2.
+//! Painted meshes use [`crate::painterly_shader::PainterlyMaterial`]: the
+//! standard base plus a [`crate::painterly_shader::PainterlyExtension`].
+//! Vertex colour red is the height weight. The extension fragment
+//! (`assets/shaders/painterly.wgsl`) turns that weight into the stop ramp
+//! and the palette tint. No texture. Mobile, Low, and Medium use two stops
+//! (cool shadow, then the base). High and Ultra add a golden-hour tip and a
+//! warm specular tint. Roughness stays soft on every tier. Fog, the sun, and
+//! the sky dome stay with VP-AIR-1, VP-LIGHT-1, and VP-SKY-2. Ultra's
+//! post pass stays in `ultra_paint`.
 //!
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
 
 use shared::local_settings::GraphicsPreset;
+
+use crate::painterly_shader::{PainterlyExtension, PainterlyMaterial, PainterlyUniform};
 
 /// What a material is allowed to do under VP-MAT-1.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -143,22 +148,53 @@ pub fn ramp_srgb(shade: &PainterlyShade, t: f32) -> [f32; 3] {
     }
 }
 
-/// Standard material for one role. Metallic stays 0. No texture.
+fn srgb4(c: [f32; 3]) -> Vec4 {
+    Vec4::new(c[0], c[1], c[2], 1.0)
+}
+
+fn extension_from(shade: &PainterlyShade, palette: [f32; 3]) -> PainterlyExtension {
+    let tint = shade.specular_tint.to_linear();
+    PainterlyExtension {
+        paint: PainterlyUniform {
+            stops: u32::from(shade.stops),
+            shadow: srgb4(shade.shadow),
+            mid: srgb4(shade.mid),
+            tip: srgb4(shade.tip),
+            palette: srgb4(palette),
+            specular: Vec4::new(
+                tint.red * shade.reflectance,
+                tint.green * shade.reflectance,
+                tint.blue * shade.reflectance,
+                1.0,
+            ),
+        },
+    }
+}
+
+fn retune(mat: &mut PainterlyMaterial, role: PainterlyRole, authored: [f32; 3], preset: GraphicsPreset) {
+    let shade = painterly_shade(role, preset);
+    let c = painterly_srgb(role, authored);
+    mat.base.base_color = Color::srgb(c[0], c[1], c[2]);
+    mat.base.perceptual_roughness = shade.roughness;
+    mat.base.reflectance = shade.reflectance;
+    mat.base.specular_tint = shade.specular_tint;
+    mat.base.metallic = 0.0;
+    mat.extension = extension_from(&shade, c);
+}
+
+/// Extended material for one role. Metallic stays 0. No texture.
+/// Bark that must stay a plain [`StandardMaterial`] uses `.base` only.
 pub fn painterly_material(
     role: PainterlyRole,
     authored: [f32; 3],
     preset: GraphicsPreset,
-) -> StandardMaterial {
-    let shade = painterly_shade(role, preset);
-    let c = painterly_srgb(role, authored);
-    StandardMaterial {
-        base_color: Color::srgb(c[0], c[1], c[2]),
-        perceptual_roughness: shade.roughness,
-        reflectance: shade.reflectance,
-        specular_tint: shade.specular_tint,
-        metallic: 0.0,
-        ..default()
-    }
+) -> PainterlyMaterial {
+    let mut mat = PainterlyMaterial {
+        base: StandardMaterial::default(),
+        extension: PainterlyExtension::default(),
+    };
+    retune(&mut mat, role, authored, preset);
+    mat
 }
 
 /// Marker so a preset change can retune the shared material.
@@ -178,6 +214,7 @@ pub struct PainterlyPlugin;
 
 impl Plugin for PainterlyPlugin {
     fn build(&self, app: &mut App) {
+        crate::painterly_shader::install(app);
         app.init_resource::<PainterlyRampMeshes>()
             .add_systems(Update, sync_painterly_preset);
     }
@@ -185,10 +222,10 @@ impl Plugin for PainterlyPlugin {
 
 fn sync_painterly_preset(
     settings: Option<Res<crate::local_settings::LocalSettingsState>>,
-    mut materials: Option<ResMut<Assets<StandardMaterial>>>,
+    mut materials: Option<ResMut<Assets<PainterlyMaterial>>>,
     mut meshes: Option<ResMut<Assets<Mesh>>>,
     ramps: Option<Res<PainterlyRampMeshes>>,
-    painted: Query<(&PainterlyMat, &MeshMaterial3d<StandardMaterial>)>,
+    painted: Query<(&PainterlyMat, &MeshMaterial3d<PainterlyMaterial>)>,
     mut applied: Local<Option<GraphicsPreset>>,
 ) {
     let preset = settings
@@ -201,13 +238,7 @@ fn sync_painterly_preset(
     if let Some(materials) = materials.as_mut() {
         for (src, handle) in &painted {
             if let Some(mut mat) = materials.get_mut(handle) {
-                let shade = painterly_shade(src.role, preset);
-                let c = painterly_srgb(src.role, src.authored);
-                mat.base_color = Color::srgb(c[0], c[1], c[2]);
-                mat.perceptual_roughness = shade.roughness;
-                mat.reflectance = shade.reflectance;
-                mat.specular_tint = shade.specular_tint;
-                mat.metallic = 0.0;
+                retune(&mut mat, src.role, src.authored, preset);
             }
         }
     }
@@ -221,8 +252,10 @@ fn sync_painterly_preset(
     *applied = Some(preset);
 }
 
-/// Bake the height ramp into vertex colour. Positions are mesh-local.
-/// A flat shade (ground / earth) writes white, so the authored hue holds.
+/// Bake the height weight into vertex colour. Positions are mesh-local.
+/// A flat shade (ground / earth) writes white. Two and three stops write the
+/// 0..=1 height in every channel so the extension fragment can apply the
+/// shadow / mid / tip colours.
 pub fn paint_height_ramp(mesh: &mut Mesh, shade: &PainterlyShade) {
     let Some(values) = mesh.attribute(Mesh::ATTRIBUTE_POSITION) else {
         return;
@@ -244,8 +277,12 @@ pub fn paint_height_ramp(mesh: &mut Mesh, shade: &PainterlyShade) {
     let cols: Vec<[f32; 4]> = positions
         .iter()
         .map(|p| {
-            let t = ((p[1] - y_min) / span).clamp(0.0, 1.0);
-            srgb_to_linear(ramp_srgb(shade, t))
+            if shade.stops <= 1 {
+                [1.0, 1.0, 1.0, 1.0]
+            } else {
+                let t = ((p[1] - y_min) / span).clamp(0.0, 1.0);
+                [t, t, t, 1.0]
+            }
         })
         .collect();
     mesh.insert_attribute(Mesh::ATTRIBUTE_COLOR, cols);
@@ -268,12 +305,6 @@ fn mix(a: [f32; 3], b: [f32; 3], t: f32) -> [f32; 3] {
         a[1] + (b[1] - a[1]) * t,
         a[2] + (b[2] - a[2]) * t,
     ]
-}
-
-/// Same approx the sky dome uses, so the ramp sits in that vertex space.
-fn srgb_to_linear(c: [f32; 3]) -> [f32; 4] {
-    let f = |v: f32| v.max(0.0).powf(2.2);
-    [f(c[0]), f(c[1]), f(c[2]), 1.0]
 }
 
 #[cfg(test)]
@@ -386,10 +417,139 @@ mod tests {
             [0.10, 0.30, 0.16],
             GraphicsPreset::Low,
         );
-        assert_eq!(mat.metallic, 0.0);
-        assert!(mat.perceptual_roughness >= 0.94);
-        assert!(!mat.unlit);
-        assert!(mat.base_color_texture.is_none());
+        assert_eq!(mat.base.metallic, 0.0);
+        assert!(mat.base.perceptual_roughness >= 0.94);
+        assert!(!mat.base.unlit);
+        assert!(mat.base.base_color_texture.is_none());
+    }
+
+    #[test]
+    fn extension_uniforms_follow_palette_and_preset() {
+        let authored = [0.10, 0.30, 0.16];
+        let palette = painterly_srgb(PainterlyRole::Foliage, authored);
+        let simple = painterly_material(PainterlyRole::Foliage, authored, GraphicsPreset::Medium);
+        let rich = painterly_material(PainterlyRole::Foliage, authored, GraphicsPreset::Ultra);
+        assert_eq!(simple.extension.paint.stops, 2);
+        assert_eq!(rich.extension.paint.stops, 3);
+        let uniform_bytes =
+            <PainterlyUniform as bevy::render::render_resource::ShaderSize>::SHADER_SIZE.get();
+        assert_eq!(uniform_bytes % 16, 0);
+        assert_eq!(
+            [
+                simple.extension.paint.palette.x,
+                simple.extension.paint.palette.y,
+                simple.extension.paint.palette.z,
+            ],
+            palette
+        );
+        assert!(simple.extension.paint.palette.y > simple.extension.paint.palette.x);
+        assert!(simple.extension.paint.palette.y > simple.extension.paint.palette.z);
+        let shade_low = painterly_shade(PainterlyRole::Foliage, GraphicsPreset::Low);
+        let shade_high = painterly_shade(PainterlyRole::Foliage, GraphicsPreset::High);
+        assert_eq!(simple.extension.paint.shadow.x, shade_low.shadow[0]);
+        assert_eq!(simple.extension.paint.shadow.y, shade_low.shadow[1]);
+        assert_eq!(simple.extension.paint.mid.x, shade_low.mid[0]);
+        assert_eq!(rich.extension.paint.tip.x, shade_high.tip[0]);
+        assert_eq!(rich.extension.paint.tip.y, shade_high.tip[1]);
+        assert_eq!(simple.extension.paint.specular.x, simple.extension.paint.specular.y);
+        assert_eq!(simple.extension.paint.specular.y, simple.extension.paint.specular.z);
+        assert!(rich.extension.paint.specular.x > rich.extension.paint.specular.y);
+        assert!(rich.extension.paint.specular.y > rich.extension.paint.specular.z);
+        assert_eq!(
+            painterly_material(PainterlyRole::Foliage, authored, GraphicsPreset::Mobile)
+                .extension
+                .paint,
+            painterly_material(PainterlyRole::Foliage, authored, GraphicsPreset::Low)
+                .extension
+                .paint
+        );
+        assert_eq!(
+            painterly_material(PainterlyRole::Foliage, authored, GraphicsPreset::Low)
+                .extension
+                .paint,
+            simple.extension.paint
+        );
+        assert_eq!(
+            painterly_material(PainterlyRole::Foliage, authored, GraphicsPreset::High)
+                .extension
+                .paint,
+            rich.extension.paint
+        );
+        assert_eq!(
+            painterly_material(
+                PainterlyRole::SkyStone,
+                [0.36, 0.36, 0.50],
+                GraphicsPreset::High
+            )
+            .extension
+            .paint
+            .stops,
+            3
+        );
+        let low_spec = shade_low.specular_tint.to_linear();
+        assert!(
+            (simple.extension.paint.specular.x - low_spec.red * shade_low.reflectance).abs()
+                < 1.0e-5
+        );
+
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .init_asset::<PainterlyMaterial>()
+            .add_systems(Update, sync_painterly_preset);
+        let handle = app
+            .world_mut()
+            .resource_mut::<Assets<PainterlyMaterial>>()
+            .add(painterly_material(
+                PainterlyRole::Foliage,
+                authored,
+                GraphicsPreset::Low,
+            ));
+        app.world_mut().spawn((
+            PainterlyMat {
+                role: PainterlyRole::Foliage,
+                authored,
+            },
+            MeshMaterial3d(handle.clone()),
+        ));
+        let mut inner = shared::local_settings::LocalSettings::default();
+        inner.set_graphics_preset(GraphicsPreset::Low);
+        app.insert_resource(crate::local_settings::LocalSettingsState { inner, dirty: false });
+        app.update();
+        let stops = |app: &App| {
+            app.world()
+                .resource::<Assets<PainterlyMaterial>>()
+                .get(&handle)
+                .unwrap()
+                .extension
+                .paint
+                .stops
+        };
+        assert_eq!(stops(&app), 2);
+        app.world_mut()
+            .resource_mut::<crate::local_settings::LocalSettingsState>()
+            .inner
+            .set_graphics_preset(GraphicsPreset::High);
+        app.update();
+        assert_eq!(stops(&app), 3);
+        let spec = app
+            .world()
+            .resource::<Assets<PainterlyMaterial>>()
+            .get(&handle)
+            .unwrap()
+            .extension
+            .paint
+            .specular;
+        assert!(spec.x > spec.y && spec.y > spec.z);
+        let synced = painterly_srgb(PainterlyRole::Foliage, authored);
+        let got = app
+            .world()
+            .resource::<Assets<PainterlyMaterial>>()
+            .get(&handle)
+            .unwrap()
+            .extension
+            .paint
+            .palette;
+        assert_eq!([got.x, got.y, got.z], synced);
     }
 
     #[test]

@@ -28,6 +28,7 @@ use crate::painterly_mat::{
     paint_height_ramp, painterly_material, painterly_shade, remember_ramp, PainterlyMat,
     PainterlyRampMeshes, PainterlyRole,
 };
+use crate::painterly_shader::PainterlyMaterial;
 
 /// Plants stay outside this radius so the well, the path stones, and the
 /// five yard trees keep the middle of the plate.
@@ -547,6 +548,13 @@ fn instance_transform(inst: &VegInstance) -> Transform {
 struct VegHeld {
     meshes: Vec<Handle<Mesh>>,
     materials: Vec<Handle<StandardMaterial>>,
+    painted: Vec<Handle<PainterlyMaterial>>,
+}
+
+#[derive(Clone)]
+enum VegMat {
+    Plain(Handle<StandardMaterial>),
+    Painted(Handle<PainterlyMaterial>),
 }
 
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
@@ -588,6 +596,7 @@ struct VegCtx<'w, 's> {
     commands: Commands<'w, 's>,
     meshes: Option<ResMut<'w, Assets<Mesh>>>,
     materials: Option<ResMut<'w, Assets<StandardMaterial>>>,
+    painted: Option<ResMut<'w, Assets<PainterlyMaterial>>>,
     settings: Option<Res<'w, LocalSettingsState>>,
     realm: Option<Res<'w, SoftPlayerRealm>>,
     ramps: Option<ResMut<'w, PainterlyRampMeshes>>,
@@ -598,7 +607,7 @@ struct VegCtx<'w, 's> {
 }
 
 fn sync_vegetation(mut ctx: VegCtx) {
-    if ctx.meshes.is_none() || ctx.materials.is_none() {
+    if ctx.meshes.is_none() || ctx.materials.is_none() || ctx.painted.is_none() {
         return;
     }
     let preset = ctx
@@ -624,13 +633,22 @@ fn sync_vegetation(mut ctx: VegCtx) {
     }
     let meshes = ctx.meshes.as_mut().unwrap();
     let materials = ctx.materials.as_mut().unwrap();
-    release(meshes, materials, &mut ctx.ramps, &mut ctx.held, &mut ctx.fade);
+    let painted = ctx.painted.as_mut().unwrap();
+    release(
+        meshes,
+        materials,
+        painted,
+        &mut ctx.ramps,
+        &mut ctx.held,
+        &mut ctx.fade,
+    );
     let trees = vegetation_plants(preset).into_iter().filter(|p| vegetation_shown(realm) && p.kind == VegKind::Tree);
     ctx.commands.insert_resource(FieldTrunks(trees.map(|p| (Vec2::new(p.x, p.z), TRUNK_RADIUS * p.scale)).collect()));
     if vegetation_shown(realm) {
         spawn_field(
             meshes,
             materials,
+            painted,
             &mut ctx.ramps,
             &mut ctx.held,
             &mut ctx.commands,
@@ -643,6 +661,7 @@ fn sync_vegetation(mut ctx: VegCtx) {
 fn release(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    painted: &mut Assets<PainterlyMaterial>,
     ramps: &mut Option<ResMut<PainterlyRampMeshes>>,
     held: &mut VegHeld,
     fade: &mut Option<ResMut<TrunkFadeCache>>,
@@ -663,11 +682,15 @@ fn release(
     for handle in held.materials.drain(..) {
         materials.remove(&handle);
     }
+    for handle in held.painted.drain(..) {
+        painted.remove(&handle);
+    }
 }
 
 fn spawn_field(
     meshes: &mut Assets<Mesh>,
     materials: &mut Assets<StandardMaterial>,
+    painted: &mut Assets<PainterlyMaterial>,
     ramps: &mut Option<ResMut<PainterlyRampMeshes>>,
     held: &mut VegHeld,
     commands: &mut Commands,
@@ -676,7 +699,7 @@ fn spawn_field(
     let plan = vegetation_plan(preset);
     let instances = vegetation_instances(&vegetation_plants(preset));
     let batches = instance_batches(&instances);
-    let mut materials_by_part: Vec<(VegPart, Handle<StandardMaterial>)> = Vec::new();
+    let mut materials_by_part: Vec<(VegPart, VegMat)> = Vec::new();
     for batch in &batches {
         let mesh = remember_mesh(
             meshes,
@@ -688,6 +711,7 @@ fn spawn_field(
         );
         let material = material_for(
             materials,
+            painted,
             held,
             &mut materials_by_part,
             batch.key.part,
@@ -695,19 +719,25 @@ fn spawn_field(
         );
         for index in &batch.indices {
             let inst = &instances[*index];
-            let mut entity = commands.spawn((
-                (
-                    Mesh3d(mesh.clone()),
-                    MeshMaterial3d(material.clone()),
-                    instance_transform(inst),
-                ),
-                VegMark {
-                    part: inst.part,
-                    lod: inst.lod,
-                },
-                Name::new("VP-VEG-1"),
-                bevy::light::NotShadowCaster,
-            ));
+            let mark = VegMark {
+                part: inst.part,
+                lod: inst.lod,
+            };
+            let transform = instance_transform(inst);
+            let mut entity = match material.clone() {
+                VegMat::Plain(handle) => commands.spawn((
+                    (Mesh3d(mesh.clone()), MeshMaterial3d(handle), transform),
+                    mark,
+                    Name::new("VP-VEG-1"),
+                    bevy::light::NotShadowCaster,
+                )),
+                VegMat::Painted(handle) => commands.spawn((
+                    (Mesh3d(mesh.clone()), MeshMaterial3d(handle), transform),
+                    mark,
+                    Name::new("VP-VEG-1"),
+                    bevy::light::NotShadowCaster,
+                )),
+            };
             if inst.part == VegPart::Trunk {
                 entity.insert(CamTrunk);
             }
@@ -739,22 +769,28 @@ fn remember_mesh(
 
 fn material_for(
     materials: &mut Assets<StandardMaterial>,
+    painted: &mut Assets<PainterlyMaterial>,
     held: &mut VegHeld,
-    cache: &mut Vec<(VegPart, Handle<StandardMaterial>)>,
+    cache: &mut Vec<(VegPart, VegMat)>,
     part: VegPart,
     preset: GraphicsPreset,
-) -> Handle<StandardMaterial> {
+) -> VegMat {
     if let Some((_, handle)) = cache.iter().find(|(cached, _)| *cached == part) {
         return handle.clone();
     }
-    let handle = materials.add(painterly_material(
-        part_role(part),
-        part_authored(part),
-        preset,
-    ));
-    held.materials.push(handle.clone());
-    cache.push((part, handle.clone()));
-    handle
+    let made = painterly_material(part_role(part), part_authored(part), preset);
+    // Earth trunks stay a plain material so trunk fade still clones alpha.
+    let stored = if part_role(part) == PainterlyRole::Earth {
+        let handle = materials.add(made.base);
+        held.materials.push(handle.clone());
+        VegMat::Plain(handle)
+    } else {
+        let handle = painted.add(made);
+        held.painted.push(handle.clone());
+        VegMat::Painted(handle)
+    };
+    cache.push((part, stored.clone()));
+    stored
 }
 
 #[cfg(test)]
@@ -1089,6 +1125,7 @@ mod tests {
             app.add_plugins((MinimalPlugins, AssetPlugin::default()))
                 .init_asset::<Mesh>()
                 .init_asset::<StandardMaterial>()
+                .init_asset::<PainterlyMaterial>()
                 .add_plugins(VegetationPlugin)
                 .insert_resource(SoftPlayerRealm { current: Some(0) });
             let mut inner = LocalSettings::default();
@@ -1100,14 +1137,24 @@ mod tests {
             app
         }
 
-        fn tally(app: &mut App) -> (usize, usize, usize) {
-            let world = app.world_mut();
-            let mut query = world.query::<(&VegMark, &Mesh3d, &MeshMaterial3d<StandardMaterial>)>();
-            let rows: Vec<_> = query
+        fn veg_rows(world: &mut World) -> Vec<(VegMark, Handle<Mesh>, bevy::asset::UntypedAssetId)> {
+            let mut plain =
+                world.query::<(&VegMark, &Mesh3d, &MeshMaterial3d<StandardMaterial>)>();
+            let mut rows: Vec<_> = plain
                 .iter(world)
-                .map(|(mark, mesh, material)| (*mark, mesh.0.id(), material.0.id()))
+                .map(|(mark, mesh, material)| (*mark, mesh.0.clone(), material.0.id().untyped()))
                 .collect();
-            let meshes: HashSet<_> = rows.iter().map(|row| row.1).collect();
+            let mut painted =
+                world.query::<(&VegMark, &Mesh3d, &MeshMaterial3d<PainterlyMaterial>)>();
+            rows.extend(painted.iter(world).map(|(mark, mesh, material)| {
+                (*mark, mesh.0.clone(), material.0.id().untyped())
+            }));
+            rows
+        }
+
+        fn tally(app: &mut App) -> (usize, usize, usize) {
+            let rows = veg_rows(app.world_mut());
+            let meshes: HashSet<_> = rows.iter().map(|row| row.1.id()).collect();
             let materials: HashSet<_> = rows.iter().map(|row| row.2).collect();
             (rows.len(), meshes.len(), materials.len())
         }
@@ -1128,13 +1175,9 @@ mod tests {
         assert_eq!(tally(&mut app), (ultra.instances() as usize, 8, 4));
 
         let world = app.world_mut();
-        let mut query = world.query::<(&VegMark, &Mesh3d, &MeshMaterial3d<StandardMaterial>)>();
-        let rows: Vec<_> = query
-            .iter(world)
-            .map(|(mark, mesh, material)| (*mark, mesh.0.clone(), material.0.id()))
-            .collect();
+        let rows = veg_rows(world);
         let mut mesh_by_key: HashMap<VegBatchKey, AssetId<Mesh>> = HashMap::new();
-        let mut material_by_part: HashMap<VegPart, AssetId<StandardMaterial>> = HashMap::new();
+        let mut material_by_part: HashMap<VegPart, bevy::asset::UntypedAssetId> = HashMap::new();
         for (mark, mesh, material) in &rows {
             let key = VegBatchKey {
                 part: mark.part,
