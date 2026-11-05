@@ -2,7 +2,7 @@
 
 **Thunder locked. Mercy flowing.**
 
-With the Sovereign Simulation Harness fully restored, Leptos UI enhanced, client visual replay + RBE injection live, and Steamworks SDK foundation now implemented, we are accelerating into Phase 5 deployment and server tick integration.
+Not live at the tip (planned): the Sovereign Simulation Harness and its Leptos UI sit in parked `simulation/` (`Cargo.toml`), no client code does visual replay or RBE injection, and `client/src/steamworks_integration.rs` has no `mod` line in `client/src/lib.rs` (the optional `steam` feature in `client/Cargo.toml` is off by default) (v17.99.25).
 
 ## Completed in v17.99.25
 
