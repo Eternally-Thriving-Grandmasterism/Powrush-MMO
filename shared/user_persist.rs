@@ -22,6 +22,7 @@
 //! Contact: info@Rathor.ai. Independent of xAI.
 
 use std::fs;
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 
 /// Lab / lavapipe override. Directory that holds the persist JSON files.
@@ -60,9 +61,11 @@ pub fn read_named(named: &str) -> std::io::Result<String> {
 /// Soft-write a persist file into the resolved user dir (creates the dir).
 ///
 /// A good save parses as JSON (`serde_json::from_str::<serde_json::Value>`).
-/// This module does not parse a typed schema. The live file is copied to a
-/// sibling `.bak` only when it is a good save. Bytes then go to a sibling
-/// `.tmp`, and `fs::rename` moves that file into place.
+/// This module does not parse a typed schema. When the live file is a good
+/// save, those live bytes are staged at a sibling `.bak.tmp`, synced, and
+/// renamed onto `.bak`. New bytes are staged at a sibling `.tmp`. `fs::rename`
+/// moves that temp onto the live path only after `write_all` and `sync_all`
+/// succeed.
 pub fn write_named(named: &str, contents: impl AsRef<[u8]>) -> std::io::Result<()> {
     write_last_good(&persist_path(named), contents.as_ref())
 }
@@ -280,28 +283,169 @@ fn ensure_parent(path: &Path) -> std::io::Result<()> {
     Ok(())
 }
 
-/// Copy live → `.bak` when the live file parses, then write `contents` to
-/// the sibling `.tmp`. Does not rename, so a stop here leaves the live file
-/// as it was.
+/// Live stage file `<live>.tmp`. Not the backup temp and not `.bak`.
+fn live_stage_path(path: &Path) -> PathBuf {
+    sibling_path(path, ".tmp")
+}
+
+/// Backup stage file `<live>.bak.tmp`. Distinct from `<live>.tmp`.
+fn bak_stage_path(path: &Path) -> PathBuf {
+    sibling_path(path, ".bak.tmp")
+}
+
+fn bak_dest_path(path: &Path) -> PathBuf {
+    sibling_path(path, ".bak")
+}
+
+/// Open a stage file for replacement. `truncate` makes a preexisting temp
+/// stale staging, not a save: those old bytes are discarded and never adopted.
+fn create_truncating(path: &Path) -> io::Result<fs::File> {
+    fs::OpenOptions::new()
+        .write(true)
+        .create(true)
+        .truncate(true)
+        .open(path)
+}
+
+/// Production uses an owned [`fs::File`]. A writer that fails `write_all` or
+/// `sync_all` exists only in tests. Non-test builds do not compile that type,
+/// and a test hits it only after installing a fault.
+trait SyncedWrite {
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()>;
+    fn sync_all(&mut self) -> io::Result<()>;
+}
+
+impl SyncedWrite for fs::File {
+    fn write_all(&mut self, buf: &[u8]) -> io::Result<()> {
+        Write::write_all(self, buf)
+    }
+
+    fn sync_all(&mut self) -> io::Result<()> {
+        fs::File::sync_all(self)
+    }
+}
+
+/// Shared by the live temp and the backup temp. `Err` stops the caller
+/// before that temp's rename. Live and backup still differ: the live temp
+/// receives the new bytes and is renamed onto `<live>` only from
+/// [`write_last_good`]; the backup temp receives the pre-write live bytes
+/// and is renamed onto `.bak`.
+fn write_all_and_sync(writer: &mut impl SyncedWrite, bytes: &[u8]) -> io::Result<()> {
+    writer.write_all(bytes)?;
+    writer.sync_all()
+}
+
+/// Write `bytes` to `tmp` and `sync_all`. Does not rename.
+///
+/// Open, `write_all`, or `sync_all` failure returns here, so the caller does
+/// not rename this temp. Test builds may substitute a failing writer. That
+/// branch is compiled out of non-test builds, and it stays inactive unless a
+/// test installs a fault.
+fn write_synced_temp(tmp: &Path, bytes: &[u8]) -> io::Result<()> {
+    #[cfg(test)]
+    if let Some(result) = tests::apply_installed_fault(tmp, bytes) {
+        return result;
+    }
+    let mut file = create_truncating(tmp)?;
+    write_all_and_sync(&mut file, bytes)
+}
+
+/// Rename `tmp` onto `dest` only after that temp's sync succeeded, then sync
+/// the parent on Unix.
+///
+/// A failure before `fs::rename` leaves `dest` untouched. A parent-sync error
+/// after a successful rename is returned as-is; the rename is not undone.
+fn rename_synced(tmp: &Path, dest: &Path) -> io::Result<()> {
+    #[cfg(test)]
+    if tests::fail_installed_pre_rename(tmp) {
+        return Err(io::Error::new(
+            io::ErrorKind::Other,
+            "injected failure before rename",
+        ));
+    }
+    fs::rename(tmp, dest)?;
+    sync_parent_after_rename(dest)
+}
+
+/// Persist the directory entry from a same-directory rename.
+///
+/// Unix, including macOS: `File::open` the parent and `sync_all`, and
+/// propagate the error. This runs only after `fs::rename` succeeded. It does
+/// not undo that rename, and it is not proof of power-loss durability.
+///
+/// Windows: a directory cannot be opened with `File::open` the way a Unix
+/// directory can, so the parent sync is skipped. The skip is best-effort
+/// only and is not a power-loss durability claim. Other non-Unix targets use
+/// this same skip. Std `cfg` only; no Unix-only dependency.
+fn sync_parent_after_rename(dest: &Path) -> io::Result<()> {
+    #[cfg(unix)]
+    {
+        let Some(parent) = dest.parent() else {
+            return Ok(());
+        };
+        if parent.as_os_str().is_empty() {
+            return Ok(());
+        }
+        let dir = fs::File::open(parent)?;
+        dir.sync_all()?;
+        Ok(())
+    }
+    #[cfg(not(unix))]
+    {
+        let _ = dest;
+        Ok(())
+    }
+}
+
+/// Pre-write live bytes when that file is valid JSON.
+///
+/// `None` (missing or not JSON) leaves an existing `.bak` in place. The
+/// bytes come from the live path, never from the new `<live>.tmp`.
+fn snapshot_valid_live(path: &Path) -> io::Result<Option<Vec<u8>>> {
+    if !parses_as_json_file(path) {
+        return Ok(None);
+    }
+    Ok(Some(fs::read(path)?))
+}
+
+/// Stage snapshotted live bytes at `<live>.bak.tmp`, then rename onto `.bak`.
+fn publish_backup(path: &Path, live_bytes: &[u8]) -> io::Result<()> {
+    let tmp = bak_stage_path(path);
+    write_synced_temp(&tmp, live_bytes)?;
+    rename_synced(&tmp, &bak_dest_path(path))
+}
+
+/// Sync the new bytes to `<live>.tmp`, then publish `.bak` when the
+/// pre-write live file parses. Does not rename the live temp, so a stop
+/// here leaves the live file as it was.
+///
+/// Live temp failure returns before `.bak` is replaced. Backup failure
+/// before the `.bak` rename returns with the old `.bak` still in place.
+/// Names stay fixed (`.tmp`, `.bak.tmp`, `.bak`); one writer, no lock.
 fn stage_tmp(path: &Path, contents: &[u8]) -> std::io::Result<PathBuf> {
     ensure_parent(path)?;
-    if parses_as_json_file(path) {
-        fs::copy(path, sibling_path(path, ".bak"))?;
+    let prior_live = snapshot_valid_live(path)?;
+    let tmp = live_stage_path(path);
+    write_synced_temp(&tmp, contents)?;
+    if let Some(live_bytes) = prior_live {
+        publish_backup(path, &live_bytes)?;
     }
-    let tmp = sibling_path(path, ".tmp");
-    fs::write(&tmp, contents)?;
     Ok(tmp)
 }
 
-/// `.tmp` then rename. Copy live → `.bak` only when the live file parses as JSON.
+/// `<live>.tmp` then rename onto the live path. `.bak` is replaced only from
+/// a valid pre-write live file, through `<live>.bak.tmp`.
 fn write_last_good(path: &Path, contents: &[u8]) -> std::io::Result<()> {
     let tmp = stage_tmp(path, contents)?;
-    fs::rename(&tmp, path)?;
+    rename_synced(&tmp, path)?;
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
+    use std::cell::{Cell, RefCell};
+    use std::io::Write;
+
     use super::*;
     use crate::hex_listen::PowrushNet;
     use crate::house_name::HouseName;
@@ -380,7 +524,10 @@ mod tests {
             persist_file_name("data/powrush_house.json"),
             "powrush_house.json"
         );
-        assert_eq!(persist_file_name("powrush_settings.json"), "powrush_settings.json");
+        assert_eq!(
+            persist_file_name("powrush_settings.json"),
+            "powrush_settings.json"
+        );
         assert_eq!(
             persist_file_name("data/powrush_genshare.jsonl"),
             "powrush_genshare.jsonl"
@@ -394,7 +541,11 @@ mod tests {
         let user = root.join("user");
         fs::create_dir_all(&cwd).unwrap();
         fs::create_dir_all(&user).unwrap();
-        fs::write(cwd.join("powrush_house.json"), r#"{"schema":"powrush_house_v1"}"#).unwrap();
+        fs::write(
+            cwd.join("powrush_house.json"),
+            r#"{"schema":"powrush_house_v1"}"#,
+        )
+        .unwrap();
         fs::write(cwd.join("nevc_status.json"), "{}").unwrap();
         assert_eq!(maybe_adopt_cwd(&user, &cwd), AdoptKind::Copied);
         assert!(user.join("powrush_house.json").exists());
@@ -515,10 +666,10 @@ mod tests {
         assert_eq!(live_now, new);
         assert_ne!(live_now, partial);
         assert!(!sibling_path(&live, ".tmp").exists());
-        assert!(serde_json::from_str::<serde_json::Value>(
-            std::str::from_utf8(&live_now).unwrap()
-        )
-        .is_ok());
+        assert!(
+            serde_json::from_str::<serde_json::Value>(std::str::from_utf8(&live_now).unwrap())
+                .is_ok()
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 
@@ -658,5 +809,363 @@ mod tests {
         assert!(!user.join("powrush_genshare.jsonl.bak").exists());
         assert!(!user.join("powrush_genshare.jsonl.tmp").exists());
         let _ = fs::remove_dir_all(&root);
+    }
+
+    /// Injected faults check ordering and the bytes left on disk.
+    /// They do not emulate power loss, and they do not prove that `sync_all`
+    /// reached physical media. A same-directory rename is not treated as a
+    /// broad platform durability proof. An error after rename is not undone.
+    const PARTIAL_KEEP: usize = 8;
+    const STALE_LIVE_TMP: &[u8] = b"STALE-LIVE-TMP-NOT-A-SAVE";
+    const STALE_BAK_TMP: &[u8] = b"STALE-BAK-TMP-NOT-A-SAVE";
+
+    #[derive(Clone, Copy)]
+    enum FaultKind {
+        /// `write_all` stores `keep` bytes, then returns `Err`.
+        Partial { keep: usize },
+        /// `write_all` finishes; `sync_all` returns `Err` and rename is not reached.
+        Sync,
+        /// `write_all` and `sync_all` finish; the next rename of this temp returns `Err`.
+        BeforeRename,
+    }
+
+    thread_local! {
+        static LIVE_FAULT: Cell<Option<FaultKind>> = Cell::new(None);
+        static BAK_FAULT: Cell<Option<FaultKind>> = Cell::new(None);
+        static PRE_RENAME: RefCell<Option<PathBuf>> = RefCell::new(None);
+    }
+
+    #[must_use]
+    struct FaultGuard;
+
+    impl Drop for FaultGuard {
+        fn drop(&mut self) {
+            clear_faults();
+        }
+    }
+
+    fn clear_faults() {
+        LIVE_FAULT.with(|slot| slot.set(None));
+        BAK_FAULT.with(|slot| slot.set(None));
+        PRE_RENAME.with(|slot| *slot.borrow_mut() = None);
+    }
+
+    fn install_live(kind: FaultKind) -> FaultGuard {
+        clear_faults();
+        LIVE_FAULT.with(|slot| slot.set(Some(kind)));
+        FaultGuard
+    }
+
+    fn install_bak(kind: FaultKind) -> FaultGuard {
+        clear_faults();
+        BAK_FAULT.with(|slot| slot.set(Some(kind)));
+        FaultGuard
+    }
+
+    fn take_fault(tmp: &Path) -> Option<FaultKind> {
+        let name = tmp.file_name()?.to_string_lossy();
+        if name.ends_with(".bak.tmp") {
+            BAK_FAULT.with(|slot| slot.take())
+        } else if name.ends_with(".tmp") {
+            LIVE_FAULT.with(|slot| slot.take())
+        } else {
+            None
+        }
+    }
+
+    struct FaultWriter {
+        file: fs::File,
+        kind: FaultKind,
+        path: PathBuf,
+    }
+
+    impl FaultWriter {
+        fn open(tmp: &Path, kind: FaultKind) -> std::io::Result<Self> {
+            Ok(Self {
+                file: create_truncating(tmp)?,
+                kind,
+                path: tmp.to_path_buf(),
+            })
+        }
+    }
+
+    impl SyncedWrite for FaultWriter {
+        fn write_all(&mut self, buf: &[u8]) -> std::io::Result<()> {
+            match self.kind {
+                FaultKind::Partial { keep } => {
+                    let n = keep.min(buf.len());
+                    if n > 0 {
+                        Write::write_all(&mut self.file, &buf[..n])?;
+                    }
+                    Err(std::io::Error::new(
+                        std::io::ErrorKind::Other,
+                        "injected partial persist write",
+                    ))
+                }
+                FaultKind::Sync | FaultKind::BeforeRename => Write::write_all(&mut self.file, buf),
+            }
+        }
+
+        fn sync_all(&mut self) -> std::io::Result<()> {
+            match self.kind {
+                FaultKind::Sync => Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "injected persist sync failure",
+                )),
+                FaultKind::BeforeRename => {
+                    fs::File::sync_all(&self.file)?;
+                    PRE_RENAME.with(|slot| *slot.borrow_mut() = Some(self.path.clone()));
+                    Ok(())
+                }
+                FaultKind::Partial { .. } => Err(std::io::Error::new(
+                    std::io::ErrorKind::Other,
+                    "injected partial persist write",
+                )),
+            }
+        }
+    }
+
+    /// Run the installed writer, if this temp has one. `None` means the
+    /// production `File` path must run. The fault type is test-only.
+    pub(super) fn apply_installed_fault(tmp: &Path, bytes: &[u8]) -> Option<std::io::Result<()>> {
+        let kind = take_fault(tmp)?;
+        Some(run_fault_writer(tmp, bytes, kind))
+    }
+
+    fn run_fault_writer(tmp: &Path, bytes: &[u8], kind: FaultKind) -> std::io::Result<()> {
+        let mut writer = FaultWriter::open(tmp, kind)?;
+        write_all_and_sync(&mut writer, bytes)
+    }
+
+    pub(super) fn fail_installed_pre_rename(tmp: &Path) -> bool {
+        PRE_RENAME.with(|slot| {
+            let mut armed = slot.borrow_mut();
+            match armed.as_ref() {
+                Some(path) if path == tmp => {
+                    *armed = None;
+                    true
+                }
+                _ => false,
+            }
+        })
+    }
+
+    struct Seed {
+        dir: PathBuf,
+        live: PathBuf,
+        older: Vec<u8>,
+        current: Vec<u8>,
+        new_bytes: Vec<u8>,
+    }
+
+    fn seed_good_pair(tag: &str) -> Seed {
+        let dir = scratch(tag);
+        let live = dir.join("powrush_note.json");
+        let older = br#"{"gen":0,"body":"bak-good"}"#.to_vec();
+        let current = br#"{"gen":1,"body":"live-good"}"#.to_vec();
+        let new_bytes = br#"{"gen":2,"body":"new-good"}"#.to_vec();
+        assert!(older.len() > PARTIAL_KEEP && current.len() > PARTIAL_KEEP);
+        assert!(new_bytes.len() > PARTIAL_KEEP);
+        assert_ne!(&older[..PARTIAL_KEEP], &current[..PARTIAL_KEEP]);
+        assert_ne!(&current[..PARTIAL_KEEP], &new_bytes[..PARTIAL_KEEP]);
+        write_last_good(&live, &older).unwrap();
+        write_last_good(&live, &current).unwrap();
+        assert_eq!(fs::read(&live).unwrap(), current);
+        assert_eq!(fs::read(bak_dest_path(&live)).unwrap(), older);
+        assert!(!live_stage_path(&live).exists());
+        assert!(!bak_stage_path(&live).exists());
+        Seed {
+            dir,
+            live,
+            older,
+            current,
+            new_bytes,
+        }
+    }
+
+    fn assert_injected(result: std::io::Result<()>) {
+        let err = result.expect_err("fault must propagate");
+        assert!(
+            err.to_string().contains("injected"),
+            "fault must be the injected error, got {err}"
+        );
+    }
+
+    fn assert_live_bak(seed: &Seed, live_bytes: &[u8], bak_bytes: &[u8]) {
+        assert_eq!(fs::read(&seed.live).unwrap(), live_bytes);
+        assert_eq!(fs::read(bak_dest_path(&seed.live)).unwrap(), bak_bytes);
+    }
+
+    fn finish(seed: &Seed) {
+        let _ = fs::remove_dir_all(&seed.dir);
+    }
+
+    #[test]
+    fn stage_temp_paths_are_distinct_siblings() {
+        let live = std::env::temp_dir()
+            .join("powrush-stage-paths")
+            .join("powrush_note.json");
+        let tmp = live_stage_path(&live);
+        let bak = bak_dest_path(&live);
+        let bak_tmp = bak_stage_path(&live);
+        assert_eq!(
+            tmp.file_name().and_then(|s| s.to_str()),
+            Some("powrush_note.json.tmp")
+        );
+        assert_eq!(
+            bak.file_name().and_then(|s| s.to_str()),
+            Some("powrush_note.json.bak")
+        );
+        assert_eq!(
+            bak_tmp.file_name().and_then(|s| s.to_str()),
+            Some("powrush_note.json.bak.tmp")
+        );
+        assert_eq!(tmp.parent(), live.parent());
+        assert_eq!(bak.parent(), live.parent());
+        assert_eq!(bak_tmp.parent(), live.parent());
+        assert_ne!(tmp, bak_tmp);
+        assert_ne!(tmp, live);
+        assert_ne!(tmp, bak);
+        assert_ne!(bak_tmp, live);
+        assert_ne!(bak_tmp, bak);
+        assert_ne!(bak, live);
+        assert!(!is_live_persist_name("powrush_note.json.tmp"));
+        assert!(!is_live_persist_name("powrush_note.json.bak"));
+        assert!(!is_live_persist_name("powrush_note.json.bak.tmp"));
+        assert!(is_live_persist_name("powrush_note.json"));
+    }
+
+    #[test]
+    fn partial_live_write_preserves_live_and_old_bak() {
+        let seed = seed_good_pair("partial-live");
+        let _guard = install_live(FaultKind::Partial { keep: PARTIAL_KEEP });
+        assert_injected(write_last_good(&seed.live, &seed.new_bytes));
+        assert_live_bak(&seed, &seed.current, &seed.older);
+        let staged = fs::read(live_stage_path(&seed.live)).unwrap();
+        assert_eq!(staged, &seed.new_bytes[..PARTIAL_KEEP]);
+        assert_ne!(fs::read(&seed.live).unwrap(), seed.new_bytes);
+        assert_ne!(fs::read(bak_dest_path(&seed.live)).unwrap(), seed.new_bytes);
+        assert!(!bak_stage_path(&seed.live).exists());
+        finish(&seed);
+    }
+
+    #[test]
+    fn stale_live_tmp_partial_write_preserves_dest() {
+        let seed = seed_good_pair("stale-live-tmp");
+        let tmp = live_stage_path(&seed.live);
+        fs::write(&tmp, STALE_LIVE_TMP).unwrap();
+        let _guard = install_live(FaultKind::Partial { keep: PARTIAL_KEEP });
+        assert_injected(write_last_good(&seed.live, &seed.new_bytes));
+        assert_live_bak(&seed, &seed.current, &seed.older);
+        assert_ne!(fs::read(&seed.live).unwrap(), STALE_LIVE_TMP);
+        assert_ne!(fs::read(bak_dest_path(&seed.live)).unwrap(), STALE_LIVE_TMP);
+        let staged = fs::read(&tmp).unwrap();
+        assert_eq!(staged, &seed.new_bytes[..PARTIAL_KEEP]);
+        assert_ne!(staged, STALE_LIVE_TMP);
+        assert_ne!(tmp, seed.live);
+        finish(&seed);
+    }
+
+    #[test]
+    fn live_sync_failure_before_rename_does_not_promote() {
+        let seed = seed_good_pair("live-sync");
+        let _guard = install_live(FaultKind::Sync);
+        assert_injected(write_last_good(&seed.live, &seed.new_bytes));
+        assert_live_bak(&seed, &seed.current, &seed.older);
+        let tmp = live_stage_path(&seed.live);
+        assert!(tmp.exists());
+        assert_ne!(tmp, seed.live);
+        assert_eq!(fs::read(&tmp).unwrap(), seed.new_bytes);
+        assert_ne!(fs::read(&seed.live).unwrap(), seed.new_bytes);
+        finish(&seed);
+    }
+
+    #[test]
+    fn live_pre_rename_after_sync_does_not_promote() {
+        let seed = seed_good_pair("live-pre-rename");
+        let _guard = install_live(FaultKind::BeforeRename);
+        assert_injected(write_last_good(&seed.live, &seed.new_bytes));
+        // Backup of the still-current live commits before the live rename.
+        // The blocked rename does not roll that backup back and does not
+        // publish the new temp.
+        assert_eq!(fs::read(&seed.live).unwrap(), seed.current);
+        assert_eq!(fs::read(bak_dest_path(&seed.live)).unwrap(), seed.current);
+        assert_ne!(fs::read(bak_dest_path(&seed.live)).unwrap(), seed.new_bytes);
+        let tmp = live_stage_path(&seed.live);
+        assert!(tmp.exists());
+        assert_ne!(tmp, seed.live);
+        assert_eq!(fs::read(&tmp).unwrap(), seed.new_bytes);
+        assert!(!bak_stage_path(&seed.live).exists());
+        finish(&seed);
+    }
+
+    #[test]
+    fn backup_pre_rename_failure_preserves_old_bak_and_live() {
+        let seed = seed_good_pair("bak-pre-rename");
+        let _guard = install_bak(FaultKind::BeforeRename);
+        assert_injected(write_last_good(&seed.live, &seed.new_bytes));
+        assert_live_bak(&seed, &seed.current, &seed.older);
+        let bak_tmp = bak_stage_path(&seed.live);
+        let live_tmp = live_stage_path(&seed.live);
+        assert_ne!(bak_tmp, live_tmp);
+        assert_ne!(bak_tmp, seed.live);
+        assert_ne!(bak_tmp, bak_dest_path(&seed.live));
+        assert!(bak_tmp.exists());
+        assert_eq!(fs::read(&bak_tmp).unwrap(), seed.current);
+        assert_ne!(fs::read(&bak_tmp).unwrap(), seed.new_bytes);
+        assert_eq!(fs::read(&live_tmp).unwrap(), seed.new_bytes);
+        assert_ne!(fs::read(&seed.live).unwrap(), seed.new_bytes);
+        finish(&seed);
+    }
+
+    #[test]
+    fn backup_sync_failure_preserves_old_bak_and_live() {
+        let seed = seed_good_pair("bak-sync");
+        let _guard = install_bak(FaultKind::Sync);
+        assert_injected(write_last_good(&seed.live, &seed.new_bytes));
+        assert_live_bak(&seed, &seed.current, &seed.older);
+        let bak_tmp = bak_stage_path(&seed.live);
+        assert!(bak_tmp.exists());
+        assert_eq!(fs::read(&bak_tmp).unwrap(), seed.current);
+        assert_ne!(fs::read(&bak_tmp).unwrap(), seed.new_bytes);
+        assert_ne!(fs::read(&seed.live).unwrap(), seed.new_bytes);
+        assert_eq!(
+            fs::read(live_stage_path(&seed.live)).unwrap(),
+            seed.new_bytes
+        );
+        finish(&seed);
+    }
+
+    #[test]
+    fn stale_bak_tmp_partial_write_preserves_old_bak_and_live() {
+        let seed = seed_good_pair("stale-bak-tmp");
+        let bak_tmp = bak_stage_path(&seed.live);
+        fs::write(&bak_tmp, STALE_BAK_TMP).unwrap();
+        let _guard = install_bak(FaultKind::Partial { keep: PARTIAL_KEEP });
+        assert_injected(write_last_good(&seed.live, &seed.new_bytes));
+        assert_live_bak(&seed, &seed.current, &seed.older);
+        assert_ne!(fs::read(&seed.live).unwrap(), STALE_BAK_TMP);
+        assert_ne!(fs::read(bak_dest_path(&seed.live)).unwrap(), STALE_BAK_TMP);
+        let staged = fs::read(&bak_tmp).unwrap();
+        assert_eq!(staged, &seed.current[..PARTIAL_KEEP]);
+        assert_ne!(staged, &seed.new_bytes[..PARTIAL_KEEP]);
+        assert_ne!(staged, STALE_BAK_TMP);
+        assert_ne!(fs::read(&seed.live).unwrap(), seed.new_bytes);
+        finish(&seed);
+    }
+
+    #[test]
+    fn stale_stage_files_are_replaced_not_adopted() {
+        let seed = seed_good_pair("stale-replace");
+        fs::write(live_stage_path(&seed.live), STALE_LIVE_TMP).unwrap();
+        fs::write(bak_stage_path(&seed.live), STALE_BAK_TMP).unwrap();
+        write_last_good(&seed.live, &seed.new_bytes).unwrap();
+        assert_eq!(fs::read(&seed.live).unwrap(), seed.new_bytes);
+        assert_eq!(fs::read(bak_dest_path(&seed.live)).unwrap(), seed.current);
+        assert_ne!(fs::read(&seed.live).unwrap(), STALE_LIVE_TMP);
+        assert_ne!(fs::read(bak_dest_path(&seed.live)).unwrap(), STALE_BAK_TMP);
+        assert!(!live_stage_path(&seed.live).exists());
+        assert!(!bak_stage_path(&seed.live).exists());
+        finish(&seed);
     }
 }
