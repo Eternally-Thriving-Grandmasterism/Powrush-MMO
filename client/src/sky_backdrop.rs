@@ -602,23 +602,9 @@ fn spawn_sky_backdrop(
     // and snow take the painterly ramp. Bands stay the VP-SKY-2 flat colour.
     // CARD VP-TERRAIN-1 — the floor is stepped shelves. Heights are world Y
     // (the court is GROUND_Y). Segments follow the preset.
-    // CARD VIS-TERRAIN-2 — the terrace is PainterlyRole::Earth through the
-    // same painted material path as the ridge. The authored hue stays
-    // VALLEY_EARTH. Earth is one stop, and a Medium frame with a height
-    // ramp on this mesh was past the +0.5 ms bound, so the ramp stays off.
     spawn(
         crate::terrain::terrace_mesh(crate::terrain::terrain_plan(preset)),
-        BackdropShade::Painted(
-            crate::painterly_mat::painterly_material(
-                crate::painterly_mat::PainterlyRole::Earth,
-                VALLEY_EARTH,
-                preset,
-            ),
-            crate::painterly_mat::PainterlyMat {
-                role: crate::painterly_mat::PainterlyRole::Earth,
-                authored: VALLEY_EARTH,
-            },
-        ),
+        BackdropShade::Plain(lit(VALLEY_EARTH, 0.95)),
         SkyBackdropPart::Ground,
         Transform::IDENTITY,
     );
@@ -1175,7 +1161,6 @@ mod tests {
                     mesh.clone(),
                     material.base_color,
                     material.perceptual_roughness,
-                    false,
                 ));
             }
         }
@@ -1189,14 +1174,13 @@ mod tests {
                     mesh.clone(),
                     material.base.base_color,
                     material.base.perceptual_roughness,
-                    true,
                 ));
             }
         }
         let meshes = world.resource::<Assets<Mesh>>();
         let mut conifers = 0;
         let mut ridge = false;
-        for (part, mesh, color, roughness, from_painterly) in &rows {
+        for (part, mesh, color, roughness) in &rows {
             let c = color.to_srgba();
             let earth = Color::srgb(VALLEY_EARTH[0], VALLEY_EARTH[1], VALLEY_EARTH[2]).to_srgba();
             let bark = Color::srgb(CONIFER_BARK[0], CONIFER_BARK[1], CONIFER_BARK[2]).to_srgba();
@@ -1212,10 +1196,6 @@ mod tests {
             );
             let rock = Color::srgb(rock_rgb[0], rock_rgb[1], rock_rgb[2]).to_srgba();
             if *part == SkyBackdropPart::Ground {
-                assert!(
-                    *from_painterly,
-                    "ground comes via PainterlyMaterial"
-                );
                 assert_eq!(c, earth, "VP-MAT-1 leaves valley earth");
                 assert_eq!(*roughness, 0.95);
                 let verts = meshes.get(mesh).unwrap().count_vertices();
@@ -1336,63 +1316,6 @@ mod tests {
         assert!(!code.contains("Mut<FogSettings>"));
         assert!(!code.contains("mut FogSettings"));
         assert!(!code.contains("FogWriteSet"));
-    }
-
-    /// CARD VIS-TERRAIN-2 — the terrace ground is painted with role Earth.
-    #[test]
-    fn ground_is_painted_with_earth_role() {
-        use shared::local_settings::LocalSettings;
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
-            .init_asset::<Mesh>()
-            .init_asset::<StandardMaterial>()
-            .init_asset::<crate::painterly_shader::PainterlyMaterial>()
-            .init_asset::<bevy::mesh::skinning::SkinnedMeshInverseBindposes>()
-            .add_plugins(bevy::camera::visibility::VisibilityPlugin)
-            .insert_resource(SoftPlayerRealm { current: Some(0) });
-        let mut inner = LocalSettings::default();
-        inner.set_graphics_preset(GraphicsPreset::Medium);
-        app.insert_resource(LocalSettingsState {
-            inner,
-            dirty: false,
-        });
-        app.add_plugins(SkyBackdropPlugin);
-        app.update();
-        let world = app.world_mut();
-        let mut painted = world.query::<(
-            &SkyBackdropPart,
-            &crate::painterly_mat::PainterlyMat,
-            &MeshMaterial3d<crate::painterly_shader::PainterlyMaterial>,
-        )>();
-        let grounds: Vec<_> = painted
-            .iter(world)
-            .filter(|(part, _, _)| **part == SkyBackdropPart::Ground)
-            .map(|(_, mark, mat)| (*mark, mat.0.clone()))
-            .collect();
-        assert_eq!(grounds.len(), 1, "one painted ground");
-        let (mark, handle) = &grounds[0];
-        assert_eq!(mark.role, crate::painterly_mat::PainterlyRole::Earth);
-        assert_eq!(mark.authored, VALLEY_EARTH);
-        let (base, roughness) = {
-            let material = world
-                .resource::<Assets<crate::painterly_shader::PainterlyMaterial>>()
-                .get(handle)
-                .expect("ground PainterlyMaterial");
-            (
-                material.base.base_color,
-                material.base.perceptual_roughness,
-            )
-        };
-        let earth = Color::srgb(VALLEY_EARTH[0], VALLEY_EARTH[1], VALLEY_EARTH[2]);
-        assert_eq!(base, earth);
-        assert_eq!(roughness, 0.95);
-        let mut plain = world.query::<(&SkyBackdropPart, &MeshMaterial3d<StandardMaterial>)>();
-        assert!(
-            plain
-                .iter(world)
-                .all(|(part, _)| *part != SkyBackdropPart::Ground),
-            "ground is not a plain StandardMaterial"
-        );
     }
 
     #[test]
