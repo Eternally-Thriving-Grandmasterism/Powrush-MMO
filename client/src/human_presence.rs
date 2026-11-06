@@ -143,6 +143,9 @@ const GRAVITY: f32 = 18.0;
 const JUMP: f32 = 5.6;
 /// CARD JUMP-BUFFER-1 — airborne jump press window in seconds (tunable; council-set, Sherif may veto).
 pub const JUMP_BUFFER_SECS: f32 = 0.12;
+/// CARD JUMP-LAND-RECOVERY-1 — lock after an airborne STAND clamp. Nine fixed
+/// 1/60 ticks suppress; the tenth accepts a fresh grounded press.
+const LANDING_RECOVERY_SECS: f32 = 0.15;
 const CAM_BACK: f32 = 6.4;
 const CAM_UP: f32 = 2.35;
 /// Radians of yaw per mouse pixel while the right button is held.
@@ -747,8 +750,16 @@ struct JumpLatch {
     pending: bool,
     /// CARD JUMP-BUFFER-1 — seconds left on an airborne press; decrement on airborne ticks only.
     buffer: f32,
-    /// Set only by the STAND clamp in `apply_locomotion`; read and cleared every tick.
+    /// Set by a grounded STAND clamp in `apply_locomotion`; read and cleared every tick.
+    /// An airborne landing clears it so the old buffer cannot hop.
     clamp_landed: bool,
+}
+
+/// CARD JUMP-LAND-RECOVERY-1 — one fixed clock inside `apply_locomotion`.
+/// Default `remaining` is 0. Not a `SoftPresence` field and not its own schedule.
+#[derive(Resource, Debug, Default)]
+struct LandingRecovery {
+    remaining: f32,
 }
 
 pub struct HumanPresencePlugin;
@@ -757,6 +768,7 @@ impl Plugin for HumanPresencePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<SoftPresence>()
             .init_resource::<JumpLatch>()
+            .init_resource::<LandingRecovery>()
             .init_resource::<PersonAttend>()
             .init_resource::<PersonRhythm>()
             .init_resource::<FollowOrbit>()
@@ -1273,6 +1285,7 @@ fn apply_locomotion(
     move_keys: Option<Res<MoveKeySnapshot>>,
     settings: Option<Res<LocalSettingsState>>,
     mut latch: ResMut<JumpLatch>,
+    mut landing: ResMut<LandingRecovery>,
     mut presence: ResMut<SoftPresence>,
     trees: (Option<Res<crate::living_practice_loop::SoftPlayerRealm>>, Option<Res<crate::vegetation::FieldTrunks>>),
 ) {
@@ -1281,6 +1294,15 @@ fn apply_locomotion(
     let seated = presence.curr_tick == Some(presence.position);
     presence.prev_tick = Some(presence.position);
     let dt = time.delta_secs();
+    // Clamp tick begins at 0. A tick that starts above zero is locked, including
+    // the ninth fixed step, whose subtract reaches zero. f32 `0.15 - 9*(1/60)`
+    // leaves ~1e-8; that dust must not hold a tenth locked step.
+    let recovering = landing.remaining > 0.0;
+    let mut next_remaining = (landing.remaining - dt).max(0.0);
+    if next_remaining < dt * 1.0e-3 {
+        next_remaining = 0.0;
+    }
+    landing.remaining = next_remaining;
     let sprint_ok = body.as_ref().map(|b| b.can_sprint()).unwrap_or(true);
     let mut speed = if input.sprint && sprint_ok {
         SPRINT
@@ -1326,7 +1348,11 @@ fn apply_locomotion(
                 facing.yaw = camera_forward_yaw(orbit_yaw);
             }
         }
-        let wish_vel = Vec2::new(wish.x * speed, wish.z * speed);
+        let wish_vel = if recovering {
+            Vec2::ZERO
+        } else {
+            Vec2::new(wish.x * speed, wish.z * speed)
+        };
         let horiz = approach_horizontal(
             Vec2::new(presence.velocity.x, presence.velocity.z),
             wish_vel,
@@ -1347,7 +1373,11 @@ fn apply_locomotion(
     // CARD JUMP-BUFFER-1 — the clamp-landing flag is read and cleared on every tick.
     let clamp_landed = std::mem::take(&mut latch.clamp_landed);
     let buffered = yard_step && latch.buffer > 0.0 && clamp_landed && seated;
-    if presence.grounded && buffered {
+    if recovering {
+        // Old buffer and a press on this tick are both rejected, not stored.
+        latch.pending = false;
+        latch.buffer = 0.0;
+    } else if presence.grounded && buffered {
         // Buffered jump on the first grounded tick after a clamp landing: one press, one jump.
         presence.velocity.y = JUMP;
         presence.grounded = false;
@@ -1378,10 +1408,20 @@ fn apply_locomotion(
     let field = trees.1.iter().flat_map(|f| f.0.iter().copied());
     push_out_of_trunks(&mut presence.position, yard.chain(field));
     if presence.position.y <= STAND {
+        // Airline is the pre-clamp grounded flag plus the seated guard.
+        // Height and vertical speed do not arm recovery by themselves.
+        let landed_from_air = !presence.grounded && seated;
         presence.position.y = STAND;
         presence.velocity.y = 0.0;
         presence.grounded = true;
-        latch.clamp_landed = true;
+        if landed_from_air {
+            latch.pending = false;
+            latch.buffer = 0.0;
+            latch.clamp_landed = false;
+            landing.remaining = LANDING_RECOVERY_SECS;
+        } else {
+            latch.clamp_landed = true;
+        }
     }
     presence.curr_tick = Some(presence.position);
 }
@@ -2275,6 +2315,7 @@ mod tests {
             ..Default::default()
         });
         world.insert_resource(super::JumpLatch::default());
+        world.insert_resource(super::LandingRecovery::default());
         world.insert_resource(super::SoftPresence::default());
         let start = world.resource::<super::SoftPresence>().position;
         world.run_system_once(super::apply_locomotion).unwrap();
@@ -3125,6 +3166,7 @@ mod tests {
             .insert_resource(TimeUpdateStrategy::FixedTimesteps(12))
             .init_resource::<SoftPresence>()
             .init_resource::<JumpLatch>()
+            .init_resource::<LandingRecovery>()
             .insert_resource(PlayerInput {
                 movement: Vec2::new(0.0, 1.0),
                 ..Default::default()
@@ -3216,44 +3258,473 @@ mod tests {
         assert_eq!(app.world().resource::<Time<Fixed>>().delta_secs(), 1.0 / 60.0);
         app.world().resource::<SoftPresence>().velocity.y == JUMP
     }
-    /// Arms `k` airborne ticks before the clamp land (arm and landing tick counted); `hook` runs after tick land - `back`. Returns JUMP rises.
-    fn jb_rises(k: usize, held: bool, back: usize, hook: fn(&mut SoftPresence)) -> usize {
+    struct JbRun {
+        rises: usize,
+        /// Highest `LandingRecovery.remaining` observed after a fixed tick.
+        peak: f32,
+        /// Remaining after the run, which continues 60 ticks past the landing.
+        end: f32,
+    }
+    /// Arms `k` airborne ticks before the clamp land (arm and landing tick counted); `hook` runs after tick land - `back`.
+    fn jb_rises(k: usize, held: bool, back: usize, hook: fn(&mut SoftPresence)) -> JbRun {
         let mut dry = jb_app(true);
-        let n = (1..).find(|_| !jb_step(&mut dry) && dry.world().resource::<SoftPresence>().grounded).unwrap();
+        let n = (1..)
+            .find(|_| !jb_step(&mut dry) && dry.world().resource::<SoftPresence>().grounded)
+            .unwrap();
         let mut app = jb_app(true);
         app.add_systems(Update, arm_jump_latch);
-        (1..=n + 60).filter(|&t| {
-            // Held: one `jump: true` frame; Update arms after this tick, so it lands on the next.
-            app.world_mut().resource_mut::<PlayerInput>().jump = held && t + k == n;
-            app.world_mut().resource_mut::<JumpLatch>().pending |= !held && t + k == n + 1;
-            let rise = jb_step(&mut app);
-            if t + back == n { hook(&mut app.world_mut().resource_mut::<SoftPresence>()); }
-            rise
-        }).count()
+        let mut peak = 0.0f32;
+        let rises = (1..=n + 60)
+            .filter(|&t| {
+                // Held: one `jump: true` frame; Update arms after this tick, so it lands on the next.
+                app.world_mut().resource_mut::<PlayerInput>().jump = held && t + k == n;
+                app.world_mut().resource_mut::<JumpLatch>().pending |= !held && t + k == n + 1;
+                let rise = jb_step(&mut app);
+                peak = peak.max(app.world().resource::<LandingRecovery>().remaining);
+                if t + back == n {
+                    hook(&mut app.world_mut().resource_mut::<SoftPresence>());
+                }
+                rise
+            })
+            .count();
+        JbRun {
+            rises,
+            peak,
+            end: app.world().resource::<LandingRecovery>().remaining,
+        }
     }
     #[test]
-    fn jump_buffer_6_ticks_jumps_12_does_not() {
-        assert_eq!((jb_rises(6, false, 0, |_| {}), jb_rises(12, false, 0, |_| {})), (1, 0));
+    fn jump_buffer_6_and_12_no_rise_through_recovery() {
+        let early = jb_rises(6, false, 0, |_| {});
+        let late = jb_rises(12, false, 0, |_| {});
+        assert_eq!((early.rises, late.rises), (0, 0));
+        assert_eq!(
+            (early.peak, late.peak),
+            (LANDING_RECOVERY_SECS, LANDING_RECOVERY_SECS)
+        );
+        assert_eq!((early.end, late.end), (0.0, 0.0));
     }
     #[test]
-    fn jump_buffer_boundary_7_jumps_8_does_not() {
-        assert_eq!((jb_rises(7, false, 0, |_| {}), jb_rises(8, false, 0, |_| {})), (1, 0));
+    fn jump_buffer_boundary_7_and_8_no_rise_through_recovery() {
+        let inside = jb_rises(7, false, 0, |_| {});
+        let outside = jb_rises(8, false, 0, |_| {});
+        assert_eq!((inside.rises, outside.rises), (0, 0));
+        assert_eq!(
+            (inside.peak, outside.peak),
+            (LANDING_RECOVERY_SECS, LANDING_RECOVERY_SECS)
+        );
+        assert_eq!((inside.end, outside.end), (0.0, 0.0));
     }
     #[test]
-    fn jump_buffer_held_key_one_rise() {
-        assert_eq!(jb_rises(4, true, 0, |_| {}), 1);
+    fn jump_buffer_held_key_no_rise_through_recovery() {
+        let run = jb_rises(4, true, 0, |_| {});
+        assert_eq!(run.rises, 0);
+        assert_eq!(run.peak, LANDING_RECOVERY_SECS);
+        assert_eq!(run.end, 0.0);
     }
     #[test]
     fn jump_buffer_grounded_press_unchanged() {
         let mut app = jb_app(false);
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        assert!(app.world().resource::<SoftPresence>().grounded);
         app.world_mut().resource_mut::<JumpLatch>().pending = true;
         assert!(jb_step(&mut app) && !app.world().resource::<SoftPresence>().grounded);
         assert!(!app.world().resource::<JumpLatch>().pending);
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
     }
     #[test]
     fn jump_buffer_reseat_does_not_hop() {
-        assert_eq!(jb_rises(3, false, 0, |p| { let landed = p.position; wake_garden_bounce(p); assert_ne!(p.position, landed); }), 0);
-        assert_eq!(jb_rises(4, false, 2, |p| { assert!(!p.grounded); p.grounded = true; }), 0);
+        let wake = jb_rises(3, false, 0, |p| {
+            let landed = p.position;
+            wake_garden_bounce(p);
+            assert_ne!(p.position, landed);
+        });
+        assert_eq!(wake.rises, 0);
+        // The drop's seated clamp arms recovery before this post-tick wake.
+        // The wake itself adds no hop, and the clock is not stuck afterwards.
+        assert_eq!(wake.peak, LANDING_RECOVERY_SECS);
+        assert_eq!(wake.end, 0.0);
+        let reseat = jb_rises(4, false, 2, |p| {
+            assert!(!p.grounded);
+            p.grounded = true;
+        });
+        assert_eq!(reseat.rises, 0);
+        assert_eq!(reseat.peak, 0.0);
+        assert_eq!(reseat.end, 0.0);
+    }
+
+    fn jr_grounded_jump(app: &mut App) {
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        assert!(app.world().resource::<SoftPresence>().grounded);
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        assert!(jb_step(app), "grounded pending did not launch");
+        assert!(!app.world().resource::<SoftPresence>().grounded);
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        assert!(!app.world().resource::<JumpLatch>().pending);
+    }
+
+    /// Real rise and fall until the STAND clamp. Recovery stays 0 until that tick.
+    fn jr_fall_to_clamp(app: &mut App) {
+        for tick in 1..120 {
+            let before_ground = app.world().resource::<SoftPresence>().grounded;
+            assert_eq!(
+                app.world().resource::<LandingRecovery>().remaining,
+                0.0,
+                "armed on pre-clamp tick {tick}"
+            );
+            let rise = jb_step(app);
+            let presence = app.world().resource::<SoftPresence>();
+            let recovery = app.world().resource::<LandingRecovery>().remaining;
+            if presence.grounded {
+                assert!(!before_ground, "clamp tick began already grounded");
+                assert!(!rise, "landing tick fired a jump");
+                assert_eq!(presence.position.y, STAND);
+                assert_eq!(presence.velocity.y, 0.0);
+                assert_eq!(recovery, LANDING_RECOVERY_SECS);
+                let latch = app.world().resource::<JumpLatch>();
+                assert!(!latch.pending);
+                assert_eq!(latch.buffer, 0.0);
+                assert!(!latch.clamp_landed);
+                return;
+            }
+            assert_eq!(recovery, 0.0);
+        }
+        panic!("jump did not reach the STAND clamp");
+    }
+
+    fn jr_reject_press(app: &mut App) {
+        {
+            let mut latch = app.world_mut().resource_mut::<JumpLatch>();
+            latch.pending = true;
+            latch.buffer = JUMP_BUFFER_SECS;
+        }
+        assert!(!jb_step(app), "recovery tick launched");
+        let presence = app.world().resource::<SoftPresence>();
+        assert!(presence.grounded);
+        assert_ne!(presence.velocity.y, JUMP);
+        let latch = app.world().resource::<JumpLatch>();
+        assert!(!latch.pending);
+        assert_eq!(latch.buffer, 0.0);
+    }
+
+    #[test]
+    fn landing_recovery_blocks_nine_fixed_ticks_then_one_fresh_jump() {
+        let mut app = jb_app(false);
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        jr_grounded_jump(&mut app);
+        jr_fall_to_clamp(&mut app);
+        for tick in 1..=9 {
+            let began = app.world().resource::<LandingRecovery>().remaining;
+            assert!(began > 0.0, "tick {tick} began clear");
+            if tick == 1 {
+                assert_eq!(began, LANDING_RECOVERY_SECS);
+            }
+            jr_reject_press(&mut app);
+            let now = app.world().resource::<LandingRecovery>().remaining;
+            assert!(now < began, "tick {tick} did not count down");
+            if tick < 9 {
+                assert!(now > 0.0, "tick {tick} expired early");
+            } else {
+                assert_eq!(now, 0.0, "ninth following tick should end at 0");
+            }
+        }
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        assert!(
+            jb_step(&mut app),
+            "tenth following tick rejected a fresh pending"
+        );
+        assert!(!app.world().resource::<SoftPresence>().grounded);
+        assert!(!app.world().resource::<JumpLatch>().pending);
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        assert!(!jb_step(&mut app), "fresh pending jumped more than once");
+        assert_ne!(app.world().resource::<SoftPresence>().velocity.y, JUMP);
+    }
+
+    #[test]
+    fn landing_recovery_ninth_press_is_not_buffered() {
+        let mut app = jb_app(false);
+        jr_grounded_jump(&mut app);
+        jr_fall_to_clamp(&mut app);
+        for tick in 1..9 {
+            assert!(
+                app.world().resource::<LandingRecovery>().remaining > 0.0,
+                "tick {tick} began clear"
+            );
+            assert!(!jb_step(&mut app), "idle recovery tick {tick} jumped");
+            assert!(app.world().resource::<SoftPresence>().grounded);
+        }
+        assert!(app.world().resource::<LandingRecovery>().remaining > 0.0);
+        jr_reject_press(&mut app);
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        assert!(
+            !jb_step(&mut app),
+            "ninth press was buffered into the tenth tick"
+        );
+        assert!(app.world().resource::<SoftPresence>().grounded);
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        assert!(!app.world().resource::<JumpLatch>().pending);
+        assert_eq!(app.world().resource::<JumpLatch>().buffer, 0.0);
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        assert!(jb_step(&mut app), "a later fresh pending should jump once");
+        assert!(!jb_step(&mut app));
+        assert_ne!(app.world().resource::<SoftPresence>().velocity.y, JUMP);
+    }
+
+    #[test]
+    fn landing_recovery_initial_ground_floor_is_immediate() {
+        let mut app = jb_app(false);
+        assert!(app.world().resource::<SoftPresence>().grounded);
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        let z0 = app.world().resource::<SoftPresence>().position.z;
+        assert!(!jb_step(&mut app));
+        let presence = app.world().resource::<SoftPresence>();
+        assert!(presence.grounded);
+        assert!(
+            presence.position.z < z0,
+            "ground W did not step, z={}",
+            presence.position.z
+        );
+        assert!(presence.velocity.z < 0.0);
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        assert!(jb_step(&mut app));
+        assert!(!app.world().resource::<SoftPresence>().grounded);
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+    }
+
+    #[test]
+    fn landing_recovery_air_approach_decels_then_resumes() {
+        let mut app = jb_app(false);
+        let wish = Vec2::new(0.0, -WALK);
+        let dt = 1.0 / 60.0;
+        jr_grounded_jump(&mut app);
+        let mut saw_air_speed = false;
+        let mut landing_speed = 0.0;
+        for _ in 0..120 {
+            let before_ground = app.world().resource::<SoftPresence>().grounded;
+            let before_vel = app.world().resource::<SoftPresence>().velocity;
+            let before_h = Vec2::new(before_vel.x, before_vel.z);
+            if !before_ground && before_h.length() > 0.0 {
+                saw_air_speed = true;
+            }
+            jb_step(&mut app);
+            let after = app.world().resource::<SoftPresence>();
+            let after_h = Vec2::new(after.velocity.x, after.velocity.z);
+            if after.grounded {
+                assert!(!before_ground, "clamp tick began grounded");
+                assert_eq!(
+                    app.world().resource::<LandingRecovery>().remaining,
+                    LANDING_RECOVERY_SECS
+                );
+                let expected = approach_horizontal(before_h, wish, MOVE_ACCEL, MOVE_DECEL, dt);
+                assert!(
+                    (after_h - expected).length() < 1.0e-4,
+                    "landing tick left approach, got {after_h:?} want {expected:?}"
+                );
+                assert!(
+                    after_h.length() > 1.0,
+                    "landing horizontal snapped, speed {}",
+                    after_h.length()
+                );
+                landing_speed = after_h.length();
+                break;
+            }
+            let expected = approach_horizontal(before_h, wish, MOVE_ACCEL, MOVE_DECEL, dt);
+            assert!(
+                (after_h - expected).length() < 1.0e-4,
+                "air tick left approach, got {after_h:?} want {expected:?}"
+            );
+            assert!(
+                after_h.length() > 0.0,
+                "air approach produced no horizontal speed"
+            );
+        }
+        assert!(saw_air_speed, "no pre-clamp tick had horizontal speed");
+        assert!(landing_speed > 1.0, "did not clamp with air speed");
+        let mut prev_h = {
+            let presence = app.world().resource::<SoftPresence>();
+            Vec2::new(presence.velocity.x, presence.velocity.z)
+        };
+        let mut held_still: Option<Vec2> = None;
+        for tick in 1..=9 {
+            assert!(
+                app.world().resource::<LandingRecovery>().remaining > 0.0,
+                "recovery tick {tick} began clear"
+            );
+            jb_step(&mut app);
+            let presence = app.world().resource::<SoftPresence>();
+            assert!(presence.grounded);
+            let now_h = Vec2::new(presence.velocity.x, presence.velocity.z);
+            let expected = approach_horizontal(prev_h, Vec2::ZERO, MOVE_ACCEL, MOVE_DECEL, dt);
+            assert!(
+                (now_h - expected).length() < 1.0e-4,
+                "tick {tick} did not decel through approach, got {now_h:?} want {expected:?}"
+            );
+            assert!(now_h.length() < landing_speed, "tick {tick} did not slow");
+            assert!(
+                now_h.length() < WALK - 0.2,
+                "tick {tick} held walk speed {}",
+                now_h.length()
+            );
+            if expected == Vec2::ZERO {
+                let xz = Vec2::new(presence.position.x, presence.position.z);
+                if let Some(locked) = held_still {
+                    assert_eq!(xz, locked, "held W crept during zero-residual recovery");
+                } else {
+                    held_still = Some(xz);
+                }
+            }
+            prev_h = now_h;
+        }
+        assert!(
+            held_still.is_some(),
+            "recovery never reached zero horizontal speed"
+        );
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        let before_z = app.world().resource::<SoftPresence>().position.z;
+        jb_step(&mut app);
+        let presence = app.world().resource::<SoftPresence>();
+        let now_h = Vec2::new(presence.velocity.x, presence.velocity.z);
+        let expected = approach_horizontal(prev_h, wish, MOVE_ACCEL, MOVE_DECEL, dt);
+        assert!(
+            (now_h - expected).length() < 1.0e-4,
+            "expiry tick left approach, got {now_h:?} want {expected:?}"
+        );
+        assert!(now_h.length() > 0.0, "expiry tick did not resume approach");
+        assert!(presence.position.z < before_z, "expiry tick did not move");
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+    }
+
+    #[test]
+    fn landing_recovery_paused_airborne_seated_consumes_without_rearm() {
+        let mut app = yard_w_app(Some(LaunchDoor::InYard), Some(false));
+        app.insert_resource(bevy::time::TimeUpdateStrategy::FixedTimesteps(1));
+        jr_grounded_jump(&mut app);
+        app.world_mut().resource_mut::<HouseLabel>().settings_open = true;
+        let mut armed = false;
+        for _ in 0..120 {
+            let before_ground = app.world().resource::<SoftPresence>().grounded;
+            if !before_ground {
+                assert_eq!(
+                    app.world().resource::<LandingRecovery>().remaining,
+                    0.0,
+                    "paused air armed before the clamp"
+                );
+            }
+            jb_step(&mut app);
+            let presence = app.world().resource::<SoftPresence>();
+            assert_eq!(presence.velocity.x, 0.0);
+            assert_eq!(presence.velocity.z, 0.0);
+            if presence.grounded && !before_ground {
+                assert_eq!(presence.position.y, STAND);
+                assert_eq!(presence.velocity.y, 0.0);
+                assert_eq!(
+                    app.world().resource::<LandingRecovery>().remaining,
+                    LANDING_RECOVERY_SECS
+                );
+                let latch = app.world().resource::<JumpLatch>();
+                assert!(!latch.pending && latch.buffer == 0.0 && !latch.clamp_landed);
+                armed = true;
+                break;
+            }
+        }
+        assert!(armed, "paused airborne body did not clamp");
+        let mut prev = LANDING_RECOVERY_SECS;
+        for tick in 1..=9 {
+            assert_eq!(app.world().resource::<LandingRecovery>().remaining, prev);
+            {
+                let mut latch = app.world_mut().resource_mut::<JumpLatch>();
+                latch.pending = true;
+                latch.buffer = JUMP_BUFFER_SECS;
+            }
+            assert!(!jb_step(&mut app), "paused recovery tick {tick} jumped");
+            let presence = app.world().resource::<SoftPresence>();
+            assert!(presence.grounded);
+            assert_eq!(presence.position.y, STAND);
+            assert_eq!(presence.velocity, Vec3::ZERO);
+            let latch = app.world().resource::<JumpLatch>();
+            assert!(!latch.pending);
+            assert_eq!(latch.buffer, 0.0);
+            let now = app.world().resource::<LandingRecovery>().remaining;
+            assert!(now < prev, "paused floor rearmed recovery");
+            prev = now;
+        }
+        assert_eq!(prev, 0.0);
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        assert!(!jb_step(&mut app), "paused ground jumped after recovery");
+        assert!(
+            app.world().resource::<JumpLatch>().pending,
+            "paused ground cleared pending"
+        );
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        assert_eq!(app.world().resource::<SoftPresence>().velocity, Vec3::ZERO);
+        assert!(app.world().resource::<SoftPresence>().grounded);
+    }
+
+    #[test]
+    fn landing_recovery_paused_ground_does_not_arm() {
+        let mut app = yard_w_app(Some(LaunchDoor::InYard), Some(true));
+        app.insert_resource(bevy::time::TimeUpdateStrategy::FixedTimesteps(1));
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        let origin = app.world().resource::<SoftPresence>().position;
+        for _ in 0..5 {
+            assert!(!jb_step(&mut app));
+            let presence = app.world().resource::<SoftPresence>();
+            assert!(presence.grounded);
+            assert_eq!(presence.velocity, Vec3::ZERO);
+            assert_eq!(presence.position.x, origin.x);
+            assert_eq!(presence.position.z, origin.z);
+            assert_eq!(presence.position.y, STAND);
+            assert!(app.world().resource::<JumpLatch>().pending);
+            assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        }
+    }
+
+    #[test]
+    fn landing_recovery_wake_does_not_arm_or_restart() {
+        let mut app = jb_app(false);
+        {
+            let mut presence = app.world_mut().resource_mut::<SoftPresence>();
+            let before = presence.position;
+            wake_garden_bounce(&mut presence);
+            assert_ne!(presence.position, before);
+            assert!(presence.grounded);
+        }
+        {
+            let mut latch = app.world_mut().resource_mut::<JumpLatch>();
+            latch.pending = false;
+            latch.buffer = JUMP_BUFFER_SECS;
+            latch.clamp_landed = true;
+        }
+        assert!(!jb_step(&mut app), "external wake spent a stale buffer");
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        assert!(app.world().resource::<SoftPresence>().grounded);
+        assert_ne!(app.world().resource::<SoftPresence>().velocity.y, JUMP);
+
+        let mut app = jb_app(false);
+        jr_grounded_jump(&mut app);
+        jr_fall_to_clamp(&mut app);
+        assert!(!jb_step(&mut app));
+        let mid = app.world().resource::<LandingRecovery>().remaining;
+        assert!(mid > 0.0 && mid < LANDING_RECOVERY_SECS);
+        {
+            let mut presence = app.world_mut().resource_mut::<SoftPresence>();
+            wake_garden_bounce(&mut presence);
+            assert!(presence.grounded);
+        }
+        {
+            let mut latch = app.world_mut().resource_mut::<JumpLatch>();
+            latch.pending = true;
+            latch.buffer = JUMP_BUFFER_SECS;
+        }
+        assert!(!jb_step(&mut app), "wake during recovery hopped");
+        let now = app.world().resource::<LandingRecovery>().remaining;
+        assert!(now < mid, "wake restarted recovery");
+        assert!(now > 0.0);
+        assert_ne!(now, LANDING_RECOVERY_SECS);
+        assert!(app.world().resource::<SoftPresence>().grounded);
+        assert!(!app.world().resource::<JumpLatch>().pending);
+        assert_eq!(app.world().resource::<JumpLatch>().buffer, 0.0);
     }
 
     /// (d) NameHouse + W does not move.
@@ -3326,6 +3797,7 @@ mod tests {
             .insert_resource(TimeUpdateStrategy::FixedTimesteps(12))
             .init_resource::<SoftPresence>()
             .init_resource::<JumpLatch>()
+            .init_resource::<LandingRecovery>()
             .init_resource::<PersonAttend>()
             .insert_resource(preset)
             .init_resource::<BodyFacing>()
@@ -3874,6 +4346,7 @@ mod tests {
             .init_resource::<ButtonInput<KeyCode>>()
             .init_resource::<SoftPresence>()
             .init_resource::<JumpLatch>()
+            .init_resource::<LandingRecovery>()
             .init_resource::<MoveKeySnapshot>()
             .init_resource::<BodyFacing>()
             .init_resource::<FollowOrbit>()
@@ -4845,7 +5318,11 @@ mod tests {
         use crate::flow_weather::{ride_nectar, NECTAR_CAP, NECTAR_FROM, NECTAR_TO};
         let peak = |fps: u32| {
             let (mut app, dir) = (App::new(), (NECTAR_TO - NECTAR_FROM).normalize());
-            app.add_plugins(MinimalPlugins).init_resource::<PlayerInput>().init_resource::<JumpLatch>().init_resource::<SoftPresence>();
+            app.add_plugins(MinimalPlugins)
+                .init_resource::<PlayerInput>()
+                .init_resource::<JumpLatch>()
+                .init_resource::<LandingRecovery>()
+                .init_resource::<SoftPresence>();
             app.insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) }).insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(1.0 / fps as f64)));
             app.add_systems(Update, ride_nectar).add_systems(FixedUpdate, apply_locomotion).world_mut().resource_mut::<SoftPresence>().position = (NECTAR_FROM + NECTAR_TO) * 0.5;
             let along = |app: &mut App| { app.update(); let v = app.world().resource::<SoftPresence>().velocity; v.x * dir.x + v.z * dir.z };
