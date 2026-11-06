@@ -6,7 +6,7 @@ use crate::combat_core::{combat_fire, predator_present, respawn_step, set_pulse,
 use crate::combat_core::{LUNGE_TELL_DOTS, LUNGE_TELL_DOT_HEIGHT, LUNGE_TELL_DOT_RADIUS, LUNGE_TELL_LIFT};
 use crate::{first_harvest_epiphany::FirstHarvestEpiphany, hex_travel::HexTravelState};
 use crate::{human_presence::SoftPresence, title_screen::LaunchDoor};
-use crate::combat_core::{hurt_edge, hurt_pulse, play_hurt, play_tell, tell_arm};
+use crate::combat_core::{ground_shot_connects, hurt_edge, hurt_pulse, play_hurt, play_tell, tell_arm};
 use crate::difficulty::{cue_line, enemy_hit, hides_cues, AreaDifficulty, DifficultyTier};
 
 /// North of the Threshold shelf (0,6): clear of the node, lamp, pond, Wards, both enemies and the wake point.
@@ -55,12 +55,15 @@ pub fn shot_armed(state: &DroidState, player_taken: u32, gate: bool, reach: bool
 
 /// One frame of the shot clock. Returns whether armed after the step (for the tell).
 /// Not armed resets the timer to 0. Defeat is left to `predator_lunge`.
-pub fn shot_step(state: &mut DroidState, player_taken: &mut u32, dt: f32, gate: bool, reach: bool, tier: DifficultyTier) -> bool {
+/// The arm, reset, and subtract advance either way; damage is the due wrap only while grounded.
+pub fn shot_step(state: &mut DroidState, player_taken: &mut u32, dt: f32, gate: bool, reach: bool, grounded: bool, tier: DifficultyTier) -> bool {
     let true = shot_armed(state, *player_taken, gate, reach) else { state.shot_timer = 0.0; return false };
     state.shot_timer += dt.max(0.0);
     if state.shot_timer >= DROID_SHOT_SECS {
         state.shot_timer -= DROID_SHOT_SECS;
-        *player_taken = player_taken.saturating_add(enemy_hit(tier, DROID_HIT)).min(HEALTH);
+        if ground_shot_connects(grounded) {
+            *player_taken = player_taken.saturating_add(enemy_hit(tier, DROID_HIT)).min(HEALTH);
+        }
     }
     shot_armed(state, *player_taken, gate, reach)
 }
@@ -143,7 +146,8 @@ fn droid_tick(
     let dt = time.delta_secs();
     down_step(&mut state, dt);
     let before = combat.player_taken;
-    let armed = shot_step(&mut state, &mut combat.player_taken, dt, gate, reach, tier);
+    let grounded = presence.as_deref().is_some_and(|p| p.grounded);
+    let armed = shot_step(&mut state, &mut combat.player_taken, dt, gate, reach, grounded, tier);
     if hurt_edge(before, combat.player_taken) { // DROID-HURT-READOUT-1: the predator's hurt path, combat_core.rs:636-644
         combat.hurt = combat.hurt.wrapping_add(1);
         play_hurt(&mut cmd, assets.as_deref(), mute.as_deref());
@@ -175,7 +179,7 @@ mod tests {
     use shared::heartwood_wards::{WARD_POST_CENTERS, WARD_USE_RADIUS};
     use shared::threshold_shelf::{THRESHOLD_NODE_CENTER, THRESHOLD_SHELF_USE_RADIUS};
 
-    fn run_for(s: &mut DroidState, t: &mut u32, secs: f32, reach: bool) -> bool { shot_step(s, t, secs, true, reach, DifficultyTier::Sheltered) }
+    fn run_for(s: &mut DroidState, t: &mut u32, secs: f32, reach: bool) -> bool { shot_step(s, t, secs, true, reach, true, DifficultyTier::Sheltered) }
 
     #[test]
     fn tell_shows_from_three_quarters() {
@@ -216,7 +220,7 @@ mod tests {
         run_for(&mut s, &mut t, 0.016, false);
         assert_eq!(s.shot_timer, 0.0);
         assert!(run_for(&mut s, &mut t, 1.0, true) && t == 0);
-        assert!(!shot_step(&mut s, &mut t, 0.1, false, true, DifficultyTier::Sheltered) && s.shot_timer == 0.0, "gate off resets");
+        assert!(!shot_step(&mut s, &mut t, 0.1, false, true, true, DifficultyTier::Sheltered) && s.shot_timer == 0.0, "gate off resets");
     }
 
     #[test]
@@ -278,13 +282,13 @@ mod tests {
     fn shot_cues_per_tier() {
         for t in crate::difficulty::TIERS {
             let (mut s, mut p, mut was) = (DroidState::default(), 0, false);
-            let armed = shot_step(&mut s, &mut p, DROID_SHOT_SECS - DROID_SHOT_TELL_SECS - 1e-3, true, true, t);
+            let armed = shot_step(&mut s, &mut p, DROID_SHOT_SECS - DROID_SHOT_TELL_SECS - 1e-3, true, true, true, t);
             assert!(!tell_onset(&mut was, shot_tell_visible(s.shot_timer, armed)), "timer unchanged on {t:?}");
-            let armed = shot_step(&mut s, &mut p, 2e-3, true, true, t);
+            let armed = shot_step(&mut s, &mut p, 2e-3, true, true, true, t);
             let tell = shot_tell_visible(s.shot_timer, armed);
             assert!(tell_onset(&mut was, tell) && !tell_onset(&mut was, tell), "tell fires once on {t:?}");
             assert_eq!(tell && !hides_cues(t), t <= DifficultyTier::Steady, "ring shows on tiers 1-2 only");
-            shot_step(&mut s, &mut p, DROID_SHOT_TELL_SECS, true, true, t);
+            shot_step(&mut s, &mut p, DROID_SHOT_TELL_SECS, true, true, true, t);
             assert_eq!(p, if t == DifficultyTier::Unbroken { 29 } else { DROID_HIT });
             let line = strike_step(&mut DroidState::default(), &mut 0, 1, true, true).unwrap();
             let want = if hides_cues(t) { DROID_NAME.to_string() } else { format!("{DROID_NAME} {} / {HEALTH}", HEALTH - HIT) };
@@ -295,7 +299,7 @@ mod tests {
     }
     /// DROID-TELL-CADENCE-1 — one `droid_tick` frame of the shot clock: (sting, ring).
     fn droid_cadence(s: &mut DroidState, p: &mut u32, was: &mut bool, reach: bool, dt: f32, t: DifficultyTier) -> (bool, bool) {
-        let armed = shot_step(s, p, dt, true, reach, t);
+        let armed = shot_step(s, p, dt, true, reach, true, t);
         let tell = droid_alive(s) && shot_tell_visible(s.shot_timer, armed);
         (tell_arm(was, armed, tell), tell && !hides_cues(t))
     }
@@ -357,5 +361,149 @@ mod tests {
         let next = src[src.find(concat!("let armed = shot_step", "(&mut state, &mut combat.player_taken")).unwrap()..].split_once('\n').unwrap().1;
         let branch = &next[..next.find("\n    }\n").unwrap()];
         assert!(next.starts_with(concat!("    if hurt_edge", "(before, combat.player_taken) {")) && ["was", "armed =", "tell", "play_tell"].iter().all(|w| !branch.contains(w)) && src.matches(concat!("hurt_edge", "(before, combat.player_taken)")).count() == 1);
+    }
+
+    #[test]
+    fn jump_dodge_airborne_shot_clock_tell_and_no_backpay() {
+        assert!(ground_shot_connects(true) && !ground_shot_connects(false));
+        let tier = DifficultyTier::Sheltered;
+        let mut air_s = DroidState::default();
+        let mut ground_s = DroidState::default();
+        let (mut air_p, mut ground_p) = (0u32, 0u32);
+        let (mut was_air, mut was_ground) = (false, false);
+        let grounded = false;
+        for dt in [DROID_SHOT_SECS - DROID_SHOT_TELL_SECS - 1e-3, 2e-3] {
+            let air_armed = shot_step(&mut air_s, &mut air_p, dt, true, true, grounded, tier);
+            let ground_armed = shot_step(&mut ground_s, &mut ground_p, dt, true, true, true, tier);
+            assert_eq!(air_s.shot_timer, ground_s.shot_timer);
+            assert_eq!(air_armed, ground_armed);
+            let tell = shot_tell_visible(air_s.shot_timer, air_armed);
+            assert_eq!(tell, shot_tell_visible(ground_s.shot_timer, ground_armed));
+            assert_eq!(tell_onset(&mut was_air, tell), tell_onset(&mut was_ground, tell));
+            assert_eq!((air_p, ground_p), (0, 0));
+        }
+        assert!(shot_tell_visible(air_s.shot_timer, true));
+        let air_armed = shot_step(&mut air_s, &mut air_p, DROID_SHOT_TELL_SECS, true, true, false, tier);
+        let ground_armed = shot_step(&mut ground_s, &mut ground_p, DROID_SHOT_TELL_SECS, true, true, true, tier);
+        assert!(air_armed && ground_armed);
+        assert_eq!(air_s.shot_timer, ground_s.shot_timer);
+        assert!(!shot_tell_visible(air_s.shot_timer, air_armed));
+        assert_eq!(air_p, 0);
+        assert_eq!(ground_p, DROID_HIT);
+        let (mut s, mut p) = (DroidState::default(), 0u32);
+        let armed = shot_step(&mut s, &mut p, DROID_SHOT_SECS, true, true, false, tier);
+        assert!(armed && p == 0 && s.shot_timer == 0.0 && !shot_tell_visible(s.shot_timer, armed));
+        let before = p;
+        let armed = shot_step(&mut s, &mut p, 0.016, true, true, true, tier);
+        assert!(armed && p == before && s.shot_timer == 0.016);
+        assert!(!hurt_edge(before, p));
+        let armed = shot_step(&mut s, &mut p, DROID_SHOT_SECS - 0.016, true, true, true, tier);
+        assert!(armed && p == DROID_HIT && s.shot_timer == 0.0);
+        assert!(hurt_edge(before, p));
+        let (mut s, mut p) = (DroidState::default(), 0u32);
+        shot_step(&mut s, &mut p, DROID_SHOT_SECS * 2.0, true, true, false, tier);
+        assert_eq!((p, s.shot_timer), (0, DROID_SHOT_SECS));
+        shot_step(&mut s, &mut p, 0.0, true, true, true, tier);
+        assert_eq!((p, s.shot_timer), (DROID_HIT, 0.0));
+        for grounded in [false, true] {
+            let reach = false;
+            let mut s = DroidState { shot_timer: 1.3, ..Default::default() };
+            let mut p = 12;
+            assert!(!shot_step(&mut s, &mut p, 1.0, true, reach, grounded, tier));
+            assert_eq!((s.shot_timer, p), (0.0, 12));
+            let mut s = DroidState { shot_timer: 0.4, ..Default::default() };
+            let mut p = HEALTH;
+            assert!(!shot_step(&mut s, &mut p, DROID_SHOT_SECS, true, true, grounded, tier) && s.shot_timer == 0.0 && p == HEALTH);
+            let mut s = DroidState { taken: HEALTH, shot_timer: 0.4, ..Default::default() };
+            let mut p = 0;
+            assert!(!shot_step(&mut s, &mut p, 5.0, true, true, grounded, tier) && s.shot_timer == 0.0 && p == 0);
+            let mut s = DroidState { shot_timer: 0.4, ..Default::default() };
+            let mut p = 0;
+            assert!(!shot_step(&mut s, &mut p, 0.2, false, true, grounded, tier) && s.shot_timer == 0.0 && p == 0);
+        }
+    }
+
+    #[test]
+    fn jump_dodge_grounded_shot_tier_scaling_includes_unbroken_29() {
+        for t in crate::difficulty::TIERS {
+            let mut p = 0;
+            let mut s = DroidState::default();
+            let armed = shot_step(&mut s, &mut p, DROID_SHOT_SECS, true, true, true, t);
+            let want = enemy_hit(t, DROID_HIT);
+            assert_eq!(p, want, "{t:?}");
+            assert_eq!(want, if t == DifficultyTier::Unbroken { 29 } else { DROID_HIT }, "{t:?}");
+            assert!(armed && s.shot_timer == 0.0);
+            let mut missed = 0;
+            let armed = shot_step(&mut DroidState::default(), &mut missed, DROID_SHOT_SECS, true, true, false, t);
+            assert!(armed && missed == 0, "{t:?}");
+        }
+        assert_eq!(enemy_hit(DifficultyTier::Steady, DROID_HIT), DROID_HIT);
+        let mut p = 0;
+        let mut s = DroidState::default();
+        shot_step(&mut s, &mut p, DROID_SHOT_SECS * 2.0, true, true, true, DifficultyTier::Sheltered);
+        assert_eq!((p, s.shot_timer), (DROID_HIT, DROID_SHOT_SECS));
+        shot_step(&mut s, &mut p, 0.0, true, true, true, DifficultyTier::Sheltered);
+        assert_eq!((p, s.shot_timer), (2 * DROID_HIT, 0.0));
+        let (mut s, mut p, mut was) = (DroidState::default(), 0, false);
+        assert_eq!(stings(&mut s, &mut p, &mut was, 15, DifficultyTier::Sheltered), 1);
+        assert_eq!(p, 3 * DROID_HIT);
+    }
+
+    fn run_droid_tick(presence: Option<SoftPresence>, shot_timer: f32, secs: f32) -> World {
+        use bevy::ecs::system::RunSystemOnce;
+        let mut world = World::new();
+        let mut time = Time::<()>::default();
+        time.advance_by(std::time::Duration::from_secs_f32(secs));
+        world.insert_resource(time);
+        world.insert_resource(HexTravelState { current: PlaceId::Heartwood });
+        world.insert_resource(LaunchDoor::InYard);
+        if let Some(presence) = presence { world.insert_resource(presence); }
+        world.insert_resource(CombatState::default());
+        world.insert_resource(DroidState { shot_timer, ..Default::default() });
+        world.insert_resource(FirstHarvestEpiphany::default());
+        world.clear_trackers();
+        world.run_system_once(droid_tick).unwrap();
+        world
+    }
+    fn droid_presence(y: f32, grounded: bool, at_home: bool) -> SoftPresence {
+        let [x, z] = if at_home { DROID_HOME } else { [80.0, 80.0] };
+        SoftPresence { position: Vec3::new(x, y, z), velocity: Vec3::ZERO, grounded, prev_tick: None, curr_tick: None }
+    }
+
+    #[test]
+    fn jump_dodge_droid_tick_reads_presence_grounded() {
+        use bevy::ecs::system::RunSystemOnce;
+        let mut air = run_droid_tick(Some(droid_presence(0.2, false, true)), 0.0, DROID_SHOT_SECS);
+        let c = air.resource::<CombatState>();
+        assert_eq!((c.player_taken, c.hurt, c.predator_taken, c.strikes), (0, 0, 0, 0));
+        assert_eq!(air.resource::<DroidState>().shot_timer, 0.0);
+        assert_eq!(air.resource::<DroidState>().taken, 0);
+        let p = air.resource::<SoftPresence>();
+        assert!(!p.grounded && p.position == Vec3::new(DROID_HOME[0], 0.2, DROID_HOME[1]) && p.velocity == Vec3::ZERO);
+        assert!(air.resource::<FirstHarvestEpiphany>().pulse_line.is_empty());
+        assert_eq!(air.query::<&AudioPlayer>().iter(&air).count(), 0, "hurt edge sound not on a miss");
+        assert!(!air.is_resource_changed::<SoftPresence>() && !air.is_resource_changed::<FirstHarvestEpiphany>());
+        let mut world = air;
+        world.resource_mut::<Time>().advance_by(std::time::Duration::from_secs_f32(0.016));
+        world.resource_mut::<SoftPresence>().grounded = true;
+        world.run_system_once(droid_tick).unwrap();
+        assert_eq!((world.resource::<CombatState>().player_taken, world.resource::<CombatState>().hurt, world.resource::<DroidState>().shot_timer), (0, 0, 0.016));
+        let rest = DROID_SHOT_SECS - world.resource::<DroidState>().shot_timer;
+        world.resource_mut::<Time>().advance_by(std::time::Duration::from_secs_f32(rest));
+        world.run_system_once(droid_tick).unwrap();
+        let c = world.resource::<CombatState>();
+        assert_eq!((c.player_taken, c.hurt), (DROID_HIT, 1));
+        assert_eq!(world.resource::<DroidState>().shot_timer, 0.0);
+        assert_eq!(world.resource::<FirstHarvestEpiphany>().pulse_line, crate::combat_core::hurt_line(DROID_HIT));
+        assert!(world.resource::<SoftPresence>().grounded && world.resource::<SoftPresence>().position.y == 0.2);
+        let high = run_droid_tick(Some(droid_presence(8.0, true, true)), 0.0, DROID_SHOT_SECS);
+        assert_eq!((high.resource::<CombatState>().player_taken, high.resource::<CombatState>().hurt), (DROID_HIT, 1));
+        assert_eq!(high.resource::<SoftPresence>().position, Vec3::new(DROID_HOME[0], 8.0, DROID_HOME[1]));
+        let far = run_droid_tick(Some(droid_presence(0.0, false, false)), 0.8, DROID_SHOT_SECS);
+        assert_eq!((far.resource::<CombatState>().player_taken, far.resource::<DroidState>().shot_timer), (0, 0.0));
+        assert_eq!(far.resource::<SoftPresence>().position, Vec3::new(80.0, 0.0, 80.0));
+        let absent = run_droid_tick(None, 0.4, DROID_SHOT_SECS);
+        assert_eq!((absent.resource::<CombatState>().player_taken, absent.resource::<CombatState>().hurt, absent.resource::<DroidState>().shot_timer), (0, 0, 0.0));
+        assert!(absent.get_resource::<SoftPresence>().is_none());
     }
 }
