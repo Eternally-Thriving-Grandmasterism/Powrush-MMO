@@ -319,12 +319,20 @@ pub fn land_hit_paid(combat: &mut CombatState, skills: &mut SkillXp, reach: bool
     }
 }
 
+/// COMBAT-JUMP-DODGE-1 — a due shot connects only when the player is grounded.
+pub fn ground_shot_connects(grounded: bool) -> bool {
+    grounded
+}
+
 /// One lunge per 0.6 s in reach. True when the player is defeated.
-pub fn predator_tick(combat: &mut CombatState, dt: f32, reach: bool, tier: DifficultyTier) -> bool {
+/// The clock, tell, and defeat return advance either way; damage is the due wrap only while grounded.
+pub fn predator_tick(combat: &mut CombatState, dt: f32, reach: bool, grounded: bool, tier: DifficultyTier) -> bool {
     combat.lunge_timer = if reach { combat.lunge_timer + dt.max(0.0) } else { 0.0 };
     while combat.lunge_timer >= LUNGE_SECS {
         combat.lunge_timer -= LUNGE_SECS;
-        combat.player_taken = combat.player_taken.saturating_add(enemy_hit(tier, HIT)).min(HEALTH);
+        if ground_shot_connects(grounded) {
+            combat.player_taken = combat.player_taken.saturating_add(enemy_hit(tier, HIT)).min(HEALTH);
+        }
     }
     combat.player_taken >= HEALTH
 }
@@ -633,8 +641,9 @@ fn predator_lunge(
     }
     let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
+    let grounded = presence.grounded;
     let before = combat.player_taken; // CL-C1: one edge per frame, read before the reseat
-    let defeated = predator_tick(&mut combat, time.delta_secs(), reach, tier);
+    let defeated = predator_tick(&mut combat, time.delta_secs(), reach, grounded, tier);
     if hurt_edge(before, combat.player_taken) {
         combat.hurt = combat.hurt.wrapping_add(1);
         if !tell_visible(combat.lunge_timer, reach) { play_hurt(&mut cmd, assets.as_deref(), mute.as_deref()); } // P4: never on a tell frame
@@ -1040,7 +1049,7 @@ mod tests {
 
     /// TELL-CADENCE-1 — one Sheltered frame at an exact dt: (sting this frame, lean).
     fn cadence(c: &mut CombatState, armed: &mut bool, reach: bool, dt: f32) -> (bool, f32) {
-        predator_tick(c, dt, reach, DifficultyTier::Sheltered);
+        predator_tick(c, dt, reach, true, DifficultyTier::Sheltered);
         (tell_arm(armed, reach, tell_visible(c.lunge_timer, reach)), lean_at(c.lunge_timer, reach))
     }
     #[test]
@@ -1084,10 +1093,237 @@ mod tests {
     #[test]
     fn combat_feel_look_hurt_edge_once_per_rise() {
         let mut c = CombatState::default();
-        let step = |c: &mut CombatState, dt: f32| { let before = c.player_taken; predator_tick(c, dt, true, DifficultyTier::Sheltered); hurt_edge(before, c.player_taken) };
+        let step = |c: &mut CombatState, dt: f32| { let before = c.player_taken; predator_tick(c, dt, true, true, DifficultyTier::Sheltered); hurt_edge(before, c.player_taken) };
         assert!((0..4).all(|_| !step(&mut c, 0.125)), "no edge before the strike");
         assert!(step(&mut c, 0.125) && !step(&mut c, 0.0), "once on the wrap, not on an unchanged frame");
         assert!(step(&mut c, 1.25) && c.player_taken == 3 * enemy_hit(DifficultyTier::Sheltered, HIT), "two wraps, one edge");
+    }
+
+    fn clock_after(start: f32, dt: f32, reach: bool) -> (f32, u32) {
+        let mut timer = if reach { start + dt.max(0.0) } else { 0.0 };
+        let mut wraps = 0u32;
+        while timer >= LUNGE_SECS {
+            timer -= LUNGE_SECS;
+            wraps += 1;
+        }
+        (timer, wraps)
+    }
+    fn due_taken(start: u32, wraps: u32, tier: DifficultyTier) -> u32 {
+        let mut taken = start;
+        for _ in 0..wraps {
+            taken = taken.saturating_add(enemy_hit(tier, HIT)).min(HEALTH);
+        }
+        taken
+    }
+
+    #[test]
+    fn jump_dodge_ground_shot_connects_true_and_false() {
+        assert!(ground_shot_connects(true));
+        assert!(!ground_shot_connects(false));
+    }
+
+    #[test]
+    fn jump_dodge_airborne_lunge_wraps_clock_tells_and_lean_without_health() {
+        let tier = DifficultyTier::Sheltered;
+        let mut air = CombatState::default();
+        let mut ground = CombatState::default();
+        let (mut was_air, mut was_ground) = (false, false);
+        for dt in [LUNGE_SECS - LUNGE_TELL_SECS - 1e-3, 2e-3] {
+            predator_tick(&mut air, dt, true, false, tier);
+            predator_tick(&mut ground, dt, true, true, tier);
+            assert_eq!(air.lunge_timer, ground.lunge_timer);
+            let tell = tell_visible(air.lunge_timer, true);
+            assert_eq!(tell, tell_visible(ground.lunge_timer, true));
+            assert_eq!(lean_at(air.lunge_timer, true), lean_at(ground.lunge_timer, true));
+            assert_eq!(tell_onset(&mut was_air, tell), tell_onset(&mut was_ground, tell_visible(ground.lunge_timer, true)));
+            assert_eq!((air.player_taken, ground.player_taken, air.hurt, ground.hurt), (0, 0, 0, 0));
+        }
+        assert!(tell_visible(air.lunge_timer, true) && lean_at(air.lunge_timer, true) > 0.0 && lean_at(air.lunge_timer, true) <= LUNGE_LEAN);
+        predator_tick(&mut air, LUNGE_TELL_SECS, true, false, tier);
+        predator_tick(&mut ground, LUNGE_TELL_SECS, true, true, tier);
+        assert_eq!(air.lunge_timer, ground.lunge_timer);
+        assert_eq!(lean_at(air.lunge_timer, true), lean_at(ground.lunge_timer, true));
+        assert_eq!(tell_visible(air.lunge_timer, true), tell_visible(ground.lunge_timer, true));
+        assert_eq!(air.player_taken, 0);
+        assert_eq!(ground.player_taken, HIT);
+        let mut one = CombatState { player_taken: 11, hurt: 2, ..Default::default() };
+        assert!(!predator_tick(&mut one, LUNGE_SECS, true, false, tier));
+        assert_eq!((one.player_taken, one.lunge_timer, one.hurt), (11, 0.0, 2));
+        assert!(!tell_visible(one.lunge_timer, true) && lean_at(one.lunge_timer, true) == 0.0);
+        assert!(!hurt_edge(11, one.player_taken));
+        let mut multi = CombatState::default();
+        for _ in 0..5 {
+            assert!(!predator_tick(&mut multi, LUNGE_SECS, true, false, tier));
+        }
+        assert_eq!((multi.player_taken, multi.lunge_timer), (0, 0.0));
+        let (start, dt) = (0.0f32, LUNGE_SECS * 4.0);
+        let (timer, wraps) = clock_after(start, dt, true);
+        assert_eq!((timer, wraps), (0.0, 4));
+        let mut mega = CombatState::default();
+        assert!(!predator_tick(&mut mega, dt, true, false, tier));
+        assert_eq!((mega.player_taken, mega.lunge_timer), (0, timer));
+        let (start, dt) = (0.05f32, 3.7f32);
+        let (timer, wraps) = clock_after(start, dt, true);
+        assert_eq!(wraps, 6);
+        let mut messy = CombatState { lunge_timer: start, ..Default::default() };
+        let before = messy.player_taken;
+        predator_tick(&mut messy, dt, true, false, tier);
+        assert_eq!(messy.lunge_timer, timer);
+        assert_eq!(messy.player_taken, before);
+        assert!(!hurt_edge(before, messy.player_taken));
+        assert_eq!(lean_at(messy.lunge_timer, true), lean_at(timer, true));
+        assert_eq!(tell_visible(messy.lunge_timer, true), tell_visible(timer, true));
+    }
+
+    #[test]
+    fn jump_dodge_grounded_lunge_keeps_tier_saturation_and_clock() {
+        assert_eq!((enemy_hit(DifficultyTier::Sheltered, HIT), enemy_hit(DifficultyTier::Steady, HIT), enemy_hit(DifficultyTier::Sworn, HIT), enemy_hit(DifficultyTier::Unbroken, HIT)), (HIT, HIT, HIT, 17));
+        let mut shel = CombatState::default();
+        assert!(!predator_tick(&mut shel, LUNGE_SECS, true, true, DifficultyTier::Sheltered) && shel.player_taken == HIT && shel.lunge_timer == 0.0);
+        let mut steady = CombatState::default();
+        predator_tick(&mut steady, LUNGE_SECS, true, true, DifficultyTier::Steady);
+        assert_eq!((steady.player_taken, steady.lunge_timer), (HIT, 0.0));
+        let mut unbroken = CombatState::default();
+        predator_tick(&mut unbroken, LUNGE_SECS, true, true, DifficultyTier::Unbroken);
+        assert_eq!(unbroken.player_taken, 17);
+        let mut sat = CombatState::default();
+        for _ in 0..13 {
+            assert!(!predator_tick(&mut sat, LUNGE_SECS, true, true, DifficultyTier::Sheltered));
+        }
+        assert_eq!(sat.player_taken, 13 * HIT);
+        assert!(predator_tick(&mut sat, LUNGE_SECS, true, true, DifficultyTier::Sheltered));
+        assert_eq!(sat.player_taken, HEALTH);
+        let (start, dt) = (0.05f32, 3.7f32);
+        let (timer, wraps) = clock_after(start, dt, true);
+        let mut air = CombatState { lunge_timer: start, ..Default::default() };
+        let mut ground = CombatState { lunge_timer: start, ..Default::default() };
+        predator_tick(&mut air, dt, true, false, DifficultyTier::Sheltered);
+        predator_tick(&mut ground, dt, true, true, DifficultyTier::Sheltered);
+        assert_eq!(air.lunge_timer, timer);
+        assert_eq!(ground.lunge_timer, timer);
+        assert_eq!(air.player_taken, 0);
+        assert_eq!(ground.player_taken, due_taken(0, wraps, DifficultyTier::Sheltered));
+        let mut neg = CombatState { lunge_timer: 0.2, player_taken: 5, ..Default::default() };
+        predator_tick(&mut neg, -0.5, true, true, DifficultyTier::Sheltered);
+        assert_eq!((neg.lunge_timer, neg.player_taken), (0.2, 5), "dt.max(0.0)");
+    }
+
+    #[test]
+    fn jump_dodge_out_of_reach_resets_either_ground_bool() {
+        for grounded in [false, true] {
+            let mut c = CombatState { lunge_timer: 0.7, player_taken: 40, hurt: 3, ..Default::default() };
+            assert!(!predator_tick(&mut c, 3.0, false, grounded, DifficultyTier::Sheltered));
+            assert_eq!((c.lunge_timer, c.player_taken, c.hurt), (0.0, 40, 3));
+            assert_eq!(clock_after(0.7, 3.0, false), (0.0, 0));
+            let mut held = CombatState { lunge_timer: 0.2, ..Default::default() };
+            predator_tick(&mut held, -1.0, true, grounded, DifficultyTier::Sheltered);
+            assert_eq!((held.lunge_timer, held.player_taken), (0.2, 0));
+        }
+    }
+
+    #[test]
+    fn jump_dodge_crossing_pays_only_the_grounded_due_not_stored_air() {
+        let mut c = CombatState::default();
+        for _ in 0..3 {
+            assert!(!predator_tick(&mut c, LUNGE_SECS, true, false, DifficultyTier::Sheltered));
+        }
+        assert_eq!((c.player_taken, c.lunge_timer), (0, 0.0));
+        assert!(!predator_tick(&mut c, 0.0, true, true, DifficultyTier::Sheltered));
+        assert_eq!(c.player_taken, 0);
+        let half = LUNGE_SECS * 0.5;
+        assert!(!predator_tick(&mut c, half, true, true, DifficultyTier::Sheltered));
+        assert_eq!((c.player_taken, c.lunge_timer), (0, half));
+        assert!(!predator_tick(&mut c, LUNGE_SECS - half, true, true, DifficultyTier::Sheltered));
+        assert_eq!((c.player_taken, c.lunge_timer), (HIT, 0.0), "jump avoids due damage but no future immune");
+        let mut mid = CombatState { lunge_timer: 0.4, player_taken: 10, ..Default::default() };
+        predator_tick(&mut mid, 0.1, true, false, DifficultyTier::Sheltered);
+        assert_eq!((mid.player_taken, mid.lunge_timer), (10, 0.5));
+        assert!(!hurt_edge(10, mid.player_taken));
+        predator_tick(&mut mid, 0.1, true, true, DifficultyTier::Sheltered);
+        assert_eq!((mid.player_taken, mid.lunge_timer), (10 + HIT, 0.0));
+        assert!(hurt_edge(10, mid.player_taken));
+    }
+
+    #[test]
+    fn jump_dodge_already_dead_stays_defeated_and_near_dead_airborne_does_not() {
+        let mut near = CombatState { player_taken: HEALTH - HIT, hurt: 4, ..Default::default() };
+        assert!(!predator_tick(&mut near, LUNGE_SECS * 4.0, true, false, DifficultyTier::Sheltered));
+        assert_eq!((near.player_taken, near.lunge_timer, near.hurt), (HEALTH - HIT, 0.0, 4));
+        let mut grounded_near = CombatState { player_taken: HEALTH - HIT, ..Default::default() };
+        assert!(predator_tick(&mut grounded_near, LUNGE_SECS, true, true, DifficultyTier::Sheltered));
+        assert_eq!(grounded_near.player_taken, HEALTH);
+        let mut dead = CombatState { player_taken: HEALTH, hurt: 1, lunge_timer: 0.2, ..Default::default() };
+        let (timer, _) = clock_after(0.2, LUNGE_SECS * 3.0, true);
+        assert!(predator_tick(&mut dead, LUNGE_SECS * 3.0, true, false, DifficultyTier::Unbroken));
+        assert_eq!((dead.player_taken, dead.hurt, dead.lunge_timer), (HEALTH, 1, timer));
+        let mut dead_ground = CombatState { player_taken: HEALTH, ..Default::default() };
+        assert!(predator_tick(&mut dead_ground, 0.0, true, true, DifficultyTier::Sheltered));
+        assert_eq!(dead_ground.player_taken, HEALTH);
+    }
+
+    #[test]
+    fn jump_dodge_hurt_edge_only_on_real_damage() {
+        let mut c = CombatState::default();
+        let before = c.player_taken;
+        predator_tick(&mut c, LUNGE_SECS, true, false, DifficultyTier::Sheltered);
+        assert!(!hurt_edge(before, c.player_taken));
+        let before = c.player_taken;
+        predator_tick(&mut c, LUNGE_SECS, true, true, DifficultyTier::Sheltered);
+        assert!(hurt_edge(before, c.player_taken) && c.player_taken == HIT);
+        let before = c.player_taken;
+        predator_tick(&mut c, 0.0, true, true, DifficultyTier::Sheltered);
+        assert!(!hurt_edge(before, c.player_taken));
+    }
+
+    fn run_predator_lunge(y: f32, grounded: bool, taken: u32, timer: f32, secs: f32, hurt: u32) -> World {
+        use bevy::ecs::system::RunSystemOnce;
+        let mut world = World::new();
+        let mut time = Time::<()>::default();
+        time.advance_by(std::time::Duration::from_secs_f32(secs));
+        world.insert_resource(time);
+        world.insert_resource(HexTravelState { current: PlaceId::Heartwood });
+        world.insert_resource(LaunchDoor::InYard);
+        let [x, z] = PREDATOR_HOME;
+        world.insert_resource(SoftPresence { position: Vec3::new(x, y, z), velocity: Vec3::ZERO, grounded, prev_tick: None, curr_tick: None });
+        world.insert_resource(CombatState { player_taken: taken, lunge_timer: timer, hurt, ..Default::default() });
+        world.insert_resource(FirstHarvestEpiphany::default());
+        world.clear_trackers();
+        world.run_system_once(predator_lunge).unwrap();
+        world
+    }
+
+    #[test]
+    fn jump_dodge_predator_lunge_reads_presence_grounded() {
+        let mut air = run_predator_lunge(0.0, false, 30, 0.0, LUNGE_SECS, 7);
+        let c = air.resource::<CombatState>();
+        assert_eq!((c.player_taken, c.hurt, c.lunge_timer, c.predator_taken, c.strikes, c.respawned, c.down_secs), (30, 7, 0.0, 0, 0, false, 0.0));
+        let p = air.resource::<SoftPresence>();
+        assert!(!p.grounded && p.position == Vec3::new(PREDATOR_HOME[0], 0.0, PREDATOR_HOME[1]) && p.velocity == Vec3::ZERO && p.prev_tick.is_none() && p.curr_tick.is_none());
+        let epi = air.resource::<FirstHarvestEpiphany>();
+        assert!(epi.pulse_line.is_empty() && epi.pulse_until == 0.0);
+        assert_eq!(air.query::<&AudioPlayer>().iter(&air).count(), 0, "hurt edge sound not on a miss");
+        assert!(!air.is_resource_changed::<SoftPresence>() && !air.is_resource_changed::<FirstHarvestEpiphany>());
+        let high = run_predator_lunge(6.0, true, 0, 0.0, LUNGE_SECS, 0);
+        let c = high.resource::<CombatState>();
+        assert_eq!((c.player_taken, c.hurt), (HIT, 1));
+        let p = high.resource::<SoftPresence>();
+        assert!(p.grounded && p.position == Vec3::new(PREDATOR_HOME[0], 6.0, PREDATOR_HOME[1]) && p.velocity == Vec3::ZERO);
+        let epi = high.resource::<FirstHarvestEpiphany>();
+        assert_eq!(epi.pulse_line, hurt_line(HIT));
+        assert_eq!(epi.pulse_until, high.resource::<Time>().elapsed_secs_f64() + CUE_SECS);
+        let mut near = run_predator_lunge(1.5, false, HEALTH - HIT, 0.0, LUNGE_SECS * 4.0, 0);
+        let c = near.resource::<CombatState>();
+        assert_eq!((c.player_taken, c.hurt, c.lunge_timer), (HEALTH - HIT, 0, 0.0));
+        let p = near.resource::<SoftPresence>();
+        assert!(!p.grounded && p.position == Vec3::new(PREDATOR_HOME[0], 1.5, PREDATOR_HOME[1]));
+        assert!(near.resource::<FirstHarvestEpiphany>().pulse_line.is_empty());
+        assert_eq!(near.query::<&AudioPlayer>().iter(&near).count(), 0);
+        let dead = run_predator_lunge(3.0, false, HEALTH, 0.0, LUNGE_SECS, 0);
+        assert_eq!(dead.resource::<CombatState>().player_taken, 0);
+        let p = dead.resource::<SoftPresence>();
+        assert!(p.grounded && p.velocity == Vec3::ZERO);
+        assert_eq!((p.position.x, p.position.z), (HEARTWOOD_ENTRANCE[0], HEARTWOOD_ENTRANCE[1]));
+        assert_eq!(dead.resource::<FirstHarvestEpiphany>().pulse_line, wake_cue());
     }
 
     #[test]
@@ -1123,8 +1359,8 @@ mod tests {
         let inv = HumanInventory::default();
         let (slot, seen) = (inv.selected, inv.last_seen_harvests);
         let mut c = CombatState::default();
-        assert!(!predator_tick(&mut c, LUNGE_SECS, true, DifficultyTier::Sheltered) && c.player_taken == HIT);
-        assert!(predator_tick(&mut c, LUNGE_SECS * 14.0, true, DifficultyTier::Sheltered), "200 health, 15 per lunge");
+        assert!(!predator_tick(&mut c, LUNGE_SECS, true, true, DifficultyTier::Sheltered) && c.player_taken == HIT);
+        assert!(predator_tick(&mut c, LUNGE_SECS * 14.0, true, true, DifficultyTier::Sheltered), "200 health, 15 per lunge");
         let (position, velocity) = (Vec3::new(-18.0, STAND_HEIGHT, -18.0), Vec3::X);
         let (prev_tick, curr_tick) = (None, None);
         let mut p = SoftPresence { position, velocity, grounded: false, prev_tick, curr_tick };
@@ -1406,7 +1642,7 @@ mod tests {
     #[test]
     fn lunge_tell_closed_after_the_wrap() {
         let mut c = CombatState { lunge_timer: 0.59, ..Default::default() };
-        predator_tick(&mut c, 0.02, true, DifficultyTier::Sheltered);
+        predator_tick(&mut c, 0.02, true, true, DifficultyTier::Sheltered);
         assert!(c.lunge_timer < LUNGE_SECS - LUNGE_TELL_SECS, "{}", c.lunge_timer);
         assert!(!tell_visible(c.lunge_timer, true));
     }
@@ -1702,13 +1938,13 @@ mod tests {
     fn lunge_cues_per_tier() {
         for t in crate::difficulty::TIERS {
             let (mut c, mut was) = (CombatState::default(), false);
-            predator_tick(&mut c, LUNGE_SECS - LUNGE_TELL_SECS - 1e-3, true, t);
+            predator_tick(&mut c, LUNGE_SECS - LUNGE_TELL_SECS - 1e-3, true, true, t);
             assert!(!tell_onset(&mut was, tell_visible(c.lunge_timer, true)), "timer unchanged on {t:?}");
-            predator_tick(&mut c, 2e-3, true, t);
+            predator_tick(&mut c, 2e-3, true, true, t);
             let tell = tell_visible(c.lunge_timer, true);
             assert!(tell_onset(&mut was, tell) && !tell_onset(&mut was, tell), "tell fires once on {t:?}");
             assert_eq!(tell && !hides_cues(t), t <= DifficultyTier::Steady, "ring shows on tiers 1-2 only");
-            predator_tick(&mut c, LUNGE_TELL_SECS, true, t);
+            predator_tick(&mut c, LUNGE_TELL_SECS, true, true, t);
             assert_eq!(c.player_taken, if t == DifficultyTier::Unbroken { 17 } else { HIT });
         }
         let low = LUNGE_TELL_TEXT.to_lowercase();
