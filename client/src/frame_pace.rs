@@ -311,6 +311,10 @@ mod tests {
         Full,
         /// Sleep returns before the request and still moves the clock forward.
         Early,
+        /// The next sleep moves the clock past the request by `extra`. Later sleeps are exact.
+        OversleepOnce {
+            extra: Duration,
+        },
     }
 
     #[derive(Clone)]
@@ -378,7 +382,8 @@ mod tests {
             let mut inner = self.0.lock().expect("fake sleeper");
             inner.sleeps.push(remaining);
             assert!(inner.sleeps.len() <= CALL_CAP, "sleep calls unbounded");
-            let step = match inner.advance {
+            let mode = inner.advance;
+            let step = match mode {
                 Advance::Full => remaining,
                 Advance::Early => {
                     let nanos = u64::try_from(remaining.as_nanos()).expect("sleep fits u64");
@@ -390,6 +395,13 @@ mod tests {
                         assert!(step < remaining, "early-wake fake must return early");
                     }
                     assert!(!step.is_zero(), "early-wake fake must advance");
+                    step
+                }
+                Advance::OversleepOnce { extra } => {
+                    assert!(!extra.is_zero(), "oversleep is longer than the request");
+                    let step = remaining.checked_add(extra).expect("oversleep");
+                    assert!(step > remaining, "oversleep advances past the request");
+                    inner.advance = Advance::Full;
                     step
                 }
             };
@@ -443,6 +455,46 @@ mod tests {
             "overflow is outside representable checks"
         );
         assert!(pace.deadline.is_some());
+    }
+
+    /// The late release already happened. The stored deadline is that instant plus one period,
+    /// and the next update waits exactly that long: one sleep, one release, no catch-up.
+    fn assert_next_update_waits_from_late_release(
+        app: &mut App,
+        state: &Arc<Mutex<FakeInner>>,
+        late: Instant,
+        period: Duration,
+    ) {
+        let expected = late.checked_add(period).expect("rearm");
+        assert_eq!(
+            app.world().resource::<ReleasePace>().deadline,
+            Some(expected),
+            "next deadline is actual release + period"
+        );
+        let before = snapshot(state);
+        app.update();
+        let after = snapshot(state);
+        assert_eq!(
+            after.releases.len(),
+            before.releases.len() + 1,
+            "one release, no burst and no repayment"
+        );
+        assert_eq!(
+            after.sleeps.len(),
+            before.sleeps.len() + 1,
+            "one wait, no repayment of the missed time"
+        );
+        assert_eq!(*after.sleeps.last().expect("sleep"), period);
+        assert_eq!(*after.releases.last().expect("release"), expected);
+        let gap = after
+            .releases
+            .last()
+            .expect("release")
+            .checked_duration_since(late)
+            .expect("gap");
+        assert!(gap >= period);
+        assert_eq!(gap, period);
+        assert_representable(app);
     }
 
     fn assert_period_releases(origin: Instant, releases: &[Instant], period: Duration, n: usize) {
@@ -583,6 +635,40 @@ mod tests {
             .expect("gap");
         assert_eq!(gap, FOCUSED_PERIOD.checked_mul(10).expect("gap"));
         assert_representable(&app);
+        assert_next_update_waits_from_late_release(
+            &mut app,
+            &state,
+            inner.releases[1],
+            FOCUSED_PERIOD,
+        );
+    }
+
+    #[test]
+    fn oversleep_next_update_waits_from_actual_release() {
+        let extra = FOCUSED_PERIOD / 2;
+        let (mut app, state) = pace_app(Advance::OversleepOnce { extra }, false);
+        spawn_primaries(&mut app, 1, true);
+        app.update();
+        let late = snapshot(&state);
+        assert_eq!(late.releases.len(), 1, "oversleep releases once");
+        assert_eq!(late.sleeps.len(), 1, "oversleep is one sleep");
+        assert_eq!(late.sleeps[0], FOCUSED_PERIOD);
+        let advanced = late.releases[0]
+            .checked_duration_since(late.origin)
+            .expect("advance");
+        assert!(
+            advanced > late.sleeps[0],
+            "clock advanced by more than the requested sleep"
+        );
+        assert_eq!(advanced.checked_sub(late.sleeps[0]).expect("extra"), extra);
+        let armed = late.origin.checked_add(FOCUSED_PERIOD).expect("deadline");
+        assert!(late.releases[0] > armed, "release is overdue");
+        assert_next_update_waits_from_late_release(
+            &mut app,
+            &state,
+            late.releases[0],
+            FOCUSED_PERIOD,
+        );
     }
 
     #[test]
@@ -788,6 +874,12 @@ mod tests {
         assert!(gaps.iter().all(|gap| *gap >= FOCUSED_PERIOD));
         assert_eq!(gaps[2], FOCUSED_PERIOD.checked_mul(2).expect("gap"));
         assert_representable(&app);
+        assert_next_update_waits_from_late_release(
+            &mut app,
+            &state,
+            inner.releases[3],
+            FOCUSED_PERIOD,
+        );
     }
 
     #[test]
