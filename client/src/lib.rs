@@ -49,6 +49,7 @@ pub mod net_mode;
 pub mod climate_script;
 pub mod human_inventory;
 pub mod local_session_persist;
+pub mod wood_expedition;
 pub mod lived_sim_bridge;
 pub mod local_sovereign_session;
 pub mod living_practice_loop;
@@ -215,6 +216,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(feel_move::FeelMovePlugin);
         app.add_plugins(human_inventory::HumanInventoryPlugin);
         app.add_plugins(local_session_persist::LocalSessionPersistPlugin);
+        app.add_plugins(wood_expedition::WoodExpeditionPlugin);
         app.add_plugins(difficulty::DifficultyPlugin);
         app.add_plugins(skill_xp::SkillXpPlugin);
         app.add_plugins(combat_core::CombatCorePlugin);

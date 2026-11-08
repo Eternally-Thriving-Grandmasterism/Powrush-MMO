@@ -58,6 +58,31 @@ pub fn read_named(named: &str) -> std::io::Result<String> {
     read_with_bak_fallback(&persist_path(named))
 }
 
+/// Confirmed absence of one persist sibling. Other I/O failures stay `Err`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RawPersist {
+    Bytes(Vec<u8>),
+    NotFound,
+}
+
+fn read_exact_file(path: &Path) -> io::Result<RawPersist> {
+    match fs::read(path) {
+        Ok(bytes) => Ok(RawPersist::Bytes(bytes)),
+        Err(err) if err.kind() == io::ErrorKind::NotFound => Ok(RawPersist::NotFound),
+        Err(err) => Err(err),
+    }
+}
+
+/// Live bytes for `named`. Does not read `.bak` and does not parse.
+pub fn read_live_bytes(named: &str) -> io::Result<RawPersist> {
+    read_exact_file(&persist_path(named))
+}
+
+/// Backup bytes for `named`. Does not read the live file and does not parse.
+pub fn read_backup_bytes(named: &str) -> io::Result<RawPersist> {
+    read_exact_file(&sibling_path(&persist_path(named), ".bak"))
+}
+
 /// Soft-write a persist file into the resolved user dir (creates the dir).
 ///
 /// A good save parses as JSON (`serde_json::from_str::<serde_json::Value>`).
@@ -1167,5 +1192,34 @@ mod tests {
         assert!(!live_stage_path(&seed.live).exists());
         assert!(!bak_stage_path(&seed.live).exists());
         finish(&seed);
+    }
+
+    #[test]
+    fn raw_sibling_reads_split_not_found_from_errors() {
+        let dir = scratch("raw-split");
+        fs::write(dir.join("powrush_seal.json"), b"{}\n").unwrap();
+        let name = "powrush_raw_probe.json";
+        with_user_dir(&dir, || {
+            assert_eq!(read_live_bytes(name).unwrap(), RawPersist::NotFound);
+            assert_eq!(read_backup_bytes(name).unwrap(), RawPersist::NotFound);
+            fs::write(dir.join(name), b"live-raw").unwrap();
+            fs::write(dir.join(format!("{name}.bak")), b"bak-raw").unwrap();
+            assert_eq!(
+                read_live_bytes(name).unwrap(),
+                RawPersist::Bytes(b"live-raw".to_vec())
+            );
+            assert_eq!(
+                read_backup_bytes(name).unwrap(),
+                RawPersist::Bytes(b"bak-raw".to_vec())
+            );
+            fs::remove_file(dir.join(name)).unwrap();
+            fs::create_dir(dir.join(name)).unwrap();
+            assert!(read_live_bytes(name).is_err());
+            assert_eq!(
+                read_backup_bytes(name).unwrap(),
+                RawPersist::Bytes(b"bak-raw".to_vec())
+            );
+        });
+        let _ = fs::remove_dir_all(&dir);
     }
 }
