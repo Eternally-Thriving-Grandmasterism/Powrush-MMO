@@ -4,13 +4,13 @@
 //! One process. No cross-process exclusion.
 //! Final exit wait is a 250 ms design ceiling, not a measured guarantee.
 
+use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{self, Receiver, Sender};
 use std::sync::{Arc, Mutex, MutexGuard};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
-use bevy::prelude::*;
-use serde::{Deserialize, Serialize};
 
 const SAVE_NAME: &str = "powrush_wood_expedition.json";
 const SCHEMA: u32 = 1;
@@ -18,27 +18,64 @@ const TREE_ID: u64 = 0;
 const EXIT_BUDGET: Duration = Duration::from_millis(250);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-enum Stand { Standing, Depleted }
+enum Stand {
+    Standing,
+    Depleted,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-enum Charge { None, Ready, Spent }
+enum Charge {
+    None,
+    Ready,
+    Spent,
+}
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Doc {
-    schema: u32, revision: u64, generation: u64, session: u64, op: u64,
-    tree: u64, stand: Stand, unit: u8, charge: Charge,
+    schema: u32,
+    revision: u64,
+    generation: u64,
+    session: u64,
+    op: u64,
+    tree: u64,
+    stand: Stand,
+    unit: u8,
+    charge: Charge,
 }
 impl Doc {
     fn fresh(session: u64) -> Self {
-        Self { schema: SCHEMA, revision: 0, generation: 0, session, op: 0, tree: TREE_ID,
-            stand: Stand::Standing, unit: 0, charge: Charge::None }
+        Self {
+            schema: SCHEMA,
+            revision: 0,
+            generation: 0,
+            session,
+            op: 0,
+            tree: TREE_ID,
+            stand: Stand::Standing,
+            unit: 0,
+            charge: Charge::None,
+        }
     }
 }
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct Ident { session: u64, generation: u64, op: u64, revision: u64, content: u64 }
+struct Ident {
+    session: u64,
+    generation: u64,
+    op: u64,
+    revision: u64,
+    content: u64,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct Snap { doc: Doc, bytes: Vec<u8>, id: Ident }
+struct Snap {
+    doc: Doc,
+    bytes: Vec<u8>,
+    id: Ident,
+}
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Raw { Bytes(Vec<u8>), NotFound, Err }
+enum Raw {
+    Bytes(Vec<u8>),
+    NotFound,
+    Err,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Fail {
     #[cfg_attr(not(test), allow(dead_code))]
@@ -47,11 +84,28 @@ enum Fail {
     Conflict,
 }
 #[derive(Clone, Debug, PartialEq, Eq)]
-enum Recovered { Fresh(Doc), Primary(Doc), Backup(Doc), Inert }
+enum Recovered {
+    Fresh(Doc),
+    Primary(Doc),
+    Backup(Doc),
+    Inert,
+}
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Recovery { Fresh, Primary, Backup, Inert }
-enum Cmd { Snap(Snap), Stop }
-enum Note { Boot(Recovered), Done { id: Ident, result: Result<(), Fail> }, Ended }
+enum Recovery {
+    Fresh,
+    Primary,
+    Backup,
+    Inert,
+}
+enum Cmd {
+    Snap(Snap),
+    Stop,
+}
+enum Note {
+    Boot(Recovered),
+    Done { id: Ident, result: Result<(), Fail> },
+    Ended,
+}
 
 trait Io: Send + 'static {
     fn note_worker(&self) {}
@@ -65,14 +119,25 @@ fn lock<T>(mutex: &Mutex<T>) -> MutexGuard<'_, T> {
 }
 fn hash_bytes(bytes: &[u8]) -> u64 {
     let mut hash = 0xcbf29ce484222325u64;
-    for byte in bytes { hash ^= u64::from(*byte); hash = hash.wrapping_mul(0x100000001b3); }
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
     hash
 }
-fn canon(doc: &Doc) -> Option<Vec<u8>> { serde_json::to_vec(doc).ok() }
+fn canon(doc: &Doc) -> Option<Vec<u8>> {
+    serde_json::to_vec(doc).ok()
+}
 fn domain_ok(doc: &Doc) -> bool {
-    if doc.schema != SCHEMA || doc.tree != TREE_ID || doc.unit > 1 { return false; }
-    if doc.stand == Stand::Standing && doc.unit != 0 { return false; }
-    if doc.stand == Stand::Standing && doc.charge == Charge::Ready { return false; }
+    if doc.schema != SCHEMA || doc.tree != TREE_ID || doc.unit > 1 {
+        return false;
+    }
+    if doc.stand == Stand::Standing && doc.unit != 0 {
+        return false;
+    }
+    if doc.stand == Stand::Standing && doc.charge == Charge::Ready {
+        return false;
+    }
     doc.unit != 1 || doc.charge != Charge::Ready
 }
 fn parse_doc(bytes: &[u8]) -> Option<Doc> {
@@ -80,10 +145,17 @@ fn parse_doc(bytes: &[u8]) -> Option<Doc> {
     domain_ok(&doc).then_some(doc)
 }
 fn snap_from(doc: Doc) -> Option<Snap> {
-    if !domain_ok(&doc) { return None; }
+    if !domain_ok(&doc) {
+        return None;
+    }
     let bytes = canon(&doc)?;
-    let id = Ident { session: doc.session, generation: doc.generation, op: doc.op,
-        revision: doc.revision, content: hash_bytes(&bytes) };
+    let id = Ident {
+        session: doc.session,
+        generation: doc.generation,
+        op: doc.op,
+        revision: doc.revision,
+        content: hash_bytes(&bytes),
+    };
     Some(Snap { doc, bytes, id })
 }
 fn classify(raw: Raw) -> Result<Option<Doc>, ()> {
@@ -105,7 +177,10 @@ fn recover(primary: Raw, backup: Raw, session: u64) -> Recovered {
     }
 }
 fn mint_session() -> u64 {
-    let nanos = SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_nanos() as u64).unwrap_or(1);
+    let nanos = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|d| d.as_nanos() as u64)
+        .unwrap_or(1);
     nanos.wrapping_mul(0x9E37_79B1_85EB_CA87) ^ u64::from(std::process::id())
 }
 /// Checkpoint replay is allowed. No durable exactly-once. No one-flush backup bound.
@@ -117,7 +192,9 @@ fn publish_one(io: &impl Io, snap: &Snap) -> Result<(), Fail> {
         Err(Fail::Ambiguous) => match io.read_live() {
             Raw::Bytes(found) if found == snap.bytes => Ok(()),
             Raw::Bytes(found) => match parse_doc(&found) {
-                Some(doc) if doc.revision == snap.doc.revision && found != snap.bytes => Err(Fail::Conflict),
+                Some(doc) if doc.revision == snap.doc.revision && found != snap.bytes => {
+                    Err(Fail::Conflict)
+                }
                 _ => Err(Fail::Ambiguous),
             },
             _ => Err(Fail::Ambiguous),
@@ -126,14 +203,25 @@ fn publish_one(io: &impl Io, snap: &Snap) -> Result<(), Fail> {
 }
 fn worker(io: impl Io, rx: Receiver<Cmd>, tx: Sender<Note>, acked: Arc<AtomicBool>) {
     io.note_worker();
-    let _ = tx.send(Note::Boot(recover(io.read_live(), io.read_backup(), mint_session())));
+    let _ = tx.send(Note::Boot(recover(
+        io.read_live(),
+        io.read_backup(),
+        mint_session(),
+    )));
     loop {
         match rx.recv() {
             Ok(Cmd::Snap(snap)) => {
                 let result = publish_one(&io, &snap);
-                let _ = tx.send(Note::Done { id: snap.id, result });
+                let _ = tx.send(Note::Done {
+                    id: snap.id,
+                    result,
+                });
             }
-            Ok(Cmd::Stop) => { acked.store(true, Ordering::SeqCst); let _ = tx.send(Note::Ended); break; }
+            Ok(Cmd::Stop) => {
+                acked.store(true, Ordering::SeqCst);
+                let _ = tx.send(Note::Ended);
+                break;
+            }
             Err(_) => break,
         }
     }
@@ -141,8 +229,15 @@ fn worker(io: impl Io, rx: Receiver<Cmd>, tx: Sender<Note>, acked: Arc<AtomicBoo
 
 #[derive(Default)]
 struct Body {
-    memory: Option<Snap>, inflight: Option<Snap>, queued: Option<Snap>, confirmed: Option<Snap>,
-    inert: bool, blocked: bool, conflict: bool, dirty: bool, booted: bool,
+    memory: Option<Snap>,
+    inflight: Option<Snap>,
+    queued: Option<Snap>,
+    confirmed: Option<Snap>,
+    inert: bool,
+    blocked: bool,
+    conflict: bool,
+    dirty: bool,
+    booted: bool,
     recovery: Option<Recovery>,
 }
 impl Body {
@@ -153,7 +248,11 @@ impl Body {
         self.booted = true;
         self.dirty = false;
         let (recovery, doc) = match recovered {
-            Recovered::Inert => { self.inert = true; self.recovery = Some(Recovery::Inert); return; }
+            Recovered::Inert => {
+                self.inert = true;
+                self.recovery = Some(Recovery::Inert);
+                return;
+            }
             Recovered::Fresh(doc) => (Recovery::Fresh, doc),
             Recovered::Primary(doc) => (Recovery::Primary, doc),
             Recovered::Backup(doc) => (Recovery::Backup, doc),
@@ -161,41 +260,64 @@ impl Body {
         self.recovery = Some(recovery);
         match snap_from(doc) {
             Some(snap) => self.memory = Some(snap),
-            None => { self.inert = true; self.recovery = Some(Recovery::Inert); }
+            None => {
+                self.inert = true;
+                self.recovery = Some(Recovery::Inert);
+            }
         }
     }
     fn hand(&mut self, snap: Snap, tx: &Sender<Cmd>) {
-        if self.inert || self.blocked { return; }
+        if self.inert || self.blocked {
+            return;
+        }
         self.inflight = Some(snap.clone());
         let _ = tx.send(Cmd::Snap(snap));
     }
     #[cfg_attr(not(test), allow(dead_code))]
     fn submit(&mut self, doc: Doc, tx: &Sender<Cmd>) {
-        if self.inert || self.blocked || self.conflict || !self.booted { return; }
-        let Some(snap) = snap_from(doc) else { return; };
+        if self.inert || self.blocked || self.conflict || !self.booted {
+            return;
+        }
+        let Some(snap) = snap_from(doc) else {
+            return;
+        };
         if let Some(memory) = &self.memory {
             if memory.doc.revision == snap.doc.revision && memory.bytes != snap.bytes {
                 self.conflict = true;
                 return;
             }
-            if snap.doc.revision < memory.doc.revision || memory.bytes == snap.bytes { return; }
+            if snap.doc.revision < memory.doc.revision || memory.bytes == snap.bytes {
+                return;
+            }
         }
         self.memory = Some(snap.clone());
         self.sync_dirty();
-        if self.inflight.is_some() { self.queued = Some(snap); } else { self.hand(snap, tx); }
+        if self.inflight.is_some() {
+            self.queued = Some(snap);
+        } else {
+            self.hand(snap, tx);
+        }
     }
     fn finish(&mut self, id: Ident, result: Result<(), Fail>, tx: &Sender<Cmd>) {
-        let Some(flight) = self.inflight.clone() else { return; };
-        if flight.id != id { return; }
+        let Some(flight) = self.inflight.clone() else {
+            return;
+        };
+        if flight.id != id {
+            return;
+        }
         match result {
             Ok(()) => {
                 self.confirmed = self.inflight.take();
-                if let Some(next) = self.queued.take() { self.hand(next, tx); }
+                if let Some(next) = self.queued.take() {
+                    self.hand(next, tx);
+                }
             }
             Err(Fail::PreRename) => {
                 // Previous published bytes and confirmed stay. The failed snap does not replace queued.
                 self.inflight = None;
-                if let Some(next) = self.queued.take() { self.hand(next, tx); }
+                if let Some(next) = self.queued.take() {
+                    self.hand(next, tx);
+                }
             }
             Err(fail) => {
                 // An unresolved write blocks later saves. No retry and no backoff.
@@ -211,8 +333,12 @@ impl Body {
 
 struct Disk;
 impl Io for Disk {
-    fn read_live(&self) -> Raw { map_raw(shared::user_persist::read_live_bytes(SAVE_NAME)) }
-    fn read_backup(&self) -> Raw { map_raw(shared::user_persist::read_backup_bytes(SAVE_NAME)) }
+    fn read_live(&self) -> Raw {
+        map_raw(shared::user_persist::read_live_bytes(SAVE_NAME))
+    }
+    fn read_backup(&self) -> Raw {
+        map_raw(shared::user_persist::read_backup_bytes(SAVE_NAME))
+    }
     fn publish(&self, bytes: &[u8]) -> Result<(), Fail> {
         // One writer. `write_named` uses its fixed temp. `Err` may be post-rename.
         match shared::user_persist::write_named(SAVE_NAME, bytes) {
@@ -231,8 +357,13 @@ fn map_raw(result: std::io::Result<shared::user_persist::RawPersist>) -> Raw {
 
 #[derive(Resource)]
 struct WoodHub {
-    tx: Sender<Cmd>, rx: Mutex<Receiver<Note>>, join: Mutex<Option<JoinHandle<()>>>,
-    body: Body, budget: Duration, released: bool, stop_sent: bool,
+    tx: Sender<Cmd>,
+    rx: Mutex<Receiver<Note>>,
+    join: Mutex<Option<JoinHandle<()>>>,
+    body: Body,
+    budget: Duration,
+    released: bool,
+    stop_sent: bool,
     #[cfg_attr(not(test), allow(dead_code))]
     acked: Arc<AtomicBool>,
 }
@@ -243,16 +374,35 @@ impl WoodHub {
         let acked = Arc::new(AtomicBool::new(false));
         let flag = Arc::clone(&acked);
         let join = thread::spawn(move || worker(io, cmd_rx, note_tx, flag));
-        Self { tx, rx: Mutex::new(note_rx), join: Mutex::new(Some(join)), body: Body::default(),
-            budget, released: false, stop_sent: false, acked }
+        Self {
+            tx,
+            rx: Mutex::new(note_rx),
+            join: Mutex::new(Some(join)),
+            body: Body::default(),
+            budget,
+            released: false,
+            stop_sent: false,
+            acked,
+        }
     }
     #[cfg_attr(not(test), allow(dead_code))]
-    fn submit(&mut self, doc: Doc) { self.body.submit(doc, &self.tx); }
-    fn poll(&mut self) { for note in self.try_notes() { self.apply(note); } }
+    fn submit(&mut self, doc: Doc) {
+        self.body.submit(doc, &self.tx);
+    }
+    fn poll(&mut self) {
+        for note in self.try_notes() {
+            self.apply(note);
+        }
+    }
     fn try_notes(&self) -> Vec<Note> {
         let rx = lock(&self.rx);
         let mut notes = Vec::new();
-        loop { match rx.try_recv() { Ok(note) => notes.push(note), Err(_) => break } }
+        loop {
+            match rx.try_recv() {
+                Ok(note) => notes.push(note),
+                Err(_) => break,
+            }
+        }
         notes
     }
     fn apply(&mut self, note: Note) {
@@ -263,13 +413,18 @@ impl WoodHub {
         }
     }
     fn shutdown(&mut self) {
-        if self.released || self.stop_sent { return; }
+        if self.released || self.stop_sent {
+            return;
+        }
         let deadline = Instant::now() + self.budget;
         let mut handed = false;
         loop {
             self.poll();
             if self.body.inflight.is_some() {
-                if Instant::now() >= deadline { self.seal_timeout(); return; }
+                if Instant::now() >= deadline {
+                    self.seal_timeout();
+                    return;
+                }
                 thread::sleep(Duration::from_millis(5));
                 continue;
             }
@@ -282,12 +437,17 @@ impl WoodHub {
             }
             break;
         }
-        if Instant::now() >= deadline { self.seal_timeout(); return; }
+        if Instant::now() >= deadline {
+            self.seal_timeout();
+            return;
+        }
         self.stop_sent = true;
         let _ = self.tx.send(Cmd::Stop);
         while Instant::now() < deadline {
             self.poll();
-            if self.released { return; }
+            if self.released {
+                return;
+            }
             thread::sleep(Duration::from_millis(5));
         }
     }
@@ -297,20 +457,29 @@ impl WoodHub {
         let _ = self.tx.send(Cmd::Stop);
     }
     fn pending_intent(&mut self) -> Option<Snap> {
-        if self.body.blocked || self.body.inert || !self.body.dirty { return None; }
+        if self.body.blocked || self.body.inert || !self.body.dirty {
+            return None;
+        }
         self.body.queued.take().or_else(|| self.body.memory.clone())
     }
     fn release_join(&mut self) {
-        if let Some(handle) = lock(&self.join).take() { let _ = handle.join(); }
+        if let Some(handle) = lock(&self.join).take() {
+            let _ = handle.join();
+        }
         self.released = true;
     }
     #[cfg(test)]
     fn join_after_stop(&mut self) {
-        if self.released { return; }
+        if self.released {
+            return;
+        }
         let deadline = Instant::now() + Duration::from_secs(2);
         while Instant::now() < deadline {
             let _ = self.try_notes();
-            if self.acked.load(Ordering::SeqCst) { self.release_join(); return; }
+            if self.acked.load(Ordering::SeqCst) {
+                self.release_join();
+                return;
+            }
             thread::sleep(Duration::from_millis(2));
         }
     }
@@ -324,37 +493,59 @@ impl Plugin for WoodExpeditionPlugin {
             .add_systems(Last, stop_on_exit);
     }
 }
-fn poll_wood(mut hub: ResMut<WoodHub>) { hub.poll(); }
+fn poll_wood(mut hub: ResMut<WoodHub>) {
+    hub.poll();
+}
 fn stop_on_exit(mut exit: MessageReader<AppExit>, mut hub: ResMut<WoodHub>) {
-    if exit.read().next().is_some() { hub.shutdown(); }
+    if exit.read().next().is_some() {
+        hub.shutdown();
+    }
 }
 
 #[cfg(test)]
 mod tests {
+    use super::*;
     use std::sync::atomic::AtomicUsize;
     use std::sync::{Condvar, Mutex};
     use std::thread::{self, ThreadId};
     use std::time::{Duration, Instant};
-    use super::*;
 
     const SLOW: Duration = Duration::from_secs(2);
     #[derive(Clone)]
-    enum Mode { Write, PreRename, Ambiguous(Vec<u8>) }
+    enum Mode {
+        Write,
+        PreRename,
+        Ambiguous(Vec<u8>),
+    }
     struct Inner {
-        primary: Mutex<Raw>, backup: Mutex<Raw>, mode: Mutex<Mode>,
-        hold: Mutex<bool>, hold_cv: Condvar, after: Mutex<bool>, after_cv: Condvar,
-        entered: AtomicUsize, publishes: Mutex<Vec<Vec<u8>>>,
-        worker: Mutex<Option<ThreadId>>, off_worker: AtomicUsize,
+        primary: Mutex<Raw>,
+        backup: Mutex<Raw>,
+        mode: Mutex<Mode>,
+        hold: Mutex<bool>,
+        hold_cv: Condvar,
+        after: Mutex<bool>,
+        after_cv: Condvar,
+        entered: AtomicUsize,
+        publishes: Mutex<Vec<Vec<u8>>>,
+        worker: Mutex<Option<ThreadId>>,
+        off_worker: AtomicUsize,
     }
     #[derive(Clone)]
     struct Fake(Arc<Inner>);
     impl Fake {
         fn pair(primary: Raw, backup: Raw) -> Self {
             Self(Arc::new(Inner {
-                primary: Mutex::new(primary), backup: Mutex::new(backup), mode: Mutex::new(Mode::Write),
-                hold: Mutex::new(false), hold_cv: Condvar::new(), after: Mutex::new(false), after_cv: Condvar::new(),
-                entered: AtomicUsize::new(0), publishes: Mutex::new(Vec::new()),
-                worker: Mutex::new(None), off_worker: AtomicUsize::new(0),
+                primary: Mutex::new(primary),
+                backup: Mutex::new(backup),
+                mode: Mutex::new(Mode::Write),
+                hold: Mutex::new(false),
+                hold_cv: Condvar::new(),
+                after: Mutex::new(false),
+                after_cv: Condvar::new(),
+                entered: AtomicUsize::new(0),
+                publishes: Mutex::new(Vec::new()),
+                worker: Mutex::new(None),
+                off_worker: AtomicUsize::new(0),
             }))
         }
         fn touch(&self) {
@@ -364,27 +555,59 @@ mod tests {
         }
         fn gate(flag: &Mutex<bool>, cv: &Condvar, block: bool) {
             *lock(flag) = block;
-            if !block { cv.notify_all(); }
+            if !block {
+                cv.notify_all();
+            }
         }
         fn wait(flag: &Mutex<bool>, cv: &Condvar) {
             let mut guard = lock(flag);
-            while *guard { guard = cv.wait(guard).unwrap_or_else(|err| err.into_inner()); }
+            while *guard {
+                guard = cv.wait(guard).unwrap_or_else(|err| err.into_inner());
+            }
         }
-        fn block_before(&self) { Self::gate(&self.0.hold, &self.0.hold_cv, true); }
-        fn unblock_before(&self) { Self::gate(&self.0.hold, &self.0.hold_cv, false); }
-        fn block_after(&self) { Self::gate(&self.0.after, &self.0.after_cv, true); }
-        fn unblock_after(&self) { Self::gate(&self.0.after, &self.0.after_cv, false); }
-        fn set_mode(&self, mode: Mode) { *lock(&self.0.mode) = mode; }
-        fn entered(&self) -> usize { self.0.entered.load(Ordering::SeqCst) }
-        fn publishes(&self) -> Vec<Vec<u8>> { lock(&self.0.publishes).clone() }
-        fn primary(&self) -> Raw { lock(&self.0.primary).clone() }
-        fn backup(&self) -> Raw { lock(&self.0.backup).clone() }
-        fn off_worker(&self) -> usize { self.0.off_worker.load(Ordering::SeqCst) }
+        fn block_before(&self) {
+            Self::gate(&self.0.hold, &self.0.hold_cv, true);
+        }
+        fn unblock_before(&self) {
+            Self::gate(&self.0.hold, &self.0.hold_cv, false);
+        }
+        fn block_after(&self) {
+            Self::gate(&self.0.after, &self.0.after_cv, true);
+        }
+        fn unblock_after(&self) {
+            Self::gate(&self.0.after, &self.0.after_cv, false);
+        }
+        fn set_mode(&self, mode: Mode) {
+            *lock(&self.0.mode) = mode;
+        }
+        fn entered(&self) -> usize {
+            self.0.entered.load(Ordering::SeqCst)
+        }
+        fn publishes(&self) -> Vec<Vec<u8>> {
+            lock(&self.0.publishes).clone()
+        }
+        fn primary(&self) -> Raw {
+            lock(&self.0.primary).clone()
+        }
+        fn backup(&self) -> Raw {
+            lock(&self.0.backup).clone()
+        }
+        fn off_worker(&self) -> usize {
+            self.0.off_worker.load(Ordering::SeqCst)
+        }
     }
     impl Io for Fake {
-        fn note_worker(&self) { *lock(&self.0.worker) = Some(thread::current().id()); }
-        fn read_live(&self) -> Raw { self.touch(); self.primary() }
-        fn read_backup(&self) -> Raw { self.touch(); self.backup() }
+        fn note_worker(&self) {
+            *lock(&self.0.worker) = Some(thread::current().id());
+        }
+        fn read_live(&self) -> Raw {
+            self.touch();
+            self.primary()
+        }
+        fn read_backup(&self) -> Raw {
+            self.touch();
+            self.backup()
+        }
         fn publish(&self, bytes: &[u8]) -> Result<(), Fail> {
             self.touch();
             self.0.entered.fetch_add(1, Ordering::SeqCst);
@@ -392,32 +615,66 @@ mod tests {
             let mode = lock(&self.0.mode).clone();
             lock(&self.0.publishes).push(bytes.to_vec());
             let result = match mode {
-                Mode::Write => { *lock(&self.0.primary) = Raw::Bytes(bytes.to_vec()); Ok(()) }
+                Mode::Write => {
+                    *lock(&self.0.primary) = Raw::Bytes(bytes.to_vec());
+                    Ok(())
+                }
                 Mode::PreRename => Err(Fail::PreRename),
-                Mode::Ambiguous(found) => { *lock(&self.0.primary) = Raw::Bytes(found); Err(Fail::Ambiguous) }
+                Mode::Ambiguous(found) => {
+                    *lock(&self.0.primary) = Raw::Bytes(found);
+                    Err(Fail::Ambiguous)
+                }
             };
             Self::wait(&self.0.after, &self.0.after_cv);
             result
         }
     }
     fn sample(schema: u32, revision: u64, tree: u64, unit: u8) -> Doc {
-        Doc { schema, revision, generation: 3, session: 8, op: 2, tree, stand: Stand::Depleted, unit, charge: Charge::Spent }
+        Doc {
+            schema,
+            revision,
+            generation: 3,
+            session: 8,
+            op: 2,
+            tree,
+            stand: Stand::Depleted,
+            unit,
+            charge: Charge::Spent,
+        }
     }
     fn edited(revision: u64, generation: u64) -> Doc {
-        Doc { schema: SCHEMA, revision, generation, session: 11, op: revision, tree: TREE_ID,
-            stand: Stand::Depleted, unit: 1, charge: Charge::Spent }
+        Doc {
+            schema: SCHEMA,
+            revision,
+            generation,
+            session: 11,
+            op: revision,
+            tree: TREE_ID,
+            stand: Stand::Depleted,
+            unit: 1,
+            charge: Charge::Spent,
+        }
     }
     fn until(mut ready: impl FnMut() -> bool) {
         let deadline = Instant::now() + SLOW;
-        while !ready() { assert!(Instant::now() < deadline, "wait"); thread::sleep(Duration::from_millis(1)); }
+        while !ready() {
+            assert!(Instant::now() < deadline, "wait");
+            thread::sleep(Duration::from_millis(1));
+        }
     }
     fn started(fake: Fake, budget: Duration) -> WoodHub {
         let mut hub = WoodHub::spawn(fake, budget);
-        until(|| { hub.poll(); hub.body.booted });
+        until(|| {
+            hub.poll();
+            hub.body.booted
+        });
         hub
     }
     fn drive(hub: &mut WoodHub, mut ready: impl FnMut(&WoodHub) -> bool) {
-        until(|| { hub.poll(); ready(hub) });
+        until(|| {
+            hub.poll();
+            ready(hub)
+        });
     }
 
     #[test]
@@ -426,7 +683,9 @@ mod tests {
         assert_send_sync::<WoodHub>();
     }
     #[test]
-    fn exit_wait_is_a_design_ceiling() { assert_eq!(EXIT_BUDGET, Duration::from_millis(250)); }
+    fn exit_wait_is_a_design_ceiling() {
+        assert_eq!(EXIT_BUDGET, Duration::from_millis(250));
+    }
 
     #[test]
     fn recover_classes() {
@@ -437,7 +696,10 @@ mod tests {
         let foreign = canon(&sample(9, 4, 9, 1)).unwrap();
         let unit = canon(&sample(SCHEMA, 4, 9, 2)).unwrap();
         let mut extra: serde_json::Value = serde_json::from_slice(&good).unwrap();
-        extra.as_object_mut().unwrap().insert("extra".into(), 1.into());
+        extra
+            .as_object_mut()
+            .unwrap()
+            .insert("extra".into(), 1.into());
         let extra = serde_json::to_vec(&extra).unwrap();
         let session = 7u64;
         for (primary, backup) in [
@@ -451,14 +713,26 @@ mod tests {
             (Raw::NotFound, Raw::Bytes(foreign)),
             (Raw::Bytes(bad.clone()), Raw::Bytes(bad)),
         ] {
-            assert!(matches!(recover(primary, backup, session), Recovered::Inert));
+            assert!(matches!(
+                recover(primary, backup, session),
+                Recovered::Inert
+            ));
         }
-        assert!(matches!(recover(Raw::NotFound, Raw::NotFound, session), Recovered::Fresh(doc) if doc == Doc::fresh(session)));
-        assert!(matches!(recover(Raw::NotFound, Raw::Bytes(good.clone()), session), Recovered::Backup(doc) if doc == good_doc));
-        assert!(matches!(recover(Raw::Bytes(good.clone()), Raw::Bytes(other), session), Recovered::Primary(doc) if doc == good_doc));
-        assert!(matches!(recover(Raw::Bytes(good), Raw::Err, session), Recovered::Primary(doc) if doc == good_doc));
+        assert!(
+            matches!(recover(Raw::NotFound, Raw::NotFound, session), Recovered::Fresh(doc) if doc == Doc::fresh(session))
+        );
+        assert!(
+            matches!(recover(Raw::NotFound, Raw::Bytes(good.clone()), session), Recovered::Backup(doc) if doc == good_doc)
+        );
+        assert!(
+            matches!(recover(Raw::Bytes(good.clone()), Raw::Bytes(other), session), Recovered::Primary(doc) if doc == good_doc)
+        );
+        assert!(
+            matches!(recover(Raw::Bytes(good), Raw::Err, session), Recovered::Primary(doc) if doc == good_doc)
+        );
         let mut ready = good_doc;
-        ready.unit = 0; ready.charge = Charge::Ready;
+        ready.unit = 0;
+        ready.charge = Charge::Ready;
         assert_eq!(parse_doc(&canon(&ready).unwrap()).unwrap(), ready);
         ready.charge = Charge::None;
         assert_eq!(parse_doc(&canon(&ready).unwrap()).unwrap(), ready);
@@ -470,7 +744,10 @@ mod tests {
         let cases = [
             (Raw::Bytes(b"{}".to_vec()), Raw::Bytes(good.clone())),
             (Raw::Err, Raw::Bytes(good.clone())),
-            (Raw::Bytes(canon(&sample(9, 1, 1, 1)).unwrap()), Raw::Bytes(good)),
+            (
+                Raw::Bytes(canon(&sample(9, 1, 1, 1)).unwrap()),
+                Raw::Bytes(good),
+            ),
             (Raw::NotFound, Raw::Bytes(b"bak-bad".to_vec())),
             (Raw::Bytes(b"aa".to_vec()), Raw::Bytes(b"bb".to_vec())),
         ];
@@ -481,7 +758,10 @@ mod tests {
             hub.submit(edited(4, 4));
             hub.shutdown();
             assert!(fake.publishes().is_empty());
-            assert_eq!((fake.primary(), fake.backup(), fake.off_worker()), (primary, backup, 0));
+            assert_eq!(
+                (fake.primary(), fake.backup(), fake.off_worker()),
+                (primary, backup, 0)
+            );
         }
     }
 
@@ -492,8 +772,14 @@ mod tests {
         let fake = Fake::pair(Raw::NotFound, Raw::Bytes(bytes.clone()));
         let mut hub = started(fake.clone(), SLOW);
         assert_eq!(hub.body.memory.as_ref().unwrap().doc, doc);
-        assert_eq!((hub.body.recovery, hub.body.dirty), (Some(Recovery::Backup), false));
-        assert_eq!((fake.primary(), fake.backup(), fake.publishes().len()), (Raw::NotFound, Raw::Bytes(bytes), 0));
+        assert_eq!(
+            (hub.body.recovery, hub.body.dirty),
+            (Some(Recovery::Backup), false)
+        );
+        assert_eq!(
+            (fake.primary(), fake.backup(), fake.publishes().len()),
+            (Raw::NotFound, Raw::Bytes(bytes), 0)
+        );
         hub.shutdown();
     }
 
@@ -501,27 +787,50 @@ mod tests {
     fn update_schedule_does_not_touch_disk() {
         let fake = Fake::pair(Raw::NotFound, Raw::NotFound);
         let mut app = App::new();
-        app.insert_resource(WoodHub::spawn(fake.clone(), SLOW)).add_systems(Update, poll_wood);
+        app.insert_resource(WoodHub::spawn(fake.clone(), SLOW))
+            .add_systems(Update, poll_wood);
         let end = Instant::now() + SLOW;
         loop {
             app.update();
-            if app.world().resource::<WoodHub>().body.booted { break; }
+            if app.world().resource::<WoodHub>().body.booted {
+                break;
+            }
             assert!(Instant::now() < end, "boot");
         }
-        let mut doc = app.world().resource::<WoodHub>().body.memory.as_ref().unwrap().doc.clone();
+        let mut doc = app
+            .world()
+            .resource::<WoodHub>()
+            .body
+            .memory
+            .as_ref()
+            .unwrap()
+            .doc
+            .clone();
         assert_eq!(doc, Doc::fresh(doc.session));
-        doc.revision = 1; doc.op = 1; doc.generation = 3;
-        app.world_mut().resource_mut::<WoodHub>().submit(doc.clone());
+        doc.revision = 1;
+        doc.op = 1;
+        doc.generation = 3;
+        app.world_mut()
+            .resource_mut::<WoodHub>()
+            .submit(doc.clone());
         while app.world().resource::<WoodHub>().body.confirmed.is_none() {
             app.update();
             assert!(Instant::now() < end, "pub");
         }
         assert_eq!(fake.off_worker(), 0);
         assert!(!app.world().resource::<WoodHub>().released);
-        assert!(!app.world().resource::<WoodHub>().acked.load(Ordering::SeqCst));
+        assert!(!app
+            .world()
+            .resource::<WoodHub>()
+            .acked
+            .load(Ordering::SeqCst));
         app.world_mut().resource_mut::<WoodHub>().shutdown();
         assert!(app.world().resource::<WoodHub>().released);
-        assert!(app.world().resource::<WoodHub>().acked.load(Ordering::SeqCst));
+        assert!(app
+            .world()
+            .resource::<WoodHub>()
+            .acked
+            .load(Ordering::SeqCst));
         assert_eq!(fake.off_worker(), 0);
         assert_eq!(fake.primary(), Raw::Bytes(canon(&doc).unwrap()));
     }
@@ -532,7 +841,10 @@ mod tests {
         let acked = Arc::clone(&hub.acked);
         drop(hub);
         let end = Instant::now() + Duration::from_millis(150);
-        while Instant::now() < end { assert!(!acked.load(Ordering::SeqCst)); thread::sleep(Duration::from_millis(10)); }
+        while Instant::now() < end {
+            assert!(!acked.load(Ordering::SeqCst));
+            thread::sleep(Duration::from_millis(10));
+        }
     }
 
     #[test]
@@ -544,15 +856,21 @@ mod tests {
         hub.body.memory = snap_from(edited(2, 8));
         hub.body.confirmed = Some(base);
         hub.body.dirty = true;
-        let mut gen = older.id; gen.generation = 99;
-        let mut session = older.id; session.session = 99;
-        let mut content = older.id; content.content ^= 1;
+        let mut gen = older.id;
+        gen.generation = 99;
+        let mut session = older.id;
+        session.session = 99;
+        let mut content = older.id;
+        content.content ^= 1;
         for id in [gen, session, content] {
             hub.apply(Note::Done { id, result: Ok(()) });
             assert!(hub.body.dirty && hub.body.inflight.is_some());
             assert_eq!(hub.body.confirmed.as_ref().unwrap().doc.revision, 0);
         }
-        hub.apply(Note::Done { id: older.id, result: Ok(()) });
+        hub.apply(Note::Done {
+            id: older.id,
+            result: Ok(()),
+        });
         assert!(hub.body.dirty);
         assert_eq!(hub.body.memory.as_ref().unwrap().doc.revision, 2);
         assert_eq!(hub.body.confirmed.as_ref().unwrap().doc.revision, 1);
@@ -567,7 +885,9 @@ mod tests {
         hub.submit(first.clone());
         drive(&mut hub, |hub| hub.body.confirmed.is_some());
         let mut older = first.clone();
-        older.revision = 1; older.op = 1; older.generation = 9;
+        older.revision = 1;
+        older.op = 1;
+        older.generation = 9;
         hub.submit(older);
         assert!(!hub.body.conflict && hub.body.memory.as_ref().unwrap().doc.generation == 5);
         let mut clash = first.clone();
@@ -588,7 +908,11 @@ mod tests {
         let mut hub = started(fake.clone(), SLOW);
         hub.submit(match_doc);
         drive(&mut hub, |hub| hub.body.confirmed.is_some());
-        assert!(!hub.body.inert && fake.primary() == Raw::Bytes(match_bytes) && fake.publishes().len() == 1);
+        assert!(
+            !hub.body.inert
+                && fake.primary() == Raw::Bytes(match_bytes)
+                && fake.publishes().len() == 1
+        );
         hub.shutdown();
 
         let doc = edited(3, 3);
@@ -622,16 +946,31 @@ mod tests {
         until(|| fake.entered() >= 2);
         hub.submit(skipped.clone());
         hub.submit(newest.clone());
-        assert_eq!((hub.body.inflight.as_ref().unwrap().doc.revision, hub.body.queued.as_ref().unwrap().doc.revision), (2, 4));
+        assert_eq!(
+            (
+                hub.body.inflight.as_ref().unwrap().doc.revision,
+                hub.body.queued.as_ref().unwrap().doc.revision
+            ),
+            (2, 4)
+        );
         fake.set_mode(Mode::PreRename);
         fake.unblock_before();
         until(|| fake.publishes().len() == 2);
         assert_eq!(fake.primary(), Raw::Bytes(canon(&saved).unwrap()));
         assert_eq!(hub.body.confirmed.as_ref().unwrap().doc.revision, 1);
         fake.set_mode(Mode::Write);
-        drive(&mut hub, |hub| hub.body.confirmed.as_ref().map(|s| s.doc.revision) == Some(4));
+        drive(&mut hub, |hub| {
+            hub.body.confirmed.as_ref().map(|s| s.doc.revision) == Some(4)
+        });
         let pubs = fake.publishes();
-        assert_eq!(pubs, vec![canon(&saved).unwrap(), canon(&failed).unwrap(), canon(&newest).unwrap()]);
+        assert_eq!(
+            pubs,
+            vec![
+                canon(&saved).unwrap(),
+                canon(&failed).unwrap(),
+                canon(&newest).unwrap()
+            ]
+        );
         assert!(!pubs.contains(&canon(&skipped).unwrap()));
         assert_eq!(fake.primary(), Raw::Bytes(canon(&newest).unwrap()));
         assert_eq!(hub.body.memory.as_ref().unwrap().doc, newest);
@@ -652,7 +991,9 @@ mod tests {
         hub.shutdown();
         assert!(!hub.released && !hub.acked.load(Ordering::SeqCst) && lock(&hub.join).is_some());
         let live = fake.primary();
-        assert!(live == Raw::Bytes(old_bytes.clone()) || live == Raw::Bytes(canon(&attempted).unwrap()));
+        assert!(
+            live == Raw::Bytes(old_bytes.clone()) || live == Raw::Bytes(canon(&attempted).unwrap())
+        );
         assert_eq!(fake.primary(), Raw::Bytes(old_bytes));
         assert!(hub.body.confirmed.is_none() && fake.publishes().is_empty());
         fake.unblock_before();
@@ -678,7 +1019,17 @@ mod tests {
     }
 
     fn witness(stand: Stand, unit: u8, charge: Charge, tree: u64) -> Doc {
-        Doc { schema: SCHEMA, revision: 1, generation: 1, session: 4, op: 1, tree, stand, unit, charge }
+        Doc {
+            schema: SCHEMA,
+            revision: 1,
+            generation: 1,
+            session: 4,
+            op: 1,
+            tree,
+            stand,
+            unit,
+            charge,
+        }
     }
 
     #[test]
@@ -713,7 +1064,11 @@ mod tests {
         let backup = canon(&edited(6, 1)).unwrap();
         let cases = [
             (Raw::NotFound, Raw::NotFound, Recovery::Fresh),
-            (Raw::Bytes(primary.clone()), Raw::NotFound, Recovery::Primary),
+            (
+                Raw::Bytes(primary.clone()),
+                Raw::NotFound,
+                Recovery::Primary,
+            ),
             (Raw::NotFound, Raw::Bytes(backup.clone()), Recovery::Backup),
         ];
         for (live, bak, recovery) in cases {
@@ -741,7 +1096,10 @@ mod tests {
         fake.unblock_before();
         hub.shutdown();
         assert!(hub.released);
-        assert_eq!(fake.publishes(), vec![canon(&first).unwrap(), canon(&second).unwrap()]);
+        assert_eq!(
+            fake.publishes(),
+            vec![canon(&first).unwrap(), canon(&second).unwrap()]
+        );
     }
 
     #[test]
@@ -751,12 +1109,17 @@ mod tests {
         let doc = edited(1, 1);
         fake.set_mode(Mode::PreRename);
         hub.submit(doc.clone());
-        drive(&mut hub, |hub| hub.body.inflight.is_none() && hub.body.dirty);
+        drive(&mut hub, |hub| {
+            hub.body.inflight.is_none() && hub.body.dirty
+        });
         assert_eq!(fake.publishes().len(), 1);
         fake.set_mode(Mode::Write);
         hub.shutdown();
         assert!(hub.released && !hub.body.dirty);
-        assert_eq!(fake.publishes(), vec![canon(&doc).unwrap(), canon(&doc).unwrap()]);
+        assert_eq!(
+            fake.publishes(),
+            vec![canon(&doc).unwrap(), canon(&doc).unwrap()]
+        );
     }
 
     #[test]
