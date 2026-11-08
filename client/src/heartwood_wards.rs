@@ -80,13 +80,14 @@ fn ward_place_line(place: &str) -> String {
     format!("{place} · {} tended", WARD_SEALS.join(" · "))
 }
 
-fn use_heartwood_wards(
+pub(crate) fn use_heartwood_wards(
     travel: Res<HexTravelState>,
     input: Res<PlayerInput>,
     presence: Res<SoftPresence>,
     mut session: ResMut<WardSession>,
     mut epiphany: Option<ResMut<crate::first_harvest_epiphany::FirstHarvestEpiphany>>,
     mut echo: Option<ResMut<crate::abundance_journey_echo::AbundanceJourneyEcho>>,
+    wood: Option<Res<crate::wood_expedition::WoodClaim>>,
 ) {
     if travel.current != PlaceId::Heartwood {
         session.near = false;
@@ -111,6 +112,9 @@ fn use_heartwood_wards(
     if !session.dress.looked {
         session.last_line = session.dress.apply(WardVerb::Look).into();
         info!(target: "powrush::wards", "{}", session.last_line);
+    }
+    if wood.as_ref().is_some_and(|claim| claim.blocks()) {
+        return;
     }
     // CARD WELL-BEFORE-WARDS-1 — a well in reach owns E. Wards claim Use only alone.
     if !claim_ward_use(near, well_in_reach, input.interact, &mut session) {
@@ -261,5 +265,18 @@ mod tests {
             bare.world().resource::<WardSession>().last_line,
             shared::heartwood_wards::WARDS_NOTICE
         );
+    }
+
+    #[test]
+    fn wood_claim_does_not_tend() {
+        let mut app = tend_app(PlaceId::Heartwood, true, false);
+        app.insert_resource(crate::wood_expedition::WoodClaim::default());
+        app.world_mut().resource_mut::<crate::wood_expedition::WoodClaim>().set_held(true);
+        app.update();
+        assert_eq!(app.world().resource::<WardSession>().dress.tends, 0);
+        assert!(app.world().resource::<WardSession>().near);
+        app.world_mut().resource_mut::<crate::wood_expedition::WoodClaim>().set_held(false);
+        app.update();
+        assert_eq!(app.world().resource::<WardSession>().dress.tends, 1);
     }
 }

@@ -445,6 +445,10 @@ fn seated_y(x: f32, z: f32) -> f32 {
     GROUND_LIFT + crate::terrain::shelf_offset(x, z)
 }
 
+pub(crate) fn seated_ground(x: f32, z: f32) -> f32 {
+    seated_y(x, z)
+}
+
 fn push_instance(plant: &VegPlant, part: VegPart, y: f32, out: &mut Vec<VegInstance>) {
     out.push(VegInstance {
         part,
@@ -518,6 +522,53 @@ fn ring_point(rng: &mut Rng, inner: f32, outer: f32) -> Vec2 {
     Vec2::new(0.0, -1.0) * mid
 }
 
+fn footprint(kind: VegKind, scale: f32) -> f32 {
+    let (base, lean) = match kind {
+        VegKind::Tuft => (0.38, 0.06),
+        VegKind::Shrub => (0.72, 0.06),
+        VegKind::Tree => (0.95, 0.06),
+    };
+    let foliage = base * scale * (1.0 + 0.04 + lean);
+    let trunk = if kind == VegKind::Tree { TRUNK_RADIUS * scale * (1.0 + 0.08) } else { 0.0 };
+    foliage.max(trunk)
+}
+
+fn place_ok(xz: Vec2, fp: f32, disk: &crate::wood_expedition::WoodClearance, inner: f32, outer: f32) -> bool {
+    xz.distance(disk.center) >= disk.radius + fp
+        && xz.distance(CAMERA_XZ) >= CAMERA_CLEAR + fp
+        && xz.length() - fp >= inner
+        && xz.length() + fp <= outer
+}
+
+/// Scatter stays as it is. A clearance disk then moves only the plants whose
+/// full footprint overlaps it. No extra `Rng` draw. `None` is exhaustion.
+pub(crate) fn cleared_plants(preset: GraphicsPreset, disk: Option<&crate::wood_expedition::WoodClearance>) -> Option<Vec<VegPlant>> {
+    let mut plants = vegetation_plants(preset);
+    let Some(disk) = disk else { return Some(plants) };
+    let plan = vegetation_plan(preset);
+    for plant in &mut plants {
+        let fp = footprint(plant.kind, plant.scale);
+        let xz = Vec2::new(plant.x, plant.z);
+        if xz.distance(disk.center) >= disk.radius + fp { continue; }
+        let (inner, outer) = ring_for(&plan, plant.lod);
+        let mut placed = None;
+        for i in 0..32 {
+            let pos = if i + 1 == 32 {
+                Vec2::new(0.0, -1.0) * (inner + outer) * 0.5
+            } else {
+                let angle = (i % 8) as f32 * TAU / 8.0;
+                let step = (i / 8) as f32;
+                disk.center + Vec2::new(angle.cos(), angle.sin()) * (disk.radius + fp + 0.02 + step * 0.25)
+            };
+            if place_ok(pos, fp, disk, inner, outer) { placed = Some(pos); break; }
+        }
+        let Some(pos) = placed else { return None };
+        plant.x = pos.x;
+        plant.z = pos.y;
+    }
+    Some(plants)
+}
+
 /// Same xorshift the sky belt uses, so the field does not depend on that module.
 struct Rng(u32);
 
@@ -557,10 +608,26 @@ enum VegMat {
     Painted(Handle<PainterlyMaterial>),
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct ClearKey {
+    on: bool,
+    x: u32,
+    z: u32,
+    r: u32,
+}
+
+fn clearance_key(disk: Option<&crate::wood_expedition::WoodClearance>) -> ClearKey {
+    match disk {
+        None => ClearKey { on: false, x: 0, z: 0, r: 0 },
+        Some(disk) => ClearKey { on: true, x: disk.center.x.to_bits(), z: disk.center.y.to_bits(), r: disk.radius.to_bits() },
+    }
+}
+
 #[derive(Resource, Clone, Copy, Debug, PartialEq, Eq)]
 struct VegLive {
     preset: GraphicsPreset,
     realm: Option<u8>,
+    clear: ClearKey,
 }
 
 #[derive(Component, Clone, Copy, Debug)]
@@ -604,6 +671,7 @@ struct VegCtx<'w, 's> {
     live: Option<ResMut<'w, VegLive>>,
     existing: Query<'w, 's, Entity, With<VegMark>>,
     fade: Option<ResMut<'w, TrunkFadeCache>>,
+    clearance: Option<Res<'w, crate::wood_expedition::WoodClearance>>,
 }
 
 fn sync_vegetation(mut ctx: VegCtx) {
@@ -620,13 +688,18 @@ fn sync_vegetation(mut ctx: VegCtx) {
         .as_ref()
         .map(|realm| realm.current)
         .unwrap_or(None);
-    if ctx
-        .live
-        .as_ref()
-        .is_some_and(|live| live.preset == preset && live.realm == realm)
-    {
+    let clear = ctx.clearance.as_deref().copied();
+    let key = clearance_key(clear.as_ref());
+    if ctx.live.as_ref().is_some_and(|live| live.preset == preset && live.realm == realm && live.clear == key) {
         return;
     }
+    let shown = vegetation_shown(realm);
+    let plants = if shown {
+        let Some(plants) = cleared_plants(preset, clear.as_ref()) else { return };
+        plants
+    } else {
+        Vec::new()
+    };
     let stale: Vec<Entity> = ctx.existing.iter().collect();
     for entity in stale {
         ctx.commands.entity(entity).despawn();
@@ -642,20 +715,12 @@ fn sync_vegetation(mut ctx: VegCtx) {
         &mut ctx.held,
         &mut ctx.fade,
     );
-    let trees = vegetation_plants(preset).into_iter().filter(|p| vegetation_shown(realm) && p.kind == VegKind::Tree);
-    ctx.commands.insert_resource(FieldTrunks(trees.map(|p| (Vec2::new(p.x, p.z), TRUNK_RADIUS * p.scale)).collect()));
-    if vegetation_shown(realm) {
-        spawn_field(
-            meshes,
-            materials,
-            painted,
-            &mut ctx.ramps,
-            &mut ctx.held,
-            &mut ctx.commands,
-            preset,
-        );
+    let trunks = plants.iter().filter(|plant| plant.kind == VegKind::Tree).map(|plant| (Vec2::new(plant.x, plant.z), TRUNK_RADIUS * plant.scale)).collect();
+    ctx.commands.insert_resource(FieldTrunks(trunks));
+    if shown {
+        spawn_field(meshes, materials, painted, &mut ctx.ramps, &mut ctx.held, &mut ctx.commands, &plants, preset);
     }
-    ctx.commands.insert_resource(VegLive { preset, realm });
+    ctx.commands.insert_resource(VegLive { preset, realm, clear: key });
 }
 
 fn release(
@@ -694,10 +759,11 @@ fn spawn_field(
     ramps: &mut Option<ResMut<PainterlyRampMeshes>>,
     held: &mut VegHeld,
     commands: &mut Commands,
+    plants: &[VegPlant],
     preset: GraphicsPreset,
 ) {
     let plan = vegetation_plan(preset);
-    let instances = vegetation_instances(&vegetation_plants(preset));
+    let instances = vegetation_instances(plants);
     let batches = instance_batches(&instances);
     let mut materials_by_part: Vec<(VegPart, VegMat)> = Vec::new();
     for batch in &batches {
@@ -1304,5 +1370,93 @@ mod tests {
                 }
             }
         }
+    }
+
+    fn bits_eq(left: &[VegPlant], right: &[VegPlant]) -> bool {
+        left.len() == right.len() && left.iter().zip(right).all(|(a, b)| {
+            a.kind == b.kind && a.lod == b.lod && a.x.to_bits() == b.x.to_bits() && a.z.to_bits() == b.z.to_bits()
+                && a.scale.to_bits() == b.scale.to_bits() && a.yaw.to_bits() == b.yaw.to_bits()
+        })
+    }
+
+    #[test]
+    fn clearance_keeps_an_absent_disk_bitwise_and_moves_only_the_overlap() {
+        for preset in GraphicsPreset::ALL {
+            let raw = vegetation_plants(preset);
+            let same = cleared_plants(preset, None).unwrap();
+            assert!(bits_eq(&raw, &same), "{preset:?}");
+            let site = crate::wood_expedition::first_passing_site().unwrap();
+            let disk = crate::wood_expedition::WoodClearance::reserve(site);
+            let cleared = cleared_plants(preset, Some(&disk)).unwrap_or_else(|| panic!("{preset:?} exhausted"));
+            assert_eq!(cleared.len(), raw.len());
+            for (before, after) in raw.iter().zip(&cleared) {
+                assert_eq!(before.scale.to_bits(), after.scale.to_bits());
+                assert_eq!(before.yaw.to_bits(), after.yaw.to_bits());
+                let fp = footprint(after.kind, after.scale);
+                let xz = Vec2::new(after.x, after.z);
+                let overlapped = Vec2::new(before.x, before.z).distance(disk.center) < disk.radius + fp;
+                if !overlapped {
+                    assert_eq!(before.x.to_bits(), after.x.to_bits());
+                    assert_eq!(before.z.to_bits(), after.z.to_bits());
+                } else {
+                    let (inner, outer) = ring_for(&vegetation_plan(preset), after.lod);
+                    assert!(place_ok(xz, fp, &disk, inner, outer), "{preset:?} {xz:?}");
+                }
+            }
+            assert_eq!(cleared.iter().filter(|p| p.kind == VegKind::Tree).count(), raw.iter().filter(|p| p.kind == VegKind::Tree).count());
+        }
+        assert!(cleared_plants(GraphicsPreset::Medium, Some(&crate::wood_expedition::WoodClearance { center: Vec2::ZERO, radius: 10_000.0 })).is_none());
+        let raw = vegetation_plants(GraphicsPreset::Medium);
+        let tree = raw.iter().find(|plant| plant.kind == VegKind::Tree).unwrap();
+        let disk = crate::wood_expedition::WoodClearance { center: Vec2::new(tree.x, tree.z), radius: 0.4 };
+        let moved = cleared_plants(GraphicsPreset::Medium, Some(&disk)).unwrap();
+        assert_ne!(moved[raw.iter().position(|plant| plant.x.to_bits() == tree.x.to_bits()).unwrap()].x.to_bits(), tree.x.to_bits());
+        for (before, after) in raw.iter().zip(&moved) {
+            assert_eq!(before.scale.to_bits(), after.scale.to_bits());
+            assert_eq!(before.yaw.to_bits(), after.yaw.to_bits());
+        }
+    }
+
+    #[test]
+    fn one_cleared_list_feeds_trunks_and_instances_and_the_cache() {
+        use bevy::asset::AssetPlugin;
+        use shared::local_settings::LocalSettings;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .init_asset::<Mesh>()
+            .init_asset::<StandardMaterial>()
+            .init_asset::<PainterlyMaterial>()
+            .add_plugins(VegetationPlugin)
+            .insert_resource(SoftPlayerRealm { current: Some(0) });
+        let mut inner = LocalSettings::default();
+        inner.set_graphics_preset(GraphicsPreset::Medium);
+        app.insert_resource(LocalSettingsState { inner, dirty: false });
+        let site = crate::wood_expedition::first_passing_site().unwrap();
+        let reserved = crate::wood_expedition::WoodClearance::reserve(site);
+        app.insert_resource(reserved);
+        app.update();
+        let expect = cleared_plants(GraphicsPreset::Medium, Some(&reserved)).unwrap();
+        let trunks: Vec<_> = expect.iter().filter(|p| p.kind == VegKind::Tree).map(|p| (Vec2::new(p.x, p.z), TRUNK_RADIUS * p.scale)).collect();
+        assert_eq!(app.world().resource::<FieldTrunks>().0, trunks);
+        assert_eq!(trunks.len(), vegetation_plants(GraphicsPreset::Medium).iter().filter(|p| p.kind == VegKind::Tree).count());
+        let mut query = app.world_mut().query::<(&VegMark, &Transform)>();
+        let spawned: Vec<_> = query.iter(app.world()).filter(|(mark, _)| mark.part == VegPart::Trunk).map(|(_, tf)| tf.translation.xz()).collect();
+        assert_eq!(spawned.len(), trunks.len());
+        for (center, _) in &trunks { assert!(spawned.iter().any(|xz| xz.distance(*center) < 1e-4)); }
+        let live = *app.world().resource::<VegLive>();
+        app.insert_resource(crate::wood_expedition::WoodClearance { center: Vec2::ZERO, radius: 10_000.0 });
+        app.update();
+        assert_eq!(app.world().resource::<FieldTrunks>().0, trunks);
+        assert_eq!(*app.world().resource::<VegLive>(), live);
+        let tree = vegetation_plants(GraphicsPreset::Medium).into_iter().find(|p| p.kind == VegKind::Tree).unwrap();
+        app.insert_resource(crate::wood_expedition::WoodClearance { center: Vec2::new(tree.x, tree.z), radius: 0.5 });
+        app.update();
+        assert_ne!(app.world().resource::<FieldTrunks>().0, trunks);
+        app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(4);
+        app.update();
+        assert!(app.world().resource::<FieldTrunks>().0.is_empty());
+        app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(0);
+        app.update();
+        assert!(!app.world().resource::<FieldTrunks>().0.is_empty());
     }
 }

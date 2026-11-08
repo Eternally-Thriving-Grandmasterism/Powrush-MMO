@@ -15,6 +15,7 @@
  * First tend still advances guidance. No Title chrome. Online grey.
  */
 
+use bevy::ecs::system::SystemParam;
 use bevy::input::gamepad::GamepadRumbleRequest;
 use bevy::prelude::*;
 
@@ -293,7 +294,7 @@ pub fn hold_e_tend_blocked(
 }
 
 #[derive(Default)]
-struct InteractHold {
+pub(crate) struct InteractHold {
     holding: bool,
     started: f64,
     tended: bool,
@@ -505,12 +506,12 @@ fn welcome_visible(state: &FirstHarvestEpiphany, now: f64) -> bool {
     state.welcome_shown && now < until && !interacted_since
 }
 
-fn mark_peace_visitor(hour: Res<HourSacred>, mut state: ResMut<FirstHarvestEpiphany>) {
+pub(crate) fn mark_peace_visitor(hour: Res<HourSacred>, mut state: ResMut<FirstHarvestEpiphany>) {
     state.peace_visitor = hour.session.peace_visitor_on_frontier();
 }
 
 /// CARD FLESH-EPIPHANY-PLACE — refresh the stood Place before the tend pulse.
-fn mark_epiphany_place(
+pub(crate) fn mark_epiphany_place(
     travel: Option<Res<HexTravelState>>,
     presence: Option<Res<SoftPresence>>,
     mut state: ResMut<FirstHarvestEpiphany>,
@@ -523,7 +524,13 @@ fn mark_epiphany_place(
     );
 }
 
-fn handle_interact_harvest(
+#[derive(SystemParam)]
+pub(crate) struct HarvestClock<'w> {
+    time: Res<'w, Time>,
+    wood: Option<Res<'w, crate::wood_expedition::WoodClaim>>,
+}
+
+pub(crate) fn handle_interact_harvest(
     keyboard: Option<Res<ButtonInput<KeyCode>>>,
     player_input: Res<PlayerInput>,
     mut hold: Local<InteractHold>,
@@ -539,9 +546,9 @@ fn handle_interact_harvest(
     gamepads: Query<Entity, With<Gamepad>>,
     mut rbe_ui: Option<ResMut<RbeUiSync>>,
     mut answer: ResMut<WorldAnswer>,
-    time: Res<Time>,
+    clock: HarvestClock,
 ) {
-    let now = time.elapsed_secs_f64();
+    let now = clock.time.elapsed_secs_f64();
     // Hold and release read PlayerInput. `e_down` is the held level.
     // `e_up` is the falling edge (held last frame, not this frame).
     // Record it before any return so a press-frame take still arms the edge.
@@ -549,6 +556,9 @@ fn handle_interact_harvest(
     let e_up = hold.was_down && !e_down;
     hold.was_down = e_down;
     let pad_tap = player_input.interact;
+    if clock.wood.as_ref().is_some_and(|claim| claim.blocks()) {
+        return;
+    }
 
     if state.peace_visitor {
         let key_edge = keyboard
@@ -2076,5 +2086,45 @@ mod tests {
         assert!(!calm_at(11.5).done(11.5) && calm_at(CALM_ENDS[2]).done(CALM_ENDS[2]) && CalmQueue::default().done(0.0));
         let src = include_str!("rbe_allocate_choice.rs");
         assert!(src.find(concat!("c.done(", "time")).unwrap() < src.find(concat!("if last.as_ref() ", "== Some(fb)")).unwrap(), "defers before the dedupe");
+    }
+
+    #[test]
+    fn wood_claim_consumes_the_press_without_a_take_or_a_held_release() {
+        use bevy::time::TimeUpdateStrategy;
+        use std::time::Duration;
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_secs(2)))
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<FirstSessionGuidance>()
+            .init_resource::<ThrivingMoments>()
+            .init_resource::<AbundanceJourneyEcho>()
+            .init_resource::<NearbyMercyNode>()
+            .init_resource::<SoftRbePool>()
+            .init_resource::<WorldAnswer>()
+            .init_resource::<PlayerInput>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .insert_resource(crate::wood_expedition::WoodClaim::default())
+            .add_message::<GamepadRumbleRequest>()
+            .add_systems(Update, handle_interact_harvest);
+        let press = |app: &mut App, edge: bool, held: bool| {
+            let mut input = app.world_mut().resource_mut::<PlayerInput>();
+            input.interact = edge;
+            input.interact_held = held;
+        };
+        app.world_mut().resource_mut::<crate::wood_expedition::WoodClaim>().set_held(true);
+        press(&mut app, true, true);
+        app.update();
+        let epi = app.world().resource::<FirstHarvestEpiphany>();
+        assert_eq!(epi.harvests_this_session, 0);
+        assert_eq!(epi.tends_this_session, 0);
+        assert_eq!(epi.last_interact_at, -999.0);
+        app.world_mut().resource_mut::<crate::wood_expedition::WoodClaim>().set_held(false);
+        press(&mut app, false, false);
+        app.update();
+        assert_eq!(app.world().resource::<FirstHarvestEpiphany>().harvests_this_session, 0);
+        press(&mut app, true, true);
+        app.update();
+        assert_eq!(app.world().resource::<FirstHarvestEpiphany>().harvests_this_session, 1);
     }
 }
