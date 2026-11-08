@@ -3042,4 +3042,285 @@ pub(crate) mod tests {
         flipped_claim_is_kept(MidFlip::Move);
         flipped_claim_is_kept(MidFlip::Settings);
     }
+
+    fn bond_app(hub: WoodHub) -> App {
+        let mut app = App::new();
+        app.add_plugins((
+            bevy::MinimalPlugins,
+            crate::input::InputPlugin,
+            crate::feel_move::FeelMovePlugin,
+            crate::companion_bond::CompanionBondPlugin,
+        ));
+        let step = app.world().resource::<Time<bevy::time::Fixed>>().timestep();
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(step))
+            .insert_resource(crate::local_settings::LocalSettingsState {
+                inner: shared::local_settings::LocalSettings::peace_defaults(),
+                dirty: false,
+            })
+            .add_message::<bevy::input::keyboard::KeyboardInput>()
+            .add_message::<bevy::input::mouse::MouseButtonInput>()
+            .add_message::<bevy::input::touch::TouchInput>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .insert_resource(hub)
+            .init_resource::<WoodClaim>()
+            .init_resource::<WoodFacts>()
+            .init_resource::<WoodView>()
+            .init_resource::<crate::world_answer::WorldAnswer>()
+            .init_resource::<crate::mercy_harvest_nodes::NearbyMercyNode>()
+            .insert_resource(crate::hex_travel::HexTravelState {
+                current: PlaceId::Sanctuary,
+            })
+            .insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) })
+            .init_resource::<crate::human_presence::SoftPresence>();
+        add_wood_systems(&mut app);
+        app
+    }
+    fn use_edge(app: &mut App, edge: bool) {
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        if edge {
+            keys.release(crate::soft_play_bindings::INTERACT);
+            keys.clear();
+            keys.press(crate::soft_play_bindings::INTERACT);
+        } else {
+            keys.release(crate::soft_play_bindings::INTERACT);
+            keys.clear();
+        }
+    }
+    fn aim(app: &mut App, offset: f32, gap: f32, mounted: bool) {
+        place_body(app, offset);
+        let at = app
+            .world()
+            .resource::<crate::human_presence::SoftPresence>()
+            .position
+            + Vec3::new(gap, 0.0, 0.0);
+        let stale: Vec<Entity> = {
+            let mut named = app.world_mut().query::<(Entity, &Name)>();
+            named
+                .iter(app.world())
+                .filter(|(_, name)| name.as_str() == "ResonantDeer")
+                .map(|(entity, _)| entity)
+                .collect()
+        };
+        for entity in stale {
+            app.world_mut().despawn(entity);
+        }
+        app.world_mut()
+            .spawn((Name::new("ResonantDeer"), Transform::from_translation(at)));
+        let mut bond = app
+            .world_mut()
+            .resource_mut::<crate::companion_bond::CompanionBond>();
+        bond.trust = 1.0;
+        bond.mounted = mounted;
+    }
+    fn assert_claim_before_mount(app: &mut App) {
+        use bevy::ecs::system::IntoSystem as Sys;
+        let claim = ord(app, Sys::system_type_id(&claim_wood_press));
+        let mount = ord(app, crate::companion_bond::same_frame_mount_id());
+        assert!(claim < mount, "claim {claim} before mount {mount}");
+    }
+    fn fresh_pair() -> (App, Fake) {
+        let fake = Fake::pair(Raw::NotFound, Raw::NotFound);
+        (bond_app(started(fake.clone(), SLOW)), fake)
+    }
+    fn bond_mounted(app: &App) -> bool {
+        app.world()
+            .resource::<crate::companion_bond::CompanionBond>()
+            .mounted
+    }
+    fn bond_nearby(app: &App) -> bool {
+        app.world()
+            .resource::<crate::companion_bond::CompanionBond>()
+            .nearby
+    }
+    fn interact_now(app: &App) -> bool {
+        app.world().resource::<crate::input::PlayerInput>().interact
+    }
+    fn key_edge(app: &App) -> bool {
+        app.world()
+            .resource::<ButtonInput<KeyCode>>()
+            .just_pressed(crate::soft_play_bindings::INTERACT)
+    }
+    /// Contact press harvests once and leaves the companion where it was.
+    fn harvest_keeps_companion(mounted: bool) {
+        let (mut app, fake) = fresh_pair();
+        aim(&mut app, stance_offset(), 0.4, mounted);
+        app.update();
+        assert_claim_before_mount(&mut app);
+        assert!(bond_nearby(&app) && bond_mounted(&app) == mounted);
+        use_edge(&mut app, true);
+        app.update();
+        assert!(key_edge(&app) && interact_now(&app));
+        assert!(!app.world().resource::<crate::feel_move::SimUsePulse>().fire);
+        assert!(app.world().resource::<WoodClaim>().blocks());
+        assert_eq!(bond_mounted(&app), mounted);
+        assert!(bond_nearby(&app));
+        until(|| fake.publishes().len() == 1);
+        assert_eq!(fake.publishes(), vec![memory_bytes(&app)]);
+        assert_eq!(app.world().resource::<WoodHub>().memory_unit(), Some(1));
+        use_edge(&mut app, false);
+        app.update();
+        assert!(!app.world().resource::<WoodClaim>().blocks());
+        assert_eq!(bond_mounted(&app), mounted);
+        thread::sleep(Duration::from_millis(20));
+        assert_eq!(fake.publishes().len(), 1);
+        use_edge(&mut app, true);
+        app.update();
+        assert_eq!(bond_mounted(&app), !mounted);
+        assert!(!app.world().resource::<WoodClaim>().blocks());
+        thread::sleep(Duration::from_millis(20));
+        assert_eq!(fake.publishes().len(), 1);
+        stop(&mut app);
+    }
+    fn away_toggles_companion(mounted: bool) {
+        let (mut app, fake) = fresh_pair();
+        let bytes = memory_bytes(&app);
+        aim(&mut app, 1.0, 0.4, mounted);
+        app.update();
+        use_edge(&mut app, true);
+        app.update();
+        assert!(key_edge(&app) && interact_now(&app));
+        assert!(!app.world().resource::<WoodClaim>().blocks());
+        assert_eq!(bond_mounted(&app), !mounted);
+        assert!(bond_nearby(&app));
+        still(&app, &fake, &bytes);
+        use_edge(&mut app, false);
+        app.update();
+        assert_eq!(bond_mounted(&app), !mounted);
+        still(&app, &fake, &bytes);
+        stop(&mut app);
+    }
+    #[derive(Resource, Clone, Copy)]
+    enum YieldFlip {
+        Contact,
+        Yard,
+        Write,
+        Identity,
+    }
+    fn flip_claim_frame(
+        flip: Res<YieldFlip>,
+        claim: Res<WoodClaim>,
+        mut presence: ResMut<crate::human_presence::SoftPresence>,
+        mut house: Option<ResMut<crate::title_screen::HouseLabel>>,
+        mut hub: ResMut<WoodHub>,
+    ) {
+        if !claim.blocks() {
+            return;
+        }
+        match *flip {
+            YieldFlip::Contact => {
+                let site = first_passing_site().unwrap();
+                presence.position = Vec3::new(site.x + 1.0, 0.9, site.y);
+            }
+            YieldFlip::Yard => house.as_mut().unwrap().settings_open = true,
+            YieldFlip::Write => {
+                hub.body.blocked = true;
+                hub.body.inert = true;
+            }
+            YieldFlip::Identity => {
+                let Some(snap) = hub.body.memory.as_mut() else {
+                    return;
+                };
+                snap.doc.session = snap.doc.session.wrapping_add(11);
+                snap.id.session = snap.id.session.wrapping_add(11);
+            }
+        }
+    }
+    fn disturbance_keeps_claim(flip: YieldFlip, mounted: bool) {
+        let (mut app, fake) = fresh_pair();
+        if matches!(flip, YieldFlip::Yard) {
+            app.insert_resource(Door::InYard);
+            app.insert_resource(house_label(false));
+        }
+        app.insert_resource(flip).add_systems(
+            Update,
+            flip_claim_frame
+                .after(claim_wood_press)
+                .before(admit_wood_press),
+        );
+        let bytes = memory_bytes(&app);
+        aim(&mut app, stance_offset(), 0.4, mounted);
+        app.update();
+        use_edge(&mut app, true);
+        app.update();
+        assert!(app.world().resource::<WoodClaim>().blocks());
+        assert_eq!(bond_mounted(&app), mounted);
+        assert!(bond_nearby(&app));
+        still(&app, &fake, &bytes);
+        use_edge(&mut app, false);
+        app.update();
+        assert!(!app.world().resource::<WoodClaim>().blocks());
+        assert_eq!(bond_mounted(&app), mounted);
+        still(&app, &fake, &bytes);
+        stop(&mut app);
+    }
+    #[test]
+    fn same_frame_wood_claim_blocks_mount_and_dismount() {
+        harvest_keeps_companion(false);
+        harvest_keeps_companion(true);
+        away_toggles_companion(false);
+        away_toggles_companion(true);
+        for flip in [
+            YieldFlip::Contact,
+            YieldFlip::Yard,
+            YieldFlip::Write,
+            YieldFlip::Identity,
+        ] {
+            disturbance_keeps_claim(flip, false);
+            disturbance_keeps_claim(flip, true);
+        }
+    }
+    #[test]
+    fn same_frame_fixed_buffer_arrives_after_the_key_edge() {
+        let (mut app, fake) = fresh_pair();
+        aim(&mut app, 1.0, 8.0, false);
+        app.update();
+        assert_claim_before_mount(&mut app);
+        use_edge(&mut app, true);
+        app.update();
+        assert!(
+            app.world()
+                .resource::<crate::feel_move::UseBuffer>()
+                .until
+                .is_some()
+        );
+        assert!(!bond_mounted(&app) && !bond_nearby(&app));
+        assert!(!app.world().resource::<WoodClaim>().blocks());
+        assert!(fake.publishes().is_empty());
+        use_edge(&mut app, false);
+        aim(&mut app, stance_offset(), 0.4, false);
+        assert!(!key_edge(&app));
+        assert!(!app.world().resource::<crate::feel_move::SimUsePulse>().fire);
+        assert!(
+            app.world()
+                .resource::<crate::feel_move::UseBuffer>()
+                .until
+                .is_some()
+        );
+        app.update();
+        assert!(!key_edge(&app) && interact_now(&app));
+        assert!(app.world().resource::<WoodClaim>().blocks());
+        assert!(bond_nearby(&app) && !bond_mounted(&app));
+        assert!(!app.world().resource::<crate::feel_move::SimUsePulse>().fire);
+        assert!(
+            app.world()
+                .resource::<crate::feel_move::UseBuffer>()
+                .until
+                .is_none()
+        );
+        until(|| fake.publishes().len() == 1);
+        assert_eq!(fake.publishes(), vec![memory_bytes(&app)]);
+        assert_eq!(app.world().resource::<WoodHub>().memory_unit(), Some(1));
+        app.update();
+        assert!(!app.world().resource::<WoodClaim>().blocks());
+        assert!(!bond_mounted(&app));
+        thread::sleep(Duration::from_millis(20));
+        assert_eq!(fake.publishes().len(), 1);
+        use_edge(&mut app, true);
+        app.update();
+        assert!(bond_mounted(&app));
+        assert!(!app.world().resource::<WoodClaim>().blocks());
+        thread::sleep(Duration::from_millis(20));
+        assert_eq!(fake.publishes().len(), 1);
+        stop(&mut app);
+    }
 }

@@ -60,11 +60,15 @@ pub struct CompanionBondPlugin;
 
 impl Plugin for CompanionBondPlugin {
     fn build(&self, app: &mut App) {
-        app.init_resource::<CompanionBond>()
-            .add_systems(
-                Update,
-                (note_care, follow_or_wait, try_mount).chain(),
-            );
+        app.init_resource::<CompanionBond>().add_systems(
+            Update,
+            (
+                note_care,
+                follow_or_wait,
+                try_mount.after(crate::wood_expedition::claim_wood_press),
+            )
+                .chain(),
+        );
     }
 }
 
@@ -128,9 +132,14 @@ fn try_mount(
     input: Res<PlayerInput>,
     nearby_node: Res<NearbyMercyNode>,
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
+    claim: Option<Res<crate::wood_expedition::WoodClaim>>,
     mut bond: ResMut<CompanionBond>,
 ) {
     if nearby_node.in_range {
+        return;
+    }
+    // Held wood owns this update, success or late reject. Absent claim stays legacy.
+    if claim.is_some_and(|held| held.blocks()) {
         return;
     }
     let press = keyboard.just_pressed(soft_play_bindings::INTERACT) || input.interact;
@@ -149,6 +158,12 @@ fn try_mount(
         let line = companion_bond_line(RIDE_LINE, place);
         info!(target: "powrush::companion", trust = bond.trust, "{line}");
     }
+}
+
+#[cfg(test)]
+pub(crate) fn same_frame_mount_id() -> std::any::TypeId {
+    use bevy::ecs::system::IntoSystem;
+    IntoSystem::system_type_id(&try_mount)
 }
 
 #[cfg(test)]
@@ -196,5 +211,67 @@ mod tests {
             assert!(!low.contains("widget"), "{sample}");
             assert!(!sample.contains("Threshold"), "{sample}");
         }
+    }
+
+    /// Absent `WoodClaim` keeps care, follow, mount, and dismount. A held claim blocks both.
+    #[test]
+    fn absent_wood_claim_keeps_legacy_mount_and_held_claim_blocks() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .add_plugins(CompanionBondPlugin)
+            .init_resource::<PlayerInput>()
+            .init_resource::<NearbyMercyNode>()
+            .init_resource::<WorldAnswer>()
+            .init_resource::<SoftPresence>()
+            .init_resource::<crate::living_practice_loop::SoftPlayerRealm>()
+            .init_resource::<ButtonInput<KeyCode>>();
+        app.world_mut()
+            .resource_mut::<crate::living_practice_loop::SoftPlayerRealm>()
+            .current = Some(0);
+        app.world_mut().resource_mut::<WorldAnswer>().kind = AnswerKind::Tend;
+        app.world_mut().spawn((
+            Name::new("ResonantDeer"),
+            Transform::from_xyz(0.4, 0.9, 0.0),
+        ));
+        app.update();
+        {
+            let bond = app.world().resource::<CompanionBond>();
+            assert!((bond.trust - 0.28).abs() < 1e-5);
+            assert!(bond.nearby && !bond.mounted);
+        }
+        app.world_mut().resource_mut::<CompanionBond>().trust = 1.0;
+        let edge = |app: &mut App| {
+            let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+            keys.release(soft_play_bindings::INTERACT);
+            keys.clear();
+            keys.press(soft_play_bindings::INTERACT);
+        };
+        edge(&mut app);
+        app.update();
+        assert!(app.world().resource::<CompanionBond>().mounted);
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .clear();
+        app.update();
+        assert!(app.world().resource::<CompanionBond>().mounted);
+        edge(&mut app);
+        app.update();
+        assert!(!app.world().resource::<CompanionBond>().mounted);
+        app.insert_resource(crate::wood_expedition::WoodClaim::default());
+        app.world_mut()
+            .resource_mut::<crate::wood_expedition::WoodClaim>()
+            .set_held(true);
+        edge(&mut app);
+        app.update();
+        assert!(!app.world().resource::<CompanionBond>().mounted);
+        app.world_mut().resource_mut::<CompanionBond>().mounted = true;
+        edge(&mut app);
+        app.update();
+        assert!(app.world().resource::<CompanionBond>().mounted);
+        app.world_mut()
+            .remove_resource::<crate::wood_expedition::WoodClaim>();
+        edge(&mut app);
+        app.update();
+        assert!(!app.world().resource::<CompanionBond>().mounted);
     }
 }
