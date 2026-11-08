@@ -960,13 +960,52 @@ fn door_line_on_card(guidance: &FirstSessionGuidance) -> Option<String> {
 /// CARD PT-QUEST1-1 Q-c — all three Mercy nodes are tended before the card moves on.
 pub const MERCY_NODES_TO_TEND: u32 = 3;
 
+/// 3D distance from `SoftPresence::position` (the origin when the body is
+/// missing) to the nearest Mercy node. An empty query is not out of reach.
+/// `HARVEST_REACH` is 2.85.
+fn mercy_card_stamp(
+    presence: Option<&SoftPresence>,
+    nodes: &Query<&Transform, With<MercyHarvestNode>>,
+) -> (bool, usize, bool) {
+    let pos = presence.map(|body| body.position).unwrap_or(Vec3::ZERO);
+    let mut count = 0usize;
+    let mut best = f32::MAX;
+    for transform in nodes.iter() {
+        count += 1;
+        let distance = transform.translation.distance(pos);
+        if distance < best {
+            best = distance;
+        }
+    }
+    let out_of_reach = count > 0 && best > crate::mercy_harvest_nodes::HARVEST_REACH;
+    (out_of_reach, count, presence.is_some())
+}
+
 fn lived_card_line(guidance: &FirstSessionGuidance, place: Option<&str>) -> String {
+    lived_card_line_for(guidance, place, false, 0)
+}
+
+fn lived_card_line_for(
+    guidance: &FirstSessionGuidance,
+    place: Option<&str>,
+    out_of_reach: bool,
+    actual_nodes: usize,
+) -> String {
     if guidance.dismissed {
         return String::new();
     }
-    let mut spoken = spoken_guidance(&guidance.objective, place);
-    // CARD PT-QUEST1-1 H-Q4 — the 1/3 counter is formatted at draw time; prompt() stays &'static str.
     let need = guidance.nodes_required();
+    let approach_while_far = guidance.objective == GuidanceObjective::HarvestWithInteract
+        && need > 0
+        && actual_nodes > 0
+        && out_of_reach;
+    let mut spoken = if approach_while_far {
+        GuidanceObjective::ApproachGlowingNode.prompt().to_string()
+    } else {
+        spoken_guidance(&guidance.objective, place)
+    };
+    // CARD PT-QUEST1-1 H-Q4 — the 1/3 counter is formatted at draw time.
+    // prompt() stays &'static str.
     if guidance.objective == GuidanceObjective::HarvestWithInteract && need > 0 {
         spoken = format!("{spoken} · {}/{need}", guidance.nodes_tended.min(need));
     }
@@ -1034,6 +1073,8 @@ fn update_guidance_text(
     mut last_place: Local<Option<&'static str>>,
     mut query: Query<(&mut Text, &mut TextFont), With<FirstSessionGuidanceText>>,
     sign: Option<Res<Signpost>>,
+    nodes: Query<&Transform, With<MercyHarvestNode>>,
+    mut last_mercy: Local<Option<(bool, usize, bool)>>,
 ) {
     let place = stood_place_label(travel.as_deref(), presence.as_deref());
     let place_changed = *last_place != place;
@@ -1045,19 +1086,33 @@ fn update_guidance_text(
         .as_ref()
         .map(|state| state.is_changed())
         .unwrap_or(false);
-    let font_differs = query
-        .iter()
-        .any(|(_, font)| match font.font_size {
-            FontSize::Px(current) => (current - card_px / 1.2).abs() > 0.01,
-            _ => true,
-        });
+    let font_differs = query.iter().any(|(_, font)| match font.font_size {
+        FontSize::Px(current) => (current - card_px / 1.2).abs() > 0.01,
+        _ => true,
+    });
     let sign_changed = sign.as_ref().is_some_and(|s| s.is_changed());
-    if !guidance.is_changed() && !place_changed && !settings_changed && !font_differs && !sign_changed {
+    let mercy_now = mercy_card_stamp(presence.as_deref(), &nodes);
+    let (out_of_reach, actual_nodes, _) = mercy_now;
+    let mercy_changed = *last_mercy != Some(mercy_now);
+    // Record on every path, including the quiet return, the signpost
+    // override, and dismissal. The next range check compares this tuple.
+    *last_mercy = Some(mercy_now);
+    if !guidance.is_changed()
+        && !place_changed
+        && !settings_changed
+        && !font_differs
+        && !sign_changed
+        && !mercy_changed
+    {
         return;
     }
     *last_place = place;
     let showing = sign.as_deref().is_some_and(signpost_showing) && !guidance.dismissed;
-    let prompt = if showing { card_line(SIGNPOST_LINE) } else { lived_card_line(&guidance, place) };
+    let prompt = if showing {
+        card_line(SIGNPOST_LINE)
+    } else {
+        lived_card_line_for(&guidance, place, out_of_reach, actual_nodes)
+    };
     for (mut text, mut font) in &mut query {
         match font.font_size {
             FontSize::Px(current) if (current - card_px / 1.2).abs() <= 0.01 => {}
@@ -3523,5 +3578,193 @@ mod tests {
         assert!(guidance.dismissed);
         assert!(!guidance.active);
         assert!(!app.world().resource::<LivedHourBind>().guidance_hidden);
+    }
+
+    fn paint_guidance(app: &mut App) -> String {
+        app.update();
+        guidance_card_section(app).1
+    }
+
+    fn ordinary_inputs_unchanged(app: &App) {
+        assert!(!app.world().is_resource_changed::<FirstSessionGuidance>());
+        assert!(!app.world().is_resource_changed::<Signpost>());
+    }
+
+    fn guide(app: &mut App) -> Mut<'_, FirstSessionGuidance> {
+        app.world_mut().resource_mut()
+    }
+
+    fn put_body(app: &mut App, x: f32) {
+        app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(x, 0.0, 0.0);
+    }
+
+    fn put_node(app: &mut App, node: Entity, x: f32) {
+        app.world_mut()
+            .entity_mut(node)
+            .get_mut::<Transform>()
+            .expect("mercy node")
+            .translation = Vec3::new(x, 0.0, 0.0);
+    }
+
+    fn spawn_glow(app: &mut App, x: f32) -> Entity {
+        app.world_mut()
+            .spawn((
+                Transform::from_xyz(x, 0.0, 0.0),
+                MercyHarvestNode {
+                    name: "glow",
+                    climate_id: 0,
+                    vitality: 1.0,
+                    harvests: 0,
+                    pulse: 0.0,
+                },
+            ))
+            .id()
+    }
+
+    fn counted(prompt: &str, tended: u32, need: u32) -> String {
+        card_line(&format!("{prompt} · {tended}/{need}"))
+    }
+
+    /// Live Mercy sphere, not `near_glow`. Need stays 2 while one node exists.
+    #[test]
+    fn harvest_card_follows_the_live_mercy_sphere() {
+        use bevy::ecs::system::RunSystemOnce;
+        use bevy::MinimalPlugins;
+
+        let reach = crate::mercy_harvest_nodes::HARVEST_REACH;
+        let outside = reach + 0.001;
+        let tend = GuidanceObjective::HarvestWithInteract.prompt();
+        let approach = GuidanceObjective::ApproachGlowingNode.prompt();
+        let harvest = GuidanceObjective::HarvestWithInteract;
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<FirstSessionGuidance>()
+            .init_resource::<Signpost>()
+            .insert_resource(SoftPresence::default())
+            .add_systems(Startup, spawn_guidance_strip)
+            .add_systems(Update, update_guidance_text);
+        guide(&mut app).objective = harvest.clone();
+        guide(&mut app).nodes_present = 2;
+        guide(&mut app).near_glow = false;
+        put_body(&mut app, outside);
+        let mut node = spawn_glow(&mut app, 0.0);
+        assert_eq!(paint_guidance(&mut app), counted(approach, 0, 2));
+
+        put_body(&mut app, reach);
+        ordinary_inputs_unchanged(&app);
+        assert_eq!(paint_guidance(&mut app), counted(tend, 0, 2));
+        put_body(&mut app, outside);
+        ordinary_inputs_unchanged(&app);
+        assert_eq!(paint_guidance(&mut app), counted(approach, 0, 2));
+        {
+            let guidance = app.world().resource::<FirstSessionGuidance>();
+            assert_eq!(guidance.objective, harvest);
+            assert_eq!((guidance.nodes_tended, guidance.nodes_present), (0, 2));
+            assert!(!guidance.near_glow);
+        }
+
+        app.world_mut().despawn(node);
+        ordinary_inputs_unchanged(&app);
+        assert_eq!(paint_guidance(&mut app), counted(tend, 0, 2));
+        node = spawn_glow(&mut app, 0.0);
+        ordinary_inputs_unchanged(&app);
+        assert_eq!(paint_guidance(&mut app), counted(approach, 0, 2));
+
+        put_body(&mut app, 0.0);
+        put_node(&mut app, node, 0.0);
+        ordinary_inputs_unchanged(&app);
+        assert_eq!(paint_guidance(&mut app), counted(tend, 0, 2));
+        app.world_mut().remove_resource::<SoftPresence>();
+        ordinary_inputs_unchanged(&app);
+        assert_eq!(paint_guidance(&mut app), counted(tend, 0, 2));
+        put_node(&mut app, node, outside);
+        ordinary_inputs_unchanged(&app);
+        assert_eq!(paint_guidance(&mut app), counted(approach, 0, 2));
+        app.world_mut().insert_resource(SoftPresence {
+            position: Vec3::new(outside, 0.0, 0.0),
+            ..Default::default()
+        });
+        ordinary_inputs_unchanged(&app);
+        assert_eq!(paint_guidance(&mut app), counted(tend, 0, 2));
+
+        put_body(&mut app, 0.0);
+        guide(&mut app).nodes_tended = 1;
+        assert_eq!(paint_guidance(&mut app), counted(approach, 1, 2));
+        assert_eq!(guide(&mut app).objective, harvest);
+        guide(&mut app).objective = GuidanceObjective::OpenInventory;
+        let satchel = card_line(GuidanceObjective::OpenInventory.prompt());
+        assert_eq!(paint_guidance(&mut app), satchel);
+        guide(&mut app).objective = harvest.clone();
+        assert_eq!(paint_guidance(&mut app), counted(approach, 1, 2));
+
+        guide(&mut app).house_live = true;
+        guide(&mut app).harvests_completed = 1;
+        let door = door_people_lines();
+        let far_door = format!("{}\n{door}", counted(approach, 1, 2));
+        let near_door = format!("{}\n{door}", counted(tend, 1, 2));
+        assert_eq!(paint_guidance(&mut app), far_door);
+        put_body(&mut app, outside);
+        ordinary_inputs_unchanged(&app);
+        assert_eq!(paint_guidance(&mut app), near_door);
+        guide(&mut app).house_live = false;
+        guide(&mut app).harvests_completed = 0;
+        put_body(&mut app, 0.0);
+        assert_eq!(paint_guidance(&mut app), counted(approach, 1, 2));
+
+        app.world_mut().resource_mut::<Signpost>().until = Some(90.0);
+        let posted = card_line(SIGNPOST_LINE);
+        assert_eq!(paint_guidance(&mut app), posted);
+        put_body(&mut app, outside);
+        ordinary_inputs_unchanged(&app);
+        assert_eq!(paint_guidance(&mut app), posted);
+        app.world_mut().resource_mut::<Signpost>().until = None;
+        assert_eq!(paint_guidance(&mut app), counted(tend, 1, 2));
+        put_body(&mut app, 0.0);
+        ordinary_inputs_unchanged(&app);
+        assert_eq!(paint_guidance(&mut app), counted(approach, 1, 2));
+
+        app.insert_resource(ButtonInput::<KeyCode>::default());
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::KeyH);
+        app.world_mut()
+            .run_system_once(handle_guidance_dismiss_input)
+            .unwrap();
+        assert_eq!(paint_guidance(&mut app), "");
+        assert!(guide(&mut app).dismissed);
+        put_body(&mut app, outside);
+        ordinary_inputs_unchanged(&app);
+        assert_eq!(paint_guidance(&mut app), "");
+        guide(&mut app).dismissed = false;
+        guide(&mut app).active = true;
+        assert_eq!(paint_guidance(&mut app), counted(tend, 1, 2));
+        put_body(&mut app, 0.0);
+        ordinary_inputs_unchanged(&app);
+        assert_eq!(paint_guidance(&mut app), counted(approach, 1, 2));
+
+        app.world_mut().despawn(node);
+        guide(&mut app).objective = GuidanceObjective::ApproachGlowingNode;
+        guide(&mut app).nodes_present = 0;
+        guide(&mut app).nodes_tended = 0;
+        guide(&mut app).near_glow = false;
+        guide(&mut app).moved_distance = 12.0;
+        guide(&mut app).harvests_completed = 0;
+        guide(&mut app).advance_if_ready();
+        assert_eq!(
+            guide(&mut app).objective,
+            GuidanceObjective::ApproachGlowingNode
+        );
+        assert_eq!(paint_guidance(&mut app), card_line(approach));
+        guide(&mut app).moved_distance = 12.001;
+        guide(&mut app).near_glow = false;
+        guide(&mut app).advance_if_ready();
+        assert_eq!(guide(&mut app).objective, harvest);
+        assert_eq!(paint_guidance(&mut app), card_line(tend));
+        guide(&mut app).advance_if_ready();
+        assert_eq!(guide(&mut app).objective, harvest);
+        guide(&mut app).harvests_completed = 1;
+        guide(&mut app).advance_if_ready();
+        assert_eq!(guide(&mut app).objective, GuidanceObjective::OpenInventory);
+        assert_eq!(paint_guidance(&mut app), satchel);
     }
 }
