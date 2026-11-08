@@ -873,7 +873,18 @@ pub(crate) fn use_in_reach(
     let (Some(site), Some(position)) = (first_passing_site(), position) else {
         return false;
     };
-    Vec2::new(position.x, position.z).distance(site) <= crate::mercy_harvest_nodes::HARVEST_REACH
+    contact_inside(Vec2::new(position.x, position.z).distance(site))
+}
+fn yard_open(
+    door: Option<&crate::title_screen::LaunchDoor>,
+    house: Option<&crate::title_screen::HouseLabel>,
+) -> bool {
+    match (door, house) {
+        (Some(door), Some(label)) => {
+            *door == crate::title_screen::LaunchDoor::InYard && !label.settings_open
+        }
+        _ => true,
+    }
 }
 pub(crate) fn mercy_blocks(origin: Option<Vec3>, nodes: impl IntoIterator<Item = Vec3>) -> bool {
     let Some(origin) = origin else { return false };
@@ -1054,13 +1065,20 @@ pub(crate) fn claim_wood_press(
     facts: Res<WoodFacts>,
     mut claim: ResMut<WoodClaim>,
     hub: Option<Res<WoodHub>>,
+    door: Option<Res<crate::title_screen::LaunchDoor>>,
+    house: Option<Res<crate::title_screen::HouseLabel>>,
 ) {
     claim.held = false;
     claim.prior = None;
     let (Some(input), Some(hub)) = (input.as_deref(), hub) else {
         return;
     };
-    if !input.interact || facts.mercy_blocks || facts.door_blocks || !facts.in_reach || !facts.live
+    if !input.interact
+        || facts.mercy_blocks
+        || facts.door_blocks
+        || !facts.in_reach
+        || !facts.live
+        || !yard_open(door.as_deref(), house.as_deref())
     {
         return;
     }
@@ -1068,10 +1086,27 @@ pub(crate) fn claim_wood_press(
     claim.held = true;
     claim.prior = Some(prior);
 }
-pub(crate) fn admit_wood_press(claim: Res<WoodClaim>, mut hub: ResMut<WoodHub>) {
-    if let Some(prior) = claim.prior.as_ref() {
-        let _ = hub.commit_at(prior);
+pub(crate) fn admit_wood_press(
+    claim: Res<WoodClaim>,
+    mut hub: ResMut<WoodHub>,
+    presence: Option<Res<crate::human_presence::SoftPresence>>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
+    realm: Option<Res<crate::living_practice_loop::SoftPlayerRealm>>,
+    door: Option<Res<crate::title_screen::LaunchDoor>>,
+    house: Option<Res<crate::title_screen::HouseLabel>>,
+) {
+    let Some(prior) = claim.prior.clone() else {
+        return;
+    };
+    let place = travel.as_ref().map(|state| state.current);
+    let shown = realm.as_ref().map(|state| state.current).unwrap_or(None);
+    let position = presence.as_ref().map(|body| body.position);
+    if !yard_open(door.as_deref(), house.as_deref())
+        || !use_in_reach(Some(&hub), place, shown, position)
+    {
+        return;
     }
+    let _ = hub.commit_at(&prior);
 }
 pub(crate) fn project_wood(
     mut commands: Commands,
@@ -1930,12 +1965,26 @@ pub(crate) mod tests {
                 );
             }
         }
-        let past = chosen + Vec2::X * (crate::mercy_harvest_nodes::HARVEST_REACH + OUT_TOL);
+        let edge = chosen + Vec2::X * (TRUNK_R + BODY_R + IN_TOL);
+        assert!(use_in_reach(
+            Some(&hub),
+            place,
+            Some(0),
+            Some(Vec3::new(edge.x, 0.9, edge.y))
+        ));
+        let outside = chosen + Vec2::X * (TRUNK_R + BODY_R + OUT_TOL);
         assert!(!use_in_reach(
             Some(&hub),
             place,
             Some(0),
-            Some(Vec3::new(past.x, 0.9, past.y))
+            Some(Vec3::new(outside.x, 0.9, outside.y))
+        ));
+        let meter = chosen + Vec2::X;
+        assert!(!use_in_reach(
+            Some(&hub),
+            place,
+            Some(0),
+            Some(Vec3::new(meter.x, 0.9, meter.y))
         ));
         assert!(!use_in_reach(
             Some(&hub),
@@ -2846,5 +2895,151 @@ pub(crate) mod tests {
         app.update();
         assert_eq!(projected(&mut app), (0, 0, 1));
         app.world_mut().resource_mut::<WoodHub>().shutdown();
+    }
+
+    type Door = crate::title_screen::LaunchDoor;
+
+    fn house_label(settings_open: bool) -> crate::title_screen::HouseLabel {
+        crate::title_screen::HouseLabel {
+            house: shared::house_name::HouseName::default(),
+            persist_present: false,
+            hour_two_held: false,
+            book_held: false,
+            settings_open,
+            draft: String::new(),
+            naming_offered: false,
+            seals_offered: false,
+        }
+    }
+    fn memory_bytes(app: &App) -> Vec<u8> {
+        app.world()
+            .resource::<WoodHub>()
+            .body
+            .memory
+            .as_ref()
+            .unwrap()
+            .bytes
+            .clone()
+    }
+    fn place_body(app: &mut App, offset: f32) {
+        let site = first_passing_site().unwrap();
+        let at = site + Vec2::X * offset;
+        app.world_mut()
+            .resource_mut::<crate::human_presence::SoftPresence>()
+            .position = Vec3::new(at.x, 0.9, at.y);
+    }
+    fn boot_contact(
+        offset: f32,
+        door: Option<Door>,
+        settings: Option<bool>,
+    ) -> (App, Fake, Vec<u8>) {
+        let fake = Fake::pair(Raw::NotFound, Raw::NotFound);
+        let mut app = schedule_app(started(fake.clone(), SLOW));
+        place_body(&mut app, offset);
+        if let Some(door) = door {
+            app.insert_resource(door);
+        }
+        if let Some(open) = settings {
+            app.insert_resource(house_label(open));
+        }
+        let bytes = memory_bytes(&app);
+        (app, fake, bytes)
+    }
+    fn pulse(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<crate::feel_move::SimUsePulse>()
+            .fire = true;
+    }
+    fn stop(app: &mut App) {
+        app.world_mut().resource_mut::<WoodHub>().shutdown();
+    }
+    fn still(app: &App, fake: &Fake, bytes: &[u8]) {
+        assert_eq!(app.world().resource::<WoodHub>().memory_unit(), Some(0));
+        assert_eq!(memory_bytes(app), bytes);
+        assert!(app.world().resource::<WoodHub>().body.inflight.is_none());
+        assert!(app.world().resource::<WoodHub>().body.queued.is_none());
+        assert!(fake.publishes().is_empty());
+    }
+    fn publish_once(offset: f32, door: Option<Door>, settings: Option<bool>) {
+        let (mut app, fake, _) = boot_contact(offset, door, settings);
+        pulse(&mut app);
+        app.update();
+        until(|| fake.publishes().len() == 1);
+        assert_eq!(fake.publishes(), vec![memory_bytes(&app)]);
+        assert_eq!(app.world().resource::<WoodHub>().memory_unit(), Some(1));
+        assert!(app.world().resource::<WoodClaim>().blocks());
+        app.world_mut()
+            .resource_mut::<crate::input::PlayerInput>()
+            .interact = false;
+        app.update();
+        pulse(&mut app);
+        app.update();
+        thread::sleep(Duration::from_millis(20));
+        assert_eq!(fake.publishes().len(), 1);
+        assert!(!app.world().resource::<WoodClaim>().blocks());
+        stop(&mut app);
+    }
+    fn deny_wood(offset: f32, door: Option<Door>, settings: Option<bool>) {
+        let (mut app, fake, bytes) = boot_contact(offset, door, settings);
+        pulse(&mut app);
+        app.update();
+        still(&app, &fake, &bytes);
+        assert!(!app.world().resource::<WoodClaim>().blocks());
+        stop(&mut app);
+    }
+    #[derive(Resource, Clone, Copy)]
+    enum MidFlip {
+        Move,
+        Settings,
+    }
+    fn flip_after_claim(
+        flip: Res<MidFlip>,
+        mut presence: ResMut<crate::human_presence::SoftPresence>,
+        mut house: Option<ResMut<crate::title_screen::HouseLabel>>,
+    ) {
+        match *flip {
+            MidFlip::Move => {
+                let site = first_passing_site().unwrap();
+                presence.position = Vec3::new(site.x + 1.0, 0.9, site.y);
+            }
+            MidFlip::Settings => house.as_mut().unwrap().settings_open = true,
+        }
+    }
+    fn flipped_claim_is_kept(flip: MidFlip) {
+        let (mut app, fake, bytes) = boot_contact(stance_offset(), Some(Door::InYard), Some(false));
+        app.insert_resource(flip).add_systems(
+            Update,
+            flip_after_claim
+                .after(claim_wood_press)
+                .before(admit_wood_press),
+        );
+        pulse(&mut app);
+        app.update();
+        assert!(app.world().resource::<WoodClaim>().blocks());
+        still(&app, &fake, &bytes);
+        app.world_mut()
+            .resource_mut::<crate::input::PlayerInput>()
+            .interact = false;
+        app.update();
+        assert!(!app.world().resource::<WoodClaim>().blocks());
+        still(&app, &fake, &bytes);
+        stop(&mut app);
+    }
+    #[test]
+    fn contact_and_yard_gate_the_real_press() {
+        publish_once(stance_offset(), None, None);
+        publish_once(TRUNK_R + BODY_R + IN_TOL, None, None);
+        publish_once(stance_offset(), Some(Door::Title), None);
+        publish_once(stance_offset(), Some(Door::InYard), None);
+        publish_once(stance_offset(), None, Some(false));
+        publish_once(stance_offset(), None, Some(true));
+        publish_once(stance_offset(), Some(Door::InYard), Some(false));
+        deny_wood(TRUNK_R + BODY_R + OUT_TOL, None, None);
+        deny_wood(1.0, None, None);
+        deny_wood(stance_offset(), Some(Door::Title), Some(false));
+        deny_wood(stance_offset(), Some(Door::InYard), Some(true));
+        deny_wood(stance_offset(), Some(Door::Title), Some(true));
+        flipped_claim_is_kept(MidFlip::Move);
+        flipped_claim_is_kept(MidFlip::Settings);
     }
 }
