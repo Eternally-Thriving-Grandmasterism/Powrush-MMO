@@ -46,25 +46,36 @@ impl Plugin for FeelMovePlugin {
 }
 
 /// Fold Fixed-tick buffered Use into the same `PlayerInput.interact` Peace hooks already read.
-fn raise_buffered_use(mut input: ResMut<PlayerInput>, mut pulse: ResMut<SimUsePulse>) {
+pub(crate) fn raise_buffered_use(mut input: ResMut<PlayerInput>, mut pulse: ResMut<SimUsePulse>) {
     if pulse.fire {
         input.interact = true;
         pulse.fire = false;
     }
 }
 
-fn arm_use_buffer_from_edge(
+pub(crate) fn arm_use_buffer_from_edge(
     input: Res<PlayerInput>,
     time: Res<Time>,
     mut buf: ResMut<UseBuffer>,
     nearby: Option<Res<NearbyMercyNode>>,
     depths: Option<Res<DepthsPeaceTend>>,
     epiphany: Option<Res<FirstHarvestEpiphany>>,
+    wood: Option<Res<crate::wood_expedition::WoodHub>>,
+    presence: Option<Res<crate::human_presence::SoftPresence>>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
+    realm: Option<Res<crate::living_practice_loop::SoftPlayerRealm>>,
 ) {
     if !input.interact {
         return;
     }
     let in_range = use_target_in_range(nearby.as_deref(), depths.as_deref(), epiphany.as_deref());
+    let in_range = in_range
+        || crate::wood_expedition::use_in_reach(
+            wood.as_deref(),
+            travel.as_ref().map(|s| s.current),
+            realm.as_ref().and_then(|s| s.current),
+            presence.as_ref().map(|p| p.position),
+        );
     if in_range {
         // Immediate edge this Update — do not leave a buffer that double-fires next Fixed.
         buf.until = None;
@@ -81,6 +92,10 @@ fn resolve_use_buffer(
     nearby: Option<Res<NearbyMercyNode>>,
     depths: Option<Res<DepthsPeaceTend>>,
     epiphany: Option<Res<FirstHarvestEpiphany>>,
+    wood: Option<Res<crate::wood_expedition::WoodHub>>,
+    presence: Option<Res<crate::human_presence::SoftPresence>>,
+    travel: Option<Res<crate::hex_travel::HexTravelState>>,
+    realm: Option<Res<crate::living_practice_loop::SoftPlayerRealm>>,
 ) {
     // Do not clear `pulse.fire` here — sticky until Update `raise_buffered_use`
     // consumes it (multi Fixed ticks in one frame must not drop the pulse).
@@ -93,6 +108,13 @@ fn resolve_use_buffer(
         return;
     }
     let in_range = use_target_in_range(nearby.as_deref(), depths.as_deref(), epiphany.as_deref());
+    let in_range = in_range
+        || crate::wood_expedition::use_in_reach(
+            wood.as_deref(),
+            travel.as_ref().map(|s| s.current),
+            realm.as_ref().and_then(|s| s.current),
+            presence.as_ref().map(|p| p.position),
+        );
     if !in_range {
         return;
     }

@@ -1287,7 +1287,12 @@ fn apply_locomotion(
     mut latch: ResMut<JumpLatch>,
     mut landing: ResMut<LandingRecovery>,
     mut presence: ResMut<SoftPresence>,
-    trees: (Option<Res<crate::living_practice_loop::SoftPlayerRealm>>, Option<Res<crate::vegetation::FieldTrunks>>),
+    trees: (
+        Option<Res<crate::living_practice_loop::SoftPlayerRealm>>,
+        Option<Res<crate::vegetation::FieldTrunks>>,
+        Option<Res<crate::wood_expedition::WoodHub>>,
+        Option<Res<crate::hex_travel::HexTravelState>>,
+    ),
 ) {
     // PLAYTEST-STRAFE-FIX-1 — snapshot last tick's end before integrating.
     // CARD JUMP-BUFFER-1 — reseat guard, read before anything moves the position this tick.
@@ -1404,9 +1409,11 @@ fn apply_locomotion(
     presence.position += velocity * dt;
     // CARD PT-COLLIDE-1 — trunks push out on x/z, only for the tree set shown in this realm.
     use crate::living_ecology::{yard_trees_shown, YARD_TREE_SPOTS, YARD_TRUNK_R};
-    let yard = yard_trees_shown(trees.0.and_then(|r| r.current)).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|spot| (spot.xz(), YARD_TRUNK_R));
+    let realm = trees.0.as_ref().and_then(|realm| realm.current);
+    let yard = yard_trees_shown(realm).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|spot| (spot.xz(), YARD_TRUNK_R));
     let field = trees.1.iter().flat_map(|f| f.0.iter().copied());
-    push_out_of_trunks(&mut presence.position, yard.chain(field));
+    let owned = crate::wood_expedition::owned_blocker(trees.2.as_deref(), trees.3.as_ref().map(|state| state.current), realm);
+    push_out_of_trunks(&mut presence.position, yard.chain(field).chain(owned));
     if presence.position.y <= STAND {
         // Airline is the pre-clamp grounded flag plus the seated guard.
         // Height and vertical speed do not arm recovery by themselves.
@@ -5592,5 +5599,72 @@ mod tests {
             .control_preset = "classic".into();
         app.update();
         assert_eq!(*app.world().resource::<ControlPreset>(), ControlPreset::Classic);
+    }
+
+    #[derive(Resource)]
+    struct RealmWrite(Option<u8>);
+    fn write_realm(write: Option<Res<RealmWrite>>, mut realm: ResMut<crate::living_practice_loop::SoftPlayerRealm>) {
+        if let Some(write) = write { realm.current = write.0; }
+    }
+
+    #[test]
+    fn wood_blocker_reads_the_doc_on_the_fixed_tick() {
+        use bevy::time::TimeUpdateStrategy;
+        use crate::wood_expedition::tests::{open_hub, tune_hub};
+        let site = crate::wood_expedition::first_passing_site().unwrap();
+        let stand = Vec3::new(site.x, STAND, site.y);
+        let mut hub = open_hub();
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(Time::<Fixed>::from_hz(60.0))
+            .insert_resource(TimeUpdateStrategy::FixedTimesteps(0))
+            .init_resource::<SoftPresence>()
+            .init_resource::<JumpLatch>()
+            .init_resource::<LandingRecovery>()
+            .init_resource::<PlayerInput>()
+            .insert_resource(crate::hex_travel::HexTravelState { current: shared::hex_travel::PlaceId::Sanctuary })
+            .insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) })
+            .add_systems(PreUpdate, write_realm)
+            .add_systems(FixedUpdate, apply_locomotion);
+        let shove = |app: &mut App, steps: u32, at: Vec3| {
+            app.insert_resource(TimeUpdateStrategy::FixedTimesteps(steps));
+            let mut presence = app.world_mut().resource_mut::<SoftPresence>();
+            presence.position = at;
+            presence.velocity = Vec3::ZERO;
+            app.update();
+            app.update();
+            app.world().resource::<SoftPresence>().position
+        };
+        tune_hub(&mut hub, false, false, false, false);
+        app.insert_resource(hub);
+        assert_eq!(shove(&mut app, 4, stand), stand, "unbooted");
+        tune_hub(app.world_mut().resource_mut::<crate::wood_expedition::WoodHub>().into_inner(), true, true, false, false);
+        assert_eq!(shove(&mut app, 4, stand), stand, "inert");
+        tune_hub(app.world_mut().resource_mut::<crate::wood_expedition::WoodHub>().into_inner(), true, false, true, false);
+        let contact = 0.11 + PLAYER_TRUNK_RADIUS;
+        let kept = shove(&mut app, 4, stand);
+        assert!((kept.xz().distance(site) - contact).abs() < 1e-3, "conflict keeps the accepted trunk {kept}");
+        tune_hub(app.world_mut().resource_mut::<crate::wood_expedition::WoodHub>().into_inner(), true, false, false, true);
+        assert_eq!(shove(&mut app, 4, stand), stand, "depleted");
+        tune_hub(app.world_mut().resource_mut::<crate::wood_expedition::WoodHub>().into_inner(), true, false, false, false);
+        app.world_mut().resource_mut::<crate::living_practice_loop::SoftPlayerRealm>().current = Some(4);
+        assert_eq!(shove(&mut app, 4, stand), stand, "hidden");
+        app.world_mut().resource_mut::<crate::hex_travel::HexTravelState>().current = shared::hex_travel::PlaceId::Heartwood;
+        app.world_mut().resource_mut::<crate::living_practice_loop::SoftPlayerRealm>().current = Some(0);
+        assert_eq!(shove(&mut app, 4, stand), stand, "other place");
+        app.world_mut().resource_mut::<crate::hex_travel::HexTravelState>().current = shared::hex_travel::PlaceId::Sanctuary;
+        assert_eq!(shove(&mut app, 0, stand), stand, "zero ticks");
+        let pushed = shove(&mut app, 8, stand);
+        assert!((contact - 0.41).abs() < 1e-5 && (pushed.xz().distance(site) - contact).abs() < 1e-3, "{pushed}");
+        assert_eq!(pushed.y, STAND);
+        assert_eq!(app.world_mut().query::<&crate::wood_expedition::OwnedTree>().iter(app.world()).count(), 0);
+        app.insert_resource(RealmWrite(Some(4)));
+        app.world_mut().resource_mut::<crate::living_practice_loop::SoftPlayerRealm>().current = Some(0);
+        assert_eq!(shove(&mut app, 4, stand), stand, "preupdate hides before the tick");
+        app.insert_resource(RealmWrite(Some(0)));
+        app.world_mut().resource_mut::<crate::living_practice_loop::SoftPlayerRealm>().current = Some(4);
+        let back = shove(&mut app, 4, stand);
+        assert!((back.xz().distance(site) - 0.41).abs() < 1e-3, "preupdate shows before the tick {back}");
+        app.world_mut().resource_mut::<crate::wood_expedition::WoodHub>().shutdown();
     }
 }

@@ -367,13 +367,14 @@ fn apply_practice_credit(
 }
 
 /// Soft demo harvest — **E** interact (never Space; Space is jump).
-fn soft_interact_harvest_credit(
+pub(crate) fn soft_interact_harvest_credit(
     keyboard: Res<ButtonInput<KeyCode>>,
     epiphany: Option<Res<FirstHarvestEpiphany>>,
     mut practice: ResMut<LivingPracticeLoop>,
     mut moments: ResMut<ThrivingMoments>,
     soft_realm: Res<SoftPlayerRealm>,
     time: Res<Time>,
+    wood: Option<Res<crate::wood_expedition::WoodClaim>>,
 ) {
     if !practice.active || practice.dismissed || practice.principle_sealed {
         return;
@@ -384,6 +385,9 @@ fn soft_interact_harvest_credit(
     // A door already claimed this Use, so it took nothing — crediting it here
     // would speak the harvest line over someone else's verb.
     if epiphany.is_some_and(|e| e.harvest_use_is_claimed()) {
+        return;
+    }
+    if wood.as_ref().is_some_and(|claim| claim.blocks()) {
         return;
     }
 
@@ -579,5 +583,28 @@ mod tests {
             .world_mut()
             .query_filtered::<&TextFont, With<LivingPracticeText>>();
         assert_eq!(text.single(app.world()).unwrap().font_size, FontSize::Px(15.5 / 1.2));
+    }
+
+    #[test]
+    fn wood_claim_does_not_credit_practice() {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .init_resource::<LivingPracticeLoop>()
+            .init_resource::<ThrivingMoments>()
+            .init_resource::<SoftPlayerRealm>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .insert_resource(crate::wood_expedition::WoodClaim::default())
+            .add_systems(Update, soft_interact_harvest_credit);
+        app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(0);
+        app.world_mut().resource_mut::<LivingPracticeLoop>().active = true;
+        app.world_mut().resource_mut::<crate::wood_expedition::WoodClaim>().set_held(true);
+        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(crate::soft_play_bindings::INTERACT);
+        app.update();
+        assert_eq!(app.world().resource::<LivingPracticeLoop>().mercy_harvests_on_surface, 0);
+        app.world_mut().resource_mut::<crate::wood_expedition::WoodClaim>().set_held(false);
+        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().release(crate::soft_play_bindings::INTERACT);
+        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(crate::soft_play_bindings::INTERACT);
+        app.update();
+        assert_eq!(app.world().resource::<LivingPracticeLoop>().mercy_harvests_on_surface, 1);
     }
 }
