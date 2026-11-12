@@ -43,7 +43,7 @@ cargo test -p powrush-client --lib
 
 Equivalent bare door: `cargo run -p powrush-client` with `POWRUSH_NET` **unset** or `off`. Do **not** set `POWRUSH_NET=on`.
 
-**Optional private assets** (opt-in, manual): `./scripts/fetch_private_assets.sh` checks out the private Powrush-Assets-Private repo at the commit pinned in the script into `client/assets/private/`, which git ignores. It reads the token from `POWRUSH_ASSETS_TOKEN` or `gh auth token`, and with no token it prints one line and exits 0. The play-offline doors never run it, CI never runs it, and the client does not read that folder yet.
+**Optional private assets** (opt-in, manual): `./scripts/fetch_private_assets.sh` checks out the private Powrush-Assets-Private repo at the commit pinned in the script into `client/assets/private/`, which git ignores. It reads the token from `POWRUSH_ASSETS_TOKEN` or `gh auth token`, and with no token it prints one line and exits 0. The play-offline doors never run it, CI never runs it, and the client reads `textures/stone-painterly-08` for the Sanctuary yard when that private set is present, otherwise the placeholder stays.
 
 ---
 

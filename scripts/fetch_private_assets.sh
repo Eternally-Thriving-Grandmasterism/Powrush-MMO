@@ -1,15 +1,17 @@
 #!/usr/bin/env bash
-# ASSET-FETCH-1: opt-in fetch of Powrush-Assets-Private into client/assets/private/.
-# Manual step only. Nothing in the build, CI or the play-offline doors runs it,
-# and nothing in the client reads client/assets/private/ yet.
+# ASSET-FETCH-1 / STONE-GROUND-1: opt-in fetch into client/assets/private/.
+# Manual step only. Build, CI, and the play-offline doors never run it.
+# LFS pull is only the include list. The client reads stone-painterly-08 when present.
 #
 # Token: POWRUSH_ASSETS_TOKEN, or `gh auth token` as a fallback.
 # With no token it prints one line and exits 0 without changing anything.
 # The token is never echoed, logged, put in a URL, or written to any file.
 set -euo pipefail
 
-PIN="3701c50523a661200f879c544ce459d99c59820d"
+PIN="c00c4fb8383804db7955be900aa3e37914ff25c5"
 REPO_URL="https://github.com/Eternally-Thriving-Grandmasterism/Powrush-Assets-Private.git"
+# Later asset cards extend this one include list.
+LFS_INCLUDE="textures/stone-painterly-08/**"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="${ROOT}/client/assets/private"
@@ -51,11 +53,30 @@ if ! run_git -C "${DEST}" fetch -q --depth 1 origin "${PIN}"; then
   echo "powrush: ERROR could not fetch pinned commit ${PIN} from Powrush-Assets-Private." >&2
   exit 1
 fi
-git -C "${DEST}" checkout -q --detach FETCH_HEAD
+GIT_LFS_SKIP_SMUDGE=1 git -C "${DEST}" checkout -q --detach FETCH_HEAD
 
 HEAD_SHA="$(git -C "${DEST}" rev-parse HEAD)"
 if [ "${HEAD_SHA}" != "${PIN}" ]; then
   echo "powrush: ERROR checked out ${HEAD_SHA}, expected pin ${PIN}." >&2
   exit 1
 fi
+if ! command -v git-lfs >/dev/null 2>&1; then
+  echo "powrush: WARNING git-lfs is missing; PNGs stay pointers and the Sanctuary yard keeps its placeholder."
+  exit 0
+fi
+if ! run_git -C "${DEST}" lfs pull --include "${LFS_INCLUDE}"; then
+  echo "powrush: ERROR git lfs pull failed for ${LFS_INCLUDE}." >&2
+  exit 1
+fi
+if [ ! -d "${DEST}/textures/stone-painterly-08" ]; then
+  echo "powrush: ERROR textures/stone-painterly-08 is missing after git lfs pull." >&2
+  exit 1
+fi
+sig="version https://git-lfs.github.com/spec/v1"
+while IFS= read -r -d '' f; do
+  if [ "$(head -c "${#sig}" "$f" 2>/dev/null || true)" = "${sig}" ]; then
+    echo "powrush: ERROR an LFS pointer remains under textures/stone-painterly-08." >&2
+    exit 1
+  fi
+done < <(find "${DEST}/textures/stone-painterly-08" -type f -print0)
 echo "powrush: private assets at ${PIN} in client/assets/private/."
