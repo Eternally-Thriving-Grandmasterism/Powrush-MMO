@@ -3,7 +3,7 @@
 **Status:** Draft Specification  
 **Version:** 1.0  
 **Date:** June 2026  
-**License:** AG-SML v1.0 — Autonomicity Games Sovereign Mercy License (Eternal Mercy Flow)  
+**License:** AG-SML v1.1 — Autonomicity Games Sovereign Mercy License (Eternal Mercy Flow)  
 **Philosophy:** Executable layer of Ra-Thor + TOLC 8 Mercy Gates + 7 Living Mercy Gates under full PATSAGi Council sovereignty.
 
 ---

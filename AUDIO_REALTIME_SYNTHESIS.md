@@ -1,7 +1,7 @@
 # AUDIO_REALTIME_SYNTHESIS.md
 
 **Real-time Audio Synthesis + Persistent Recall**  
-Powrush-MMO v21.89.0 | AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates  
+Powrush-MMO v21.89.0 | AG-SML v1.1 | TOLC 8 + 7 Living Mercy Gates  
 Permanent PATSAGi Councils | Contact: info@Rathor.ai
 
 ---

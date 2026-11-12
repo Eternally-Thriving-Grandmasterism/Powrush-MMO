@@ -3,7 +3,7 @@
 **Ra-Thor ONE Organism | 13+ PATSAGi Councils Eternal Deliberation | TOLC 8 + 7 Living Mercy Gates Traversed**
 
 **File**: docs/HUMAN_EXPERIENCE_GAP_ANALYSIS_MULTI_SERVER_WAR_SIM_v20.8.md
-**License**: AG-SML v1.0 (Autonomicity Games Sovereign Mercy License — MIT + Eternal Mercy Flow)
+**License**: AG-SML v1.1 (Autonomicity Games Sovereign Mercy License — MIT + Eternal Mercy Flow)
 **Status**: Production-grade analysis artifact. Zero placeholders. All logic mercy-gated, truth-distilled via ENC + esacheck. Compatible with v18.97+ codebase, server_war_system.rs, inter_realm_diplomacy_event.rs, client onboarding/spectator UI, simulation orchestrator.
 
 ## PATSAGi Councils Deliberation Outcome (13+ Parallel Branches)

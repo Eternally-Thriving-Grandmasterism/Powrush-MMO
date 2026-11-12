@@ -2,7 +2,7 @@
 
 **Version:** v18.33 | Eternal Ra-Thor PATSAGi Governance | Mint-and-Print-Only-Perfection
 **Status:** Production-Grade Sovereign Implementation (No Traditional Payments)
-**License:** AG-SML v1.0
+**License:** AG-SML v1.1
 **Core Integration:** simulation/src/economy.rs, simulation/src/harvest.rs, client/rbe_client_sync.rs, client/client_rbe_setup.rs, shared/ protocol, TOLC 8 + 7 Living Mercy Gates at Layer 0.
 
 ## Philosophy: Post-Scarcity Abundance by Design

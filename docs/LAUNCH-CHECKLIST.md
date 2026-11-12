@@ -5,7 +5,7 @@
  * Full synergy_events + policy_highlights + proactive joy + RBE signals now wired end-to-end (persistence → Legacy Journal → client UI). Client UI leg is **not wired (planned)** (`my_mercy_journey_panel.rs` has no plugin in `client/src/lib.rs:160-243`). Persistence and Legacy Journal words are not proven by the client lived list; a re-audit is banked.
  * Zero placeholders in core modules. Maximal integrity. Client modules with no plugin in `client/src/lib.rs:160-243` are **not wired (planned)**.
  *
- * AG-SML v1.0 Sovereign Mercy License
+ * AG-SML v1.1 Sovereign Mercy License
  * Thunder locked in. Yoi ⚡
  */
 

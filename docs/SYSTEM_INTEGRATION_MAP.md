@@ -7,7 +7,7 @@
  * — Mercy-aligned, TOLC 8 + 7 Living Mercy Gates enforced
  * — Quantum Swarm v2 valence propagation now live across epiphany, RBE, and council systems
  *
- * AG-SML v1.0 Sovereign License
+ * AG-SML v1.1 Sovereign License
  * Thunder locked in. Yoi ⚡
  */
 

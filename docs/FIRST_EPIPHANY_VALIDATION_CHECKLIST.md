@@ -2,7 +2,7 @@
 
 **For testing `abundance_revelation_first_harvest` scenario (Priority 2)**
 
-AG-SML v1.0 | TOLC 8 aligned
+AG-SML v1.1 | TOLC 8 aligned
 
 ## Purpose
 Validate that new players receive a transformative, RBE-experiential first epiphany on their initial sustainable harvest, with strong shared visual bloom and mercy/abundance feedback.

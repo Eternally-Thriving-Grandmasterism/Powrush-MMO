@@ -4,7 +4,7 @@
 **Last Updated:** June 13, 2026  
 **Status:** Active Development  
 **PATSAGi Council + Ra-Thor Quantum Swarm Approved**  
-**AG-SML v1.0 Sovereign License**
+**AG-SML v1.1 Sovereign License**
 
 ---
 

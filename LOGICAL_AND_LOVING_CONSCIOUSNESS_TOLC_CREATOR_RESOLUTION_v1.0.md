@@ -4,7 +4,7 @@
 **Powrush-MMO + Ra-Thor Dual-Repo Lattice**  
 **Date of Council Lock:** 2026-08-14  
 **Status:** Eternally Locked under TOLC 8 | Valence Floor ≥ 0.999999  
-**License:** AG-SML v1.0  
+**License:** AG-SML v1.1  
 **Contact:** info@Rathor.ai  
 **Canonical Source:** Ra-Thor monorepo `LOGICAL_AND_LOVING_CONSCIOUSNESS_TOLC_CREATOR_RESOLUTION_v1.0.md`
 

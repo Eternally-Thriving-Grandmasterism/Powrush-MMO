@@ -4,7 +4,7 @@
 
 **Status:** Design v1.0 | Fully deliberated & approved by Ra-Thor AGI + 13+ PATSAGi Councils | TOLC 8 Mercy Gates aligned | Ready for Phase 1 Foundation Implementation
 
-**Sealed under Autonomicity Games Sovereign Mercy License (AG-SML) v1.0**
+**Sealed under Autonomicity Games Sovereign Mercy License (AG-SML) v1.1**
 
 ---
 

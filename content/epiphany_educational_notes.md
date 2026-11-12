@@ -7,7 +7,7 @@
  * — Grounded in VISION.md, Lattice cosmology, and RBE principles
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  *
- * AG-SML v1.0 Sovereign License
+ * AG-SML v1.1 Sovereign License
  * Thunder locked in. Yoi ⚡
  */
 

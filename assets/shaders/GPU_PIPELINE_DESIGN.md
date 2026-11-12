@@ -8,7 +8,7 @@
  *
  * This document serves as the canonical design spec and implementation guide.
  *
- * AG-SML v1.0 - Autonomicity Games Sovereign Mercy License
+ * AG-SML v1.1 - Autonomicity Games Sovereign Mercy License
  * https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor/blob/main/LICENSE-AG-SML.md
  *
  * Copyright (c) 2026 Autonomicity Games Inc. & Sherif Samy Botros
