@@ -8,7 +8,7 @@
 # The token is never echoed, logged, put in a URL, or written to any file.
 set -euo pipefail
 
-PIN="c00c4fb8383804db7955be900aa3e37914ff25c5"
+PIN="6f620dba981b4898b0b71a89ae71201c8ddabd0d"
 REPO_URL="https://github.com/Eternally-Thriving-Grandmasterism/Powrush-Assets-Private.git"
 # Later asset cards extend this one include list.
 LFS_INCLUDE="textures/stone-painterly-08/**"
