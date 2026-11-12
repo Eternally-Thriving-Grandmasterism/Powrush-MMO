@@ -4,6 +4,9 @@
 # Models and textures pass only as CC0 or self-made AG-SML-1.1 (VIS-MODELS-GATE-1).
 # Usage: check_asset_licenses.sh [ROOT]
 #        check_asset_licenses.sh --private [ROOT]   (opt-in: client/assets/private/LICENCES.md)
+# Private mode also accepts ARR-PLAY-ONLY-1.0 when the redistribution cell is
+# exactly build-only and a canonical ASSETS-NOTICE.md is found walking up from
+# the file's directory, stopping before the private scan root.
 set -u
 MODE=public
 if [ "${1:-}" = "--private" ]; then MODE=private; shift; fi
@@ -24,10 +27,41 @@ if [ "$MODE" = "private" ]; then
     echo "asset-licenses: missing $MAN"; exit 1
   fi
   (cd "$PDIR" && find . -path ./.git -prune -o -type f -print) | sed 's|^\./||' \
-    | awk -v man="$MAN" -v exts="$MODEL_EXT" '
+    | awk -v man="$MAN" -v exts="$MODEL_EXT" -v pdir="$PDIR" '
     function trim(s) { gsub(/^[ \t`]+|[ \t`\r]+$/, "", s); return s }
-    function lok(l) { return l == "CC0" || l == "CC0-1.0" || l == "CC0 1.0" || l == "AG-SML-1.1" }
+    function lok(l) { return l == "CC0" || l == "CC0-1.0" || l == "CC0 1.0" || l == "AG-SML-1.1" || l == "ARR-PLAY-ONLY-1.0" }
+    function shq(s,   t) { t = s; gsub(/\047/, "\047\\\047\047", t); return "\047" t "\047" }
+    function file_md5(path,   cmd, line) {
+      cmd = "md5sum " shq(path) " 2>/dev/null || md5 -q " shq(path)
+      line = ""
+      if ((cmd | getline line) > 0) sub(/[ \t].*/, "", line)
+      close(cmd)
+      return tolower(line)
+    }
+    function notice_ok(rel,   dir, n, path) {
+      dir = rel
+      n = match(dir, /\/[^\/]*$/)
+      if (!n) {
+        print "asset-licenses: no ASSETS-NOTICE.md for " rel " below the private scan root"
+        return 0
+      }
+      dir = substr(dir, 1, n - 1)
+      while (dir != "" && dir != ".") {
+        path = pdir "/" dir "/ASSETS-NOTICE.md"
+        if (system("[ -f " shq(path) " ]") == 0) {
+          if (file_md5(path) == arr_md5) return 1
+          print "asset-licenses: " path " is not the canonical ASSETS-NOTICE.md"
+          return 0
+        }
+        n = match(dir, /\/[^\/]*$/)
+        if (!n) break
+        dir = substr(dir, 1, n - 1)
+      }
+      print "asset-licenses: no ASSETS-NOTICE.md for " rel " below the private scan root"
+      return 0
+    }
     BEGIN {
+      arr_md5 = "f6ed4dd3665e58ac1a31004e7c9338fd"
       n = 0; hdr = 0
       while ((getline line < man) > 0) {
         if (line !~ /^\|/) continue
@@ -37,12 +71,14 @@ if [ "$MODE" = "private" ]; then
             h = tolower(trim(c[i]))
             if (h == "path") cp = i; else if (h == "licence") cl = i
             else if (h == "cost") cc = i; else if (h == "notes") cn = i
+            else if (!cr && index(h, "redistribution")) cr = i
           }
           if (!cp || !cl || !cc) { print "asset-licenses: bad header in " man; bad = 1; exit }
           hdr = 1; continue
         }
         if (line ~ /^\|[ \t]*-+/) continue
         n++; P[n] = trim(c[cp]); L[n] = trim(c[cl]); C[n] = trim(c[cc]); N[n] = cn ? trim(c[cn]) : ""
+        R[n] = cr ? trim(c[cr]) : ""
       }
       if (!hdr) { print "asset-licenses: no table in " man; bad = 1; exit }
     }
@@ -53,9 +89,14 @@ if [ "$MODE" = "private" ]; then
       for (i = 1; i <= n; i++)
         if ((f == P[i] || index(f, P[i] "/") == 1) && (!best || length(P[i]) > length(P[best]))) best = i
       if (!best) { print "asset-licenses: no LICENCES.md row for " f; bad = 1; next }
+      if (L[best] == "ARR-PLAY-ONLY-1.0" && !notice_ok(f)) bad = 1
       if (seen[best]++) next
       if (C[best] != "$0") { print "asset-licenses: pack " P[best] " cost is not $0"; bad = 1 }
       if (!lok(L[best])) { print "asset-licenses: pack " P[best] " licence " L[best] " is not CC0 or AG-SML-1.1"; bad = 1 }
+      else if (L[best] == "ARR-PLAY-ONLY-1.0") {
+        if (!cr) { print "asset-licenses: pack " P[best] " has no redistribution column"; bad = 1 }
+        else if (R[best] != "build-only") { print "asset-licenses: pack " P[best] " redistribution is not build-only"; bad = 1 }
+      }
       if (tolower(L[best] " " N[best]) ~ /pending/) { print "asset-licenses: pack " P[best] " is pending"; bad = 1 }
     }
     END { exit bad }'
