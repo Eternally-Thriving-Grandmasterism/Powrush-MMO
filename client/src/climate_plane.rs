@@ -1763,7 +1763,8 @@ fn apply_climate_look(
         }
     }
     let has = !stone_vis.is_empty();
-    let show = id == 0 && has;
+    // Low and Mobile are MeshLod::Low. A mid-session switch hides stone the same frame.
+    let show = id == 0 && has && preset.mesh_lod() != shared::local_settings::MeshLod::Low;
     for mut vis in &mut stone_vis {
         *vis = if show { Visibility::Visible } else { Visibility::Hidden };
     }

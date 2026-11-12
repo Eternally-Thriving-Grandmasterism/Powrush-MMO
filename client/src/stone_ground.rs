@@ -256,7 +256,6 @@ mod tests {
         write_pack(&dir, &layout(), POINTER);
         placeholder(&mut boot(&dir, None));
     }
-
     #[test]
     fn bad_layout_keeps_the_placeholder() {
         let dir = scratch("bad");
@@ -275,7 +274,6 @@ mod tests {
         }
         placeholder(&mut boot(&dir, None));
     }
-
     #[test]
     fn low_and_mobile_keep_the_placeholder() {
         let dir = scratch("low");
@@ -286,7 +284,17 @@ mod tests {
             assert_ne!(yard_vis(&mut app), Visibility::Hidden, "{preset:?}");
         }
     }
-
+    #[test]
+    fn switching_to_low_hides_placed_stone() {
+        let dir = scratch("switch");
+        write_pack(&dir, &layout(), PNG_1X1);
+        let mut app = boot(&dir, Some(GraphicsPreset::High));
+        let mut settings = crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::peace_defaults(), dirty: false };
+        settings.inner.set_graphics_preset(GraphicsPreset::Low);
+        app.insert_resource(settings);
+        app.update();
+        assert!(stone_n(&mut app) == 64 && stone_hidden(&mut app) && yard_vis(&mut app) == Visibility::Visible);
+    }
     #[test]
     fn present_set_places_stone_and_other_realms_recolour() {
         let dir = scratch("present");
@@ -334,12 +342,10 @@ mod tests {
         assert!(!stone_hidden(&mut app));
         assert_eq!(mat_color(&mut app, &sample), Color::WHITE);
     }
-
     fn stone_hidden(app: &mut App) -> bool {
         let mut q = app.world_mut().query::<(&Visibility, &StoneGroundTile)>();
         q.iter(app.world()).all(|(vis, _)| *vis == Visibility::Hidden)
     }
-
     fn yard_color(app: &mut App) -> Color {
         let handle = {
             let mut q = app.world_mut().query::<(&Name, &MeshMaterial3d<StandardMaterial>)>();
