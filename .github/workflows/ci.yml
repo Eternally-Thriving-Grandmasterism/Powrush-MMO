@@ -51,6 +51,54 @@ jobs:
           if bash scripts/check_asset_licenses.sh --private "$t"; then echo "self-test: unlisted private pack passed"; exit 1; fi
           echo "| \`models/pack-a\` | CC0 1.0 | \$0 | pending Sherif approval |" >> "$p/LICENCES.md"
           if bash scripts/check_asset_licenses.sh --private "$t"; then echo "self-test: pending private pack passed"; exit 1; fi
+          arr_notice() {
+            cat >"$1/ASSETS-NOTICE.md" <<'EOF'
+          # Powrush-MMO Project Assets: Play-Only Notice (ARR-PLAY-ONLY-1.0)
+
+          The assets in this folder are included in the Powrush-MMO build only so that it can be played.
+
+          Autonomicity Games Inc. reserves all rights it holds in these assets. All rights reserved.
+
+          You may play the official Powrush-MMO build that includes them. You may not extract, copy, modify, redistribute, sell or reuse these assets, in whole or in part, outside that build, in any other project or medium, without written permission from Autonomicity Games Inc. (info@Rathor.ai).
+
+          These assets are excluded from the AG-SML licence that covers the rest of the Powrush-MMO repository. Nothing in AG-SML grants any right in them.
+          EOF
+          }
+          u="$(mktemp -d)"; q="$u/client/assets/private"; mkdir -p "$q/models/pack-a" "$u/assets/models"
+          echo test > "$q/models/pack-a/m.glb"; echo test > "$u/assets/models/a.glb"
+          printf '| path | licence | cost | notes |\n| --- | --- | --- | --- |\n| `models/pack-a` | CC0 1.0 | $0 | house |\n' > "$q/LICENCES.md"
+          bash scripts/check_asset_licenses.sh --private "$u"
+          echo path,source,license,author,url > "$u/assets/asset-licenses.csv"
+          echo assets/models/a.glb,self,ARR-PLAY-ONLY-1.0,ci,https://example.com >> "$u/assets/asset-licenses.csv"
+          if bash scripts/check_asset_licenses.sh "$u"; then echo "self-test: public ARR passed"; exit 1; fi
+          printf '| path | licence | cost | redistribution allowed in a public repo (y/n) |\n| --- | --- | --- | --- |\n| `models/pack-a` | ARR-PLAY-ONLY-1.0 | $0 | build-only |\n' > "$q/LICENCES.md"
+          arr_notice "$q/models/pack-a"
+          bash scripts/check_asset_licenses.sh --private "$u"
+          for bad in arr-play-only-1.0 ARR-PLAY-ONLY ARR-PLAY-ONLY-1 "all rights reserved"; do
+            printf '| path | licence | cost | redistribution allowed in a public repo (y/n) |\n| --- | --- | --- | --- |\n| `models/pack-a` | %s | $0 | build-only |\n' "$bad" > "$q/LICENCES.md"
+            if bash scripts/check_asset_licenses.sh --private "$u"; then echo "self-test: ARR near-miss passed"; exit 1; fi
+          done
+          printf '| path | licence | cost | redistribution allowed in a public repo (y/n) |\n| --- | --- | --- | --- |\n| `models/pack-a` | ARR-PLAY-ONLY-1.0 | $0 | build-only |\n' > "$q/LICENCES.md"
+          for bad in n y play-only Build-only "build-only x"; do
+            printf '| path | licence | cost | redistribution allowed in a public repo (y/n) |\n| --- | --- | --- | --- |\n| `models/pack-a` | ARR-PLAY-ONLY-1.0 | $0 | %s |\n' "$bad" > "$q/LICENCES.md"
+            if bash scripts/check_asset_licenses.sh --private "$u"; then echo "self-test: ARR redistribution near-miss passed"; exit 1; fi
+          done
+          printf '| path | licence | cost |\n| --- | --- | --- |\n| `models/pack-a` | ARR-PLAY-ONLY-1.0 | $0 |\n' > "$q/LICENCES.md"
+          if bash scripts/check_asset_licenses.sh --private "$u"; then echo "self-test: ARR without redistribution column passed"; exit 1; fi
+          printf '| path | licence | cost | redistribution allowed in a public repo (y/n) |\n| --- | --- | --- | --- |\n| `models/pack-a` | ARR-PLAY-ONLY-1.0 | $0 | build-only |\n' > "$q/LICENCES.md"
+          rm -f "$q/models/pack-a/ASSETS-NOTICE.md"
+          if bash scripts/check_asset_licenses.sh --private "$u"; then echo "self-test: ARR missing notice passed"; exit 1; fi
+          arr_notice "$q"
+          if bash scripts/check_asset_licenses.sh --private "$u"; then echo "self-test: ARR root-only notice passed"; exit 1; fi
+          rm -f "$q/ASSETS-NOTICE.md"
+          arr_notice "$q/models"
+          bash scripts/check_asset_licenses.sh --private "$u"
+          rm -f "$q/models/ASSETS-NOTICE.md"
+          arr_notice "$q/models/pack-a"
+          sed -i '1s/P/p/' "$q/models/pack-a/ASSETS-NOTICE.md"
+          if bash scripts/check_asset_licenses.sh --private "$u"; then echo "self-test: ARR altered notice passed"; exit 1; fi
+          arr_notice "$q/models"
+          if bash scripts/check_asset_licenses.sh --private "$u"; then echo "self-test: ARR bad notice did not stop walk"; exit 1; fi
 
       - name: Core tests (shared + identity)
         run: cargo test -p shared -p rsil-identity
