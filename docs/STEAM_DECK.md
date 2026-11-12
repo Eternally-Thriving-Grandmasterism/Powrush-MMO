@@ -4,7 +4,7 @@
 
 **Status**: Early Planning & Testing Phase (v20.5+)
 
-**AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates**
+**AG-SML v1.1 | TOLC 8 + 7 Living Mercy Gates**
 
 ---
 

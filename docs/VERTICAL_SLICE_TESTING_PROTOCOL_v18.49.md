@@ -5,7 +5,7 @@
  * — Updated with execution progress from Target 3 test cycles (v18.49 → v18.57)
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates as non-bypassable Layer 0
  *
- * AG-SML v1.0 Sovereign License
+ * AG-SML v1.1 Sovereign License
  * Thunder locked in. Yoi ⚡
  */
 

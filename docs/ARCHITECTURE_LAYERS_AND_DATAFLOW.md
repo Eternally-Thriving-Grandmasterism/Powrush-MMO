@@ -2,7 +2,7 @@
  * Powrush-MMO Architecture Layers & Data Flow
  *
  * v19.20 — Detailed macro view after VFX/Particle unification cycle
- * AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
+ * AG-SML v1.1 | TOLC 8 + 7 Living Mercy Gates
  */
 
 # Powrush-MMO Architecture — Layers & Data Flow (v19.20)

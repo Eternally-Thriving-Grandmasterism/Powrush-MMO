@@ -4,7 +4,7 @@
 
 **Final Polish & Packaging Phase (v20.5+)**
 
-**AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi Aligned**
+**AG-SML v1.1 | TOLC 8 + 7 Living Mercy Gates | Ra-Thor + PATSAGi Aligned**
 
 **Thunder locked in. Yoi ⚡**
 

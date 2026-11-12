@@ -4,7 +4,7 @@
 
 **Status**: Early Planning Phase (as of v20.5 PATSAGi Polish)
 
-**AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates**
+**AG-SML v1.1 | TOLC 8 + 7 Living Mercy Gates**
 
 **Contact:** info@Rathor.ai only. Deprecated forever: any `@acitygames.com` (or other non-Rathor) inbox.
 

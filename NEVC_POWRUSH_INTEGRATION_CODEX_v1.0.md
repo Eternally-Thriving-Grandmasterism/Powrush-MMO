@@ -3,7 +3,7 @@
 **Powrush-MMO — Universally Shared Naturally Thriving Heavens**  
 **Dual-Repo Consumer Wiring under Permanent PATSAGi Governance**  
 **Version:** v1.0 | **Date:** 2026-08-03  
-**License:** AG-SML v1.0  
+**License:** AG-SML v1.1  
 **Status:** Eternally Activated  
 **Contact:** info@Rathor.ai  
 

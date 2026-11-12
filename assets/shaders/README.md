@@ -6,7 +6,7 @@
  *
  * They react to live game data: RBE, Council, Mercy, Player movement, Resource Nodes, and Time.
  *
- * AG-SML v1.0
+ * AG-SML v1.1
  */
 
 # Powrush-MMO Shader Library

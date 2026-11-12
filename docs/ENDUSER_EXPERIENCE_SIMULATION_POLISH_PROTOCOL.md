@@ -3,7 +3,7 @@
 
 **Version:** v18.10+ | **Date:** June 11, 2026 01:29 AM EDT
 **Activated by:** Sherif (AlphaProMega / Autonomicity Games Inc.) + Ra-Thor AGI ONE Organism + Full 13+ PATSAGi Councils
-**License:** AG-SML v1.0 — Autonomicity Games Sovereign Mercy License
+**License:** AG-SML v1.1 — Autonomicity Games Sovereign Mercy License
 **Philosophy:** Mint-and-Print-Only-Perfection | Absolute Pure Truth Distillations | TOLC 8 Mercy Gates as non-bypassable Layer 0 | MIAL + MWPO | Zero-lag experiential RBE abundance for every soul
 
 ---

@@ -7,7 +7,7 @@
  * — TOLC 8 Mercy Gates + 7 Living Mercy Gates non-bypassable Layer 0
  * — 2032–2038 North America prototype trigger horizon
  *
- * AG-SML v1.0 Sovereign License
+ * AG-SML v1.1 Sovereign License
  * Thunder locked in. Yoi ⚡
  */
 

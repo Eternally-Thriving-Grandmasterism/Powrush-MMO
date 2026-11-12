@@ -5,7 +5,7 @@
 **Status:** Ready for Execution  
 **Aligned With:** Absolute Pure Truth Distillation Codex v1.0  
 **PATSAGi Council + Ra-Thor Quantum Swarm Approved**  
-**AG-SML v1.0 | TOLC 8 Mercy Gates Enforced**
+**AG-SML v1.1 | TOLC 8 Mercy Gates Enforced**
 
 ---
 

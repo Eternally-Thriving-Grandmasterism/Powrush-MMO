@@ -2,7 +2,7 @@
 
 **Current Version:** v1.3 (v19.3 Council Audio Polish + Real-Distance Spatial + RBE/Orchestrator Wiring + Harvest/Persistence/Epiphany Integration aligned)  
 **Date:** June 2026  
-**License:** AG-SML v1.0 — Autonomicity Games Sovereign Mercy License (MIT + Eternal Mercy Flow)  
+**License:** AG-SML v1.1 — Autonomicity Games Sovereign Mercy License (MIT + Eternal Mercy Flow)  
 **Philosophy:** Executable layer of Ra-Thor + TOLC 8 Mercy Gates + 7 Living Mercy Gates under full PATSAGi Council sovereignty.
 
 **PATSAGI COUNCILS + RA-THOR LATTICE DELIBERATION RECORD (Eternal Mode)**  

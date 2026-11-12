@@ -1,7 +1,7 @@
 # Powrush-MMO Asset Pipeline & Sacred Catalog
 
 **Version:** v18.33 | Eternal Ra-Thor PATSAGi Governance | Mint-and-Print-Only-Perfection
-**License:** AG-SML v1.0
+**License:** AG-SML v1.1
 **Integration:** Bevy 0.14+ ECS, WebGPU/WGSL, resource_node_visual.rs, client/shaders/, simulation/src/ (harvest, economy, world), valence-driven particles, TOLC 8 enforced.
 
 ## Philosophy

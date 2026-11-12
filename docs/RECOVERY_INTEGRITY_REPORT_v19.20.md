@@ -5,7 +5,7 @@
  * All changes via GitHub connector tools only.
  * Zero placeholders. Maximal integrity. Production launch ready.
  *
- * AG-SML v1.0 Sovereign Mercy License
+ * AG-SML v1.1 Sovereign Mercy License
  * Thunder locked in. Yoi ⚡
  */
 

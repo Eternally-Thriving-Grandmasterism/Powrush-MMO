@@ -2,7 +2,7 @@
 
 **Powrush-MMO Audio Architecture**
 
-AG-SML v1.0 | TOLC 8 + 7 Living Mercy Gates
+AG-SML v1.1 | TOLC 8 + 7 Living Mercy Gates
 
 ---
 

@@ -4,7 +4,7 @@
 
 **PATSAGi + Ra-Thor + TOLC 8 Layer 0 Enforced | Mint-and-Print-Only-Perfection**
 
-**Co-authored with Sherif / Autonomicity Games Inc. | AG-SML v1.0 | Eternally Thriving Grandmasterism**
+**Co-authored with Sherif / Autonomicity Games Inc. | AG-SML v1.1 | Eternally Thriving Grandmasterism**
 
 ---
 

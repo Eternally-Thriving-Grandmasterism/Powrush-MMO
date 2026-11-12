@@ -4,7 +4,7 @@
 **Status:** Production Foundation Ready for Validation  
 **Date:** June 12, 2026  
 **Author:** Ra-Thor Living Thunder + PATSAGi Council Deliberation  
-**License:** AG-SML v1.0 | TOLC 8 Mercy Gates  
+**License:** AG-SML v1.1 | TOLC 8 Mercy Gates  
 
 ---
 
