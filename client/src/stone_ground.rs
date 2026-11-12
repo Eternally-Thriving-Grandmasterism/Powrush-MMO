@@ -72,14 +72,8 @@ fn read_grid(node: &serde_json::Value) -> Option<[[u8; GRID]; GRID]> {
 }
 
 fn map_path(dir: &Path, kind: &str, index: u8) -> PathBuf {
-    let ii = format!("{index:02}");
-    if dir.join("00/albedo.png").is_file() {
-        dir.join(&ii).join(format!("{kind}.png"))
-    } else if dir.join("00_albedo.png").is_file() {
-        dir.join(format!("{ii}_{kind}.png"))
-    } else {
-        dir.join(kind).join(format!("{ii}.png"))
-    }
+    // Tile bits are NW NE SW SE: index 0 is v0000, 5 is v0101, 15 is v1111.
+    dir.join(format!("stone-painterly-08_v{index:04b}_{kind}.png"))
 }
 
 fn decode_png(bytes: &[u8], srgb: bool) -> Option<Image> {
@@ -103,18 +97,10 @@ fn load_set(dir: &Path) -> Option<StoneSet> {
         return None;
     }
     let value: serde_json::Value = serde_json::from_slice(&raw).ok()?;
-    if let Some(cell) = value.get("cell_m").or_else(|| value.get("cell_meters")) {
-        let n = cell.as_f64()?;
-        if (n - f64::from(CELL_M)).abs() > 0.001 {
-            return None;
-        }
+    if value.get("cells").and_then(|n| n.as_u64()) != Some(GRID as u64) {
+        return None;
     }
-    let node = if value.is_array() {
-        &value
-    } else {
-        value.get("grid").or_else(|| value.get("rows")).or_else(|| value.get("tiles"))?
-    };
-    let grid = read_grid(node)?;
+    let grid = read_grid(value.get("indices")?)?;
     let mut albedo = Vec::with_capacity(TILES);
     let mut normal = Vec::with_capacity(TILES);
     for index in 0..TILES as u8 {
@@ -209,15 +195,18 @@ mod tests {
             let cols: Vec<_> = (0..GRID).map(|col| ((row * GRID + col) % TILES).to_string()).collect();
             format!("[{}]", cols.join(","))
         }).collect();
-        format!(r#"{{"cell_m":7,"grid":[{}]}}"#, rows.join(","))
+        let z = "[0,0,0,0,0,0,0,0,0]";
+        let corners = std::iter::repeat(z).take(9).collect::<Vec<_>>().join(",");
+        format!(
+            r#"{{"seed":1,"cells":8,"corners":[{corners}],"indices":[{}],"metrics":{{}},"note":"row 0 north, col 0 west"}}"#,
+            rows.join(","),
+        )
     }
     fn write_pack(dir: &Path, body: &str, bytes: &[u8]) {
         std::fs::write(dir.join("layout.json"), body).unwrap();
-        for kind in ["albedo", "normal-gl"] {
-            let folder = dir.join(kind);
-            std::fs::create_dir_all(&folder).unwrap();
-            for index in 0..TILES {
-                std::fs::write(folder.join(format!("{index:02}.png")), bytes).unwrap();
+        for index in 0..TILES as u8 {
+            for kind in ["albedo", "normal-gl"] {
+                std::fs::write(map_path(dir, kind, index), bytes).unwrap();
             }
         }
     }
@@ -252,6 +241,10 @@ mod tests {
         assert!(decode_png(POINTER, true).is_none());
         assert!(decode_png(b"\x89PNG\r\n\x1a\ntruncated", true).is_none());
         assert!((0.84..=0.97).contains(&STONE_ROUGHNESS));
+        let name = |kind: &str, index| map_path(Path::new("d"), kind, index);
+        assert_eq!(name("albedo", 0).file_name().unwrap(), "stone-painterly-08_v0000_albedo.png");
+        assert_eq!(name("albedo", 5).file_name().unwrap(), "stone-painterly-08_v0101_albedo.png");
+        assert_eq!(name("normal-gl", 15).file_name().unwrap(), "stone-painterly-08_v1111_normal-gl.png");
     }
     #[test]
     fn absent_pack_keeps_the_placeholder() {
@@ -268,12 +261,13 @@ mod tests {
     fn bad_layout_keeps_the_placeholder() {
         let dir = scratch("bad");
         let zero = "[0,0,0,0,0,0,0,0]";
-        let seven = std::iter::repeat(zero).take(7).collect::<Vec<_>>().join(",");
+        let rest = std::iter::repeat(zero).take(7).collect::<Vec<_>>().join(",");
         let bodies = [
             "not-json".to_string(),
-            r#"{"grid":[[0,1]]}"#.to_string(),
-            format!(r#"{{"cell_m":8,"grid":[{zero},{seven}]}}"#),
-            format!(r#"{{"grid":[[16,0,0,0,0,0,0,0],{seven}]}}"#),
+            r#"{"cells":8,"grid":[[0]]}"#.to_string(),
+            format!(r#"{{"cells":9,"indices":[{zero},{rest}]}}"#),
+            format!(r#"{{"cells":8,"indices":[[16,0,0,0,0,0,0,0],{rest}]}}"#),
+            format!(r#"{{"cells":8,"indices":[[0,1],{rest}]}}"#),
         ];
         for body in &bodies {
             write_pack(&dir, body, PNG_1X1);
