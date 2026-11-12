@@ -166,6 +166,7 @@ use crate::hud_anchor_registry::{HudSlab, ID_PLACE_NAME, PLACE_NAME};
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::local_settings::{LocalMeshLodFeel, LocalSettingsState};
 use crate::mercy_harvest_nodes::MercyHarvestNode;
+use crate::stone_ground::{StoneAssetDir, StoneGroundTile};
 use crate::title_screen::{HouseLabel, LaunchDoor, TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 
 /// CARD H-2026-09-16-PLACE-LOD — Comfort MeshLodPlan (PATHS-only compile).
@@ -1386,17 +1387,19 @@ fn spawn_climate_place(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
+    mut images: Option<ResMut<Assets<Image>>>,
     cameras: Query<Entity, With<Camera3d>>,
     lights: Query<Entity, With<DirectionalLight>>,
     feel: Option<Res<LocalMeshLodFeel>>,
+    stone_dir: Option<Res<StoneAssetDir>>,
 ) {
     let look = look_for(Some(0));
-    let preset = feel.map(|f| f.preset).unwrap_or(GraphicsPreset::Medium);
+    let preset = feel.as_ref().map(|f| f.preset).unwrap_or(GraphicsPreset::Medium);
     let plan = mesh_lod::plan_for_preset(preset);
     let scale = mesh_lod::lived_place_dress_detail_scale(&plan);
     let _no_dump = mesh_lod::place_dress_uses_authored_glb(&plan);
     let ground = meshes.add(Plane3d::default().mesh().size(56.0, 56.0));
-    commands.spawn((
+    let yard = commands.spawn((
         (
             Mesh3d(ground),
             MeshMaterial3d(materials.add(StandardMaterial {
@@ -1409,7 +1412,13 @@ fn spawn_climate_place(
         ),
         ClimateGround,
         Name::new("ClimateGround"),
-    ));
+    )).id();
+    if crate::stone_ground::place_sanctuary_stone(
+        &mut commands, &mut meshes, &mut materials, images.as_deref_mut(), feel.as_deref(),
+        stone_dir.as_ref().map(|dir| dir.0.as_path()),
+    ) {
+        commands.entity(yard).insert(Visibility::Hidden);
+    }
 
     let stone_mesh = meshes.add(Cylinder::new(0.18, 0.08));
     // Same roughness family as ground — greybox yard stones, not a second biome.
@@ -1704,7 +1713,9 @@ fn apply_climate_look(
     mut plane: ResMut<ClimatePlane>,
     mut clear: ResMut<ClearColor>,
     mut materials: ResMut<Assets<StandardMaterial>>,
-    grounds: Query<&MeshMaterial3d<StandardMaterial>, With<ClimateGround>>,
+    grounds: Query<&MeshMaterial3d<StandardMaterial>, (With<ClimateGround>, Without<StoneGroundTile>)>,
+    mut stone_vis: Query<&mut Visibility, With<StoneGroundTile>>,
+    mut yard_vis: Query<&mut Visibility, (With<ClimateGround>, Without<StoneGroundTile>)>,
     stones: Query<&MeshMaterial3d<StandardMaterial>, With<ClimateStone>>,
     nodes: Query<&MeshMaterial3d<StandardMaterial>, With<MercyHarvestNode>>,
     mut fogs: Query<&mut DistanceFog>,
@@ -1749,6 +1760,17 @@ fn apply_climate_look(
             mat.base_color = look.ground;
             mat.perceptual_roughness = look.roughness;
             mat.metallic = 0.0;
+        }
+    }
+    let has = !stone_vis.is_empty();
+    let show = id == 0 && has;
+    for mut vis in &mut stone_vis {
+        *vis = if show { Visibility::Visible } else { Visibility::Hidden };
+    }
+    if has {
+        let yard_v = if show { Visibility::Hidden } else { Visibility::Visible };
+        for mut vis in &mut yard_vis {
+            *vis = yard_v;
         }
     }
     for handle in &stones {

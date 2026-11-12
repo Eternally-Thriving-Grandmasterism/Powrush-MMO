@@ -84,6 +84,7 @@ pub mod world_answer;
 pub mod tend_flow_vfx;
 pub mod lattice_flow_share;
 pub mod climate_plane;
+pub mod stone_ground;
 pub mod ultra_env;
 pub mod ultra_paint;
 pub mod light_gen;
