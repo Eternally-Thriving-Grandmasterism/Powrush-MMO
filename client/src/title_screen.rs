@@ -964,7 +964,8 @@ impl PersonaCreatorStep {
             Self::MechanicalModule => "1 · Lattice module (not people / not matchmaking)",
             Self::People => "2 · People / ethnicity (presentation)",
             Self::Phenotype => "3 · Phenotype (appearance sliders)",
-            Self::Story => "4 · Story (player text · AI records only)",
+            // Keyboard text only. No model runs, so this heading does not say one records it.
+            Self::Story => "4 · Story (your own words)",
             Self::Preview => "5 · Preview (Keep draft soft · Commit persists)",
         }
     }
@@ -1217,6 +1218,8 @@ pub fn phenotype_btn_label(ph: &Phenotype) -> String {
     )
 }
 
+/// Preview chrome for the creator. `ai_assist_used` and `model_id` stay on the
+/// save record and are not printed. This build does not call a model.
 pub fn persona_preview_summary(p: &Persona) -> String {
     let people = match &p.presentation.people {
         PeopleChoice::Preset(x) => format!("preset:{}", x.tag),
@@ -1225,7 +1228,7 @@ pub fn persona_preview_summary(p: &Persona) -> String {
         PeopleChoice::Unset => "unset".into(),
     };
     format!(
-        "Preview · module {} · name '{}' · people {} · story {} chars · AI assist {} · share {:?}",
+        "Preview · module {} · name '{}' · people {} · story {} chars · share {:?}",
         p.mechanical_race.as_str(),
         if p.presentation.given_name.is_empty() {
             "(nameless)"
@@ -1234,7 +1237,6 @@ pub fn persona_preview_summary(p: &Persona) -> String {
         },
         people,
         p.presentation.story.player_text.chars().count(),
-        p.presentation.story.ai_assist_used,
         p.presentation.story.shared_in_world,
     )
 }
@@ -8638,6 +8640,73 @@ mod tests {
         for _ in 0..9 {
             p = cycle_story_provider(p, ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES);
             assert!(p.is_offline());
+        }
+    }
+
+    /// Shipped story step. Online gates can only permit a seat; nothing in this
+    /// build sends story text to a model. `fill_from_provider` copies a canned
+    /// LocalTemplate and the creator never calls it.
+    fn story_step_calls_a_model() -> bool {
+        false
+    }
+
+    fn story_step_ai_path_active() -> bool {
+        online_picker_allows_online_rows(ONLINE_PICKER_ENABLED, STEWARD_ONLINE_YES)
+            && story_step_calls_a_model()
+    }
+
+    fn story_label_names_a_model(label: &str) -> bool {
+        label.contains("AI") || label.contains("LLM") || label.contains("Rathor")
+    }
+
+    #[test]
+    fn story_copy_2_reachable_story_labels_omit_ai_unless_a_model_runs() {
+        let heading = PersonaCreatorStep::Story.as_label();
+        let plain = persona_preview_summary(&Persona::nameless_steward());
+        let mut marked = Persona::nameless_steward();
+        marked.presentation.given_name = "Mira".into();
+        marked.presentation.story.player_text = "I tend the well.".into();
+        marked.presentation.story.ai_assist_used = true;
+        marked.presentation.story.model_id = Some("Rathor-should-not-show".into());
+        let marked_line = persona_preview_summary(&marked);
+        let shipped_picker = story_provider_btn_label(
+            StoryProvider::None,
+            ONLINE_PICKER_ENABLED,
+            STEWARD_ONLINE_YES,
+        );
+        let guidance = persona_step_guidance(PersonaCreatorStep::Story);
+        let json = serde_json::to_string(&marked.presentation.story).expect("story json");
+        assert!(json.contains("\"ai_assist_used\":true"));
+        assert!(json.contains("\"model_id\":\"Rathor-should-not-show\""));
+        let back: shared::persona::StoryDraft =
+            serde_json::from_str(&json).expect("story round trip");
+        assert!(back.ai_assist_used);
+        assert_eq!(back.model_id.as_deref(), Some("Rathor-should-not-show"));
+        assert_eq!(back.player_text, "I tend the well.");
+
+        let labels = [
+            heading,
+            plain.as_str(),
+            marked_line.as_str(),
+            shipped_picker.as_str(),
+            guidance,
+            PERSONA_STORY_AI_STUB,
+        ];
+        if !story_step_ai_path_active() {
+            for label in labels {
+                assert!(
+                    !story_label_names_a_model(label),
+                    "story label names a model while none runs: {label}"
+                );
+            }
+            assert_eq!(heading, "4 · Story (your own words)");
+            assert!(plain.contains("story 0 chars"));
+            assert!(plain.contains("share Private"));
+            assert!(!plain.contains("assist"));
+            assert!(marked_line.contains("name 'Mira'"));
+            assert!(marked_line.contains("story 16 chars"));
+            assert!(!marked_line.contains("assist"));
+            assert!(!marked_line.contains("Rathor-should-not-show"));
         }
     }
 
