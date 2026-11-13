@@ -16,7 +16,7 @@ use crate::lived_hour_bind::LivedHourBind;
 
 const DEPTHS_NODE_CENTER: Vec3 = Vec3::new(0.0, 0.52, 0.0);
 const DEPTHS_NODE_RADIUS: f32 = 0.34;
-const DEPTHS_USE_RADIUS: f32 = 2.4;
+pub(crate) const DEPTHS_USE_RADIUS: f32 = 2.4;
 
 #[derive(Component)]
 struct DepthsLanding;

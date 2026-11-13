@@ -1,8 +1,11 @@
 #![cfg(test)]
-//! ENTITY-CONTRACT-1a. C1 names any Mesh3d with no policy. C2: walk-throughs are only `KNOWN_GAPS` rows, so dropping a row fails C1. C3: spawn (0, 0.90, 0) misses shown solids. C6: tells are NoCollide.
+//! ENTITY-CONTRACT-1a. C1 names any Mesh3d with no policy. C2: walk-throughs are only `KNOWN_GAPS` rows, so dropping a row fails C1. C3: each place's spawn is on the yard and misses shown solids. C6: tells are NoCollide.
+//! ENTITY-CONTRACT-1b. C4: every free cell of the PLAY_HALF yard joins the spawn's region (a `pocket@x,z` gap row excuses one). C5: every Trigger or usable has a reached cell inside its named use radius.
+//! C4 walls the sweep at PLAY_HALF itself, not the 27.7 inset (PLAY_HALF − body radius). Locomotion has no plate clamp yet, so an edge-pinned pocket here may be a false red, and pockets the inset would make wait on YARD-EDGE-1 (C7).
 
 use bevy::prelude::*;
-use shared::hex_travel::PlaceId;
+use shared::{heartwood_wards::WARD_USE_RADIUS, hex_travel::PlaceId, skirmish_well::{CONTEST_REACH, WELL_ANCHORS}};
+use shared::threshold_shelf::THRESHOLD_SHELF_USE_RADIUS;
 use crate::{
     climate_plane::{ClimatePlanePlugin, ClimateStone},
     combat_core::{ClearedTell, CombatCorePlugin, LungeTell, Predator, RiseTell},
@@ -16,9 +19,10 @@ use crate::{
     living_ecology::{EcologyProp, LivingEcologyPlugin, PropKind, YARD_ROCK_R, YARD_TRUNK_R},
     living_practice_loop::SoftPlayerRealm,
     local_human_sim::{LocalHumanSim, LocalHumanSimPlugin},
-    mercy_harvest_nodes::{MercyHarvestNode, MercyHarvestNodesPlugin},
+    mercy_harvest_nodes::{MercyHarvestNode, MercyHarvestNodesPlugin, HARVEST_REACH},
     sky_backdrop::{SkyBackdropPart, SkyBackdropPlugin},
     stone_ground::StoneGroundTile,
+    terrain::PLAY_HALF,
     vegetation::{CamTrunk, VegetationPlugin, TRUNK_RADIUS},
     water::{BathMark, WaterPlugin},
 };
@@ -26,6 +30,14 @@ use crate::{
 /// Lived trunk radius. Push-out adds it to each solid; `human_presence` keeps that const private.
 const BODY_R: f32 = 0.30;
 const MESH3D: &str = concat!("Mesh3d", "(");
+/// C4/C5 sweep step (m). A cell is free when its centre is outside every shown solid's push-out circle.
+const STEP: f32 = 0.1;
+const CELLS: usize = (2.0 * PLAY_HALF / STEP + 0.5) as usize + 1;
+/// (place, dress realm, shown solids, C5 uses). Sanctuary rows pick the realm; Heartwood and Depths assert the travel sync's.
+const PLACES: [(PlaceId, Option<u8>, usize, usize); 7] = [
+    (PlaceId::Sanctuary, None, 11, 7), (PlaceId::Sanctuary, Some(0), 11, 7), (PlaceId::Sanctuary, Some(1), 3, 7),
+    (PlaceId::Sanctuary, Some(2), 5, 7), (PlaceId::Sanctuary, Some(4), 3, 7), (PlaceId::Heartwood, Some(2), 5, 8), (PlaceId::Depths, Some(3), 0, 4),
+];
 /// Owning card per walk-through. The row is that mesh's only declaration.
 const KNOWN_GAPS: &[(&str, &str)] = &[
     ("deer", "CREATURE-BODY-1"), ("crystal", "PROP-COLLIDE-1"), ("traveler", "CREATURE-BODY-1"),
@@ -34,7 +46,7 @@ const KNOWN_GAPS: &[(&str, &str)] = &[
 ];
 
 #[derive(Clone, Copy, PartialEq, Debug)]
-enum Policy { Solid(f32), NoCollide, Walkable, Trigger, Gap }
+enum Policy { Solid(f32), NoCollide, Walkable, Trigger(f32), Gap }
 
 fn gap(key: &str) -> Result<Policy, String> {
     if KNOWN_GAPS.iter().any(|(k, card)| *k == key && !card.is_empty()) { Ok(Policy::Gap) }
@@ -67,7 +79,8 @@ fn by_name(name: &str) -> Option<Result<Policy, String>> {
         || matches!(name, "HumanPresence" | "HeartwoodBath" | "LightGenProp");
     if nocollide { return Some(Ok(Policy::NoCollide)); }
     if matches!(name, "ClimateGround" | "DepthsLanding") { return Some(Ok(Policy::Walkable)); }
-    if matches!(name, "ThresholdPeaceNode" | "DepthsPeaceNode") { return Some(Ok(Policy::Trigger)); }
+    if name == "ThresholdPeaceNode" { return Some(Ok(Policy::Trigger(THRESHOLD_SHELF_USE_RADIUS))); }
+    if name == "DepthsPeaceNode" { return Some(Ok(Policy::Trigger(crate::depths_landing::DEPTHS_USE_RADIUS))); }
     None
 }
 fn policy(world: &World, id: Entity) -> Result<Policy, String> {
@@ -90,7 +103,7 @@ fn policy(world: &World, id: Entity) -> Result<Policy, String> {
     if world.get::<Predator>(id).is_some() { return gap("predator"); }
     if world.get::<Droid>(id).is_some() { return gap("droid"); }
     if world.get::<Grazer>(id).is_some() { return gap("grazer"); }
-    if world.get::<MercyHarvestNode>(id).is_some() { return Ok(Policy::Trigger); }
+    if world.get::<MercyHarvestNode>(id).is_some() { return Ok(Policy::Trigger(HARVEST_REACH)); }
     if world.get::<StoneGroundTile>(id).is_some() { return Ok(Policy::Walkable); }
     if world.get::<CamTrunk>(id).is_some() {
         let scale = world.get::<Transform>(id).map(|tf| tf.scale.x).unwrap_or(1.0);
@@ -109,17 +122,109 @@ fn assert_declared(app: &mut App) {
     bad.dedup();
     assert!(bad.is_empty(), "C1 undeclared Mesh3d: {}", bad.join(", "));
 }
-fn assert_spawn_clear(app: &mut App) {
-    let spawn = SoftPresence::default().position.xz();
-    let mut solids = 0u32;
-    for id in mesh_ids(app) {
-        let Ok(Policy::Solid(radius)) = policy(app.world(), id) else { continue };
-        if !shown(app.world(), id) { continue; }
-        solids += 1;
-        let at = app.world().get::<Transform>(id).expect("solid").translation.xz();
-        assert!(spawn.distance(at) + 1.0e-4 >= radius + BODY_R, "C3 blocked spawn at {at:?} r {radius}");
+fn shown_solids(app: &mut App) -> Vec<(Vec2, f32)> {
+    let ids = mesh_ids(app);
+    let world = app.world();
+    let solid = |id| match policy(world, id) { Ok(Policy::Solid(r)) if shown(world, id) => Some(r), _ => None };
+    ids.into_iter().filter_map(|id| Some((world.get::<Transform>(id)?.translation.xz(), solid(id)?))).collect()
+}
+/// Sanctuary keeps the default body; Heartwood and Depths seat it on entry.
+fn spawn_of(app: &App, place: PlaceId) -> Vec3 {
+    if place == PlaceId::Sanctuary { SoftPresence::default().position } else { app.world().resource::<SoftPresence>().position }
+}
+fn assert_spawn_clear(place: PlaceId, spawn: Vec3, solids: &[(Vec2, f32)]) {
+    assert!(spawn.x.abs() <= PLAY_HALF && spawn.z.abs() <= PLAY_HALF, "C3 {place:?} spawn {spawn} off the yard");
+    for &(at, radius) in solids {
+        assert!(spawn.xz().distance(at) + 1.0e-4 >= radius + BODY_R, "C3 {place:?} spawn blocked at {at:?} r {radius}");
     }
-    assert!(solids > 0, "C3 saw no shown solid");
+}
+fn cell_xz(i: usize) -> Vec2 {
+    Vec2::new((i % CELLS) as f32, (i / CELLS) as f32) * STEP - Vec2::splat(PLAY_HALF)
+}
+fn fill(free: &[bool], seen: &mut [bool], start: usize) -> usize {
+    let (mut stack, mut count) = (vec![start], 0);
+    seen[start] = true;
+    while let Some(i) = stack.pop() {
+        count += 1;
+        let (x, z) = (i % CELLS, i / CELLS);
+        let next = [(x > 0).then(|| i - 1), (x + 1 < CELLS).then(|| i + 1), (z > 0).then(|| i - CELLS), (z + 1 < CELLS).then(|| i + CELLS)];
+        for j in next.into_iter().flatten() {
+            if free[j] && !seen[j] { seen[j] = true; stack.push(j); }
+        }
+    }
+    count
+}
+/// Free cells, and the cells the body reaches from `spawn` in 4-neighbour steps.
+fn sweep(solids: &[(Vec2, f32)], spawn: Vec2) -> (Vec<bool>, Vec<bool>) {
+    let mut free = vec![true; CELLS * CELLS];
+    let span = |v: f32, reach: f32| {
+        let lo = ((v - reach + PLAY_HALF) / STEP).floor().max(0.0) as usize;
+        lo..=(((v + reach + PLAY_HALF) / STEP).ceil().max(0.0) as usize).min(CELLS - 1)
+    };
+    for &(center, radius) in solids {
+        let reach = radius + BODY_R;
+        for z in span(center.y, reach) {
+            for x in span(center.x, reach) {
+                if cell_xz(z * CELLS + x).distance(center) < reach { free[z * CELLS + x] = false; }
+            }
+        }
+    }
+    let at = ((spawn + Vec2::splat(PLAY_HALF)) / STEP).round();
+    let start = at.y as usize * CELLS + at.x as usize;
+    assert!(free[start], "C4 spawn cell {:?} is blocked", cell_xz(start));
+    let mut reached = vec![false; CELLS * CELLS];
+    fill(&free, &mut reached, start);
+    (free, reached)
+}
+/// Free regions the spawn's flood never reached, minus `pocket@x,z` gap rows.
+fn pockets(free: &[bool], reached: &[bool]) -> Vec<String> {
+    let (mut seen, mut bad) = (reached.to_vec(), Vec::new());
+    for i in 0..free.len() {
+        if !free[i] || seen[i] { continue; }
+        let cells = fill(free, &mut seen, i);
+        let at = cell_xz(i);
+        let key = format!("pocket@{:.0},{:.0}", at.x, at.y);
+        if gap(&key).is_err() { bad.push(format!("{key} ({cells} cells)")); }
+    }
+    bad
+}
+/// A use target: label, centre, named radius, and whether the lived check is xz (else 3D from the standing body).
+type Use = (String, Vec3, f32, bool);
+fn uses_of(app: &mut App, place: PlaceId) -> Vec<Use> {
+    let mut uses = Vec::new();
+    for id in mesh_ids(app) {
+        let world = app.world();
+        if !shown(world, id) { continue; }
+        let label = ancestor_name(world, id).unwrap_or_else(|| format!("{id:?}"));
+        let at = world.get::<Transform>(id).map(|tf| tf.translation).unwrap_or_default();
+        match policy(world, id) {
+            Ok(Policy::Trigger(r)) => uses.push((label, at, r, world.get::<MercyHarvestNode>(id).is_none())),
+            Ok(Policy::Gap) if label.starts_with("WardPost") => uses.push((label, at, WARD_USE_RADIUS, true)),
+            _ => {}
+        }
+    }
+    let spot = |label: &str, [x, z]: [f32; 2], r| (label.to_string(), Vec3::new(x, 0.0, z), r, true);
+    if place == PlaceId::Sanctuary {
+        let (x, y, z) = WELL_ANCHORS[0];
+        uses.push(("SkirmishWell0".into(), Vec3::new(x, y, z), CONTEST_REACH, false));
+        use crate::wellsworn::{BOOK_SPOT, PLAQUE_SPOT, SPOT_REACH, STAVEHOLD_GATE_SPOT};
+        uses.extend([spot("WellswornPlaque", PLAQUE_SPOT, SPOT_REACH), spot("WellswornBook", BOOK_SPOT, SPOT_REACH)]);
+        uses.push(spot("WellswornGate", STAVEHOLD_GATE_SPOT, SPOT_REACH));
+    }
+    if place == PlaceId::Heartwood {
+        use crate::heartwood_plaque::{PLAQUE_REACH, PLAQUE_SPOT};
+        uses.push(spot("HeartwoodPlaque", PLAQUE_SPOT, PLAQUE_REACH));
+    }
+    uses
+}
+/// Uses with no reached cell inside their radius, sorted.
+fn unreachable(uses: &[Use], reached: &[bool]) -> Vec<String> {
+    let y = SoftPresence::default().position.y;
+    let near = |&(_, at, r, xz): &Use, b: Vec3| if xz { b.xz().distance(at.xz()) <= r } else { b.distance(at) <= r };
+    let hit = |u: &Use| (0..reached.len()).any(|i| reached[i] && near(u, cell_xz(i).extend(y).xzy()));
+    let mut bad: Vec<String> = uses.iter().filter(|u| !hit(u)).map(|u| u.0.clone()).collect();
+    bad.sort();
+    bad
 }
 fn assert_tells(app: &mut App) {
     let mut tells = 0u32;
@@ -150,22 +255,57 @@ fn boot() -> App {
     app.update();
     app
 }
-fn check_place(app: &mut App, place: PlaceId, realm: Option<u8>) {
+/// Travel first: `sync_place_dress_from_travel` rewrites the realm on a travel change, so the Sanctuary row is set after it.
+/// MinimalPlugins inserts no `Visibility`; bare meshes get one so `dress_for_climate` gates yard trees and rocks per realm.
+fn enter(app: &mut App, place: PlaceId, realm: Option<u8>) {
     app.world_mut().resource_mut::<HexTravelState>().current = place;
-    app.world_mut().resource_mut::<SoftPlayerRealm>().current = realm;
+    app.update();
+    if place == PlaceId::Sanctuary { app.world_mut().resource_mut::<SoftPlayerRealm>().current = realm; }
+    assert_eq!(app.world().resource::<SoftPlayerRealm>().current, realm, "{place:?} dress realm");
+    let mut bare = app.world_mut().query_filtered::<Entity, (With<Mesh3d>, Without<Visibility>)>();
+    let bare: Vec<Entity> = bare.iter(app.world()).collect();
+    for id in bare { app.world_mut().entity_mut(id).insert(Visibility::Inherited); }
     app.update(); app.update();
-    assert_declared(app);
-    assert_spawn_clear(app);
-    assert_tells(app);
 }
 #[test]
 fn c1_c2_c3_c6_per_place() {
     let mut app = boot();
-    for realm in [None, Some(0), Some(1), Some(2), Some(4)] {
-        check_place(&mut app, PlaceId::Sanctuary, realm);
+    for (place, realm, solids, _) in PLACES {
+        enter(&mut app, place, realm);
+        assert_declared(&mut app);
+        let shown = shown_solids(&mut app);
+        assert_eq!(shown.len(), solids, "C3 {place:?} {realm:?} shown solids");
+        assert_spawn_clear(place, spawn_of(&app, place), &shown);
+        assert_tells(&mut app);
     }
-    check_place(&mut app, PlaceId::Heartwood, Some(0));
-    check_place(&mut app, PlaceId::Depths, Some(0));
+}
+#[test]
+fn c4_c5_per_place() {
+    let mut app = boot();
+    for (place, realm, _, count) in PLACES {
+        enter(&mut app, place, realm);
+        let (free, reached) = sweep(&shown_solids(&mut app), spawn_of(&app, place).xz());
+        assert_eq!(pockets(&free, &reached), Vec::<String>::new(), "C4 trapped pocket in {place:?} {realm:?}");
+        let uses = uses_of(&mut app, place);
+        assert_eq!(uses.len(), count, "C5 {place:?} uses {:?}", uses.iter().map(|u| &u.0).collect::<Vec<_>>());
+        assert_eq!(unreachable(&uses, &reached), Vec::<String>::new(), "C5 unreachable use in {place:?} {realm:?}");
+    }
+}
+#[test]
+fn c4_c5_fail_first_fixtures() {
+    let ring: Vec<(Vec2, f32)> = (0..24).map(|k| (Vec2::splat(10.0) + Vec2::from_angle(k as f32 * std::f32::consts::TAU / 24.0) * 2.0, BODY_R)).collect();
+    let (free, reached) = sweep(&ring, Vec2::ZERO);
+    let trapped = pockets(&free, &reached);
+    assert!(trapped.len() == 1 && trapped[0].starts_with("pocket@10,9 "), "{trapped:?}");
+    let (x, y, z) = WELL_ANCHORS[0];
+    let node = Vec3::new(x, y, z);
+    let (_, reached) = sweep(&[(node.xz(), HARVEST_REACH)], Vec2::ZERO);
+    let uses = [
+        ("SwallowedNode".to_string(), node, HARVEST_REACH, false),
+        ("OutOfYard".to_string(), Vec3::new(PLAY_HALF + 4.0, y, 0.0), HARVEST_REACH, false),
+        ("OpenNode".to_string(), Vec3::new(-10.0, y, -10.0), HARVEST_REACH, false),
+    ];
+    assert_eq!(unreachable(&uses, &reached), ["OutOfYard", "SwallowedNode"]);
 }
 
 macro_rules! site {
