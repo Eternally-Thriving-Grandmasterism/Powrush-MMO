@@ -37,7 +37,7 @@ pub const HIT_ASSET: &str = "audio/combat_hit.ogg";
 /// The hit file peaks at -4.0 dBFS; x0.05 (-26 dB) keeps it under the sting's -27.7 dBFS.
 pub const HIT_GAIN: f32 = 0.05;
 
-pub const PREDATOR_NAME: &str = "[NAME TBD]";
+pub const PREDATOR_NAME: &str = "Heartwood Prowler";
 pub const HEALTH: u32 = 200; // player and predator pools, per CUT A1
 /// COMBAT_AND_PVP.md:486 — Predator "Lunge, 0.6 s" hits 15. Fire lands the same 15.
 pub const HIT: u32 = 15;
@@ -1519,7 +1519,7 @@ mod tests {
             s.xp[COMBAT] = step - XP_PER_LANDED_HIT;
             let (hit, level) = land_hit_crossing(&mut c, &mut s, true);
             let line = fire_line(PlaceId::Heartwood, &c, hit, XP_PER_LANDED_HIT, level).unwrap();
-            assert_eq!(line, format!("{want}[NAME TBD] · level {}", level.expect("crossing")));
+            assert_eq!(line, format!("{want}{} · level {}", crate::skill_xp::SKILL_NAMES[COMBAT], level.expect("crossing")));
         }
     }
 

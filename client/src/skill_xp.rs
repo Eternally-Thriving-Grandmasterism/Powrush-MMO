@@ -19,7 +19,7 @@ pub const LEVEL_CAP: u32 = 50; // playtest placeholder
 pub const XP_CAP: u32 = XP_CURVE_STEP * (LEVEL_CAP - 1) * LEVEL_CAP / 2;
 
 /// Player-facing names, one per skill. Internal ids: Gather, Tend, Walk, Sprint.
-pub const SKILL_NAMES: [&str; 5] = ["[NAME TBD — Sherif's words]", "[NAME TBD — Sherif's words]", "[NAME TBD — Sherif's words]", "[NAME TBD — Sherif's words]", "[NAME TBD]"];
+pub const SKILL_NAMES: [&str; 5] = ["Gathering", "Tending", "Walking", "Sprinting", "Combat"];
 pub const GATHER: usize = 0;
 pub const TEND: usize = 1;
 pub const WALK: usize = 2;

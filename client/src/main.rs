@@ -71,7 +71,7 @@ fn main() {
     // says there is no output so boot cannot hang. Mute is a later gate.
     let window = WindowPlugin {
         primary_window: Some(Window {
-            title: "Powrush-MMO — first hour".into(),
+            title: "Powrush".into(),
             // U5: make the default window match the Steam Deck title proof.
             resolution: (
                 powrush_client::title_screen::DECK_TITLE_WIDTH as u32,
