@@ -143,8 +143,8 @@ const GRAVITY: f32 = 18.0;
 const JUMP: f32 = 5.6;
 /// CARD JUMP-BUFFER-1 — airborne jump press window in seconds (tunable; council-set, Sherif may veto).
 pub const JUMP_BUFFER_SECS: f32 = 0.12;
-/// CARD JUMP-LAND-RECOVERY-1 — lock after an airborne STAND clamp. Nine fixed
-/// 1/60 ticks suppress; the tenth accepts a fresh grounded press.
+/// CARD JUMP-LAND-RECOVERY-1 — jump lock after an airborne STAND clamp. Nine fixed
+/// 1/60 ticks reject a fresh jump; the tenth accepts one. Movement is not locked.
 const LANDING_RECOVERY_SECS: f32 = 0.15;
 const CAM_BACK: f32 = 6.4;
 const CAM_UP: f32 = 2.35;
@@ -1323,6 +1323,9 @@ fn apply_locomotion(
     // CARD STILL-BEFORE-YARD-1 — wish and jump only in the open yard.
     // A closed gate zeros horizontal velocity so a walk stops. Gravity still runs below.
     // A missing door or house keeps today's move.
+    let carried = Vec2::new(presence.velocity.x, presence.velocity.z);
+    let mut wish_vel = Vec2::ZERO;
+    let began_grounded = presence.grounded;
     let yard_step = match (door.as_deref(), house.as_deref()) {
         (Some(door), Some(label)) => *door == LaunchDoor::InYard && !label.settings_open,
         _ => true,
@@ -1353,20 +1356,19 @@ fn apply_locomotion(
                 facing.yaw = camera_forward_yaw(orbit_yaw);
             }
         }
-        let wish_vel = if recovering {
-            Vec2::ZERO
-        } else {
-            Vec2::new(wish.x * speed, wish.z * speed)
-        };
-        let horiz = approach_horizontal(
-            Vec2::new(presence.velocity.x, presence.velocity.z),
-            wish_vel,
-            MOVE_ACCEL,
-            MOVE_DECEL,
-            dt,
-        );
-        presence.velocity.x = horiz.x;
-        presence.velocity.z = horiz.y;
+        wish_vel = Vec2::new(wish.x * speed, wish.z * speed);
+        // CARD MOVE-FEEL-1 — no air control. Takeoff and landing snap below.
+        if began_grounded {
+            let horiz = approach_horizontal(
+                carried,
+                wish_vel,
+                MOVE_ACCEL,
+                MOVE_DECEL,
+                dt,
+            );
+            presence.velocity.x = horiz.x;
+            presence.velocity.z = horiz.y;
+        }
     } else {
         presence.velocity.x = 0.0;
         presence.velocity.z = 0.0;
@@ -1405,6 +1407,11 @@ fn apply_locomotion(
         // Grounded tick that does not fire: drop the buffer; a paused grounded press keeps pending.
         latch.buffer = 0.0;
     }
+    if began_grounded && !presence.grounded {
+        let snap = if wish_vel.length_squared() > 1e-8 { wish_vel } else { carried };
+        presence.velocity.x = snap.x;
+        presence.velocity.z = snap.y;
+    }
     let velocity = presence.velocity;
     presence.position += velocity * dt;
     // CARD PT-COLLIDE-1 — trunks and yard rocks push out on x/z, only for the set shown in this realm.
@@ -1414,7 +1421,9 @@ fn apply_locomotion(
     let rocks = yard_rocks_shown(realm).then_some(YARD_ROCK_SPOTS).into_iter().flatten().map(|spot| (spot.xz(), YARD_ROCK_R));
     let field = trees.1.iter().flat_map(|f| f.0.iter().copied());
     let owned = crate::wood_expedition::owned_blocker(trees.2.as_deref(), trees.3.as_ref().map(|state| state.current), realm);
-    push_out_of_trunks(&mut presence.position, yard.chain(rocks).chain(field).chain(owned));
+    let mut vel = presence.velocity;
+    push_out_clear(&mut presence.position, &mut vel, yard.chain(rocks).chain(field).chain(owned));
+    presence.velocity = vel;
     if presence.position.y <= STAND {
         // Airline is the pre-clamp grounded flag plus the seated guard.
         // Height and vertical speed do not arm recovery by themselves.
@@ -1427,6 +1436,10 @@ fn apply_locomotion(
             latch.buffer = 0.0;
             latch.clamp_landed = false;
             landing.remaining = LANDING_RECOVERY_SECS;
+            if wish_vel.length_squared() > 1e-8 {
+                presence.velocity.x = wish_vel.x;
+                presence.velocity.z = wish_vel.y;
+            }
         } else {
             latch.clamp_landed = true;
         }
@@ -1434,13 +1447,25 @@ fn apply_locomotion(
     presence.curr_tick = Some(presence.position);
 }
 
-/// CARD PT-COLLIDE-1 — push `pos` out of each trunk circle on x/z only; `y`, grounded and the jump latch are untouched.
+/// CARD PT-COLLIDE-1 — position-only push. Tests call this; locomotion uses [`push_out_clear`].
 fn push_out_of_trunks(pos: &mut Vec3, trunks: impl IntoIterator<Item = (Vec2, f32)>) {
+    let mut vel = Vec3::ZERO;
+    push_out_clear(pos, &mut vel, trunks);
+}
+
+/// CARD MOVE-FEEL-1 M8 — push out on x/z and drop the inward part of `vel`. Tangent is kept.
+fn push_out_clear(pos: &mut Vec3, vel: &mut Vec3, trunks: impl IntoIterator<Item = (Vec2, f32)>) {
     for (center, radius) in trunks {
         let (off, reach) = (pos.xz() - center, radius + PLAYER_TRUNK_RADIUS);
         if off.length_squared() < reach * reach {
-            let out = center + off.try_normalize().unwrap_or(Vec2::X) * reach;
+            let n = off.try_normalize().unwrap_or(Vec2::X);
+            let out = center + n * reach;
             (pos.x, pos.z) = (out.x, out.y);
+            let into = vel.x * n.x + vel.z * n.y;
+            if into < 0.0 {
+                vel.x -= into * n.x;
+                vel.z -= into * n.y;
+            }
         }
     }
 }
@@ -3634,17 +3659,12 @@ mod tests {
             let presence = app.world().resource::<SoftPresence>();
             assert!(presence.grounded);
             let now_h = Vec2::new(presence.velocity.x, presence.velocity.z);
-            let expected = approach_horizontal(prev_h, Vec2::ZERO, MOVE_ACCEL, MOVE_DECEL, dt);
+            let expected = approach_horizontal(prev_h, wish, MOVE_ACCEL, MOVE_DECEL, dt);
             assert!(
                 (now_h - expected).length() < 1.0e-4,
-                "tick {tick} did not decel through approach, got {now_h:?} want {expected:?}"
+                "tick {tick} left the held walk, got {now_h:?} want {expected:?}"
             );
-            assert!(now_h.length() < landing_speed, "tick {tick} did not slow");
-            assert!(
-                now_h.length() < WALK - 0.2,
-                "tick {tick} held walk speed {}",
-                now_h.length()
-            );
+            assert!(now_h.length() > WALK - 0.2, "tick {tick} lost walk {}", now_h.length());
             if expected == Vec2::ZERO {
                 let xz = Vec2::new(presence.position.x, presence.position.z);
                 if let Some(locked) = held_still {
@@ -3655,10 +3675,7 @@ mod tests {
             }
             prev_h = now_h;
         }
-        assert!(
-            held_still.is_some(),
-            "recovery never reached zero horizontal speed"
-        );
+        assert!(held_still.is_none(), "recovery zeroed a held walk");
         assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
         let before_z = app.world().resource::<SoftPresence>().position.z;
         jb_step(&mut app);
@@ -3804,6 +3821,208 @@ mod tests {
         assert!(app.world().resource::<SoftPresence>().grounded);
         assert!(!app.world().resource::<JumpLatch>().pending);
         assert_eq!(app.world().resource::<JumpLatch>().buffer, 0.0);
+    }
+
+    fn mf_fresh() -> App {
+        let mut app = jb_app(false);
+        mf_stick(&mut app, 0.0, 0.0, false);
+        let mut p = app.world_mut().resource_mut::<SoftPresence>();
+        (p.position, p.velocity, p.grounded) = (Vec3::new(0.0, STAND, 0.0), Vec3::ZERO, true);
+        (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
+        drop(p);
+        *app.world_mut().resource_mut::<JumpLatch>() = JumpLatch::default();
+        app.world_mut().resource_mut::<LandingRecovery>().remaining = 0.0;
+        app
+    }
+    fn mf_stick(app: &mut App, x: f32, y: f32, sprint: bool) {
+        let mut input = app.world_mut().resource_mut::<PlayerInput>();
+        (input.movement, input.sprint) = (Vec2::new(x, y), sprint);
+    }
+    fn mf_horiz(app: &App) -> Vec2 { let v = app.world().resource::<SoftPresence>().velocity; Vec2::new(v.x, v.z) }
+    fn mf_fly_until_land(app: &mut App) -> bool {
+        (0..90).any(|_| { let before = app.world().resource::<SoftPresence>().grounded; jb_step(app); !before && app.world().resource::<SoftPresence>().grounded })
+    }
+    fn mf_sprint_east(app: &mut App) {
+        mf_stick(app, 1.0, 0.0, true);
+        for _ in 0..16 { jb_step(app); }
+    }
+    fn mf_land_from_east_holding(x: f32, y: f32, sprint: bool) -> App {
+        let mut app = mf_fresh();
+        mf_sprint_east(&mut app);
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        jb_step(&mut app);
+        mf_stick(&mut app, x, y, sprint);
+        assert!(mf_fly_until_land(&mut app), "no landing");
+        app
+    }
+
+    #[test]
+    fn move_feel_m1_wasd_during_jump_leaves_horizontal_unchanged() {
+        for (name, x, y, sprint) in [("opposite", -1.0, 0.0, true), ("perpendicular", 0.0, 1.0, true), ("same", 1.0, 0.0, true), ("none", 0.0, 0.0, false)] {
+            let mut app = mf_fresh();
+            mf_sprint_east(&mut app);
+            app.world_mut().resource_mut::<JumpLatch>().pending = true;
+            jb_step(&mut app);
+            let takeoff = mf_horiz(&app);
+            assert!((takeoff - Vec2::new(SPRINT, 0.0)).length() < 1e-3, "{name} takeoff {takeoff:?}");
+            mf_stick(&mut app, x, y, sprint);
+            let mut saw_air = false;
+            for _ in 0..80 {
+                let before = app.world().resource::<SoftPresence>().grounded;
+                jb_step(&mut app);
+                let presence = app.world().resource::<SoftPresence>();
+                if !presence.grounded {
+                    saw_air = true;
+                    let now = Vec2::new(presence.velocity.x, presence.velocity.z);
+                    assert!((now - takeoff).length() < 1e-4, "{name} air {now:?} takeoff {takeoff:?}");
+                }
+                if !before && presence.grounded { break; }
+            }
+            assert!(saw_air, "{name}");
+        }
+    }
+    fn mf_replay_land_xz(v: Vec2) -> (Vec2, u32) {
+        let dt = 1.0 / 60.0;
+        let (mut y, mut vy, mut xz, mut ticks) = (STAND, 0.0, Vec2::ZERO, 0u32);
+        loop {
+            vy -= GRAVITY * dt; if ticks == 0 { vy = JUMP; }
+            y += vy * dt; xz += v * dt; ticks += 1;
+            if ticks > 1 && y <= STAND { return (xz, ticks); }
+            assert!(ticks < 80, "replay did not clamp");
+        }
+    }
+    #[test]
+    fn move_feel_m2_landing_matches_discrete_projection_and_repeats() {
+        let land = || {
+            let mut app = mf_fresh();
+            mf_stick(&mut app, 1.0, 0.0, true);
+            let origin = app.world().resource::<SoftPresence>().position.xz();
+            app.world_mut().resource_mut::<JumpLatch>().pending = true;
+            jb_step(&mut app);
+            let takeoff = mf_horiz(&app);
+            assert!(mf_fly_until_land(&mut app), "no landing");
+            (app.world().resource::<SoftPresence>().position.xz() - origin, takeoff)
+        };
+        let (once, takeoff) = land();
+        let (twice, _) = land();
+        assert_eq!(once, twice, "repeated landing xz diverged");
+        let (replay, ticks) = mf_replay_land_xz(takeoff);
+        assert_eq!(ticks, 39, "lived jump is 39 integrations");
+        assert!((once - replay).length() < 0.01, "landing {once:?} replay {replay:?}");
+    }
+    #[test]
+    fn move_feel_m3_landing_tick_applies_held_input() {
+        let mut app = mf_land_from_east_holding(-1.0, 0.0, true);
+        let landed = mf_horiz(&app);
+        assert!((landed - Vec2::new(-SPRINT, 0.0)).length() < 1e-4, "clamp {landed:?}");
+        jb_step(&mut app);
+        let next = mf_horiz(&app);
+        let brake = approach_horizontal(landed, Vec2::ZERO, MOVE_ACCEL, MOVE_DECEL, 1.0 / 60.0);
+        assert!((next - brake).length() > 1e-3 && next.x < 0.0, "brake {next:?}");
+    }
+    #[test]
+    fn move_feel_m4_takeoff_snaps_to_held_direction() {
+        for (sprint, speed) in [(true, SPRINT), (false, WALK)] {
+            let mut app = mf_fresh();
+            mf_sprint_east(&mut app);
+            mf_stick(&mut app, 0.0, 1.0, sprint);
+            app.world_mut().resource_mut::<JumpLatch>().pending = true;
+            jb_step(&mut app);
+            let v = mf_horiz(&app);
+            assert!(v.x.abs() < 1e-4 && (v.length() - speed).abs() < 1e-4 && v.y < 0.0, "{v:?} want {speed}");
+        }
+    }
+    #[test]
+    fn move_feel_m4_takeoff_without_input_carries_horizontal() {
+        let mut app = mf_fresh();
+        mf_sprint_east(&mut app);
+        let before = mf_horiz(&app);
+        assert!((before - Vec2::new(SPRINT, 0.0)).length() < 1e-4, "{before:?}");
+        mf_stick(&mut app, 0.0, 0.0, false);
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        jb_step(&mut app);
+        assert!((mf_horiz(&app) - before).length() < 1e-4, "carry {:?} left {before:?}", mf_horiz(&app));
+    }
+    #[test]
+    fn move_feel_m5_landing_180_snaps_west() {
+        let mut app = mf_fresh();
+        mf_sprint_east(&mut app);
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        jb_step(&mut app);
+        for _ in 0..37 { jb_step(&mut app); }
+        assert!(!app.world().resource::<SoftPresence>().grounded, "coast landed early");
+        mf_stick(&mut app, -1.0, 0.0, true);
+        jb_step(&mut app);
+        assert!(app.world().resource::<SoftPresence>().grounded, "west press was not the clamp tick");
+        let v = mf_horiz(&app);
+        assert!((v - Vec2::new(-SPRINT, 0.0)).length() < 1e-4, "{v:?}");
+    }
+    #[test]
+    fn move_feel_m6_no_wasd_lockout_after_landing() {
+        let dt = 1.0 / 60.0;
+        let mut held = mf_land_from_east_holding(0.0, 1.0, false);
+        for tick in 1..=10 {
+            let prev = mf_horiz(&held);
+            jb_step(&mut held);
+            let now = mf_horiz(&held);
+            let honored = approach_horizontal(prev, Vec2::new(0.0, -WALK), MOVE_ACCEL, MOVE_DECEL, dt);
+            assert!((now - honored).length() < 1e-4, "tick {tick} {now:?} want {honored:?}");
+        }
+        let mut app = mf_fresh();
+        mf_sprint_east(&mut app);
+        mf_stick(&mut app, 0.0, 0.0, false);
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        assert!(mf_fly_until_land(&mut app), "no land");
+        for tick in 1..=10 {
+            let prev = mf_horiz(&app);
+            jb_step(&mut app);
+            let now = mf_horiz(&app);
+            let expected = approach_horizontal(prev, Vec2::ZERO, MOVE_ACCEL, MOVE_DECEL, dt);
+            assert!((now - expected).length() < 1e-4, "tick {tick} {now:?} want {expected:?}");
+        }
+    }
+    #[test]
+    fn move_feel_m7_sprint_release_stops_within_7_ticks() {
+        let mut app = mf_fresh();
+        mf_sprint_east(&mut app);
+        assert!((mf_horiz(&app).length() - SPRINT).abs() < 1e-3);
+        mf_stick(&mut app, 0.0, 0.0, false);
+        for _ in 0..7 { jb_step(&mut app); }
+        assert!(mf_horiz(&app).length() <= 0.05, "{}", mf_horiz(&app).length());
+    }
+    #[test]
+    fn move_feel_m7_landing_with_no_input_stops_within_7_ticks() {
+        let mut app = mf_fresh();
+        mf_sprint_east(&mut app);
+        mf_stick(&mut app, 0.0, 0.0, false);
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        assert!(mf_fly_until_land(&mut app), "no land");
+        for _ in 0..7 { jb_step(&mut app); }
+        assert!(mf_horiz(&app).length() <= 0.05, "{}", mf_horiz(&app).length());
+    }
+    #[test]
+    fn move_feel_m9_held_space_does_not_auto_hop() {
+        let mut app = mf_fresh();
+        app.add_systems(Update, arm_jump_latch);
+        mf_stick(&mut app, 0.0, 0.0, false);
+        app.world_mut().resource_mut::<PlayerInput>().jump = true;
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        assert!(jb_step(&mut app), "no takeoff");
+        let mut saw_land = false;
+        for _ in 0..90 {
+            app.world_mut().resource_mut::<PlayerInput>().jump = true;
+            let before = app.world().resource::<SoftPresence>().grounded;
+            assert!(!jb_step(&mut app), "hop before lock");
+            if !before && app.world().resource::<SoftPresence>().grounded { saw_land = true; break; }
+        }
+        assert!(saw_land, "no clamp");
+        for tick in 1..=9 {
+            app.world_mut().resource_mut::<PlayerInput>().jump = true;
+            assert!(!jb_step(&mut app), "hop on lock tick {tick}");
+        }
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
+        assert!(jb_step(&mut app), "no hop after lock");
+        assert!(!jb_step(&mut app), "second hop");
     }
 
     /// (d) NameHouse + W does not move.
@@ -5789,5 +6008,39 @@ mod tests {
         app.update();
         let at = app.world().resource::<SoftPresence>().position;
         assert!((at.xz().distance(rock) - reach).abs() < 1e-3 && at.z > rock.y && at.y == STAND, "first tick {at}");
+    }
+
+    #[test]
+    fn move_feel_m8_push_out_clears_normal_velocity() {
+        use crate::living_ecology::{YARD_ROCK_R, YARD_ROCK_SPOTS, YARD_TREE_SPOTS, YARD_TRUNK_R};
+        let cases = [(Some(4u8), Some(0u8), YARD_ROCK_SPOTS[0].xz(), YARD_ROCK_R), (Some(0u8), Some(4u8), YARD_TREE_SPOTS[0].xz(), YARD_TRUNK_R)];
+        for (shown, hidden, center, radius) in cases {
+            let reach = radius + PLAYER_TRUNK_RADIUS;
+            let run = |realm: Option<u8>, steps: usize| {
+                let mut app = mf_fresh();
+                app.insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: realm });
+                let start = center + Vec2::X * (reach + 0.02);
+                let mut p = app.world_mut().resource_mut::<SoftPresence>();
+                (p.position, p.velocity, p.grounded) = (Vec3::new(start.x, STAND, start.y), Vec3::new(-4.5, 0.0, 2.5), true);
+                (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
+                drop(p);
+                mf_stick(&mut app, 0.0, 0.0, false);
+                for _ in 0..steps { jb_step(&mut app); }
+                let p = app.world().resource::<SoftPresence>();
+                (p.position.xz(), mf_horiz(&app))
+            };
+            let mut hit = None;
+            for step in 1..=20 {
+                let (at, vel) = run(shown, step);
+                let off = at - center;
+                if off.length() <= reach + 1e-4 { hit = Some((step, off.normalize(), vel)); break; }
+            }
+            let (step, n_out, vel) = hit.expect("no contact");
+            assert!(vel.dot(-n_out) <= 1e-4, "inward {} at {center:?}", vel.dot(-n_out));
+            let tangent = Vec2::new(-n_out.y, n_out.x);
+            let (_, after) = run(shown, step + 2);
+            let (_, ctrl) = run(hidden, step + 2);
+            assert!(after.dot(tangent).abs() <= ctrl.dot(tangent).abs() + 1e-4, "tangent drift at {center:?}");
+        }
     }
 }
