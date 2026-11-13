@@ -1424,6 +1424,17 @@ fn apply_locomotion(
     let mut vel = presence.velocity;
     push_out_clear(&mut presence.position, &mut vel, yard.chain(rocks).chain(field).chain(owned));
     presence.velocity = vel;
+    // CARD YARD-EDGE-1 — plate bound after the push-outs; the outward part of velocity drops M8-style.
+    let (plate, n) = push_out_of_plate_edge(presence.position.xz());
+    (presence.position.x, presence.position.z) = (plate.x, plate.y);
+    let into = presence.velocity.x * n.x + presence.velocity.z * n.y;
+    if into < 0.0 {
+        presence.velocity.x -= into * n.x;
+        presence.velocity.z -= into * n.y;
+    }
+    // The landing snap below reads `wish_vel`; at the edge it keeps only the part along the plate.
+    let (_, rim) = push_out_of_plate_edge(presence.position.xz() + wish_vel * dt);
+    wish_vel -= wish_vel.dot(rim).min(0.0) * rim;
     if presence.position.y <= STAND {
         // Airline is the pre-clamp grounded flag plus the seated guard.
         // Height and vertical speed do not arm recovery by themselves.
@@ -1468,6 +1479,13 @@ fn push_out_clear(pos: &mut Vec3, vel: &mut Vec3, trunks: impl IntoIterator<Item
             }
         }
     }
+}
+
+/// CARD YARD-EDGE-1 — clamp x/z onto the plate. `n` is the push direction back onto it, ZERO inside.
+fn push_out_of_plate_edge(xz: Vec2) -> (Vec2, Vec2) {
+    let bound = crate::terrain::PLAY_HALF - PLAYER_TRUNK_RADIUS;
+    let at = xz.clamp(Vec2::splat(-bound), Vec2::splat(bound));
+    (at, (at - xz).normalize_or_zero())
 }
 
 /// Latch the existing Peace **E** into a Use read the body can show.
@@ -6041,6 +6059,75 @@ mod tests {
             let (_, after) = run(shown, step + 2);
             let (_, ctrl) = run(hidden, step + 2);
             assert!(after.dot(tangent).abs() <= ctrl.dot(tangent).abs() + 1e-4, "tangent drift at {center:?}");
+        }
+    }
+
+    /// CARD YARD-EDGE-1 — walk and sprint off each edge and corner: 16 rows x 180 ticks.
+    /// Once met, the edge holds and no outward velocity is left after any tick.
+    #[test]
+    fn yard_edge_1_walk_off_held_inside_plate() {
+        let bound = crate::terrain::PLAY_HALF - PLAYER_TRUNK_RADIUS;
+        let faces = [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0), (1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)];
+        for sprint in [false, true] {
+            for (sx, sz) in faces {
+                let out = Vec2::new(sx, sz);
+                let n = -out.normalize();
+                let mut app = mf_fresh();
+                let mut p = app.world_mut().resource_mut::<SoftPresence>();
+                p.position = Vec3::new(sx * (bound - 3.0), STAND, sz * (bound - 3.0));
+                (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
+                drop(p);
+                // Yaw 0 wish is (stick.x, 0, -stick.y).
+                mf_stick(&mut app, sx, -sz, sprint);
+                let mut met = None;
+                for tick in 0..180 {
+                    jb_step(&mut app);
+                    let (at, vel) = (app.world().resource::<SoftPresence>().position, mf_horiz(&app));
+                    let row = format!("sprint={sprint} out={out} tick={tick} at={at} vel={vel}");
+                    assert!(at.x.abs() <= bound + 1e-4 && at.z.abs() <= bound + 1e-4 && at.y == STAND, "left the plate {row}");
+                    let edge = at.xz().dot(out) >= out.length_squared() * bound - 1e-4;
+                    assert!(edge || met.is_none(), "bounced off the edge met at {met:?} {row}");
+                    if edge {
+                        met.get_or_insert(tick);
+                        assert!(vel.dot(-n) <= 1e-4, "outward {} {row}", vel.dot(-n));
+                    }
+                }
+                assert!(met.is_some(), "never met the edge sprint={sprint} out={out}");
+            }
+        }
+    }
+
+    /// CARD YARD-EDGE-1 — sprint 16 ticks, then jump into each face and corner, stick held through the landing.
+    /// The arc meets the edge in the air; the landing tick is at STAND with no outward velocity.
+    #[test]
+    fn yard_edge_1_sprint_jump_held_inside_plate() {
+        let bound = crate::terrain::PLAY_HALF - PLAYER_TRUNK_RADIUS;
+        for (sx, sz) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0), (1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)] {
+            let out = Vec2::new(sx, sz);
+            let mut app = mf_fresh();
+            let mut p = app.world_mut().resource_mut::<SoftPresence>();
+            p.position = Vec3::new(sx * (bound - 2.5), STAND, sz * (bound - 2.5));
+            (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
+            drop(p);
+            mf_stick(&mut app, sx, -sz, true);
+            let (mut air_edge, mut landed) = (false, false);
+            for tick in 0..90 {
+                app.world_mut().resource_mut::<JumpLatch>().pending |= tick == 16;
+                jb_step(&mut app);
+                let p = app.world().resource::<SoftPresence>();
+                let (at, vel, grounded) = (p.position, mf_horiz(&app), p.grounded);
+                let row = format!("out={out} tick={tick} at={at} vel={vel} grounded={grounded}");
+                assert!(at.x.abs() <= bound + 1e-4 && at.z.abs() <= bound + 1e-4, "left the plate {row}");
+                assert!(grounded == (tick < 16) || tick > 16, "takeoff on tick 16 {row}");
+                air_edge |= !grounded && at.xz().dot(out) >= out.length_squared() * bound - 1e-4;
+                if tick > 16 && grounded {
+                    assert!(at.y == STAND, "landing off STAND {row}");
+                    assert!(vel.dot(out.normalize()) <= 1e-4, "landing tick outward {} {row}", vel.dot(out.normalize()));
+                    landed = true;
+                    break;
+                }
+            }
+            assert!(air_edge && landed, "out={out} met the edge in the air={air_edge} landed={landed}");
         }
     }
 }
