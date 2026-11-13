@@ -426,6 +426,10 @@ pub struct LocalSettings {
     /// follow-lerp smoothing. Default off. Missing field loads off.
     #[serde(default)]
     pub raw_look: bool,
+    /// CARD AGE-GATE-1. Player confirmed 18+. Default false, so a missing
+    /// or older file shows the gate once. Birth month and year are not stored.
+    #[serde(default)]
+    pub age_confirmed: bool,
 }
 
 fn default_mouse_look() -> bool {
@@ -593,6 +597,7 @@ impl Default for LocalSettings {
             control_preset: default_control_preset(),
             mouse_look: true,
             raw_look: false,
+            age_confirmed: false,
         }
     }
 }
@@ -713,6 +718,16 @@ impl LocalSettings {
     /// Dismiss + persist flag so the banner does not spam.
     pub fn dismiss_comfort_graphics_banner(&mut self) {
         self.comfort_graphics_banner_dismissed = true;
+    }
+
+    /// First-launch age gate until the player confirms 18+.
+    pub fn should_show_age_gate(&self) -> bool {
+        !self.age_confirmed
+    }
+
+    /// Record 18+ only. The birth month and year are not stored.
+    pub fn confirm_age(&mut self) {
+        self.age_confirmed = true;
     }
 
     /// Clamp `hud_preset` to classic | minimal | management. Unknown → classic.
@@ -1928,6 +1943,35 @@ mod tests {
         let off = s.to_json().unwrap();
         assert!(off.contains("\"raw_look\": false"));
         assert!(!LocalSettings::from_json(&off).unwrap().raw_look);
+    }
+
+    /// CARD AGE-GATE-1. Only `age_confirmed` is stored. No month, year, age, dob, or birth key.
+    #[test]
+    fn age_confirmed_defaults_false_round_trips_and_stores_no_date() {
+        assert!(!LocalSettings::default().age_confirmed);
+        assert!(LocalSettings::default().should_show_age_gate());
+        let missing = LocalSettings::from_json(r#"{"schema":"powrush_settings_v1"}"#).unwrap();
+        assert!(!missing.age_confirmed && missing.should_show_age_gate());
+        assert!(LocalSettings::from_json("{{{").unwrap_or_default().should_show_age_gate());
+        let mut adult = LocalSettings::default();
+        adult.confirm_age();
+        let back = LocalSettings::from_json(&adult.to_json().unwrap()).unwrap();
+        assert!(back.age_confirmed && !back.should_show_age_gate());
+        let bytes = serde_json::to_vec(&adult).unwrap();
+        let mut on: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_slice(&bytes).unwrap();
+        assert_eq!(on.remove("age_confirmed").and_then(|v| v.as_bool()), Some(true));
+        let mut off: serde_json::Map<String, serde_json::Value> =
+            serde_json::from_slice(&serde_json::to_vec(&LocalSettings::default()).unwrap()).unwrap();
+        assert_eq!(off.remove("age_confirmed").and_then(|v| v.as_bool()), Some(false));
+        assert_eq!(on, off, "key set only gained age_confirmed");
+        for key in ["month", "year", "age", "dob", "birth"] {
+            assert!(!on.contains_key(key), "{key}");
+        }
+        for key in ["month", "year", "dob", "birth"] {
+            let needle = format!("\"{key}\"");
+            assert!(!bytes.windows(needle.len()).any(|w| w == needle.as_bytes()), "{needle}");
+        }
     }
 
 }

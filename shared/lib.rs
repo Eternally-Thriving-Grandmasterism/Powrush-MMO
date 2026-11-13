@@ -22,6 +22,7 @@ pub mod threshold_shelf;
 pub mod heartwood_wards;
 pub mod house_name;
 pub mod local_settings;
+pub mod civil_date;
 pub mod hud_layout;
 pub mod peace_audio;
 pub mod title_house_proof;

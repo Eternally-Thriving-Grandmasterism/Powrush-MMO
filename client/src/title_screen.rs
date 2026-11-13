@@ -1386,8 +1386,8 @@ impl Plugin for TitleScreenPlugin {
                     breath_title_border,
                     refresh_title_cue,
                     refresh_garden_boot_want,
-                    title_button_clicks,
-                    title_keyboard_shortcuts,
+                    title_button_clicks.run_if(crate::age_gate::age_gate_clear),
+                    title_keyboard_shortcuts.run_if(crate::age_gate::age_gate_clear),
                     sync_title_visibility,
                     watch_settled_for_naming,
                     name_house_text_input,
@@ -1443,6 +1443,7 @@ impl Plugin for TitleScreenPlugin {
                 Update,
                 (
                     sync_comfort_graphics_banner.after(PlacesDoorClickSet),
+                    hide_comfort_banner_while_age_gate.after(sync_comfort_graphics_banner),
                     comfort_graphics_banner_dismiss_clicks,
                 ),
             )
@@ -1461,6 +1462,7 @@ impl Plugin for TitleScreenPlugin {
             .add_systems(
                 Update,
                 scripted_title_play
+                    .run_if(crate::age_gate::age_gate_clear)
                     .in_set(InputMapSet)
                     .after(crate::input::apply_script_timeline),
             )
@@ -1686,6 +1688,18 @@ fn sync_comfort_graphics_banner(
         } else {
             Visibility::Hidden
         };
+    }
+}
+
+fn hide_comfort_banner_while_age_gate(
+    gate: Option<Res<crate::age_gate::AgeGate>>,
+    mut q: Query<&mut Visibility, With<ComfortGraphicsBannerRoot>>,
+) {
+    if !gate.is_some_and(|gate| gate.open) {
+        return;
+    }
+    for mut vis in &mut q {
+        *vis = Visibility::Hidden;
     }
 }
 

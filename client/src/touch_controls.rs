@@ -53,7 +53,7 @@ impl Plugin for TouchControlsPlugin {
                 Update,
                 (
                     sync_touch_overlay_visibility,
-                    touch_overlay_button_clicks,
+                    touch_overlay_button_clicks.run_if(crate::age_gate::age_gate_clear),
                     touch_stick_drag,
                 )
                     .after(InputMapSet),
