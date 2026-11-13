@@ -17,7 +17,7 @@ pub const DROID_SHOT_SECS: f32 = 1.25;
 /// COMBAT_AND_PVP.md:487 "Shot, 0.5 s"; meets the 0.35 s telegraph rule (:433).
 pub const DROID_SHOT_TELL_SECS: f32 = 0.5;
 pub const DROID_HIT: u32 = 25;
-pub const DROID_NAME: &str = "[DROID NAME TBD]"; // unnamed until NAME-PASS-1
+pub const DROID_NAME: &str = "Threshold Sentry";
 const DROID_CUE_SECS: f64 = 4.2; // same hold as the private `CUE_SECS` at combat_core.rs:58
 pub const DROID_TELL_TEXT: &str = "Look out, the droid is about to fire";
 
@@ -180,6 +180,34 @@ mod tests {
     use shared::threshold_shelf::{THRESHOLD_NODE_CENTER, THRESHOLD_SHELF_USE_RADIUS};
 
     fn run_for(s: &mut DroidState, t: &mut u32, secs: f32, reach: bool) -> bool { shot_step(s, t, secs, true, reach, true, DifficultyTier::Sheltered) }
+
+    #[test]
+    fn names_interim_player_facing_strings() {
+        use crate::skill_xp::{COMBAT, GATHER, SKILL_NAMES, SPRINT, TEND, WALK};
+        let got = [
+            SKILL_NAMES[GATHER],
+            SKILL_NAMES[TEND],
+            SKILL_NAMES[WALK],
+            SKILL_NAMES[SPRINT],
+            SKILL_NAMES[COMBAT],
+            crate::combat_core::PREDATOR_NAME,
+            DROID_NAME,
+        ];
+        assert_eq!(
+            got,
+            [
+                "Gathering",
+                "Tending",
+                "Walking",
+                "Sprinting",
+                "Combat",
+                "Heartwood Prowler",
+                "Threshold Sentry",
+            ]
+        );
+        let production = include_str!("main.rs").split("#[cfg(test)]").next().expect("main");
+        assert!(production.contains("title: \"Powrush\".into()"));
+    }
 
     #[test]
     fn tell_shows_from_three_quarters() {
