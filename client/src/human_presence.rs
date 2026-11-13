@@ -1682,8 +1682,8 @@ fn attach_ual1_animation_player(
 }
 
 /// Map today's pose_person inputs onto a UAL1 clip name index.
-/// Jump uses SoftPresence grounded / vertical velocity; crouch uses BodyTell
-/// Heavy/Winded (the same tell that drives crouch_drop in pose_person).
+/// Jump uses SoftPresence grounded / vertical velocity; crouch uses Winded only.
+/// Heavy keeps the stride clips and its waist bow.
 fn ual1_clip_for_pose(speed: f32, grounded: bool, vel_y: f32, tell: BodyTell) -> Ual1Clip {
     if !grounded {
         if vel_y > 0.8 {
@@ -1694,7 +1694,7 @@ fn ual1_clip_for_pose(speed: f32, grounded: bool, vel_y: f32, tell: BodyTell) ->
         }
         return Ual1Clip::JumpLoop;
     }
-    let crouched = matches!(tell, BodyTell::Heavy | BodyTell::Winded);
+    let crouched = matches!(tell, BodyTell::Winded);
     if crouched {
         return if speed > STRIDE_SPEED {
             Ual1Clip::CrouchFwdLoop
@@ -2995,11 +2995,82 @@ mod tests {
         );
         assert_eq!(
             ual1_clip_for_pose(0.0, true, 0.0, BodyTell::Heavy),
-            Ual1Clip::CrouchIdleLoop
+            Ual1Clip::IdleLoop
         );
         assert_eq!(
             ual1_clip_for_pose(1.0, true, 0.0, BodyTell::Winded),
             Ual1Clip::CrouchFwdLoop
+        );
+    }
+
+    /// CARD SIT-POSE-1 — Heavy pool keeps stride clips; only Winded crouches.
+    #[test]
+    fn sit_pose_1_heavy_pool_walk_and_idle_play_stride_clips() {
+        use bevy::time::TimeUpdateStrategy;
+        fn sit_pose_1_pool_app(movement: Vec2, body: Option<LivingBody>) -> App {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, crate::living_body::LivingBodyPlugin))
+                .insert_resource(Time::<Fixed>::from_hz(60.0))
+                .insert_resource(TimeUpdateStrategy::FixedTimesteps(1))
+                .init_resource::<SoftPresence>()
+                .init_resource::<JumpLatch>()
+                .init_resource::<LandingRecovery>()
+                .init_resource::<PlayerInput>()
+                .insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) })
+                .insert_resource(SoftRbePool { vitality: 3.2, ..Default::default() })
+                .add_systems(FixedUpdate, apply_locomotion)
+                .add_systems(Update, pick_ual1_clip)
+                .insert_resource(Ual1Anim {
+                    graph: Handle::default(),
+                    nodes: std::array::from_fn(AnimationNodeIndex::new),
+                });
+            app.world_mut().spawn((AnimationPlayer::default(), AnimationTransitions::new()));
+            app.world_mut().resource_mut::<PlayerInput>().movement = movement;
+            if let Some(body) = body {
+                app.insert_resource(body);
+            }
+            app
+        }
+        fn sit_pose_1_main_node(app: &mut App) -> AnimationNodeIndex {
+            app.world_mut()
+                .query::<&AnimationTransitions>()
+                .single(app.world())
+                .unwrap()
+                .get_main_animation()
+                .unwrap()
+        }
+        let mut walk = sit_pose_1_pool_app(Vec2::Y, None);
+        for _ in 0..30 {
+            walk.update();
+        }
+        assert_eq!(walk.world().resource::<LivingBody>().tell(), BodyTell::Heavy);
+        let velocity = walk.world().resource::<SoftPresence>().velocity;
+        let horiz = Vec2::new(velocity.x, velocity.z).length();
+        assert!((horiz - WALK * 0.82).abs() < 1e-3, "{horiz}");
+        let walk_main = sit_pose_1_main_node(&mut walk);
+        let walk_node = walk.world().resource::<Ual1Anim>().nodes[Ual1Clip::WalkLoop as usize];
+        let mut idle = sit_pose_1_pool_app(Vec2::ZERO, None);
+        for _ in 0..10 {
+            idle.update();
+        }
+        assert_eq!(idle.world().resource::<LivingBody>().tell(), BodyTell::Heavy);
+        let idle_main = sit_pose_1_main_node(&mut idle);
+        let idle_node = idle.world().resource::<Ual1Anim>().nodes[Ual1Clip::IdleLoop as usize];
+        let mut winded = sit_pose_1_pool_app(
+            Vec2::Y,
+            Some(LivingBody { breath: 0.05, winded: true, heavy: true, ..Default::default() }),
+        );
+        for _ in 0..10 {
+            winded.update();
+        }
+        assert_eq!(winded.world().resource::<LivingBody>().tell(), BodyTell::Winded);
+        let winded_main = sit_pose_1_main_node(&mut winded);
+        let winded_node = winded.world().resource::<Ual1Anim>().nodes[Ual1Clip::CrouchFwdLoop as usize];
+        // One comparison so a red run shows walk, idle, and the Winded control together.
+        assert_eq!(
+            (walk_main, idle_main, winded_main),
+            (walk_node, idle_node, winded_node),
+            "walk, idle, winded"
         );
     }
 
