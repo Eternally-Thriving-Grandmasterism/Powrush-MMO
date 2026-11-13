@@ -7,8 +7,9 @@
 //! persists a *record about* the persona — never the soul
 //! (`docs/PERSISTENCE_ORIGINAL_OWNERSHIP.md`). Disk writes use `path_filter`
 //! (named persist dir + direct-child `powrush_persona.json` only).
-//! P5: story-provider picker `None | LocalTemplate | RathorOfflineShard |
-//! (opt-in online)`. Feature flag default **false**. Online rows need steward
+//! P5: story-provider picker `None | LocalTemplate | (opt-in online)`.
+//! `RathorOfflineShard` is legacy, hidden, and treated as `None`.
+//! Feature flag default **false**. Online rows need steward
 //! `online yes`. Never first-run default online. Title Online stays grey.
 //! LLM drafts only — PersonaCommit remains the law. No sockets / race-lobby.
 //!
@@ -544,7 +545,8 @@ impl Default for StoryDraft {
 }
 
 /// MERCY_PERSONA P5 story-provider picker (§4).
-/// Offline seats always listed: `None | LocalTemplate | RathorOfflineShard`.
+/// Offline seats always listed: `None | LocalTemplate`.
+/// `RathorOfflineShard` is legacy, hidden, and treated as `None`.
 /// Online seats (`RathorOnline | GrokOnline | OpenAiCompatible`) are opt-in only
 /// after steward `online yes`. Default is `None` (records-only) — never
 /// GrokOnline/OpenAi on first run. Selecting a provider never lights Title Online.
@@ -555,7 +557,7 @@ pub enum StoryProvider {
     None,
     /// Offline LocalTemplate packs (P3). Works with Title Online grey.
     LocalTemplate,
-    /// Offline Rathor shard (local). Not a network seat.
+    /// Legacy, hidden: no generator; treated as None.
     RathorOfflineShard,
     /// Opt-in online — requires steward `online yes`. Drafts only.
     RathorOnline,
@@ -591,11 +593,11 @@ impl StoryProvider {
     }
 
     /// All listed providers (offline + opt-in online). UI filters via gates.
+    /// `RathorOfflineShard` stays off this list so the picker cannot cycle to it.
     pub fn all() -> &'static [StoryProvider] {
         &[
             Self::None,
             Self::LocalTemplate,
-            Self::RathorOfflineShard,
             Self::RathorOnline,
             Self::GrokOnline,
             Self::OpenAiCompatible,
@@ -603,7 +605,20 @@ impl StoryProvider {
     }
 
     pub fn offline_only() -> &'static [StoryProvider] {
-        &[Self::None, Self::LocalTemplate, Self::RathorOfflineShard]
+        &[Self::None, Self::LocalTemplate]
+    }
+}
+
+/// Picker-button token. Serde names stay on [`StoryProvider::as_str`].
+/// The legacy shard prints as `None`. `RathorOnline` prints as `online`
+/// so a button never shows `Rathor`.
+fn story_provider_btn_name(provider: StoryProvider) -> &'static str {
+    match provider {
+        StoryProvider::None | StoryProvider::RathorOfflineShard => "None",
+        StoryProvider::LocalTemplate => "LocalTemplate",
+        StoryProvider::RathorOnline => "online",
+        StoryProvider::GrokOnline => "GrokOnline",
+        StoryProvider::OpenAiCompatible => "OpenAiCompatible",
     }
 }
 
@@ -633,12 +648,16 @@ pub fn story_provider_may_select(
 }
 
 /// Resolve a requested provider under gates. Online without consent → `None`.
+/// `RathorOfflineShard` → `None` (legacy, no generator) for any flags.
 /// PersonaCommit remains the law; this only picks a draft source seat.
 pub fn resolve_story_provider(
     requested: StoryProvider,
     flag: bool,
     steward_online_yes: bool,
 ) -> StoryProvider {
+    if requested == StoryProvider::RathorOfflineShard {
+        return StoryProvider::None;
+    }
     if story_provider_may_select(requested, flag, steward_online_yes) {
         requested
     } else {
@@ -669,23 +688,15 @@ pub fn story_provider_btn_label(
     steward_online_yes: bool,
 ) -> String {
     let resolved = resolve_story_provider(provider, flag, steward_online_yes);
+    let name = story_provider_btn_name(resolved);
     if !flag {
-        format!(
-            "Story provider · {} · online picker off",
-            resolved.as_str()
-        )
+        format!("Story provider · {name} · online picker off")
     } else if !steward_online_yes && provider.is_online() {
         "Story provider · offline · online needs steward online yes".into()
     } else if resolved.is_online() {
-        format!(
-            "Story provider · {} · opt-in · drafts only · Online grey",
-            resolved.as_str()
-        )
+        format!("Story provider · {name} · opt-in · drafts only · Online grey")
     } else {
-        format!(
-            "Story provider · {} · offline · Online grey",
-            resolved.as_str()
-        )
+        format!("Story provider · {name} · offline · Online grey")
     }
 }
 
@@ -1416,12 +1427,80 @@ mod tests {
         }
         assert_eq!(
             StoryProvider::offline_only(),
+            &[StoryProvider::None, StoryProvider::LocalTemplate]
+        );
+    }
+
+    #[test]
+    fn legacy_rathor_offline_shard_hidden_and_labels_omit_ai_words() {
+        assert_eq!(
+            StoryProvider::offline_only(),
+            &[StoryProvider::None, StoryProvider::LocalTemplate]
+        );
+        assert_eq!(
+            StoryProvider::all(),
             &[
                 StoryProvider::None,
                 StoryProvider::LocalTemplate,
-                StoryProvider::RathorOfflineShard,
+                StoryProvider::RathorOnline,
+                StoryProvider::GrokOnline,
+                StoryProvider::OpenAiCompatible,
             ]
         );
+        assert!(!StoryProvider::all().contains(&StoryProvider::RathorOfflineShard));
+
+        let flags = [(false, false), (false, true), (true, false), (true, true)];
+        for (flag, yes) in flags {
+            assert_eq!(
+                resolve_story_provider(StoryProvider::RathorOfflineShard, flag, yes),
+                StoryProvider::None,
+                "flag={flag} steward={yes}"
+            );
+        }
+
+        let mut current = StoryProvider::RathorOfflineShard;
+        for (flag, yes) in flags {
+            for _ in 0..StoryProvider::all().len() + 2 {
+                current = cycle_story_provider(current, flag, yes);
+                assert_ne!(current, StoryProvider::RathorOfflineShard);
+            }
+        }
+
+        for provider in StoryProvider::all()
+            .iter()
+            .copied()
+            .chain(std::iter::once(StoryProvider::RathorOfflineShard))
+        {
+            for (flag, yes) in flags {
+                let label = story_provider_btn_label(provider, flag, yes);
+                assert!(
+                    !label.contains("Rathor") && !label.contains("AI") && !label.contains("LLM"),
+                    "{provider:?} flag={flag} steward={yes} label={label}"
+                );
+            }
+        }
+
+        let encoded =
+            serde_json::to_string(&StoryProvider::RathorOfflineShard).expect("encode variant");
+        assert_eq!(encoded, "\"RathorOfflineShard\"");
+        let decoded: StoryProvider = serde_json::from_str(&encoded).expect("serde name");
+        assert_eq!(decoded, StoryProvider::RathorOfflineShard);
+
+        let persona = Persona::nameless_steward();
+        let mut value = serde_json::to_value(&persona).expect("persona json");
+        value["story_provider"] = serde_json::json!("RathorOfflineShard");
+        let raw = value.to_string();
+        assert!(raw.contains("\"story_provider\":\"RathorOfflineShard\""));
+        let loaded: Persona = serde_json::from_value(value.clone()).expect("persona deserializes");
+        assert_eq!(loaded, persona);
+
+        #[derive(serde::Deserialize)]
+        struct LegacyPersonaStoryProvider {
+            story_provider: StoryProvider,
+        }
+        let legacy: LegacyPersonaStoryProvider =
+            serde_json::from_value(value).expect("legacy story_provider field");
+        assert_eq!(legacy.story_provider, StoryProvider::RathorOfflineShard);
     }
 
     #[test]

@@ -47,8 +47,9 @@
 //! MechanicalRace shown as lattice module only — never Title race-lobby as power.
 //! P4: Preview soft draft → **Commit** via `PersonaCommit` (validate+persist). Keep draft
 //! remains local soft-caps only. Skip = nameless Steward. Online stays grey.
-//! P5: story-provider picker `None | LocalTemplate | RathorOfflineShard | (opt-in online)`
-//! behind `ONLINE_PICKER_ENABLED` (default false) + steward `online yes`. Never lights
+//! P5: story-provider picker `None | LocalTemplate | (opt-in online)`
+//! behind `ONLINE_PICKER_ENABLED` (default false) + steward `online yes`.
+//! `RathorOfflineShard` is legacy, hidden, and treated as `None`. Never lights
 //! Title Online; GrokOnline/OpenAi never first-run default. No new HUD / sockets.
 //! No race select at Title lobby. No new Peace keys. No Online socket. No preview tag.
 //! Fog/birds visual comfort PARKED (Title contrast law).
@@ -1061,8 +1062,8 @@ pub fn persona_title_btn_label(flag: bool) -> &'static str {
     }
 }
 
-/// Story AI stub copy — records only; P2 never calls an LLM.
-pub const PERSONA_STORY_AI_STUB: &str = "Story AI · records only · no LLM this slice";
+/// Story button. The player writes their own tale.
+pub const PERSONA_STORY_AI_STUB: &str = "Story · write your own";
 
 /// P5 online picker UI enabled only when feature flag on **and** steward `online yes`.
 /// Even then Title Online stays grey — picker is draft-source only, not net.
@@ -1079,8 +1080,8 @@ pub fn apply_story_provider_seat(state: &mut PersonaCreatorState) {
     );
     // Without an allowed online seat, keep records-only (no live assist invent).
     if state.story_provider.is_offline() {
-        // LocalTemplate / RathorOfflineShard may mark assist as records later;
-        // P5 does not call sockets. Clear live invent when None.
+        // Legacy shard resolves to None. P5 does not call sockets.
+        // Clear live invent when None.
         if state.story_provider == StoryProvider::None {
             state.draft.presentation.story.ai_assist_used = false;
             state.draft.presentation.story.model_id = None;
@@ -8265,7 +8266,7 @@ mod tests {
         assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
         assert!(!state.draft.presentation.story.ai_assist_used);
         assert_eq!(state.draft.presentation.story.model_id, None);
-        assert_eq!(PERSONA_STORY_AI_STUB, "Story AI · records only · no LLM this slice");
+        assert_eq!(PERSONA_STORY_AI_STUB, "Story · write your own");
     }
 
     #[test]
@@ -8589,11 +8590,26 @@ mod tests {
             false,
             false
         ));
-        assert!(story_provider_may_select(
-            StoryProvider::RathorOfflineShard,
-            false,
-            false
-        ));
+        assert_eq!(
+            StoryProvider::offline_only(),
+            &[StoryProvider::None, StoryProvider::LocalTemplate]
+        );
+        assert_eq!(
+            resolve_story_provider(
+                StoryProvider::RathorOfflineShard,
+                false,
+                false
+            ),
+            StoryProvider::None
+        );
+        assert_eq!(
+            resolve_story_provider(
+                StoryProvider::RathorOfflineShard,
+                true,
+                true
+            ),
+            StoryProvider::None
+        );
         assert!(!story_provider_may_select(
             StoryProvider::GrokOnline,
             ONLINE_PICKER_ENABLED,
