@@ -219,6 +219,10 @@ pub const YARD_TRUNK_R: f32 = 0.22;
 pub const fn yard_trees_shown(realm: Option<u8>) -> bool {
     matches!(realm, None | Some(0) | Some(2))
 }
+/// CARD ROCK-COLLIDE-1 — the three yard rock spots. Spawn and push-out both read this.
+pub const YARD_ROCK_SPOTS: [Vec3; 3] = [Vec3::new(4.2, 0.22, -5.5), Vec3::new(-4.8, 0.22, -5.0), Vec3::new(7.0, 0.22, 0.4)];
+pub const YARD_ROCK_R: f32 = 0.42 * 1.4 * 1.06;
+pub const fn yard_rocks_shown(realm: Option<u8>) -> bool { matches!(realm, Some(1) | Some(4)) }
 
 fn spawn_ecology(
     mut commands: Commands,
@@ -334,11 +338,7 @@ fn spawn_ecology(
         perceptual_roughness: 0.95,
         ..default()
     });
-    for pos in [
-        Vec3::new(4.2, 0.22, -5.5),
-        Vec3::new(-4.8, 0.22, -5.0),
-        Vec3::new(7.0, 0.22, 0.4),
-    ] {
+    for pos in YARD_ROCK_SPOTS {
         commands.spawn((
             (
                 Mesh3d(rock.clone()),
@@ -482,7 +482,7 @@ fn dress_for_climate(
     for (prop, mut vis) in &mut q {
         let show = match prop.kind {
             PropKind::Tree => yard_trees_shown(realm.current),
-            PropKind::Stone => matches!(id, 1 | 4),
+            PropKind::Stone => yard_rocks_shown(realm.current),
             PropKind::Deer => matches!(id, 0 | 2),
             PropKind::Crystal => matches!(id, 1 | 4),
             PropKind::Mycelium => id == 3,
@@ -681,6 +681,35 @@ mod tests {
             assert_eq!(tf.scale, Vec3::new(1.4, 0.6, 1.1));
         }
         assert!(ct1.iter().chain(&rt1).any(|tf| tf.rotation != Quat::IDENTITY));
+    }
+
+    #[test]
+    fn rock_collide_1_spawn_and_visibility_read_rock_consts() {
+        let mut app = ecology_build();
+        let (_, _, _, rocks) = yard_canopy_and_rocks(&mut app);
+        let mut spots = YARD_ROCK_SPOTS.to_vec();
+        spots.sort_by(|a, b| a.x.total_cmp(&b.x));
+        assert_eq!(rocks.iter().map(|t| t.translation).collect::<Vec<_>>(), spots);
+        assert_eq!(YARD_ROCK_R, 0.42 * 1.4 * 1.06);
+        let mut spawned = app.world_mut().query_filtered::<Entity, With<EcologyProp>>();
+        let ids: Vec<Entity> = spawned.iter(app.world()).collect();
+        for e in ids { app.world_mut().entity_mut(e).insert(Visibility::Inherited); }
+        app.insert_resource(SoftPlayerRealm { current: None })
+            .init_resource::<BiomeFeel>()
+            .add_systems(Update, dress_for_climate);
+        for realm in [None, Some(0), Some(1), Some(2), Some(3), Some(4)] {
+            app.world_mut().resource_mut::<SoftPlayerRealm>().current = realm;
+            app.update();
+            let mut n = 0;
+            let mut q = app.world_mut().query::<(&EcologyProp, &Visibility)>();
+            for (prop, vis) in q.iter(app.world()) {
+                if prop.kind == PropKind::Stone {
+                    n += 1;
+                    assert_eq!(*vis == Visibility::Visible, yard_rocks_shown(realm), "{realm:?} {vis:?}");
+                }
+            }
+            assert_eq!(n, 3, "{realm:?}");
+        }
     }
 
     /// Leaf / needle green: green clearly leads both other channels.
