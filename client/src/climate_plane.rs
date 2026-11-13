@@ -1287,7 +1287,7 @@ impl Default for ClimatePlane {
 #[derive(Component)]
 struct ClimateGround;
 #[derive(Component)]
-struct ClimateStone;
+pub(crate) struct ClimateStone;
 /// Path-stone mesh whose local scale follows Comfort [`mesh_lod::procedural_detail_scale`].
 /// Ground plane stays unscaled so the yard still reads; Place identity holds on Low.
 #[derive(Component)]

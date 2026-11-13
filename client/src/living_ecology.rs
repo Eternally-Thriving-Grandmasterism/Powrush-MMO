@@ -44,12 +44,12 @@ fn stood_chip(travel: Option<&crate::hex_travel::HexTravelState>) -> Option<&'st
 }
 
 #[derive(Component)]
-struct EcologyProp {
-    kind: PropKind,
+pub(crate) struct EcologyProp {
+    pub(crate) kind: PropKind,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum PropKind {
+pub(crate) enum PropKind {
     Tree,
     Stone,
     Deer,
