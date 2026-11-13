@@ -5628,25 +5628,66 @@ mod tests {
         assert!(slow < resolved - 0.5, "ease out already sat on the target, got {slow}");
     }
 
-    /// CARD PT-PICKUP-1 H4 — real order (Update push, FixedUpdate locomotion, no wish): 1 s peak matches at 30/144 fps, under cap.
+    /// CARD PUSH-FEEL-1 — replaces PT-PICKUP-1 H4 `nectar_push_matches_30_and_144_fps_under_cap`, which asserted an
+    /// idle player was pushed past 2.0 m/s. Inverse claim: the real FlowWeatherPlugin beside locomotion, no wish.
+    fn push_feel_app(fps: u32, realm: u8) -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, crate::flow_weather::FlowWeatherPlugin))
+            .init_resource::<Assets<Mesh>>()
+            .init_resource::<Assets<StandardMaterial>>()
+            .init_resource::<GlobalAmbientLight>()
+            .init_resource::<PlayerInput>()
+            .init_resource::<JumpLatch>()
+            .init_resource::<LandingRecovery>()
+            .insert_resource(SoftPresence { position: sanctuary_yard_wake(), ..default() })
+            .insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(realm) })
+            .insert_resource(Time::<Fixed>::from_hz(60.0))
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(Duration::from_secs_f64(1.0 / fps as f64)))
+            .add_systems(FixedUpdate, apply_locomotion);
+        app
+    }
+
+    /// The wake sits inside the nectar line. Idle 3 s holds still. `NectarBead` is private to flow_weather,
+    /// so beads are found at their 9 seeded spots on the line: Visible in realms 0 and 2, Hidden in 1.
     #[test]
-    fn nectar_push_matches_30_and_144_fps_under_cap() {
-        use crate::flow_weather::{ride_nectar, NECTAR_CAP, NECTAR_FROM, NECTAR_TO};
-        let peak = |fps: u32| {
-            let (mut app, dir) = (App::new(), (NECTAR_TO - NECTAR_FROM).normalize());
-            app.add_plugins(MinimalPlugins)
-                .init_resource::<PlayerInput>()
-                .init_resource::<JumpLatch>()
-                .init_resource::<LandingRecovery>()
-                .init_resource::<SoftPresence>();
-            app.insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) }).insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(1.0 / fps as f64)));
-            app.add_systems(Update, ride_nectar).add_systems(FixedUpdate, apply_locomotion).world_mut().resource_mut::<SoftPresence>().position = (NECTAR_FROM + NECTAR_TO) * 0.5;
-            let along = |app: &mut App| { app.update(); let v = app.world().resource::<SoftPresence>().velocity; v.x * dir.x + v.z * dir.z };
-            ((0..=fps).map(|_| along(&mut app)).fold(0.0f32, f32::max), app.world().resource::<Time<Fixed>>().elapsed_secs())
-        };
-        let ((slow, t30), (fast, t144)) = (peak(30), peak(144));
-        assert!(t30 > 0.9 && t144 > 0.9, "fixed time did not step: {t30} {t144}");
-        assert!((slow - fast).abs() < 0.1 && slow > 2.0 && slow.max(fast) <= NECTAR_CAP + 1e-4, "30 fps {slow} vs 144 fps {fast}");
+    fn push_feel_idle_at_wake_holds_still_at_30_and_144_fps() {
+        use crate::flow_weather::{NECTAR_FROM, NECTAR_TO};
+        let (wake, line) = (sanctuary_yard_wake(), NECTAR_TO - NECTAR_FROM);
+        let t = ((wake - NECTAR_FROM).dot(line) / line.length_squared()).clamp(0.0, 1.0);
+        assert!(wake.distance(NECTAR_FROM + line * t) < 1.0, "the wake left the nectar line");
+        let bead_spot = |p: Vec3| (0..9).any(|i| p.distance(NECTAR_FROM + line * (i as f32 / 8.0)) < 1e-4);
+        let mut beads = Vec::new();
+        for (fps, realm) in [(30, 0), (144, 0), (30, 1), (30, 2), (144, 2)] {
+            let mut app = push_feel_app(fps, realm);
+            (0..3 * fps).for_each(|_| app.update());
+            let moved = app.world().resource::<SoftPresence>().position.distance(wake);
+            assert!(app.world().resource::<Time<Fixed>>().elapsed_secs() > 2.9, "realm {realm} {fps} fps: fixed time did not step");
+            assert!(moved < 1e-3, "realm {realm} {fps} fps: idle body drifted {moved} m in 3 s");
+            let mut q = app.world_mut().query::<(&Transform, &Visibility)>();
+            beads.push((realm, q.iter(app.world()).filter(|(tf, _)| bead_spot(tf.translation)).map(|(_, v)| *v).collect::<Vec<_>>()));
+        }
+        let (show, hide) = (vec![Visibility::Visible; 9], vec![Visibility::Hidden; 9]);
+        assert_eq!(beads, [(0, show.clone()), (0, show.clone()), (1, hide), (2, show.clone()), (2, show)], "nectar beads: Visible in realms 0 and 2, Hidden in 1");
+    }
+
+    /// A no-wish jump from inside the line lands with zero horizontal velocity on the landing tick.
+    #[test]
+    fn push_feel_no_wish_jump_in_nectar_line_lands_still() {
+        for fps in [30, 144] {
+            let mut app = push_feel_app(fps, 0);
+            let landings = std::sync::Arc::new(std::sync::Mutex::new(Vec::<Vec3>::new()));
+            let log = landings.clone();
+            let probe = move |p: Res<SoftPresence>, mut air: Local<bool>| if std::mem::replace(&mut *air, !p.grounded) && p.grounded { log.lock().unwrap().push(p.velocity) };
+            app.add_systems(FixedUpdate, probe.after(apply_locomotion));
+            (0..fps / 2).for_each(|_| app.update());
+            app.world_mut().resource_mut::<JumpLatch>().pending = true;
+            (0..2 * fps).for_each(|_| app.update());
+            let landings = landings.lock().unwrap();
+            assert_eq!(landings.len(), 1, "{fps} fps: one press, one landing");
+            assert_eq!(landings[0].xz(), Vec2::ZERO, "{fps} fps: landing tick kept {:?}", landings[0]);
+            let moved = app.world().resource::<SoftPresence>().position.xz().distance(sanctuary_yard_wake().xz());
+            assert!(moved < 1e-3, "{fps} fps: jump drifted {moved} m");
+        }
     }
 
     fn collide_app() -> App {
