@@ -100,6 +100,24 @@ jobs:
           arr_notice "$q/models"
           if bash scripts/check_asset_licenses.sh --private "$u"; then echo "self-test: ARR bad notice did not stop walk"; exit 1; fi
 
+      - name: Third-party notices drift guard (+ self-test)
+        run: |
+          notices_drift() {
+            want="$(sed -n 's/^Cargo.lock sha256: \([0-9a-f]\{64\}\)$/\1/p' "$1/THIRD-PARTY-NOTICES.txt")"
+            have="$(sha256sum "$1/Cargo.lock" | cut -c1-64)"
+            [[ -n "${want}" && "${want}" == "${have}" ]] && return 0
+            echo "Cargo.lock sha256 ${have} != THIRD-PARTY-NOTICES.txt header '${want}': regenerate notices (tools/notices/about.toml)" >&2; return 1
+          }
+          notices_drift .
+          t="$(mktemp -d)"; cp Cargo.lock THIRD-PARTY-NOTICES.txt "$t/"
+          notices_drift "$t"
+          echo "# drift" >> "$t/Cargo.lock"
+          if notices_drift "$t"; then echo "self-test: stale notices passed"; exit 1; fi
+          sed -i "/^Cargo.lock sha256: /s/: .*/: $(sha256sum "$t/Cargo.lock" | cut -c1-64)/" "$t/THIRD-PARTY-NOTICES.txt"
+          notices_drift "$t"
+          sed -i "/^Cargo.lock sha256: /d" "$t/THIRD-PARTY-NOTICES.txt"
+          if notices_drift "$t"; then echo "self-test: headerless notices passed"; exit 1; fi
+
       - name: Core tests (shared + identity)
         run: cargo test -p shared -p rsil-identity
 

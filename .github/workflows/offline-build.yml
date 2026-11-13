@@ -40,7 +40,7 @@ jobs:
           sudo apt-get install -y --no-install-recommends             pkg-config             libasound2-dev             libudev-dev             libx11-dev             libxkbcommon-x11-dev
 
       - name: Release build (default features)
-        run: cargo build --release -p powrush-client
+        run: cargo build --release -p powrush-client --locked
 
       - name: Package offline dist
         id: package
@@ -83,6 +83,8 @@ jobs:
           # (shaders/forgiveness_wave.wgsl, audio/README.md).
           cp -a assets/. "${dist}/assets/"
           cp -a client/assets/. "${dist}/assets/"
+          cp THIRD-PARTY-NOTICES.txt "${dist}/"
+          test -s "${dist}/THIRD-PARTY-NOTICES.txt" && grep -q "Fira Mono" "${dist}/THIRD-PARTY-NOTICES.txt" || { echo "FAIL: THIRD-PARTY-NOTICES.txt missing or without Fira Mono in dist" >&2; exit 1; }
           rm -f "${dist}/assets/music/epic_dark_ambient.ogg"
           rmdir "${dist}/assets/music" 2>/dev/null || true
           [[ ! -e "${dist}/assets/music/epic_dark_ambient.ogg" ]] || { echo "FAIL: epic_dark_ambient.ogg in dist" >&2; exit 1; }
