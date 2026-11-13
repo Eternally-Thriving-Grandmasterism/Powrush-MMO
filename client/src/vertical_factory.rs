@@ -186,7 +186,9 @@ fn update_factory_slab(
     if !show {
         return;
     }
-    let mut line = if pack.complete || hour.hex() == HexFlag::Peace || hour.session.peace_visitor_on_frontier()
+    let mut line = if (pack.complete && (yard.factory.tutorial_complete()
+        || !hour.charter_skin_live()))
+        || hour.hex() == HexFlag::Peace || hour.session.peace_visitor_on_frontier()
     {
         pack.line(ready).to_string()
     } else {
@@ -428,5 +430,81 @@ mod tests {
             assert!(!low.contains("online"), "{sample}");
             assert!(!sample.contains("Threshold"), "{sample}");
         }
+    }
+
+    fn held_hour(plant: bool) -> (HourSacred, VerticalFactory) {
+        use crate::hour_sacred::{try_mark_hour_two_held, try_plant_house, try_ridge_tab};
+        let mut hour = HourSacred::default();
+        assert!(try_ridge_tab(&mut hour, true));
+        let mut factory = VerticalFactory::default();
+        if plant {
+            assert!(try_plant_house(&mut hour, &mut factory) && try_mark_hour_two_held(&mut hour, true, true));
+        }
+        (hour, factory)
+    }
+
+    fn factory_app(hour: HourSacred, factory: VerticalFactory) -> App {
+        use bevy::input::InputPlugin as BevyInputPlugin;
+        let mut app = App::new();
+        app.insert_resource(hour)
+            .insert_resource(FactoryYard { factory })
+            .insert_resource(PlayerInput::default())
+            .insert_resource(ThrivingMoments::default())
+            .add_plugins((MinimalPlugins, BevyInputPlugin, VerticalFactoryPlugin));
+        app.update();
+        app
+    }
+
+    fn slab_text(app: &mut App) -> String {
+        let mut q = app.world_mut().query_filtered::<&Text, With<FactorySlabText>>();
+        q.single(app.world()).unwrap().as_str().to_string()
+    }
+
+    fn tap_q(app: &mut App) {
+        use bevy::input::{keyboard::{Key, KeyboardInput}, ButtonState};
+        let window = Entity::PLACEHOLDER;
+        for state in [ButtonState::Pressed, ButtonState::Released] {
+            app.world_mut().write_message(KeyboardInput {
+                key_code: soft_play_bindings::BUILD_WHEEL,
+                logical_key: Key::Character("q".into()),
+                state, repeat: false, text: None, window,
+            });
+            app.update();
+            app.update();
+        }
+    }
+
+    /// CARD MISSION-RESPONSE-1 — after hour two, each real Q names the unfinished factory.
+    #[test]
+    fn mission_response_1_q_after_hour_two_names_each_factory_step() {
+        let (hour, factory) = held_hour(true);
+        let mut app = factory_app(hour, factory);
+        tap_q(&mut app);
+        assert_eq!(app.world().resource::<FactoryYard>().factory.nodes.len(), 1);
+        assert_eq!(slab_text(&mut app), "Q next · reserve 2 · nodes 1 · stops 0");
+        let mut prev = slab_text(&mut app);
+        for _ in 2..=5 {
+            tap_q(&mut app);
+            let now = slab_text(&mut app);
+            assert_ne!(now, prev);
+            assert_eq!(now, app.world().resource::<FactoryYard>().factory.slab_line());
+            prev = now;
+        }
+        tap_q(&mut app);
+        assert!(app.world().resource::<ThrivingMoments>().fired.contains(&ThrivingKind::FirstArrival));
+        assert!(app.world().resource::<FactoryYard>().factory.tutorial_complete());
+        assert_eq!(slab_text(&mut app), "Hour two held · the yard remembers");
+    }
+
+    /// CARD MISSION-RESPONSE-1 — peace visitor keeps the pack line; planting still names the factory.
+    #[test]
+    fn mission_response_1_peace_path_keeps_pack_line() {
+        let (hour, factory) = held_hour(false);
+        let mut app = factory_app(hour, factory);
+        assert_eq!(slab_text(&mut app), "Not your charter · Q plant a House stake");
+        tap_q(&mut app);
+        assert!(app.world().resource::<HourSacred>().charter_skin_live());
+        assert!(!app.world().resource::<HourSacred>().complete);
+        assert_eq!(slab_text(&mut app), "Q next · reserve 3 · nodes 0 · stops 0");
     }
 }
