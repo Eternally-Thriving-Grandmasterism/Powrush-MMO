@@ -114,6 +114,9 @@ if [[ "$MODE" == "--script-walk" ]]; then
     echo "usage: ./scripts/play-offline.sh --script-walk <timeline>" >&2
     exit 1
   fi
+  if [[ -z "${POWRUSH_USER_DIR:-}" ]]; then POWRUSH_USER_DIR="$(mktemp -d)"; export POWRUSH_USER_DIR; fi
+  mkdir -p "$POWRUSH_USER_DIR"
+  if [[ ! -f "$POWRUSH_USER_DIR/powrush_settings.json" ]]; then printf '%s\n' '{"schema":"powrush_settings_v1","age_confirmed":true}' > "$POWRUSH_USER_DIR/powrush_settings.json"; fi
   exec cargo run -p powrush-client -- --script "$timeline"
 fi
 
