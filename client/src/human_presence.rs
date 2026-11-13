@@ -1407,13 +1407,14 @@ fn apply_locomotion(
     }
     let velocity = presence.velocity;
     presence.position += velocity * dt;
-    // CARD PT-COLLIDE-1 — trunks push out on x/z, only for the tree set shown in this realm.
-    use crate::living_ecology::{yard_trees_shown, YARD_TREE_SPOTS, YARD_TRUNK_R};
+    // CARD PT-COLLIDE-1 — trunks and yard rocks push out on x/z, only for the set shown in this realm.
+    use crate::living_ecology::{yard_rocks_shown, yard_trees_shown, YARD_ROCK_R, YARD_ROCK_SPOTS, YARD_TREE_SPOTS, YARD_TRUNK_R};
     let realm = trees.0.as_ref().and_then(|realm| realm.current);
     let yard = yard_trees_shown(realm).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|spot| (spot.xz(), YARD_TRUNK_R));
+    let rocks = yard_rocks_shown(realm).then_some(YARD_ROCK_SPOTS).into_iter().flatten().map(|spot| (spot.xz(), YARD_ROCK_R));
     let field = trees.1.iter().flat_map(|f| f.0.iter().copied());
     let owned = crate::wood_expedition::owned_blocker(trees.2.as_deref(), trees.3.as_ref().map(|state| state.current), realm);
-    push_out_of_trunks(&mut presence.position, yard.chain(field).chain(owned));
+    push_out_of_trunks(&mut presence.position, yard.chain(rocks).chain(field).chain(owned));
     if presence.position.y <= STAND {
         // Airline is the pre-clamp grounded flag plus the seated guard.
         // Height and vertical speed do not arm recovery by themselves.
@@ -5737,5 +5738,56 @@ mod tests {
         let back = shove(&mut app, 4, stand);
         assert!((back.xz().distance(site) - 0.41).abs() < 1e-3, "preupdate shows before the tick {back}");
         app.world_mut().resource_mut::<crate::wood_expedition::WoodHub>().shutdown();
+    }
+
+    fn rock_collide_1_app(realm: Option<u8>, spot: Vec3) -> App {
+        use bevy::time::TimeUpdateStrategy;
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(Time::<Fixed>::from_hz(60.0))
+            .insert_resource(TimeUpdateStrategy::FixedTimesteps(1))
+            .init_resource::<SoftPresence>()
+            .init_resource::<JumpLatch>()
+            .init_resource::<LandingRecovery>()
+            .init_resource::<PlayerInput>()
+            .insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: realm })
+            .add_systems(PreUpdate, write_realm)
+            .add_systems(FixedUpdate, apply_locomotion);
+        app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(spot.x, STAND, spot.z + 2.0);
+        app.world_mut().resource_mut::<PlayerInput>().movement = Vec2::Y;
+        app
+    }
+
+    #[test]
+    fn rock_collide_1_shown_rock_stops_walk_hidden_rock_does_not() {
+        use crate::living_ecology::{YARD_ROCK_R, YARD_ROCK_SPOTS};
+        let spot = YARD_ROCK_SPOTS[0];
+        let rock = spot.xz();
+        let reach = YARD_ROCK_R + PLAYER_TRUNK_RADIUS;
+        let mut shown = rock_collide_1_app(Some(4), spot);
+        for _ in 0..150 { shown.update(); }
+        let at = shown.world().resource::<SoftPresence>().position;
+        assert!((at.xz().distance(rock) - reach).abs() < 1e-3 && at.z > rock.y && at.y == STAND, "Some(4) {at}");
+        for realm in [None, Some(0), Some(2), Some(3)] {
+            let mut hidden = rock_collide_1_app(realm, spot);
+            for _ in 0..150 { hidden.update(); }
+            let at = hidden.world().resource::<SoftPresence>().position;
+            assert!(at.z < rock.y - 1.0, "{realm:?} {at}");
+        }
+        let mut app = rock_collide_1_app(Some(0), spot);
+        let mut overlapped = false;
+        for _ in 0..150 {
+            app.update();
+            let at = app.world().resource::<SoftPresence>().position;
+            if at.xz().distance(rock) < reach && at.z > rock.y {
+                overlapped = true;
+                break;
+            }
+        }
+        assert!(overlapped, "never overlapped the hidden rock");
+        app.insert_resource(RealmWrite(Some(4)));
+        app.update();
+        let at = app.world().resource::<SoftPresence>().position;
+        assert!((at.xz().distance(rock) - reach).abs() < 1e-3 && at.z > rock.y && at.y == STAND, "first tick {at}");
     }
 }
