@@ -53,7 +53,7 @@ impl Plugin for TouchControlsPlugin {
                 Update,
                 (
                     sync_touch_overlay_visibility,
-                    touch_overlay_button_clicks,
+                    touch_overlay_button_clicks.run_if(crate::age_gate::age_gate_clear),
                     touch_stick_drag,
                 )
                     .after(InputMapSet),
@@ -501,5 +501,30 @@ mod tests {
             roots.iter(app.world()).copied().next(),
             Some(Visibility::Hidden)
         );
+    }
+
+    fn press_touch_pause(app: &mut App) {
+        for state in [Interaction::None, Interaction::Pressed] {
+            let mut btn = app
+                .world_mut()
+                .query_filtered::<&mut Interaction, With<TouchPauseBtn>>();
+            *btn.single_mut(app.world_mut()).unwrap() = state;
+        }
+        app.update();
+    }
+
+    /// Touch pause toggles yard settings again once `AgeGate.open` is false.
+    #[test]
+    fn touch_overlay_pause_works_again_once_age_gate_closes() {
+        let mut app = touch_app(false);
+        app.insert_resource(crate::age_gate::AgeGate { open: true });
+        app.update();
+        press_touch_pause(&mut app);
+        assert!(!app.world().resource::<HouseLabel>().settings_open);
+        app.world_mut()
+            .resource_mut::<crate::age_gate::AgeGate>()
+            .open = false;
+        press_touch_pause(&mut app);
+        assert!(app.world().resource::<HouseLabel>().settings_open);
     }
 }
