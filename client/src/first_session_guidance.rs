@@ -864,8 +864,13 @@ pub fn signpost_step(sign: &mut Signpost, now: f64, can_arm: bool, arrived: bool
 }
 pub fn decode_seen(raw: Option<&str>) -> bool { raw.and_then(|s| serde_json::from_str::<bool>(s.trim()).ok()).unwrap_or(false) }
 fn load_signpost(mut sign: ResMut<Signpost>) { sign.seen = decode_seen(shared::user_persist::read_named(SIGNPOST_SAVE).ok().as_deref()); }
+/// GUIDE-FIGHT-1 — FreeExploration only, Sanctuary yard, no door line.
+/// Book-end dismiss does not block arming.
 fn signpost_can_arm(guidance: &FirstSessionGuidance, place: PlaceId, in_yard: bool) -> bool {
-    place == PlaceId::Sanctuary && in_yard && guidance.active && !guidance.dismissed && !guidance.objective.is_first_minutes() && door_line_on_card(guidance).is_none()
+    place == PlaceId::Sanctuary
+        && in_yard
+        && guidance.objective == GuidanceObjective::FreeExploration
+        && door_line_on_card(guidance).is_none()
 }
 fn update_signpost(
     time: Res<Time>,
@@ -1024,6 +1029,7 @@ pub(crate) fn update_guidance_visibility(
     epi: Option<Res<FirstHarvestEpiphany>>,
     nearby: Option<Res<NearbyMercyNode>>,
     time: Res<Time>,
+    sign: Option<Res<Signpost>>,
     mut query: Query<&mut Visibility, With<FirstSessionGuidanceStrip>>,
 ) {
     let hidden_by_bind = bind.map(|b| b.guidance_hidden).unwrap_or(false);
@@ -1041,9 +1047,9 @@ pub(crate) fn update_guidance_visibility(
     // (outside yard, dismissed, guidance_hidden, r2_yields_to) still applies.
     // Does not write `dismissed` or `guidance_hidden`. Persists nothing.
     let hidden_at_glow = nearby.as_ref().is_some_and(|node| node.in_range);
+    let signpost_up = sign.as_deref().is_some_and(signpost_showing);
     let show = in_yard
-        && guidance.active
-        && !guidance.dismissed
+        && (signpost_up || (guidance.active && !guidance.dismissed))
         && !hidden_by_bind
         && !hidden_at_glow
         && !r2_yields_to(
@@ -1107,7 +1113,7 @@ fn update_guidance_text(
         return;
     }
     *last_place = place;
-    let showing = sign.as_deref().is_some_and(signpost_showing) && !guidance.dismissed;
+    let showing = sign.as_deref().is_some_and(signpost_showing);
     let prompt = if showing {
         card_line(SIGNPOST_LINE)
     } else {
@@ -1128,12 +1134,21 @@ pub(crate) fn handle_guidance_dismiss_input(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut guidance: ResMut<FirstSessionGuidance>,
     bind: Option<ResMut<LivedHourBind>>,
+    mut sign: Option<ResMut<Signpost>>,
 ) {
-    if keyboard.just_pressed(KeyCode::KeyH) && guidance.active {
+    if !keyboard.just_pressed(KeyCode::KeyH) {
+        return;
+    }
+    if guidance.active {
         guidance.dismiss();
         if let Some(mut bind) = bind {
             bind.guidance_hidden = true;
         }
+    }
+    // Session hide. Arrival and the 45s timeout still write powrush_signpost.json.
+    if let Some(mut sign) = sign {
+        sign.seen = true;
+        sign.until = None;
     }
 }
 
@@ -1313,8 +1328,11 @@ mod tests {
     fn signpost_shows_once_after_first_minutes() {
         let first = FirstSessionGuidance { objective: GuidanceObjective::MoveAround, ..tended() };
         assert!(!signpost_can_arm(&first, PlaceId::Sanctuary, true), "yields to walk, glow and tend");
+        // GUIDE-FIGHT-1 retarget: OpenInventory no longer arms. FreeExploration does.
+        assert!(!signpost_can_arm(&tended(), PlaceId::Sanctuary, true), "OpenInventory does not arm");
         assert!(!signpost_can_arm(&tended(), PlaceId::Sanctuary, false) && !signpost_can_arm(&tended(), PlaceId::Heartwood, true));
-        let can = signpost_can_arm(&tended(), PlaceId::Sanctuary, true);
+        let free = FirstSessionGuidance { objective: GuidanceObjective::FreeExploration, ..tended() };
+        let can = signpost_can_arm(&free, PlaceId::Sanctuary, true);
         let mut s = Signpost::default();
         assert!(can && !signpost_step(&mut s, 1.0, can, false) && signpost_showing(&s) && s.until == Some(1.0 + SIGNPOST_SECS));
         assert!(signpost_step(&mut s, 2.0, can, true) && !signpost_showing(&s));
@@ -1347,6 +1365,83 @@ mod tests {
         assert!(predator_present(PlaceId::Heartwood) && !predator_present(PlaceId::Sanctuary));
         assert!(at_fight_home(PlaceId::Heartwood, -18.0, -18.0) && !at_fight_home(PlaceId::Depths, 0.0, -17.0));
         assert!(!signpost_can_arm(&tended(), PlaceId::Heartwood, true) && !signpost_can_arm(&tended(), PlaceId::Depths, true));
+    }
+
+    /// CARD GUIDE-FIGHT-1 — GF4. Not armable at OpenInventory. Armable at FreeExploration.
+    #[test]
+    fn guide_fight_gf4_not_open_inventory_yes_free_exploration() {
+        let open = tended();
+        let hour = FirstSessionGuidance { objective: GuidanceObjective::HourTwoHeld, ..tended() };
+        let free = FirstSessionGuidance { objective: GuidanceObjective::FreeExploration, ..tended() };
+        let door = FirstSessionGuidance {
+            objective: GuidanceObjective::FreeExploration,
+            house_live: true,
+            harvests_completed: 1,
+            ..Default::default()
+        };
+        assert!(!signpost_can_arm(&open, PlaceId::Sanctuary, true), "not at OpenInventory");
+        assert!(!signpost_can_arm(&hour, PlaceId::Sanctuary, true), "not at Hour two");
+        assert!(signpost_can_arm(&free, PlaceId::Sanctuary, true), "arms at FreeExploration");
+        assert!(!signpost_can_arm(&free, PlaceId::Sanctuary, false));
+        assert!(!signpost_can_arm(&free, PlaceId::Heartwood, true) && !signpost_can_arm(&free, PlaceId::Depths, true));
+        assert!(!signpost_can_arm(&door, PlaceId::Sanctuary, true), "a live door line blocks");
+    }
+
+    /// CARD GUIDE-FIGHT-1 — GF3. After the book-end dismiss the signpost can still arm and show, and H hides it.
+    #[test]
+    fn guide_fight_gf3_outlives_book_end_and_h_hides() {
+        use bevy::ecs::system::RunSystemOnce;
+
+        let _user_dir = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("gf3");
+        let mut app = hour_card_end_app(8.0);
+        app.update();
+        {
+            let guidance = app.world().resource::<FirstSessionGuidance>();
+            assert!(guidance.dismissed && !guidance.active, "HOUR-CARD-END still dismisses the lived card");
+            assert_eq!(guidance.objective, GuidanceObjective::FreeExploration);
+            assert!(signpost_can_arm(guidance, PlaceId::Sanctuary, true), "can arm after the book-end dismiss");
+        }
+        app.init_resource::<Signpost>()
+            .insert_resource(LaunchDoor::InYard)
+            .insert_resource(HexTravelState { current: PlaceId::Sanctuary })
+            .insert_resource(SoftPresence::default());
+        app.world_mut().run_system_once(spawn_guidance_strip).unwrap();
+        app.world_mut().run_system_once(update_signpost).unwrap();
+        app.world_mut().run_system_once(update_guidance_text).unwrap();
+        app.world_mut().run_system_once(update_guidance_visibility).unwrap();
+        assert!(signpost_showing(app.world().resource::<Signpost>()));
+        assert_eq!(guidance_card_section(&mut app).1, card_line(SIGNPOST_LINE));
+        assert_eq!(guidance_strip_visibility(&mut app), Visibility::Visible);
+        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::KeyH);
+        app.world_mut().run_system_once(handle_guidance_dismiss_input).unwrap();
+        app.world_mut().run_system_once(update_guidance_text).unwrap();
+        app.world_mut().run_system_once(update_guidance_visibility).unwrap();
+        assert!(!signpost_showing(app.world().resource::<Signpost>()));
+        assert_eq!(guidance_card_section(&mut app).1, "");
+        assert_eq!(guidance_strip_visibility(&mut app), Visibility::Hidden);
+        assert!(!dir.join(SIGNPOST_SAVE).exists(), "H does not write powrush_signpost.json");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// CARD GUIDE-FIGHT-1 — H3. A pre-card powrush_signpost.json still means spent at FreeExploration.
+    #[test]
+    fn pre_card_signpost_file_blocks_rearm_at_free_exploration() {
+        let _user_dir = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("gf-h3");
+        let path = dir.join(SIGNPOST_SAVE);
+        std::fs::write(&path, "true").unwrap();
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<Signpost>()
+            .add_systems(Startup, load_signpost);
+        app.update();
+        let mut sign = app.world().resource::<Signpost>().clone();
+        let free = FirstSessionGuidance { objective: GuidanceObjective::FreeExploration, ..Default::default() };
+        assert!(sign.seen && signpost_can_arm(&free, PlaceId::Sanctuary, true));
+        assert!(!signpost_step(&mut sign, 0.0, true, false) && !signpost_showing(&sign));
+        assert_eq!(std::fs::read(&path).unwrap(), b"true");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -2755,6 +2850,7 @@ mod tests {
         assert_eq!(week, "Hour two held · the week's tons are restored");
         assert!(week.contains("week"));
         assert!(week.contains("tons"));
+        assert!(!week.contains("Stavehold") && !week.contains("combat") && !week.contains("practice"));
 
         assert_eq!(stood_place_name(PlaceId::Sanctuary, false), "Sanctuary");
         assert_eq!(stood_place_name(PlaceId::Heartwood, false), "Heartwood");
@@ -2821,6 +2917,7 @@ mod tests {
         assert!(prompt.contains("harm stays optional"));
         assert!(!prompt.contains("combat"));
         assert!(!prompt.contains("kill"));
+        assert!(!prompt.contains("Stavehold") && !prompt.contains("practice"));
     }
 
     /// CARD GUIDANCE-AFTER-BOOK-1 — Hour three enters free exploration and stays.
