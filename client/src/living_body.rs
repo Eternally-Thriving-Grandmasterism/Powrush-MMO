@@ -12,6 +12,7 @@
 
 use bevy::prelude::*;
 
+use crate::fabricator::FabricatorYard;
 use crate::harvest_feel::SoftRbePool;
 use crate::input::PlayerInput;
 use crate::living_practice_loop::SoftPlayerRealm;
@@ -137,10 +138,12 @@ fn breathe_and_weigh(
     input: Res<PlayerInput>,
     pool: Res<SoftRbePool>,
     realm: Res<SoftPlayerRealm>,
+    yard: Option<Res<FabricatorYard>>,
     mut body: ResMut<LivingBody>,
 ) {
     let dt = time.delta_secs();
-    body.heavy = pool.vitality >= 3.2;
+    let stocked = yard.as_ref().is_some_and(|y| y.fab.crate_stock > 0);
+    body.heavy = pool.vitality >= 3.2 || stocked;
     body.in_shade = matches!(realm.current, Some(0) | Some(2));
     let moving = input.movement.length_squared() > 0.04;
     let want_sprint = input.sprint && moving && body.can_sprint();
@@ -224,5 +227,40 @@ mod tests {
             ..Default::default()
         };
         assert!(!winded.can_sprint());
+    }
+
+    /// H1: `breathe_and_weigh` alone for one frame, with a yard holding `stock` crates or no yard.
+    fn weigh(vitality: f32, stock: Option<u32>) -> LivingBody {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .init_resource::<PlayerInput>()
+            .init_resource::<SoftPlayerRealm>()
+            .init_resource::<LivingBody>()
+            .insert_resource(SoftRbePool { vitality, ..Default::default() })
+            .add_systems(Update, breathe_and_weigh);
+        if let Some(crate_stock) = stock {
+            let fab = shared::fabricator::Fabricator { crate_stock, ..Default::default() };
+            app.insert_resource(crate::fabricator::FabricatorYard { fab, bench_glow: 0.0 });
+        }
+        app.update();
+        app.world_mut().remove_resource::<LivingBody>().unwrap()
+    }
+
+    /// HL6 — `vitality >= 3.2` is still heavy with stock 0 or no yard, and heavy still carries at 0.82.
+    #[test]
+    fn hl6_vitality_still_marks_heavy() {
+        for stock in [None, Some(0)] {
+            let (full, light) = (weigh(3.2, stock), weigh(3.1, stock));
+            assert_eq!((full.heavy, full.carry_mul(), light.heavy, light.carry_mul()), (true, 0.82, false, 1.0));
+        }
+    }
+
+    /// HL6 — one stocked LaneCrate is heavy below 3.2 at the same 0.82; winded still beats heavy.
+    #[test]
+    fn hl6_stocked_crate_marks_heavy_below_vitality() {
+        let body = weigh(0.0, Some(1));
+        assert_eq!((body.heavy, body.carry_mul(), body.tell()), (true, 0.82, BodyTell::Heavy));
+        let winded = LivingBody { winded: true, breath: 0.04, ..body };
+        assert_eq!(winded.tell(), BodyTell::Winded);
     }
 }
