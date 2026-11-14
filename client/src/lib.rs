@@ -95,6 +95,7 @@ pub mod resonance_flavors;
 pub mod mercy_transporters;
 pub mod steam_abundance_mirror;
 pub mod ui_font;
+pub mod ui_kit;
 pub mod loading_lines;
 pub mod loading_screen;
 pub mod frame_pace;

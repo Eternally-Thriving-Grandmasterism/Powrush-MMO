@@ -179,36 +179,14 @@ use shared::pause_ledger_face::lethal_sign_row;
 #[path = "gltf_integration.rs"]
 pub mod gltf_integration;
 
-// <title-palette> — every colour literal in this file (outside tests) lives below.
-// --- High-contrast title palette (opaque — no alpha-on-fog) -----------------
-// Soft GPU / Mesa must read Play · Continue · Online · Settings before the yard.
-// CARD VP-UI-REGAL-1 — regal crest: polished gold frames, royal purple fills,
-// near-black purple-tinted plates, warm cream / champagne text. Online grey stays.
-/// Opaque near-black plate behind menu text, faint royal purple tint (light-on-dark).
-pub const TITLE_PLATE_BG: Color = Color::srgb(0.07, 0.05, 0.09);
-/// Full-screen dimmer over the world (opaque near-black, faint purple — stranger reads the door).
-pub const TITLE_DIM_BG: Color = Color::srgb(0.04, 0.025, 0.05);
-/// Primary menu / title text — warm cream, high contrast on TITLE_PLATE_BG.
-pub const TITLE_TEXT_PRIMARY: Color = Color::srgb(0.98, 0.95, 0.86);
-/// Secondary cue / subtitle text — pale gold / champagne.
-pub const TITLE_TEXT_SECONDARY: Color = Color::srgb(0.90, 0.82, 0.62);
-/// Enabled button fill (opaque deep royal purple).
-pub const TITLE_BTN_BG: Color = Color::srgb(0.19, 0.08, 0.30);
-/// Enabled button label — warm champagne cream.
-pub const TITLE_BTN_FG: Color = Color::srgb(0.98, 0.94, 0.84);
-/// Disabled / Online-grey fill.
-pub const TITLE_BTN_DISABLED_BG: Color = Color::srgb(0.10, 0.11, 0.12);
-/// Disabled / Online-grey label.
-pub const TITLE_BTN_DISABLED_FG: Color = Color::srgb(0.55, 0.58, 0.60);
-/// Plate + button border (opaque polished gold).
-pub const TITLE_BORDER: Color = Color::srgb(0.84, 0.69, 0.32);
-/// CARD VP-UI-REGAL-2 — active Settings tab fill: a lighter royal purple than
-/// TITLE_BTN_BG (still purple: blue and red above green).
-pub const TITLE_BTN_ACTIVE_BG: Color = Color::srgb(0.32, 0.16, 0.48);
-/// CARD VP-UI-REGAL-2 — inactive Settings tab border: quiet champagne gold,
-/// dimmer than TITLE_BORDER (not bronze / brown / beige).
-pub const TITLE_BORDER_MUTED: Color = Color::srgb(0.66, 0.58, 0.36);
-// </title-palette> — every colour literal in this file (outside tests) lives above.
+// <title-palette> — the colours live in `crate::ui_kit`; re-exported for the importers.
+pub use crate::ui_kit::{
+    TITLE_BORDER, TITLE_BORDER_MUTED, TITLE_BTN_ACTIVE_BG, TITLE_BTN_BG, TITLE_BTN_DISABLED_BG,
+    TITLE_BTN_DISABLED_FG, TITLE_BTN_FG, TITLE_DIM_BG, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY,
+    TITLE_TEXT_SECONDARY,
+};
+// </title-palette> — no colour literal in this file (outside tests).
+use crate::ui_kit;
 
 /// U5 Steam Deck layout contract. The title plate remains inside this surface.
 pub const DECK_TITLE_WIDTH: f32 = 1280.0;
@@ -677,9 +655,12 @@ struct TitleMenuScaledLabel {
 }
 #[derive(Component)]
 struct SettingsStubRoot;
-/// First-launch Comfort graphics banner (MESH-LOD) — title / yard pause.
+/// First-launch Comfort graphics banner (MESH-LOD) — last row of the title
+/// plate and of the pause plate. `in_pause` names the host plate.
 #[derive(Component)]
-struct ComfortGraphicsBannerRoot;
+struct ComfortGraphicsBannerRoot {
+    in_pause: bool,
+}
 #[derive(Component)]
 struct ComfortGraphicsBannerDismissBtn;
 #[derive(Component)]
@@ -1380,7 +1361,9 @@ impl Plugin for TitleScreenPlugin {
                     spawn_house_dress_panel,
                     spawn_persona_creator_panel,
                     spawn_settings_stub,
-                    spawn_comfort_graphics_banner,
+                    spawn_comfort_graphics_banner
+                        .after(spawn_title_screen)
+                        .after(spawn_settings_stub),
                 ),
             )
             .add_systems(
@@ -1590,61 +1573,56 @@ TextColor(TITLE_TEXT_SECONDARY),
 }
 
 
-fn spawn_comfort_graphics_banner(mut commands: Commands) {
-    // Top-of-screen strip — title / yard pause first-launch only. Online stays grey.
-    commands
+fn spawn_comfort_graphics_banner(
+    mut commands: Commands,
+    plates: Query<(Entity, Has<SettingsStubRoot>), Or<(With<TitlePlate>, With<SettingsStubRoot>)>>,
+) {
+    for (plate, in_pause) in &plates {
+        commands.entity(plate).with_children(|p| spawn_comfort_graphics_banner_row(p, in_pause));
+    }
+}
+
+fn spawn_comfort_graphics_banner_row(p: &mut ChildSpawnerCommands, in_pause: bool) {
+    // Last row of the title plate and of the pause plate — first launch only. Online stays grey.
+    p
         .spawn((
             (
                 Node {
-                    position_type: PositionType::Absolute,
-                    top: Val::Px(10.0),
-                    left: Val::Percent(50.0),
-                    width: Val::Px(520.0),
-                    margin: UiRect {
-                        left: Val::Px(-260.0),
-                        ..default()
-                    },
-                    padding: UiRect::axes(Val::Px(12.0), Val::Px(8.0)),
+                    width: Val::Percent(100.0),
+                    display: Display::None,
                     flex_direction: FlexDirection::Row,
-                    column_gap: Val::Px(10.0),
+                    column_gap: Val::Px(ui_kit::SPACE_L),
                     align_items: AlignItems::Center,
                     justify_content: JustifyContent::SpaceBetween,
-                    border: UiRect::all(Val::Px(1.0)),
                     ..default()
                 },
-                BackgroundColor(TITLE_PLATE_BG),
-                BorderColor::all(TITLE_BORDER),
                 FocusPolicy::Block,
                 Visibility::Hidden,
             ),
-GlobalZIndex(LIVED_UI_Z_PAUSE + 1),
-            ComfortGraphicsBannerRoot,
-            LivedUiPlate,
+            ComfortGraphicsBannerRoot { in_pause },
         ))
         .with_children(|row| {
             row.spawn((
 Text::new(COMFORT_GRAPHICS_BANNER_COPY),
-TextFont { font_size: FontSize::Px(13.0 / 1.2), ..default() },
+ui_kit::font(ui_kit::TYPE_SMALL),
 TextColor(TITLE_TEXT_SECONDARY),
 ));
             row.spawn((
                 (
-                    bevy::ui_widgets::Button, Interaction::default(),
+                    ui_kit::button(TITLE_BTN_BG),
                     Node {
-                        padding: UiRect::axes(Val::Px(10.0), Val::Px(6.0)),
+                        padding: UiRect::axes(Val::Px(ui_kit::SPACE_L), Val::Px(ui_kit::SPACE_XS)),
                         justify_content: JustifyContent::Center,
-                        border: UiRect::all(Val::Px(1.0)),
+                        border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)),
                         ..default()
                     },
-                    BorderColor::all(TITLE_BORDER),
-                    BackgroundColor(TITLE_BTN_BG),
                 ),
                 ComfortGraphicsBannerDismissBtn,
             ))
             .with_children(|b| {
                 b.spawn((
 Text::new("Dismiss"),
-TextFont { font_size: FontSize::Px(12.0 / 1.2), ..default() },
+ui_kit::font(ui_kit::TYPE_CAPTION),
 TextColor(TITLE_BTN_FG),
 ));
             });
@@ -1675,7 +1653,7 @@ fn sync_comfort_graphics_banner(
     label: Res<HouseLabel>,
     settings: Res<LocalSettingsState>,
     places: Option<Res<PlacesPlate>>,
-    mut q: Query<&mut Visibility, With<ComfortGraphicsBannerRoot>>,
+    mut q: Query<(&ComfortGraphicsBannerRoot, &mut Visibility, &mut Node)>,
 ) {
     let on_title = *door == LaunchDoor::Title;
     let places_open = places.map(|p| p.open).unwrap_or(false);
@@ -1685,12 +1663,13 @@ fn sync_comfort_graphics_banner(
         settings.inner.comfort_graphics_banner_dismissed,
         places_open,
     );
-    for mut vis in &mut q {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+    // Title plate row on Title, pause plate row in the yard. Settings over Title
+    // covers the title plate with the pause plate, so neither row shows there.
+    let stacked = on_title && label.settings_open;
+    for (row, mut vis, mut node) in &mut q {
+        let here = show && !stacked && row.in_pause != on_title;
+        *vis = if here { Visibility::Visible } else { Visibility::Hidden };
+        node.display = if here { Display::Flex } else { Display::None };
     }
 }
 
@@ -1733,22 +1712,20 @@ fn spawn_menu_btn<C: Component>(p: &mut ChildSpawnerCommands, label: &str, marke
     };
     p.spawn((
         (
-            bevy::ui_widgets::Button, Interaction::default(),
+            ui_kit::button(bg),
             Node {
-                padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)),
+                padding: UiRect::axes(Val::Px(ui_kit::SPACE_2XL), Val::Px(ui_kit::SPACE_L)),
                 justify_content: JustifyContent::Center,
-                border: UiRect::all(Val::Px(1.0)),
+                border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)),
                 ..default()
             },
-            BorderColor::all(TITLE_BORDER),
-            BackgroundColor(bg),
         ),
         marker,
     ))
     .with_children(|b| {
         b.spawn((
 Text::new(label),
-TextFont { font_size: FontSize::Px(15.0 / 1.2), ..default() },
+ui_kit::font(ui_kit::TYPE_BODY),
 TextColor(fg),
 ));
     });
@@ -1776,26 +1753,20 @@ fn spawn_title_plate_btn<C: Component>(
     let logical = title_menu_label_px(TITLE_MENU_BTN_BASE_PX, text_scale);
     p.spawn((
         (
-            bevy::ui_widgets::Button,
-            Interaction::default(),
+            ui_kit::button(bg),
             Node {
                 padding: UiRect::axes(Val::Px(TITLE_MENU_BTN_PAD_X), Val::Px(TITLE_MENU_BTN_PAD_Y)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(TITLE_MENU_BTN_BORDER)),
                 ..default()
             },
-            BorderColor::all(TITLE_BORDER),
-            BackgroundColor(bg),
         ),
         marker,
     ))
     .with_children(|b| {
         b.spawn((
             Text::new(label),
-            TextFont {
-                font_size: FontSize::Px(logical / 1.2),
-                ..default()
-            },
+            ui_kit::font(logical),
             TextColor(fg),
             TitleMenuScaledLabel {
                 base_px: TITLE_MENU_BTN_BASE_PX,
@@ -1807,13 +1778,13 @@ fn spawn_title_plate_btn<C: Component>(
 /// Pause plate chrome shared by every tab. The 720p budget is
 /// [`comfort_pause_plate_height_px`] and [`controls_pause_plate_height_px`].
 const PAUSE_PLATE_WIDTH: f32 = 420.0;
-const PAUSE_PLATE_PAD: f32 = 10.0;
-const PAUSE_PLATE_BORDER: f32 = 1.5;
-const PAUSE_PLATE_ROW_GAP: f32 = 4.0;
+const PAUSE_PLATE_PAD: f32 = ui_kit::SPACE_L;
+const PAUSE_PLATE_BORDER: f32 = ui_kit::BORDER_PLATE;
+const PAUSE_PLATE_ROW_GAP: f32 = ui_kit::SPACE_XS;
 /// Row padding outside Comfort and Controls. HUD keeps this.
 const SETTINGS_ROW_PAD_Y: f32 = 5.0;
-const SETTINGS_ROW_BORDER: f32 = 1.0;
-const SETTINGS_TAB_ROW_GAP: f32 = 4.0;
+const SETTINGS_ROW_BORDER: f32 = ui_kit::BORDER_HAIRLINE;
+const SETTINGS_TAB_ROW_GAP: f32 = ui_kit::SPACE_XS;
 /// CARD CAM-MOUSELOOK-1B. Fourteen Comfort rows. Pad 5→3 and gap 4→1 keep
 /// the Esc plate inside 98% of 720px when text scale is at its max.
 const COMFORT_ROW_PAD_Y: f32 = 3.0;
@@ -1858,8 +1829,7 @@ fn spawn_settings_stub(mut commands: Commands) {
                     align_items: AlignItems::Center,
                     ..default()
                 },
-                BackgroundColor(TITLE_PLATE_BG),
-                BorderColor::all(TITLE_BORDER),
+                ui_kit::plate(),
                 // Keep pause chrome hits on this plate (Places door + tabs + Resume).
                 FocusPolicy::Block,
                 Visibility::Hidden,
@@ -1872,7 +1842,7 @@ GlobalZIndex(LIVED_UI_Z_PAUSE),
             p.spawn((
                 (
 Text::new(YARD_WAITING),
-TextFont { font_size: FontSize::Px(16.0 / 1.2), ..default() },
+ui_kit::font(ui_kit::TYPE_CUE),
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 PauseCueText,
@@ -1881,7 +1851,7 @@ TextColor(TITLE_TEXT_PRIMARY),
             p.spawn(Node {
                     width: Val::Percent(100.0),
                     flex_direction: FlexDirection::Row,
-                    column_gap: Val::Px(6.0),
+                    column_gap: Val::Px(ui_kit::SPACE_S),
                     justify_content: JustifyContent::Center,
                     ..default()
                 })
@@ -1903,9 +1873,9 @@ TextColor(TITLE_TEXT_PRIMARY),
                     SettingsGraphicsLabel,
                 );
                 // CARD PT-MOUSE-1 — [−] Mouse sensitivity · 1.00 [+], one row over `look_sensitivity`.
-                comfort.spawn(Node { width: Val::Percent(100.0), column_gap: Val::Px(6.0), align_items: AlignItems::Center, ..default() }).with_children(|row| {
+                comfort.spawn(Node { width: Val::Percent(100.0), column_gap: Val::Px(ui_kit::SPACE_S), align_items: AlignItems::Center, ..default() }).with_children(|row| {
                     spawn_comfort_row(row, "−", SettingsLookDownBtn, Name::new("look −"));
-                    let font = TextFont { font_size: FontSize::Px(15.0 / 1.2), ..default() };
+                    let font = ui_kit::font(ui_kit::TYPE_BODY);
                     row.spawn((Text::new("Mouse sensitivity · 1.00"), font, TextColor(TITLE_BTN_FG), SettingsLookLabel, Node { flex_shrink: 0.0, ..default() }));
                     spawn_comfort_row(row, "+", SettingsLookBtn, Name::new("look +"));
                 });
@@ -2045,7 +2015,7 @@ TextColor(TITLE_TEXT_PRIMARY),
                 guide.spawn(
                     (
 Text::new(PAUSE_GUIDE_LINE),
-TextFont { font_size: FontSize::Px(14.0 / 1.2), ..default() },
+ui_kit::font(ui_kit::TYPE_LABEL),
 TextColor(TITLE_TEXT_SECONDARY),
 TextLayout::justify(Justify::Center),
 Node {
@@ -2465,7 +2435,7 @@ const TITLE_MENU_BTN_BORDER: f32 = 1.0;
 /// CARD TITLE-MENU-TEXT-SCALE-1. `(base × text_scale)` clamped to 11..=22 px.
 /// At text scale 1.00 the result is `base`, so `base / 1.2` matches today's font.
 fn title_menu_label_px(base_px: f32, text_scale: f32) -> f32 {
-    (base_px * text_scale).clamp(11.0, 22.0)
+    ui_kit::scaled_px(base_px, text_scale)
 }
 
 /// Fira Mono subset advance is 0.6em of the stored font (`logical / 1.2`).
@@ -3178,23 +3148,21 @@ TextColor(TITLE_BTN_FG),
 fn spawn_pause_tab_btn(p: &mut ChildSpawnerCommands, tab: PauseTab) {
     p.spawn((
         (
-            bevy::ui_widgets::Button, Interaction::default(),
+            ui_kit::button(TITLE_BTN_BG),
             Node {
-                padding: UiRect::axes(Val::Px(12.0), Val::Px(6.0)),
+                padding: UiRect::axes(Val::Px(ui_kit::SPACE_XL), Val::Px(ui_kit::SPACE_S)),
                 justify_content: JustifyContent::Center,
-                border: UiRect::all(Val::Px(1.0)),
+                border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)),
                 flex_grow: 1.0,
                 ..default()
             },
-            BorderColor::all(TITLE_BORDER),
-            BackgroundColor(TITLE_BTN_BG),
         ),
         PauseTabBtn(tab),
     ))
     .with_children(|b| {
         b.spawn((
 Text::new(tab.label()),
-TextFont { font_size: FontSize::Px(14.0 / 1.2), ..default() },
+ui_kit::font(ui_kit::TYPE_LABEL),
 TextColor(TITLE_BTN_FG),
 ));
     });
@@ -3370,16 +3338,14 @@ fn spawn_settings_row_padded<B: Component, L: Component>(
 ) {
     p.spawn((
         (
-            bevy::ui_widgets::Button, Interaction::default(),
+            ui_kit::button(TITLE_BTN_BG),
             Node {
-                padding: UiRect::axes(Val::Px(12.0), Val::Px(pad_y)),
+                padding: UiRect::axes(Val::Px(ui_kit::SPACE_XL), Val::Px(pad_y)),
                 justify_content: JustifyContent::Center,
                 border: UiRect::all(Val::Px(SETTINGS_ROW_BORDER)),
                 width: Val::Percent(100.0),
                 ..default()
             },
-            BorderColor::all(TITLE_BORDER),
-            BackgroundColor(TITLE_BTN_BG),
         ),
         btn,
     ))
@@ -3387,7 +3353,7 @@ fn spawn_settings_row_padded<B: Component, L: Component>(
         b.spawn((
             (
 Text::new(label),
-TextFont { font_size: FontSize::Px(15.0 / 1.2), ..default() },
+ui_kit::font(ui_kit::TYPE_BODY),
 TextColor(TITLE_BTN_FG),
 ),
             text_marker,
@@ -3433,9 +3399,9 @@ fn settings_row_line_px(text_scale: f32) -> f32 {
 /// Cue, tabs, Online, Resume, Title, Quit. Places stays hidden. The active
 /// tab panel is added by the caller.
 fn pause_plate_chrome_px() -> f32 {
-    let cue = 16.0_f32.ceil();
-    let tab = 14.0_f32.ceil() + 6.0 * 2.0 + SETTINGS_ROW_BORDER * 2.0;
-    let menu = 15.0_f32.ceil() + 10.0 * 2.0 + SETTINGS_ROW_BORDER * 2.0;
+    let cue = ui_kit::TYPE_CUE.ceil();
+    let tab = ui_kit::TYPE_LABEL.ceil() + ui_kit::SPACE_S * 2.0 + SETTINGS_ROW_BORDER * 2.0;
+    let menu = ui_kit::TYPE_BODY.ceil() + ui_kit::SPACE_L * 2.0 + SETTINGS_ROW_BORDER * 2.0;
     let chrome = PAUSE_PLATE_PAD * 2.0 + PAUSE_PLATE_BORDER * 2.0;
     let gaps = 6.0 * PAUSE_PLATE_ROW_GAP;
     chrome + cue + tab + 4.0 * menu + gaps
@@ -9447,8 +9413,8 @@ mod tests {
             .filter(|l| l.contains("Color::srgb"))
             .collect();
         assert!(stray.is_empty(), "inline Color::srgb outside palette: {stray:?}");
-        assert!(body[open..close].contains("pub const TITLE_BTN_ACTIVE_BG"));
-        assert!(body[open..close].contains("pub const TITLE_BORDER_MUTED"));
+        assert!(body[open..close].contains("pub use crate::ui_kit::{"));
+        assert!(body[open..close].contains("TITLE_BTN_ACTIVE_BG") && body[open..close].contains("TITLE_BORDER_MUTED"));
     }
 
     #[test]
@@ -10300,5 +10266,43 @@ mod tests {
         assert!(cap - height >= 16.0, "credits plate {height}px inside the 720p cap {cap}");
         assert!(720.0 * 0.01 + height <= 720.0, "plate ends past 720");
         assert!(title_plate_fits_surface(Vec2::new(1280.0, 720.0), Vec2::new(PAUSE_PLATE_WIDTH, height), 0.0));
+    }
+
+    /// CARD UI-KIT-1 — real UI layout (no GPU) at 1280×720, 1920×1080 and 1280×800: a shown Comfort banner sits inside
+    /// its host plate, clear of the other plate, the HUD top-centre lane and WELCOME; the pause cue and tabs stay uncovered.
+    #[test]
+    fn ui_kit_banner_docks_inside_plates_clear_of_hud_lane() {
+        use {bevy::camera::{ComputedCameraValues, RenderTargetInfo}, crate::hud_anchor_registry::{HudRect, CODED_JOINERS, WELCOME}};
+        let (lane, mut bad): (Vec<_>, Vec<String>) = (CODED_JOINERS.iter().filter(|p| p.margin_left.is_some() && matches!(p.top, Val::Px(_))).chain([&WELCOME]).collect(), vec![]);
+        for ((w, h), (door, open)) in [(1280u32, 720u32), (1920, 1080), (1280, 800)].into_iter()
+            .flat_map(|s| [(LaunchDoor::Title, false), (LaunchDoor::InYard, true), (LaunchDoor::Title, true)].map(|d| (s, d))) {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, AssetPlugin::default(), bevy::input::InputPlugin, bevy::text::TextPlugin, bevy::ui::UiPlugin, crate::ui_font::UiFontPlugin))
+                .init_asset::<Image>().init_asset::<TextureAtlasLayout>().add_message::<bevy::picking::pointer::PointerInput>()
+                .add_message::<bevy::picking::backend::PointerHits>().init_resource::<bevy::picking::hover::HoverMap>().init_resource::<bevy::picking::events::PointerState>()
+                .insert_resource(door).insert_resource(HouseLabel { settings_open: open, ..default() }).init_resource::<PersonaCreatorState>().init_resource::<SessionNetMode>()
+                .insert_resource(LocalSettingsState { inner: LocalSettings::peace_defaults(), dirty: false })
+                .add_systems(Startup, (spawn_title_screen, spawn_settings_stub, spawn_comfort_graphics_banner).chain())
+                .add_systems(Update, (sync_title_visibility, sync_settings_stub, sync_comfort_graphics_banner));
+            let target_info = Some(RenderTargetInfo { physical_size: UVec2::new(w, h), scale_factor: 1.0 });
+            app.world_mut().spawn((Camera2d, Camera { computed: ComputedCameraValues { target_info, ..default() }, ..default() }));
+            let world = { (app.update(), app.update()); app.world_mut() };
+            let (mut rows, mut chrome) = (world.query_filtered::<Entity, With<ComfortGraphicsBannerRoot>>(), world.query_filtered::<Entity, Or<(With<PauseCueText>, With<PauseTabBtn>)>>());
+            let (mut plates, world) = (world.query_filtered::<Entity, Or<(With<TitlePlate>, With<SettingsStubRoot>)>>(), &*world);
+            let up = |e: Entity| std::iter::successors(Some(e), |e| world.get::<ChildOf>(*e).map(ChildOf::parent));
+            let shown = |e: Entity| up(e).all(|a| world.get::<Visibility>(a) != Some(&Visibility::Hidden) && world.get::<ComputedNode>(a).is_some_and(|n| n.size().min_element() > 0.0));
+            let rect = |e: Entity| { let (c, s) = (world.get::<bevy::ui::UiGlobalTransform>(e).unwrap().translation, world.get::<ComputedNode>(e).unwrap().size() / 2.0);
+                HudRect { x0: (c.x - s.x).round() as i32, y0: (c.y - s.y).round() as i32, x1: (c.x + s.x).round() as i32, y1: (c.y + s.y).round() as i32 } };
+            let (tag, banners) = (format!("{w}x{h} {door:?} settings_open={open}"), rows.iter(world).filter(|b| shown(*b)).collect::<Vec<_>>());
+            if banners.len() != usize::from(!(door == LaunchDoor::Title && open)) { bad.push(format!("{tag}: {} banner rows shown", banners.len())); }
+            for (b, br) in banners.iter().map(|b| (*b, rect(*b))) {
+                let want = |p: Entity| if up(b).any(|a| a == p) { (br.x1 - br.x0) * (br.y1 - br.y0) } else { 0 };
+                plates.iter(world).filter(|p| shown(*p) && br.overlap_area(rect(*p)) != want(*p)).for_each(|p| bad.push(format!("{tag}: banner {br:?} vs plate {:?}", rect(p))));
+                lane.iter().filter(|s| br.overlap_area(s.rect(w as f32, h as f32)) != 0).for_each(|s| bad.push(format!("{tag}: banner {br:?} over HUD {}", s.id)));
+            }
+            let covered = |c: Entity| !shown(c) || rect(c).y0 < 0 || rect(c).y1 > h as i32 || banners.iter().any(|b| rect(*b).overlap_area(rect(c)) > 0);
+            chrome.iter(world).filter(|c| open && covered(*c)).for_each(|c| bad.push(format!("{tag}: pause cue/tab {:?} hidden or covered", rect(c))));
+        }
+        assert!(bad.is_empty(), "{bad:#?}");
     }
 }
