@@ -42,8 +42,20 @@ pub const fn loot_hash(strikes: u32, place: u32, owned: u32) -> u32 {
 }
 /// Named finds earned on defeats: names only, a record with no stats. `pending` is the line waiting for `show_find`.
 #[derive(Resource, Debug, Default, Clone, PartialEq)]
-pub struct FoundFinds { pub names: Vec<&'static str>, pub pending: Option<String> }
+pub struct FoundFinds { pub names: Vec<&'static str>, pub pending: Option<String>, pub equipped: Option<&'static str> }
 impl FoundFinds {
+    /// GEAR-SLOT-1 — one slot: equip an owned named find by name; a second equip replaces the first. True only when it set the slot.
+    pub fn equip_named(&mut self, name: &str) -> bool {
+        let Some(f) = NAMED_FINDS.iter().find(|f| f.name == name).filter(|f| self.names.contains(&f.name)) else { return false };
+        self.equipped = Some(f.name); true
+    }
+    /// GEAR-SLOT-1 — empty the one slot.
+    pub fn clear_equipped(&mut self) { self.equipped = None; }
+    /// GEAR-SLOT-1 — the equipped owned find, or None when the slot is empty, unowned or unknown. Reads `temper`/`seated` only.
+    pub fn equipped_find(&self) -> Option<&'static NamedFind> {
+        let name = self.equipped?;
+        NAMED_FINDS.iter().find(|f| f.name == name && self.names.contains(&f.name))
+    }
     /// One roll per defeat, role None. An owned pick is silent and a waiting line is never replaced. True when a new find lands.
     pub fn drop_once(&mut self, tier: DifficultyTier, strikes: u32, place: u32) -> bool {
         if self.pending.is_some() { return false; }
@@ -54,7 +66,10 @@ impl FoundFinds {
     }
     pub fn encode(&self) -> String {
         let names = serde_json::to_string(&self.names).unwrap_or_default();
-        format!(r#"{{"schema":"{FINDS_SCHEMA}","names":{names}}}"#)
+        match self.equipped_find() {
+            Some(f) => format!(r#"{{"schema":"{FINDS_SCHEMA}","names":{names},"equipped":{}}}"#, serde_json::to_string(f.name).unwrap_or_default()),
+            None => format!(r#"{{"schema":"{FINDS_SCHEMA}","names":{names}}}"#),
+        }
     }
     /// The v1 JSON object, or a pre-JSON save of one name per line. Known names only, in table order.
     pub fn decode(s: Option<&str>) -> Self {
@@ -67,7 +82,9 @@ impl FoundFinds {
             Err(_) => s.lines().map(str::to_string).collect(),
         };
         let has = |n: &str| names.iter().any(|l| l.trim() == n);
-        FoundFinds { names: NAMED_FINDS.iter().map(|f| f.name).filter(|n| has(n)).collect(), pending: None }
+        // GEAR-SLOT-1 — restore the slot only when its name is known and owned; unknown, unowned or foreign-schema bytes give None.
+        let equipped = serde_json::from_str::<FindsDoc>(s).ok().and_then(|d| d.equipped).and_then(|name| NAMED_FINDS.iter().map(|f| f.name).find(|n| *n == name && has(n)));
+        FoundFinds { names: NAMED_FINDS.iter().map(|f| f.name).filter(|n| has(n)).collect(), pending: None, equipped }
     }
 }
 pub const FINDS_SCHEMA: &str = "powrush_finds_v1";
@@ -78,6 +95,8 @@ struct FindsDoc {
     schema: Option<String>,
     #[serde(default)]
     names: Vec<String>,
+    #[serde(default)]
+    equipped: Option<String>,
 }
 pub fn find_line(f: &NamedFind) -> String { format!("{} · {}", f.name, f.sentence) }
 /// The waiting line shows only once the calm queue is done and the current pulse line has expired.
@@ -143,7 +162,7 @@ pub(crate) mod tests {
 
     #[test]
     fn loot_drops_wire_seeded_rolls_repeat_owned_silent_all_owned_never() {
-        let (mut found, all) = (0, FoundFinds { names: NAMED_FINDS.iter().map(|f| f.name).collect(), pending: None });
+        let (mut found, all) = (0, FoundFinds { names: NAMED_FINDS.iter().map(|f| f.name).collect(), pending: None, equipped: None });
         for s in 0..2048 {
             let (mut a, mut b, mut c) = (FoundFinds::default(), FoundFinds::default(), all.clone());
             assert!(a.drop_once(DifficultyTier::Sworn, s, 1) == b.drop_once(DifficultyTier::Sworn, s, 1) && a == b && loot_hash(s, 1, 0) == loot_hash(s, 1, 0));
@@ -151,16 +170,16 @@ pub(crate) mod tests {
             let Some(line) = a.pending.take() else { assert_eq!(a, FoundFinds::default()); continue };
             found += 1;
             assert!(NAMED_FINDS.iter().any(|n| n.name == a.names[0] && line == format!("{} · {}", n.name, n.sentence)));
-            let mut w = FoundFinds { names: vec![], pending: Some(line) };
+            let mut w = FoundFinds { names: vec![], pending: Some(line), equipped: None };
             assert!(!w.drop_once(DifficultyTier::Sworn, s, 1) && w.names.is_empty(), "no re-roll while a line waits");
-            let mut o = FoundFinds { names: a.names.clone(), pending: None };
+            let mut o = FoundFinds { names: a.names.clone(), pending: None, equipped: None };
             if o.drop_once(DifficultyTier::Sworn, s, 0) { assert!(o.names[1] != o.names[0]) } else { assert!(o.names.len() == 1 && o.pending.is_none()) }
         }
         assert!(found > 0);
     }
     #[test]
     fn loot_drops_wire_save_round_trip_and_ready_gate() {
-        let f = FoundFinds { names: vec![NAMED_FINDS[1].name, NAMED_FINDS[4].name], pending: Some("x".into()) };
+        let f = FoundFinds { names: vec![NAMED_FINDS[1].name, NAMED_FINDS[4].name], pending: Some("x".into()), equipped: None };
         assert_eq!(FoundFinds::decode(Some(&f.encode())), FoundFinds { pending: None, ..f.clone() });
         assert!(FoundFinds::decode(Some("no such find\n")) == FoundFinds::default() && FoundFinds::decode(None) == FoundFinds::default());
         assert!(!find_ready(false, 0.0, 10.0) && !find_ready(true, 12.0, 10.0) && find_ready(true, 10.0, 10.0) && FINDS_SAVE == "powrush_finds.json");
@@ -189,7 +208,7 @@ pub(crate) mod tests {
         app.update();
         app.world().resource::<FoundFinds>().clone()
     }
-    fn two() -> FoundFinds { FoundFinds { names: vec![NAMED_FINDS[1].name, NAMED_FINDS[4].name], pending: None } }
+    fn two() -> FoundFinds { FoundFinds { names: vec![NAMED_FINDS[1].name, NAMED_FINDS[4].name], pending: None, equipped: None } }
 
     /// LTS2 (H3) — the exact old newline bytes load from the live file, and from `.bak` when live is gone or unreadable.
     #[test]
@@ -214,7 +233,7 @@ pub(crate) mod tests {
         assert_eq!(serde_json::from_str::<serde_json::Value>(&f.encode()).unwrap()["schema"], "powrush_finds_v1");
         assert_eq!(FoundFinds::decode(Some(&f.encode())), two());
         in_user_dir("lts3", |dir| {
-            save_finds(&FoundFinds { names: vec![NAMED_FINDS[1].name], pending: None });
+            save_finds(&FoundFinds { names: vec![NAMED_FINDS[1].name], pending: None, equipped: None });
             save_finds(&f);
             assert_eq!(FoundFinds::decode(shared::user_persist::read_named(FINDS_SAVE).ok().as_deref()), two());
             let bak = std::fs::read_to_string(dir.join(format!("{FINDS_SAVE}.bak"))).unwrap();
@@ -244,5 +263,54 @@ pub(crate) mod tests {
             assert_eq!(loaded(), two());
         });
         assert_eq!(FoundFinds::decode(Some(r#"{"schema":"powrush_house_v1","names":["Steady Climate Pick"]}"#)), FoundFinds::default());
+    }
+
+    /// GS1 (H3) — an owned `equipped` name in v1 bytes loads live, then from `.bak`, and survives a save and relaunch.
+    /// No key, legacy newline bytes, an unowned, unknown or null name and a foreign schema all load `equipped: None`.
+    #[test]
+    fn gs1_equipped_saves_in_v1_and_loads_fail_closed() {
+        let v1 = |eq: &str| format!(r#"{{"schema":"powrush_finds_v1","names":["Steady Climate Pick","Quiet Harmony Loom"],"equipped":{eq}}}"#);
+        let (loom, loom_v1) = (FoundFinds { equipped: Some(NAMED_FINDS[4].name), ..two() }, v1(r#""Quiet Harmony Loom""#));
+        assert_eq!((FoundFinds::decode(Some(&loom_v1)), loom.encode()), (loom.clone(), loom_v1.clone()));
+        for eq in [r#""Yard-Worn Tend Hook""#, r#""no such find""#, "null"] {
+            assert_eq!(FoundFinds::decode(Some(&v1(eq))), two(), "{eq}");
+        }
+        assert_eq!(FoundFinds::decode(Some(&two().encode())), two(), "v1 with no key");
+        assert_eq!(FoundFinds::decode(std::str::from_utf8(OLD_FINDS).ok()), two(), "legacy newline");
+        let foreign = r#"{"schema":"powrush_house_v1","names":["Quiet Harmony Loom"],"equipped":"Quiet Harmony Loom"}"#;
+        assert_eq!(FoundFinds::decode(Some(foreign)), FoundFinds::default());
+        in_user_dir("gs1", |dir| {
+            let (live, bak) = (dir.join(FINDS_SAVE), dir.join(format!("{FINDS_SAVE}.bak")));
+            std::fs::write(&live, &loom_v1).unwrap();
+            assert_eq!(loaded(), loom);
+            std::fs::rename(&live, &bak).unwrap();
+            assert_eq!(loaded(), loom, "owned slot from .bak");
+            std::fs::write(&live, v1(r#""no such find""#)).unwrap();
+            assert_eq!(loaded(), two(), "unknown name: names kept, slot empty");
+            save_finds(&loom);
+            assert_eq!(loaded(), loom, "save then relaunch keeps the slot");
+            std::fs::write(&live, OLD_FINDS).unwrap();
+            assert_eq!(loaded(), two(), "legacy newline bytes");
+        });
+    }
+
+    /// GS3 — one slot: a second owned equip replaces the first, an unowned or unknown name is a no-op, and clear empties it.
+    /// `drop_once` rolls the same with or without a slot and never moves it.
+    #[test]
+    fn gs3_one_slot_replaces_and_clears() {
+        let mut f = two();
+        assert!(f.equip_named(NAMED_FINDS[1].name) && f.equipped == Some(NAMED_FINDS[1].name));
+        assert!(f.equip_named(NAMED_FINDS[4].name) && f.equipped == Some(NAMED_FINDS[4].name), "the second equip replaces the first");
+        for name in [NAMED_FINDS[0].name, "no such find", ""] {
+            assert!(!f.equip_named(name) && f.equipped == Some(NAMED_FINDS[4].name), "{name:?} is a no-op");
+        }
+        assert_eq!(f.encode().matches(r#""equipped":"#).count(), 1);
+        f.clear_equipped();
+        assert!(f == two() && f.equipped_find().is_none() && !FoundFinds::default().equip_named(NAMED_FINDS[4].name));
+        for s in 0..512 {
+            let (mut a, mut b) = (FoundFinds { equipped: Some(NAMED_FINDS[4].name), ..two() }, two());
+            assert_eq!(a.drop_once(DifficultyTier::Sworn, s, 1), b.drop_once(DifficultyTier::Sworn, s, 1));
+            assert_eq!((a.names, a.pending, a.equipped), (b.names, b.pending, Some(NAMED_FINDS[4].name)));
+        }
     }
 }
