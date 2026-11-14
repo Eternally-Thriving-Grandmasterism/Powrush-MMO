@@ -35,7 +35,7 @@ use crate::abundance_journey_echo::AbundanceJourneyEcho;
 use crate::coop_voice::VoiceYard;
 use crate::hex_travel::PlacesPlate;
 use crate::hud_anchor_registry::{
-    slab_rect, r2_yields_to, HudAnchor, HudCorner, HudOccupant, HudOffset, HudRect, HudShare, HudSlab, HudZBand,
+    coded_joiner, slab_rect, r2_yields_to, HudAnchor, HudCorner, HudOccupant, HudOffset, HudRect, HudShare, HudSlab, HudZBand,
     SlabPlace, ID_ALLOCATE, ID_CARE_PROMPT, ID_CARE_STRIP, ID_CLIMATE_STATE, ID_COMPASS,
     ID_EMBASSY, ID_FAB, ID_FACTORY, ID_GUIDANCE, ID_HYBRID, ID_JOURNEY, ID_MERCY, ID_PEER,
     ID_PICKUP, ID_PLACE_NAME, ID_PRACTICE, ID_PULSE, ID_REALM, ID_REDEMPTION, ID_SOVEREIGN,
@@ -240,7 +240,12 @@ pub enum HudHeightModel {
 }
 
 /// Proof windows from design §4.2.
-pub const PROOF_VIEWS: [(f32, f32); 2] = [(1024.0, 640.0), (1280.0, 800.0)];
+pub const PROOF_VIEWS: [(f32, f32); 4] = [
+    (1024.0, 640.0),
+    (1280.0, 800.0),
+    (1280.0, 720.0),
+    (1920.0, 1080.0),
+];
 
 // --- classic (§3.2) -------------------------------------------------------
 
@@ -1215,6 +1220,43 @@ fn classify(left: &CensusNode, right: &CensusNode) -> HudOverlapKind {
     HudOverlapKind::VisibleTogether
 }
 
+pub(crate) const LIVED_HUD_CLEAN_SUPPRESSED: &[&str] = &[
+    ID_PULSE,
+    ID_PICKUP,
+    ID_THRIVING,
+    ID_SOVEREIGN,
+    ID_WHISPER,
+    ID_WELCOME,
+    ID_FACTORY,
+    ID_FAB,
+    ID_SPILL,
+    ID_EMBASSY,
+    ID_REDEMPTION,
+    ID_HYBRID,
+    ID_COMPASS,
+    ID_VOICE,
+    ID_PEER,
+    ID_PLACE_NAME,
+];
+
+pub(crate) fn lived_hud_clean_joiner_suppressed(id: &str) -> bool {
+    LIVED_HUD_CLEAN_SUPPRESSED.contains(&id)
+}
+
+pub fn lived_classic_coded_joiner_overlap(
+    left_id: &str,
+    right_id: &str,
+    view_w: f32,
+    view_h: f32,
+) -> i32 {
+    if lived_hud_clean_joiner_suppressed(left_id) || lived_hud_clean_joiner_suppressed(right_id) {
+        return 0;
+    }
+    coded_joiner(left_id)
+        .rect(view_w, view_h)
+        .overlap_area(coded_joiner(right_id).rect(view_w, view_h))
+}
+
 /// Kind of one HUD-slab pair inside a preset. `None` when the rectangles do
 /// not overlap. Both ids must be occupants of `preset`.
 pub fn slab_overlap(
@@ -1998,6 +2040,15 @@ fn apply_active_preset(
                 }
             }
         }
+        if door == Some(crate::title_screen::LaunchDoor::InYard)
+            && matches!(id, HudPresetId::Classic | HudPresetId::Minimal)
+        {
+            for item in &live {
+                if lived_hud_clean_joiner_suppressed(item.id) {
+                    hide.insert(item.entity);
+                }
+            }
+        }
         if view.is_some() {
             for item in &live {
                 let Some(item_rect) = item.rect else {
@@ -2085,7 +2136,9 @@ mod tests {
         let wide = view_w < 1100.0;
         match preset {
             HudPresetId::Classic => {
-                if same(ID_ALLOCATE, ID_PICKUP) || same(ID_ALLOCATE, ID_WHISPER) {
+                if view_w < 1600.0
+                    && (same(ID_ALLOCATE, ID_PICKUP) || same(ID_ALLOCATE, ID_WHISPER))
+                {
                     Some(HudOverlapKind::Cover)
                 } else if same(ID_ALLOCATE, ID_MERCY) {
                     Some(HudOverlapKind::SameAnchor)
@@ -2094,7 +2147,9 @@ mod tests {
                 }
             }
             HudPresetId::Minimal => {
-                if same(ID_ALLOCATE, ID_PICKUP) || same(ID_ALLOCATE, ID_WHISPER) {
+                if view_w < 1600.0
+                    && (same(ID_ALLOCATE, ID_PICKUP) || same(ID_ALLOCATE, ID_WHISPER))
+                {
                     Some(HudOverlapKind::Cover)
                 } else if same(ID_MERCY, ID_VOICE) || same(ID_ALLOCATE, ID_MERCY) {
                     Some(HudOverlapKind::SameAnchor)
@@ -2252,7 +2307,7 @@ mod tests {
                 36,
             ),
         ];
-        assert_eq!(expect.len(), PRESETS.len() * PROOF_VIEWS.len() * 2);
+        assert_eq!(expect.len(), PRESETS.len() * 2 * 2);
         for (id, view_w, view_h, model, code, same, cover, r5) in expect {
             let preset = preset(id);
             let census = overlap_census(preset, view_w, view_h, model);
@@ -2274,6 +2329,39 @@ mod tests {
             assert_s2_s3_s5(preset, view_w, view_h);
             assert_model_a_inside_model_b(preset, view_w, view_h);
             assert_anchor_gap_or_cover(preset, view_w, view_h);
+        }
+    }
+
+    fn t1_section35_cell(id: HudPresetId, view_w: f32, view_h: f32, b: usize) -> (usize, usize, usize, usize) {
+        match (id, view_w as i32, view_h as i32) {
+            (HudPresetId::Classic, 1280, 720) => (3, 33, 26, 35 + 6 * b),
+            (HudPresetId::Classic, 1920, 1080) => (3, 33, 10, 12),
+            (HudPresetId::Minimal, 1280, 720) => (3, 76, 51, 40 + 3 * b),
+            (HudPresetId::Minimal, 1920, 1080) => (3, 76, 27, 14),
+            (HudPresetId::Management, 1280, 720) => (3, 40, 6, 35 + 7 * b),
+            (HudPresetId::Management, 1920, 1080) => (3, 40, 0, 10 + b),
+            _ => panic!("unknown t1 §3.5 cell {id:?} {view_w}x{view_h}"),
+        }
+    }
+
+    #[test]
+    fn t1_s2_section35_on_extra_proof_views() {
+        const VIEWS: [(f32, f32); 2] = [PROOF_VIEWS[2], PROOF_VIEWS[3]];
+        for layout in PRESETS {
+            for (view_w, view_h) in VIEWS {
+                for (bi, model) in [HudHeightModel::A, HudHeightModel::B].into_iter().enumerate() {
+                    let (code, same, cover, r5) = t1_section35_cell(layout.id, view_w, view_h, bi);
+                    let census = overlap_census(layout, view_w, view_h, model);
+                    assert!(census.visible_together.is_empty(), "{:?} {view_w}x{view_h}", layout.id);
+                    assert_eq!(
+                        (census.code, census.same_anchor, census.cover, census.hud_vs_modal_r5),
+                        (code, same, cover, r5),
+                    );
+                    assert_s2_s3_s5(layout, view_w, view_h);
+                    assert_model_a_inside_model_b(layout, view_w, view_h);
+                    assert_anchor_gap_or_cover(layout, view_w, view_h);
+                }
+            }
         }
     }
 
@@ -3803,7 +3891,7 @@ child_style.clone(),
                     Node::default(),
                     Visibility::Visible,
                 ),
-                HudSlab(ID_FACTORY),
+                HudSlab(ID_WATCH),
             ))
             .id();
         let plain = app
@@ -4103,6 +4191,23 @@ child_style.clone(),
             apply_overrides(&CLASSIC, HUD_REGISTRY_REV + 1, &[legal], 1024.0, 640.0),
             HudOverrideApply::StaleRev
         ));
+    }
+
+    #[test]
+    fn hud_clean_hc1_no_tracker_xp_or_new_slab_id() {
+        let dump = format!("{:?}", SLAB_METRICS).to_ascii_lowercase();
+        assert!(!dump.contains("xp bar") && !dump.contains("tracker"));
+        assert!(SLAB_METRICS.len() <= 32);
+    }
+
+    #[test]
+    fn hud_clean_hc3_lived_boot_joiner_pairs_clear() {
+        const PAIRS: [(&str, &str); 2] = [(ID_WELCOME, ID_FACTORY), (ID_THRIVING, ID_SOVEREIGN)];
+        for (view_w, view_h) in PROOF_VIEWS {
+            for (left, right) in PAIRS {
+                assert_eq!(lived_classic_coded_joiner_overlap(left, right, view_w, view_h), 0);
+            }
+        }
     }
 
     #[test]
