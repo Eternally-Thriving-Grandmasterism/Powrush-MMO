@@ -94,6 +94,8 @@ Refused by standing law and re-stated here: a second HUD, an F-row, an XP bar, a
 
 > **DOCS-SYNC-1:** Superseded in part by LEVELS_CANON (2026-10-27): skill levels and a skills panel are canon; an always-on XP bar stays refused. The sentence above is not rewritten.
 
+> **LOOP-SPINE-1:** the EA verb chain, and which legs write the House week bill (§1.2), is mapped in [`EA_BAR.md`](EA_BAR.md). It adds no HUD surface; the one-HUD law in this section stands. The refuse sentence in this section is not rewritten.
+
 ---
 
 ## 3. What must wait
