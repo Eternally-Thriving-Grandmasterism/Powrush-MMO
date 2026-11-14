@@ -43,15 +43,16 @@
 use bevy::prelude::*;
 
 use shared::hex_travel::{
-    apply_travel_named, boot_place, confirm_leave, house_embassy_on_place, house_week_footer,
-    places_eligible, places_row_label, read_current_named, read_hex_named,
-    BootKind, PlaceId, TravelRefuse, PLACES_TITLE,
+    apply_travel_named, boot_place, confirm_leave, deliver_haul, house_embassy_on_place,
+    house_week_footer, places_eligible, places_row_label, read_current_named, read_hex_named,
+    write_hex_named, BootKind, PlaceId, TravelRefuse, PLACES_TITLE,
 };
 use shared::pause_ledger_face::NOT_YOUR_CHARTER;
 use shared::title_house_proof::{online_row_is_honest_disabled, ONLINE_STUB_LABEL};
 
 use crate::difficulty::{gate_facts, row_line, AreaDifficulty, TIERS};
 use crate::embassy::EmbassyYard;
+use crate::fabricator::FabricatorYard;
 use crate::hour_sacred::{
     decline_or_wrong_door, try_cross_people_door, unsealed_light_may_take_people_door,
     HousePeople, HourSacred, PeopleLanding,
@@ -628,6 +629,7 @@ fn places_plate_clicks(
     mut travel: ResMut<HexTravelState>,
     mut bind: Option<ResMut<LivedHourBind>>,
     mut embassy: Option<ResMut<EmbassyYard>>,
+    mut yard: Option<ResMut<FabricatorYard>>,
     sanctuary: Query<&Interaction, (Changed<Interaction>, With<PlacesSanctuaryBtn>)>,
     heartwood: Query<&Interaction, (Changed<Interaction>, With<PlacesHeartwoodBtn>)>,
     threshold: Query<&Interaction, (Changed<Interaction>, With<PlacesThresholdBtn>)>,
@@ -696,7 +698,7 @@ fn places_plate_clicks(
                         );
                         let _ = shared::hex_travel::write_hex_named(&file);
                     }
-                    if let Ok(loaded) = apply_travel_named(
+                    if let Ok(mut loaded) = apply_travel_named(
                         settled,
                         book,
                         travel.current,
@@ -704,6 +706,14 @@ fn places_plate_clicks(
                         &bind.climate,
                         &bind.standing,
                     ) {
+                        let from = travel.current;
+                        if let Some(yard) = yard.as_mut() {
+                            let mut file = loaded.clone();
+                            if deliver_haul(from, &mut file, &mut yard.fab) {
+                                let _ = write_hex_named(&file);
+                                loaded = file;
+                            }
+                        }
                         travel.current = to;
                         crate::difficulty::mark_entry(to);
                         bind.climate = loaded.climate;
@@ -2219,5 +2229,81 @@ mod tests {
             assert_ne!(place.as_str(), "garden");
             assert_ne!(place.as_str(), "market");
         }
+    }
+
+    use crate::fabricator::FabricatorYard;
+    use shared::fabricator::Fabricator;
+
+    fn haul_app(tag: &str, at: PlaceId, stock: Option<u32>) -> (App, UserDirEnvHold, std::path::PathBuf) {
+        let dir = std::env::temp_dir().join(format!("powrush-haul-{tag}-{}-{:?}", std::process::id(), std::thread::current().id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        let hold = UserDirEnvHold::set(&dir);
+        let mut app = yard_app(at);
+        let stub = shared::hex_travel::stub_hex_file(at);
+        app.insert_resource(LivedHourBind { climate: stub.climate, standing: stub.standing, ..LivedHourBind::default() });
+        if let Some(n) = stock {
+            app.insert_resource(FabricatorYard { fab: Fabricator { crate_stock: n, ..Fabricator::default() }, bench_glow: 0.0 });
+        }
+        app.update();
+        (app, hold, dir)
+    }
+
+    fn leave_to(app: &mut App, room: PlacesRoom) {
+        if !pause_is_open(app) { tap_escape(app); }
+        let current = app.world().resource::<HexTravelState>().current;
+        { let mut plate = app.world_mut().resource_mut::<PlacesPlate>(); plate.open = true; select_room(&mut plate, current, room); }
+        app.update();
+        let mut q = app.world_mut().query_filtered::<Entity, With<PlacesConfirmBtn>>();
+        let confirm = q.iter(app.world()).next().expect("confirm");
+        for i in [Interaction::Pressed, Interaction::None] {
+            *app.world_mut().get_mut::<Interaction>(confirm).unwrap() = i;
+            app.update();
+        }
+        assert_eq!(app.world().resource::<HexTravelState>().current, room.place_id());
+    }
+
+    /// HL1 + HL3 (H1) — Places confirm from Sanctuary delivers stock to dest hex files before the House sum.
+    #[test]
+    fn hl1_places_leave_delivers_one_crate_to_the_dest_hex() {
+        let (mut app, _hold, dir) = haul_app("hl1", PlaceId::Sanctuary, Some(2));
+        leave_to(&mut app, PlacesRoom::Heartwood);
+        let (stock, tons, bind) = (
+            app.world().resource::<FabricatorYard>().fab.crate_stock,
+            LOCAL_HEXES.map(|p| read_hex_named(p).map_or(0, |f| f.climate.tons_moved)),
+            app.world().resource::<LivedHourBind>().clone(),
+        );
+        assert_eq!((stock, tons, bind.climate.tons_moved, bind.week.tons_moved), (1, [0, 1, 0], 1, 1));
+        leave_to(&mut app, PlacesRoom::Sanctuary);
+        assert_eq!((app.world().resource::<FabricatorYard>().fab.crate_stock, LOCAL_HEXES.map(|p| read_hex_named(p).map_or(0, |f| f.climate.tons_moved))), (1, [0, 1, 0]));
+        leave_to(&mut app, PlacesRoom::Threshold);
+        leave_to(&mut app, PlacesRoom::Sanctuary);
+        leave_to(&mut app, PlacesRoom::Depths);
+        let w = app.world();
+        assert_eq!((w.resource::<FabricatorYard>().fab.crate_stock, LOCAL_HEXES.map(|p| read_hex_named(p).map_or(0, |f| f.climate.tons_moved)), w.resource::<LivedHourBind>().week.tons_and_restored()), (0, [0, 2, 0], (2, 0)));
+        let mut resumed = demo_bind();
+        resumed.apply_place(PlaceId::Heartwood);
+        assert_eq!(resumed.climate.tons_moved, 2);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// HL8 — boot, apply_place, People-door and home return never consume stock or write dest tons.
+    #[test]
+    fn hl8_boot_place_people_door_and_home_take_no_crate() {
+        let (mut app, _hold, dir) = haul_app("hl8", PlaceId::Heartwood, Some(1));
+        let hour = app.world().resource::<HourSacred>().clone();
+        let w = app.world_mut();
+        let (mut t, mut b) = (w.remove_resource::<HexTravelState>().unwrap(), w.remove_resource::<LivedHourBind>().unwrap());
+        apply_title_boot(BootKind::Continue, &mut t, &mut b, &hour, None);
+        apply_place(&mut t, &mut b, None, PlaceId::Sanctuary, true);
+        let _ = try_cross_people_door_land(true, true, &mut None, HousePeople::Draek, &mut t, &mut b, None, None);
+        decline_people_door_land(&mut t, &mut b, None, PlaceId::Heartwood, &mut None);
+        w.insert_resource(t);
+        w.insert_resource(b);
+        leave_to(&mut app, PlacesRoom::Sanctuary);
+        assert_eq!((app.world().resource::<FabricatorYard>().fab.crate_stock, LOCAL_HEXES.map(|p| read_hex_named(p).map_or(0, |f| f.climate.tons_moved))), (1, [0, 0, 0]));
+        app.world_mut().remove_resource::<FabricatorYard>();
+        leave_to(&mut app, PlacesRoom::Heartwood);
+        assert_eq!(LOCAL_HEXES.map(|p| read_hex_named(p).map_or(0, |f| f.climate.tons_moved)), [0, 0, 0]);
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

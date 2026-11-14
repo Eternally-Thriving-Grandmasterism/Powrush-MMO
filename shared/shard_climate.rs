@@ -123,6 +123,12 @@ impl ShardClimate {
         self.touch();
     }
 
+    /// Haul leg: one refined crate delivered to a dest hex. Distinct from civic `on_lane`.
+    pub fn on_haul(&mut self) {
+        self.tons_moved = self.tons_moved.saturating_add(1);
+        self.touch();
+    }
+
     /// DeclaredLethal blood tariff: prefer reserve_pool, else restored_count debt.
     /// Returns units paid. Week score stays tons + restored (not kills).
     pub fn on_lethal_declare(&mut self) -> u32 {
@@ -275,5 +281,20 @@ mod tests {
             ..Default::default()
         };
         assert_eq!(good.slab_line(), Some("the yard is circulating"));
+    }
+
+    /// HL1 — a haul delivery moves one ton and nothing else: no restored, pool, harmony or stress.
+    #[test]
+    fn hl1_on_haul_moves_one_ton_only() {
+        let mut c = ShardClimate::default();
+        let before = c.clone();
+        c.on_haul();
+        assert_eq!(c, ShardClimate { tons_moved: 1, updated_at: 1, ..before.clone() });
+        let mut lane = before;
+        lane.on_lane();
+        assert_eq!(lane, c);
+        c.tons_moved = u32::MAX;
+        c.on_haul();
+        assert_eq!((c.tons_moved, c.updated_at), (u32::MAX, 2));
     }
 }

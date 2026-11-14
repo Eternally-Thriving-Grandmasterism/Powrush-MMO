@@ -267,6 +267,15 @@ impl Fabricator {
         "refined"
     }
 
+    /// Spend one stocked LaneCrate for a haul leg. Stock 0 is a no-op and writes nothing.
+    pub fn take_crate(&mut self) -> bool {
+        if self.crate_stock == 0 {
+            return false;
+        }
+        self.crate_stock = self.crate_stock.saturating_sub(1);
+        true
+    }
+
     pub fn slab_line(&self) -> String {
         if !self.planted {
             return "Q plant a fabricator · Reserve repair-rights".into();
@@ -607,5 +616,48 @@ mod tests {
         assert_eq!((f.reserve, f.spool_stock, f.pack.clone(), stock(&f)), (before.reserve, 1, before.pack, 0));
         assert_eq!(f.craft(Recipe::TendHook), "crafted");
         assert_eq!((f.spool_stock, stock(&f), f.craft_next()), (0, 0, "idle"));
+    }
+
+    /// HL1 — taking a crate removes one stocked LaneCrate and leaves Reserve, spool, pack, line and planted.
+    /// Stock 0, and a civic Proof Pack that never stocked a crate, write nothing.
+    #[test]
+    fn hl1_take_crate_takes_one_and_stock_zero_writes_nothing() {
+        let mut civic = unlocked();
+        assert!(!civic.take_crate());
+        assert_eq!(civic, unlocked());
+        let mut f = unlocked();
+        assert_eq!((f.refine_wood(1), f.refine_wood(1), stock(&f)), ("refined", "refined", 2));
+        let two = f.clone();
+        assert!(f.take_crate());
+        assert_eq!(f, Fabricator { crate_stock: 1, ..two.clone() });
+        assert!(f.take_crate());
+        let empty = f.clone();
+        assert!(!f.take_crate());
+        assert_eq!((stock(&f), &f), (0, &empty));
+        assert_eq!(f, Fabricator { crate_stock: 0, ..two });
+    }
+
+    /// HL2 (H3) — the climate `:170` bytes load inside a dest hex file, the `hour_two.rs:108` literal
+    /// loads, and a Fabricator with no `crate_stock` key is stock 0. Both literals stay byte-equal.
+    #[test]
+    fn hl2_old_climate_and_hour_two_bytes_still_load() {
+        use crate::hex_travel::HexClimateFile;
+        use crate::shard_climate::ShardClimate;
+        let v0 = r#"{"hex_id":"local-hex","harmony":0.55,"stress":0.15,"regen":0.08,"reserve_pool":0,"restored_count":0,"tons_moved":0,"updated_at":1}"#;
+        assert!(include_str!("shard_climate.rs").contains(v0) && include_str!("hour_two.rs").contains(SESSION_ONLY));
+        let file = HexClimateFile::from_json(&format!(r#"{{"hex_id":"heartwood","climate":{v0}}}"#)).unwrap();
+        assert_eq!((file.climate, file.standing.declared_lethal, file.lamp_empty), (ShardClimate::from_json(v0).unwrap(), false, false));
+        assert_eq!(HourTwoPack::from_json(SESSION_ONLY).fabricator.crate_stock, 0);
+        let old: Fabricator = serde_json::from_str(NO_CRATE_STOCK).unwrap();
+        assert_eq!(old.crate_stock, 0);
+    }
+
+    /// HL7 — the Fabricator never writes tons; refine and the civic LaneCrate stay as WU1 / WU5 pin them.
+    #[test]
+    fn hl7_fabricator_writes_no_tons() {
+        let src = include_str!("fabricator.rs").split("#[cfg(test)]").next().unwrap();
+        for word in ["shard_climate", "ShardClimate", "on_lane", "on_haul", "tons"] {
+            assert!(!src.contains(word), "{word}");
+        }
     }
 }
