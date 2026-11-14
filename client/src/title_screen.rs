@@ -186,7 +186,6 @@ pub use crate::ui_kit::{
     TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY,
 };
 // </title-palette> — no colour literal in this file (outside tests).
-use crate::launch_menu::LaunchRow;
 use crate::ui_kit;
 
 /// U5 Steam Deck layout contract. The title plate remains inside this surface.
@@ -1553,13 +1552,13 @@ TextColor(TITLE_TEXT_SECONDARY),
 ),
                     TitleCueText,
                 ));
-                spawn_title_plate_btn(p, TITLE_CHROME_PLAY, (TitlePlayBtn, LaunchRow::Play), true, text_scale);
-                spawn_title_plate_btn(p, TITLE_CHROME_CONTINUE, (TitleContinueBtn, LaunchRow::Continue), true, text_scale);
-                spawn_title_plate_btn(p, TITLE_CHROME_SETTINGS, (TitleSettingsBtn, LaunchRow::Settings), true, text_scale);
+                spawn_title_plate_btn(p, TITLE_CHROME_PLAY, TitlePlayBtn, true, text_scale);
+                spawn_title_plate_btn(p, TITLE_CHROME_CONTINUE, TitleContinueBtn, true, text_scale);
+                spawn_title_plate_btn(p, TITLE_CHROME_SETTINGS, TitleSettingsBtn, true, text_scale);
                 spawn_title_plate_btn(
                     p,
                     persona_title_btn_label(PERSONA_CREATOR_ENABLED),
-                    (TitlePersonaBtn, LaunchRow::Persona),
+                    TitlePersonaBtn,
                     PERSONA_CREATOR_ENABLED,
                     text_scale,
                 );
@@ -1742,7 +1741,7 @@ TextColor(fg),
 
 /// Title-plate sibling of [`spawn_menu_btn`]. Same chrome and colours.
 /// Font follows text scale. Other `spawn_menu_btn` call sites stay fixed.
-pub(crate) fn spawn_title_plate_btn<C: Bundle>(
+pub(crate) fn spawn_title_plate_btn<C: Component>(
     p: &mut ChildSpawnerCommands,
     label: &str,
     marker: C,
@@ -10381,8 +10380,10 @@ mod tests {
 
     #[test]
     fn launch_rows_are_plate_buttons_in_order_text_scaled_online_grey_last() {
+        use crate::launch_menu::{tag_title_rows, LaunchFocus, LaunchRow};
         let mut app = App::new();
-        app.insert_resource(LocalSettingsState::default()).init_resource::<crate::launch_menu::LaunchFocus>()
+        tag_title_rows(&mut app);
+        app.insert_resource(LocalSettingsState::default()).init_resource::<LaunchFocus>()
             .add_systems(Startup, spawn_title_screen).add_systems(Update, refresh_title_menu_text_scale);
         app.update();
         app.world_mut().resource_mut::<LocalSettingsState>().inner.text_scale = 1.35;
@@ -10410,10 +10411,11 @@ mod tests {
     /// Real layout at 1280×720 and text scale 1.35: seven rows and the first-launch banner end inside the plate.
     #[test]
     fn launch_rows_and_banner_fit_inside_672_in_real_layout_at_135() {
-        use bevy::camera::{ComputedCameraValues, RenderTargetInfo};
+        use {bevy::camera::{ComputedCameraValues, RenderTargetInfo}, crate::launch_menu::{tag_title_rows, LaunchRow}};
         let mut inner = LocalSettings::peace_defaults();
         inner.text_scale = 1.35;
         let mut app = App::new();
+        tag_title_rows(&mut app);
         app.add_plugins((MinimalPlugins, AssetPlugin::default(), bevy::input::InputPlugin, bevy::text::TextPlugin, bevy::ui::UiPlugin, crate::ui_font::UiFontPlugin))
             .init_asset::<Image>().init_asset::<TextureAtlasLayout>().add_message::<bevy::picking::pointer::PointerInput>()
             .add_message::<bevy::picking::backend::PointerHits>().init_resource::<bevy::picking::hover::HoverMap>().init_resource::<bevy::picking::events::PointerState>()

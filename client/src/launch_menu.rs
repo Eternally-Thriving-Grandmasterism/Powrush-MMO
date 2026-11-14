@@ -16,7 +16,8 @@ use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::LocalSettingsState;
 use crate::title_screen::{
     quit_to_desktop, skip_persona_to_nameless, spawn_title_plate_btn, sync_title_visibility, title_button_clicks,
-    HouseLabel, LaunchDoor, PersonaCreatorState, TitleRoot, TITLE_CHROME_CREDITS, TITLE_CHROME_QUIT,
+    HouseLabel, LaunchDoor, PersonaCreatorState, TitleContinueBtn, TitlePersonaBtn, TitlePlayBtn, TitleRoot,
+    TitleSettingsBtn, TITLE_CHROME_CREDITS, TITLE_CHROME_QUIT,
 };
 use crate::ui_kit::{TITLE_BTN_ACTIVE_BG, TITLE_BTN_BG, TITLE_BTN_DISABLED_BG, TITLE_DIM_BG, TITLE_SCRIM_BG};
 
@@ -64,7 +65,21 @@ impl Plugin for LaunchMenuPlugin {
         app.init_resource::<LaunchFocus>()
             .add_systems(Update, (nav, launch_row_clicks).chain().run_if(age_gate_clear))
             .add_systems(Update, (paint_launch_focus.after(sync_title_visibility).after(launch_pad_nav), sync_title_scrim));
+        tag_title_rows(app);
     }
+}
+
+/// Play, Continue, Settings and Persona keep title_screen's own markers; each takes its [`LaunchRow`] as it spawns.
+pub(crate) fn tag_title_rows(app: &mut App) {
+    fn tag<M: Component>(app: &mut App, row: LaunchRow) {
+        app.add_observer(move |add: On<Add<M>>, mut commands: Commands| {
+            commands.entity(add.entity).insert(row);
+        });
+    }
+    tag::<TitlePlayBtn>(app, LaunchRow::Play);
+    tag::<TitleContinueBtn>(app, LaunchRow::Continue);
+    tag::<TitleSettingsBtn>(app, LaunchRow::Settings);
+    tag::<TitlePersonaBtn>(app, LaunchRow::Persona);
 }
 
 /// Credits and Quit through the Title plate button, so they share its chrome and text scale.
@@ -313,8 +328,8 @@ mod tests {
         assert_eq!(roots.iter(app.world()).collect::<Vec<_>>(), [root], "no respawn");
     }
 
-    /// Fixture 6: the shipping bundle on a fresh install takes its preset from settings (Classic), so no HudSlab
-    /// shows on Title, before or after a visit to the yard. The yard shows slabs, so the probe can see them.
+    /// Fixture 6: the shipping bundle installs LaunchMenuPlugin and, on a fresh install, takes its preset from settings
+    /// (Classic), so no HudSlab shows on Title, before or after a visit to the yard. The yard shows slabs, so the probe sees them.
     #[test]
     fn no_hud_slab_shows_on_title_with_the_default_preset() {
         let _lock = crate::test_env::lock();
@@ -328,6 +343,7 @@ mod tests {
             app.world_mut().query::<(&HudSlab, &Visibility)>().iter(app.world()).filter(|(_, v)| **v != Visibility::Hidden).map(|(s, _)| s.0).collect::<Vec<_>>()
         };
         (0..5).for_each(|_| app.update());
+        assert_eq!(app.world_mut().query::<&LaunchRow>().iter(app.world()).filter(|r| matches!(r, LaunchRow::Credits | LaunchRow::Quit)).count(), 2, "shipping bundle has Credits and Quit");
         assert_eq!((ActiveHudPreset::default().id, app.world().resource::<ActiveHudPreset>().id), (None, Some(HudPresetId::Classic)));
         assert_eq!(shown(&mut app), Vec::<&str>::new(), "fresh Title");
         *app.world_mut().resource_mut::<LaunchDoor>() = LaunchDoor::InYard;
