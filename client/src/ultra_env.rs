@@ -386,8 +386,8 @@ mod tests {
                     GraphicsPreset::Mobile => (1, 24, 2, 22, 4, 3),
                     GraphicsPreset::Low => (1, 40, 4, 36, 4, 3),
                     GraphicsPreset::Medium => (2, 64, 6, 58, 4, 3),
-                    GraphicsPreset::High => (2, 408, 28, 380, 8, 6),
-                    GraphicsPreset::Ultra => (3, 736, 48, 688, 8, 6),
+                    GraphicsPreset::High => (2, 400, 24, 376, 8, 6),
+                    GraphicsPreset::Ultra => (3, 724, 42, 682, 8, 6),
                 }
             } else {
                 (0, 0, 0, 0, 0, 0)
@@ -433,13 +433,13 @@ mod tests {
             assert_eq!(numbers(row(GraphicsPreset::Mobile, None, PlaceId::Sanctuary)), (5, 2, 3, 1, 25, 3, 22, 3));
             assert_eq!(numbers(row(GraphicsPreset::Low, Some(0), PlaceId::Depths)), (5, 2, 3, 1, 41, 5, 36, 3));
             assert_eq!(numbers(row(GraphicsPreset::Medium, None, PlaceId::Sanctuary)), (6, 2, 3, 1, 66, 8, 58, 3));
-            assert_eq!(numbers(row(GraphicsPreset::High, Some(0), PlaceId::Depths)), (10, 2, 3, 1, 410, 30, 380, 6));
-            assert_eq!(numbers(row(GraphicsPreset::Ultra, None, PlaceId::Sanctuary)), (11, 2, 3, 1, 739, 51, 688, 6));
+            assert_eq!(numbers(row(GraphicsPreset::High, Some(0), PlaceId::Depths)), (10, 2, 3, 1, 402, 26, 376, 6));
+            assert_eq!(numbers(row(GraphicsPreset::Ultra, None, PlaceId::Sanctuary)), (11, 2, 3, 1, 727, 45, 682, 6));
             assert_eq!(numbers(row(GraphicsPreset::Mobile, Some(0), PlaceId::Heartwood)), (11, 8, 3, 1, 38, 16, 22, 3));
             assert_eq!(numbers(row(GraphicsPreset::Low, None, PlaceId::Heartwood)), (11, 8, 3, 1, 54, 18, 36, 3));
             assert_eq!(numbers(row(GraphicsPreset::Medium, Some(0), PlaceId::Heartwood)), (12, 8, 3, 1, 79, 21, 58, 3));
-            assert_eq!(numbers(row(GraphicsPreset::High, None, PlaceId::Heartwood)), (16, 8, 3, 1, 423, 43, 380, 6));
-            assert_eq!(numbers(row(GraphicsPreset::Ultra, Some(0), PlaceId::Heartwood)), (17, 8, 3, 1, 752, 64, 688, 6));
+            assert_eq!(numbers(row(GraphicsPreset::High, None, PlaceId::Heartwood)), (16, 8, 3, 1, 415, 39, 376, 6));
+            assert_eq!(numbers(row(GraphicsPreset::Ultra, Some(0), PlaceId::Heartwood)), (17, 8, 3, 1, 740, 58, 682, 6));
             assert_eq!(numbers(row(GraphicsPreset::High, Some(1), PlaceId::Sanctuary)), (0, 0, 0, 1, 0, 0, 0, 0));
             assert_eq!(numbers(row(GraphicsPreset::Ultra, Some(1), PlaceId::Heartwood)), (6, 6, 0, 1, 13, 13, 0, 0));
             assert_eq!(expect(Cell {

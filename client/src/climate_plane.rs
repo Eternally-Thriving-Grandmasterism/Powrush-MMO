@@ -207,6 +207,10 @@ pub const PLACE_WELL_GLOW_SCALE: f32 = 2.4;
 /// Shared greybox roughness for Sanctuary yard ground + path stones
 /// (one material family — PLACE_DRESS_SPEC).
 const SANCTUARY_YARD_ROUGHNESS: f32 = 0.90;
+/// CARD PLATE-EDGE-CUE-1 — rim rail top. Over the real jump peak, under every follow look height.
+pub(crate) const PLATE_EDGE_TOP: f32 = 1.30;
+/// Rim strip depth outside the plate: PLAY_HALF to PLAY_HALF + this.
+pub(crate) const PLATE_EDGE_T: f32 = 0.12;
 
 /// ART_BIBLE HANDS Heartwood accent — amber lamp (not Sanctuary warm-gold,
 /// not currency gold). Climate owns its copy so this file stays the only F2
@@ -1444,6 +1448,35 @@ fn spawn_climate_place(
                 PlaceLodMesh,
             ));
         }
+    }
+    // CARD PLATE-EDGE-CUE-1 — post-and-top-rail on the plate rim. The walk clamp stops at
+    // PLAY_HALF, so the edge is always shown and never gated on stone, realm or preset (PR3).
+    // Not PlaceLodMesh: a Comfort scale would move the inner face off PLAY_HALF.
+    let (half, floor) = (crate::terrain::PLAY_HALF, crate::terrain::PLAY_FLOOR_Y);
+    let (mid, rail_h) = (half + PLATE_EDGE_T * 0.5, 0.10);
+    let post = meshes.add(Cuboid::new(PLATE_EDGE_T, PLATE_EDGE_TOP - floor, PLATE_EDGE_T));
+    let rail_x = meshes.add(Cuboid::new(2.0 * (half + PLATE_EDGE_T), rail_h, PLATE_EDGE_T));
+    let rail_z = meshes.add(Cuboid::new(PLATE_EDGE_T, rail_h, 2.0 * half));
+    let (post_y, rail_y) = ((PLATE_EDGE_TOP + floor) * 0.5, PLATE_EDGE_TOP - rail_h * 0.5);
+    let mut edge: Vec<(Handle<Mesh>, Vec3)> = Vec::with_capacity(36);
+    for s in [1.0, -1.0] {
+        edge.push((post.clone(), Vec3::new(s * mid, post_y, mid)));
+        edge.push((post.clone(), Vec3::new(s * mid, post_y, -mid)));
+        edge.push((rail_x.clone(), Vec3::new(0.0, rail_y, s * mid)));
+        edge.push((rail_z.clone(), Vec3::new(s * mid, rail_y, 0.0)));
+        for k in -3..=3 {
+            let t = k as f32 * 7.0;
+            edge.push((post.clone(), Vec3::new(t, post_y, s * mid)));
+            edge.push((post.clone(), Vec3::new(s * mid, post_y, t)));
+        }
+    }
+    for (mesh, at) in edge {
+        commands.spawn((
+            (Mesh3d(mesh), MeshMaterial3d(stone_mat.clone()), Transform::from_translation(at)),
+            ClimateStone,
+            Visibility::Visible,
+            Name::new("PlateEdge"),
+        ));
     }
 
     // Never spawn a second Camera3d here — main owns the yard camera.
@@ -5703,6 +5736,66 @@ mod tests {
             let r = rr_ratio(HEARTWOOD_AMBER_LAMP, bg, 2);
             assert!(r >= FLOOR, "cleared disc on Heartwood {bg_name} under floor: {r:.3}");
             assert!((r - pinned).abs() <= 0.02, "cleared disc on {bg_name}: {r:.3} vs pinned {pinned}");
+        }
+    }
+
+    /// CARD PLATE-EDGE-CUE-1 P1 — 36 rim pieces at every preset on the PLAY_HALF strip, posts seated on
+    /// the court mesh tread, the path-stone material in each realm's stone colour, never hidden.
+    #[test]
+    fn plate_edge_p1_rim_strip_heights_material_and_realm_colour() {
+        use crate::terrain::{terrain_plan, tread_y_mesh, CHEAP_VERTEX_CAP, PLAY_HALF};
+        const RIM_VERTICES: usize = 864;
+        let near = |a: f32, b: f32| if a < 0.0 && b > 0.0 { 0.0 } else { a.abs().min(b.abs()) };
+        for preset in GraphicsPreset::ALL {
+            let mut app = climate_startup_app();
+            app.insert_resource(LocalMeshLodFeel { preset });
+            app.update();
+            let world = app.world_mut();
+            let mut q = world.query_filtered::<(Option<&Name>, &Mesh3d, &MeshMaterial3d<StandardMaterial>, &Transform), With<ClimateStone>>();
+            let rows: Vec<_> = q.iter(world).map(|(n, m, mat, tf)| (n.is_some_and(|n| n.as_str() == "PlateEdge"), m.0.clone(), mat.0.clone(), *tf)).collect();
+            let (rim, path): (Vec<_>, Vec<_>) = rows.into_iter().partition(|row| row.0);
+            assert_eq!((rim.len(), path.len()), (36, 12), "{preset:?} rim / path stones");
+            let (meshes, plan) = (app.world().resource::<Assets<Mesh>>(), terrain_plan(preset));
+            let (mut posts, mut rails, mut verts, mut post_xz) = (0, 0, 0, Vec::new());
+            for (_, mesh, mat, tf) in &rim {
+                assert!(*mat == path[0].2 && tf.scale == Vec3::ONE && tf.rotation == Quat::IDENTITY, "{preset:?} {tf:?}");
+                let mesh = meshes.get(mesh).unwrap();
+                verts += mesh.count_vertices();
+                let aabb = bevy::camera::primitives::MeshAabb::get_aabb(mesh).unwrap();
+                let (lo, hi) = (tf.translation + Vec3::from(aabb.min()), tf.translation + Vec3::from(aabb.max()));
+                let inner = near(lo.x, hi.x).max(near(lo.z, hi.z));
+                let outer = lo.x.abs().max(hi.x.abs()).max(lo.z.abs()).max(hi.z.abs());
+                let row = format!("{preset:?} {lo} {hi} inner {inner} outer {outer}");
+                assert!((inner - PLAY_HALF).abs() <= 1e-4 && outer <= PLAY_HALF + PLATE_EDGE_T + 1e-4, "{row}");
+                assert!((hi.y - PLATE_EDGE_TOP).abs() <= 1e-4, "top {row}");
+                if hi.y - lo.y > 1.0 {
+                    posts += 1;
+                    post_xz.push(tf.translation.xz());
+                    for (x, z) in [(lo.x, lo.z), (lo.x, hi.z), (hi.x, lo.z), (hi.x, hi.z)] {
+                        assert!((lo.y - tread_y_mesh(x, z, plan)).abs() <= 1e-4, "post seat {row}");
+                    }
+                } else {
+                    rails += 1;
+                    assert!((lo.y - 1.20).abs() <= 1e-4, "rail bottom {row}");
+                }
+            }
+            assert_eq!((posts, rails, verts), (32, 4, RIM_VERTICES), "{preset:?}");
+            // Corner posts at ±28.06 (7.06 m corner bay); side posts at 0, ±7, ±14, ±21.
+            let mut want = vec![Vec2::new(28.06, 28.06), Vec2::new(28.06, -28.06), Vec2::new(-28.06, 28.06), Vec2::new(-28.06, -28.06)];
+            for t in [-21.0, -14.0, -7.0, 0.0, 7.0, 14.0, 21.0] {
+                want.extend([Vec2::new(t, 28.06), Vec2::new(t, -28.06), Vec2::new(28.06, t), Vec2::new(-28.06, t)]);
+            }
+            assert!(want.iter().all(|w| post_xz.iter().filter(|p| p.distance(*w) <= 1e-4).count() == 1), "{preset:?} posts {post_xz:?}");
+            assert!(verts < CHEAP_VERTEX_CAP);
+            for realm in [0u8, 1, 2, 3, 4] {
+                app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(realm);
+                app.update();
+                let color = app.world().resource::<Assets<StandardMaterial>>().get(&rim[0].2).unwrap().base_color;
+                assert_eq!(color, look_for(Some(realm)).stone, "{preset:?} realm {realm}");
+                let mut vis = app.world_mut().query::<(&Name, &Visibility)>();
+                let shown = vis.iter(app.world()).filter(|(n, v)| n.as_str() == "PlateEdge" && **v == Visibility::Visible).count();
+                assert_eq!(shown, 36, "{preset:?} realm {realm} never hidden");
+            }
         }
     }
 }

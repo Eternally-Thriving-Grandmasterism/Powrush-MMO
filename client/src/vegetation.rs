@@ -382,6 +382,13 @@ pub fn vegetation_plants(preset: GraphicsPreset) -> Vec<VegPlant> {
         plan.fine_trees,
         &plan,
     );
+    // CARD PLATE-EDGE-CUE-1 — drop trees whose footprint disc touches the rim rail strip
+    // (Chebyshev PLAY_HALF to PLAY_HALF + PLATE_EDGE_T). No reseed; other plants keep their bits.
+    let (inner, outer) = (crate::terrain::PLAY_HALF, crate::terrain::PLAY_HALF + crate::climate_plane::PLATE_EDGE_T);
+    out.retain(|p| {
+        let (c, r) = (Vec2::new(p.x, p.z).abs(), footprint(p.kind, p.scale));
+        p.kind != VegKind::Tree || c.max_element() + r < inner || (c - Vec2::splat(outer)).max(Vec2::ZERO).length() > r
+    });
     out
 }
 
@@ -941,8 +948,8 @@ mod tests {
         assert!(ultra.instances() > high.instances());
         assert!(ultra.fine_segments > high.fine_segments);
         assert!(ultra.reach > high.reach);
-        assert_eq!(field(GraphicsPreset::High).len() as u32, high.instances());
-        assert_eq!(field(GraphicsPreset::Ultra).len() as u32, ultra.instances());
+        assert_eq!(field(GraphicsPreset::High).len() as u32, high.instances() - 2 * rim_drop(GraphicsPreset::High));
+        assert_eq!(field(GraphicsPreset::Ultra).len() as u32, ultra.instances() - 2 * rim_drop(GraphicsPreset::Ultra));
         assert_eq!(draws(GraphicsPreset::High), 8);
         assert_eq!(draws(GraphicsPreset::Ultra), 8);
         let high_field = field(GraphicsPreset::High);
@@ -1105,7 +1112,7 @@ mod tests {
         for preset in GraphicsPreset::ALL {
             let plants = vegetation_plants(preset);
             let instances = vegetation_instances(&plants);
-            assert_eq!(instances.len() as u32, vegetation_plan(preset).instances());
+            assert_eq!(instances.len() as u32, vegetation_plan(preset).instances() - 2 * rim_drop(preset));
             for inst in &instances {
                 let ground = seated_y(inst.translation.x, inst.translation.z);
                 match inst.part {
@@ -1249,7 +1256,7 @@ mod tests {
             .set_graphics_preset(GraphicsPreset::Ultra);
         app.update();
         let ultra = vegetation_plan(GraphicsPreset::Ultra);
-        assert_eq!(tally(&mut app), (ultra.instances() as usize, 8, 4));
+        assert_eq!(tally(&mut app), ((ultra.instances() - 2 * rim_drop(GraphicsPreset::Ultra)) as usize, 8, 4));
 
         let world = app.world_mut();
         let rows = veg_rows(world);
@@ -1309,7 +1316,7 @@ mod tests {
         assert_eq!(tally(&mut app).0, 0);
         app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(0);
         app.update();
-        assert_eq!(tally(&mut app).0, ultra.instances() as usize);
+        assert_eq!(tally(&mut app).0, (ultra.instances() - 2 * rim_drop(GraphicsPreset::Ultra)) as usize);
     }
 
     #[test]
@@ -1491,7 +1498,7 @@ mod tests {
         for preset in GraphicsPreset::ALL {
             let (plan, plants) = (vegetation_plan(preset), vegetation_plants(preset));
             let count = |kind| plants.iter().filter(|p| p.kind == kind).count() as u32;
-            assert_eq!((count(VegKind::Tuft), count(VegKind::Shrub), count(VegKind::Tree)), (plan.tufts, plan.shrubs, plan.trees), "{preset:?}");
+            assert_eq!((count(VegKind::Tuft), count(VegKind::Shrub), count(VegKind::Tree)), (plan.tufts, plan.shrubs, plan.trees - rim_drop(preset)), "{preset:?}");
             let mut rng = Rng::new(VEG_SEED);
             for p in plants.iter().filter(|_| !plan.dense) {
                 let (lo, hi) = (YARD_CLEAR * YARD_CLEAR, plan.reach * plan.reach);
@@ -1511,7 +1518,7 @@ mod tests {
         use GraphicsPreset::*;
         assert_eq!(got, [(Mobile, (0, 0)), (Low, (0, 0)), (Medium, (0, 0)), (High, (0, 0)), (Ultra, (0, 0))], "R-A moat, R-B riser bands (preset, (plants, trees))");
         #[cfg(target_os = "linux")]
-        assert_eq!(snaps, [2_315_388_260_842_229_u64, 10_694_924_522_835_294_819, 2_993_560_486_008_231_282, 15_896_017_904_942_478_109, 7_492_226_470_716_398_660], "fnv per preset");
+        assert_eq!(snaps, [2_315_388_260_842_229_u64, 10_694_924_522_835_294_819, 2_993_560_486_008_231_282, 2_631_604_451_141_318_852, 8_468_438_003_070_297_046], "fnv per preset");
     }
 
     /// CARD TREE-SEAT-1 (c) — the final High and Ultra fields after the default
@@ -1521,8 +1528,35 @@ mod tests {
         let disk = crate::wood_expedition::WoodClearance::reserve(crate::wood_expedition::first_passing_site().unwrap());
         for preset in [GraphicsPreset::High, GraphicsPreset::Ultra] {
             let plants = cleared_plants(preset, Some(&disk)).unwrap();
-            assert_eq!(plants.len() as u32, vegetation_plan(preset).plants(), "{preset:?}");
+            assert_eq!(plants.len() as u32, vegetation_plan(preset).plants() - rim_drop(preset), "{preset:?}");
             assert_eq!(banded(&plants), (0, 0), "{preset:?} after the wood clearance (plants, trees)");
+        }
+    }
+
+    /// CARD PLATE-EDGE-CUE-1 — trees the rim rail drops, Mobile to Ultra. VegPlan is an upper bound on High and Ultra.
+    fn rim_drop(preset: GraphicsPreset) -> u32 {
+        [0, 0, 0, 4, 6][GraphicsPreset::ALL.iter().position(|p| *p == preset).unwrap()]
+    }
+
+    /// CARD PLATE-EDGE-CUE-1 V1 — trees per tier are the plan minus [0,0,0,4,6]; no trunk disc meets a rail rectangle.
+    #[test]
+    fn plate_edge_v1_tree_drop_and_zero_trunk_rail_overlap() {
+        use crate::{climate_plane::PLATE_EDGE_T, terrain::PLAY_HALF};
+        let o = PLAY_HALF + PLATE_EDGE_T;
+        let rails = [(-o, PLAY_HALF, o, o), (-o, -o, o, -PLAY_HALF), (PLAY_HALF, -PLAY_HALF, o, PLAY_HALF), (-o, -PLAY_HALF, -PLAY_HALF, PLAY_HALF)];
+        let trees = |preset| vegetation_plants(preset).into_iter().filter(|p| p.kind == VegKind::Tree).collect::<Vec<_>>();
+        let got: Vec<u32> = GraphicsPreset::ALL.iter().map(|&preset| trees(preset).len() as u32).collect();
+        let want: Vec<u32> = GraphicsPreset::ALL.iter().map(|&preset| vegetation_plan(preset).trees - rim_drop(preset)).collect();
+        assert_eq!(got, [2, 4, 6, 24, 42], "trees per tier");
+        assert_eq!(got, want, "plan minus rim drop");
+        for preset in [GraphicsPreset::Medium, GraphicsPreset::High, GraphicsPreset::Ultra] {
+            for p in trees(preset) {
+                let (c, r) = (Vec2::new(p.x, p.z), TRUNK_RADIUS * p.scale);
+                for (x0, z0, x1, z1) in rails {
+                    let near = Vec2::new(c.x.clamp(x0, x1), c.y.clamp(z0, z1));
+                    assert!(c.distance(near) > r, "{preset:?} trunk {c:?} r {r} on rail ({x0},{z0})-({x1},{z1})");
+                }
+            }
         }
     }
 }

@@ -245,7 +245,9 @@ fn assert_tells(app: &mut App) {
     }
     assert!(tells > 0, "C6 found no tells");
 }
-fn boot() -> App {
+fn boot() -> App { boot_with(|_| {}) }
+/// `pre` runs before the first update, so Startup sees what it inserts.
+fn boot_with(pre: impl FnOnce(&mut App)) -> App {
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default())).set_error_handler(bevy::ecs::error::ignore)
         .init_asset::<Mesh>().init_asset::<StandardMaterial>()
@@ -259,6 +261,7 @@ fn boot() -> App {
             MercyHarvestNodesPlugin, CombatCorePlugin, DroidPlugin, GrazerPlugin, LocalHumanSimPlugin,
             HumanPresencePlugin, HeartwoodLipPlugin, HeartwoodWardsPlugin, DepthsLandingPlugin,
         ));
+    pre(&mut app);
     app.update();
     app
 }
@@ -331,7 +334,7 @@ macro_rules! site {
 #[test]
 fn mesh3d_site_count_guard() {
     let rows = [
-        site!("climate_plane.rs", 9), site!("combat_core.rs", 4), site!("depths_landing.rs", 2),
+        site!("climate_plane.rs", 10), site!("combat_core.rs", 4), site!("depths_landing.rs", 2),
         site!("droid.rs", 2), site!("flow_weather.rs", 2), site!("grazer.rs", 1),
         site!("heartwood_lip.rs", 4), site!("heartwood_wards.rs", 1), site!("human_presence.rs", 9),
         site!("light_gen.rs", 4), site!("living_ecology.rs", 6), site!("local_human_sim.rs", 1),
@@ -351,4 +354,35 @@ fn mesh3d_site_count_guard() {
         }
     }
     walk(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src").as_path(), &listed);
+}
+/// PLATE-EDGE-CUE-1 P3 — in plane and stone modes the 36 rim pieces are shown NoCollide, C1 holds, and the C3/C4/C5 rows stay.
+#[test]
+fn plate_edge_p3_rim_is_nocollide_in_plane_and_stone_modes() {
+    use crate::stone_ground::{tests::{layout, scratch, write_pack, PNG_1X1}, StoneAssetDir};
+    let dir = scratch("edge-p3");
+    write_pack(&dir, &layout(), PNG_1X1);
+    for stone in [false, true] {
+        let mut app = boot_with(|app| if stone { app.init_asset::<Image>().insert_resource(StoneAssetDir(dir.clone())); });
+        for (place, realm, solids, count) in PLACES {
+            enter(&mut app, place, realm);
+            assert_declared(&mut app);
+            let ids = mesh_ids(&mut app);
+            let world = app.world();
+            let edge: Vec<Entity> = ids.into_iter().filter(|&id| world.get::<Name>(id).is_some_and(|n| n.as_str() == "PlateEdge")).collect();
+            let ok = edge.iter().all(|&id| policy(world, id).ok() == Some(Policy::NoCollide) && shown(world, id));
+            assert!(edge.len() == 36 && ok, "stone={stone} {place:?} {realm:?} rim {} nocollide+shown {ok}", edge.len());
+            let mut tiles = app.world_mut().query::<(Entity, &StoneGroundTile)>();
+            let tiles: Vec<Entity> = tiles.iter(app.world()).map(|(id, _)| id).collect();
+            let lit = tiles.iter().filter(|&&id| shown(app.world(), id)).count();
+            let want = if stone && place == PlaceId::Sanctuary && matches!(realm, None | Some(0)) { 64 } else { 0 };
+            assert_eq!((tiles.len(), lit), (if stone { 64 } else { 0 }, want), "stone={stone} {place:?} {realm:?} tiles");
+            let shown = shown_solids(&mut app);
+            assert_eq!(shown.len(), solids, "stone={stone} C3 {place:?} {realm:?} shown solids");
+            let (free, reached) = sweep(&shown, spawn_of(&app, place).xz());
+            assert_eq!(pockets(&free, &reached), Vec::<String>::new(), "stone={stone} C4 {place:?} {realm:?}");
+            let uses = uses_of(&mut app, place);
+            assert_eq!(uses.len(), count, "stone={stone} C5 {place:?} {realm:?} uses");
+            assert_eq!(unreachable(&uses, &reached), Vec::<String>::new(), "stone={stone} C5 {place:?} {realm:?}");
+        }
+    }
 }

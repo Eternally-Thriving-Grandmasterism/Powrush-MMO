@@ -170,19 +170,19 @@ pub(crate) fn place_sanctuary_stone(
     true
 }
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::climate_plane::ClimatePlanePlugin;
     use crate::living_practice_loop::SoftPlayerRealm;
     use shared::local_settings::GraphicsPreset;
 
-    const PNG_1X1: &[u8] = &[
+    pub(crate) const PNG_1X1: &[u8] = &[
         137, 80, 78, 71, 13, 10, 26, 10, 0, 0, 0, 13, 73, 72, 68, 82, 0, 0, 0, 1, 0, 0, 0, 1, 8, 2, 0, 0, 0,
         144, 119, 83, 222, 0, 0, 0, 12, 73, 68, 65, 84, 120, 156, 99, 248, 207, 192, 0, 0, 3, 1, 1, 0, 201, 254, 146, 239, 0, 0, 0, 0, 73, 69, 78, 68, 174, 66, 96, 130,
     ];
     const POINTER: &[u8] = b"version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 1\n";
 
-    fn scratch(label: &str) -> PathBuf {
+    pub(crate) fn scratch(label: &str) -> PathBuf {
         static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!("powrush-sg1-{label}-{}-{n}", std::process::id()));
@@ -190,7 +190,7 @@ mod tests {
         std::fs::create_dir_all(&path).unwrap();
         path
     }
-    fn layout() -> String {
+    pub(crate) fn layout() -> String {
         let rows: Vec<_> = (0..GRID).map(|row| {
             let cols: Vec<_> = (0..GRID).map(|col| ((row * GRID + col) % TILES).to_string()).collect();
             format!("[{}]", cols.join(","))
@@ -202,7 +202,7 @@ mod tests {
             rows.join(","),
         )
     }
-    fn write_pack(dir: &Path, body: &str, bytes: &[u8]) {
+    pub(crate) fn write_pack(dir: &Path, body: &str, bytes: &[u8]) {
         std::fs::write(dir.join("layout.json"), body).unwrap();
         for index in 0..TILES as u8 {
             for kind in ["albedo", "normal-gl"] {
@@ -356,5 +356,29 @@ mod tests {
 
     fn mat_color(app: &mut App, handle: &Handle<StandardMaterial>) -> Color {
         app.world().resource::<Assets<StandardMaterial>>().get(handle).unwrap().base_color
+    }
+    fn edge_shown(app: &mut App) -> usize {
+        let mut q = app.world_mut().query::<(&Name, &Visibility)>();
+        q.iter(app.world()).filter(|(n, v)| n.as_str() == "PlateEdge" && **v == Visibility::Visible).count()
+    }
+    /// PLATE-EDGE-CUE-1 P2 — the rim spawns and stays shown with no pack, under hidden plane, realms 2/3, and High->Low.
+    #[test]
+    fn plate_edge_p2_rim_shown_without_a_pack_and_while_the_plane_is_hidden() {
+        assert_eq!(edge_shown(&mut boot(&scratch("edge-absent"), None)), 36, "no stone pack");
+        let dir = scratch("edge-p2");
+        write_pack(&dir, &layout(), PNG_1X1);
+        let mut app = boot(&dir, Some(GraphicsPreset::High));
+        assert_eq!((stone_n(&mut app), yard_vis(&mut app), edge_shown(&mut app)), (64, Visibility::Hidden, 36), "stone High");
+        for realm in [2u8, 3] {
+            app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(realm);
+            app.update();
+            assert!(stone_hidden(&mut app) && edge_shown(&mut app) == 36, "realm {realm}");
+        }
+        app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(0);
+        let mut settings = crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::peace_defaults(), dirty: false };
+        settings.inner.set_graphics_preset(GraphicsPreset::Low);
+        app.insert_resource(settings);
+        app.update();
+        assert!(stone_hidden(&mut app) && yard_vis(&mut app) == Visibility::Visible && edge_shown(&mut app) == 36, "High->Low");
     }
 }
