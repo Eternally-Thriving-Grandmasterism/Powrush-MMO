@@ -590,7 +590,7 @@ fn stop_on_exit(mut exit: MessageReader<AppExit>, mut hub: ResMut<WoodHub>) {
     }
 }
 
-const SITES: [Vec2; 4] = [
+pub(crate) const SITES: [Vec2; 4] = [
     Vec2::new(6.0, 14.0),
     Vec2::new(-6.0, 14.0),
     Vec2::new(6.0, 18.0),
