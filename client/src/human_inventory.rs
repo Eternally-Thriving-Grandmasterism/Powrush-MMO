@@ -21,7 +21,8 @@ use crate::hex_travel::HexTravelState;
 use crate::human_soft_panels::HumanSoftPanels;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::LocalSettingsState;
-use crate::title_screen::{HouseLabel, TITLE_PLATE_BG, TITLE_BORDER, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
+use crate::title_screen::{HouseLabel, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
+use crate::ui_kit;
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_LEDGER};
 use crate::living_freshness::LivingFreshness;
 use crate::rbe_allocate_choice::RbeAllocateChoice;
@@ -68,9 +69,9 @@ impl Default for HumanInventory {
 }
 
 /// CARD PICKUP-STRIP-SCALE-1 — always-on satchel strip spawn size.
-const WATCH_STRIP_FONT_BASE: f32 = 13.0;
+const WATCH_STRIP_FONT_BASE: f32 = ui_kit::TYPE_SMALL;
 /// CARD PICKUP-STRIP-SCALE-1 — pickup flash spawn size.
-const PICKUP_FLASH_FONT_BASE: f32 = 16.0;
+const PICKUP_FLASH_FONT_BASE: f32 = ui_kit::TYPE_CUE;
 
 #[derive(Component)]
 struct WatchStripRoot;
@@ -122,12 +123,11 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     bottom: WATCH.bottom(),
                     left: WATCH.left(),
                     width: Val::Px(340.0),
-                    padding: UiRect::all(Val::Px(10.0)),
-                    border: UiRect::all(Val::Px(1.0)),
+                    padding: UiRect::all(Val::Px(ui_kit::SPACE_L)),
+                    border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)),
                     ..default()
                 },
-                BackgroundColor(TITLE_PLATE_BG),
-                BorderColor::all(TITLE_BORDER),
+                ui_kit::plate(),
                 Visibility::Hidden,
             ),
             WatchStripRoot,
@@ -137,7 +137,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: FontSize::Px(WATCH_STRIP_FONT_BASE / 1.2), ..default() },
+ui_kit::font(WATCH_STRIP_FONT_BASE),
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 WatchStripText,
@@ -153,15 +153,14 @@ TextColor(TITLE_TEXT_PRIMARY),
                     bottom: Val::Percent(22.0),
                     left: Val::Px(16.0),
                     width: Val::Px(300.0),
-                    padding: UiRect::all(Val::Px(14.0)),
+                    padding: UiRect::all(Val::Px(ui_kit::SPACE_2XL)),
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(6.0),
-                    border: UiRect::all(Val::Px(1.5)),
+                    row_gap: Val::Px(ui_kit::SPACE_S),
+                    border: UiRect::all(Val::Px(ui_kit::BORDER_PLATE)),
                     ..default()
                 },
                 // Opaque I/Ledger face — Title contrast law on soft GPU.
-                BackgroundColor(TITLE_PLATE_BG),
-                BorderColor::all(TITLE_BORDER),
+                ui_kit::plate(),
                 Visibility::Hidden,
             ),
 GlobalZIndex(LIVED_UI_Z_LEDGER),
@@ -172,27 +171,27 @@ GlobalZIndex(LIVED_UI_Z_LEDGER),
             p.spawn((
                 (
 Text::new("SATCHEL"),
-TextFont { font_size: FontSize::Px(14.0 / 1.2), ..default() },
+ui_kit::font(ui_kit::TYPE_LABEL),
 TextColor(TITLE_TEXT_SECONDARY),
 ),
-                SatchelFontBase(14.0),
+                SatchelFontBase(ui_kit::TYPE_LABEL),
             ));
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: FontSize::Px(13.5 / 1.2), ..default() },
+ui_kit::font(ui_kit::TYPE_READ),
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 SatchelBody,
-                SatchelFontBase(13.5),
+                SatchelFontBase(ui_kit::TYPE_READ),
             ));
             p.spawn((
                 (
 Text::new("I close · 1–3 highlight · R allocate surplus"),
-TextFont { font_size: FontSize::Px(11.0 / 1.2), ..default() },
+ui_kit::font(ui_kit::TYPE_HINT),
 TextColor(TITLE_TEXT_SECONDARY),
 ),
-                SatchelFontBase(11.0),
+                SatchelFontBase(ui_kit::TYPE_HINT),
             ));
         });
 
@@ -205,13 +204,12 @@ TextColor(TITLE_TEXT_SECONDARY),
                     left: PICKUP.left(),
                     width: Val::Px(360.0),
                     margin: PICKUP.margin(),
-                    padding: UiRect::axes(Val::Px(14.0), Val::Px(8.0)),
+                    padding: UiRect::axes(Val::Px(ui_kit::SPACE_2XL), Val::Px(ui_kit::SPACE_M)),
                     justify_content: JustifyContent::Center,
-                    border: UiRect::all(Val::Px(1.0)),
+                    border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)),
                     ..default()
                 },
-                BackgroundColor(TITLE_PLATE_BG),
-                BorderColor::all(TITLE_BORDER),
+                ui_kit::plate(),
                 Visibility::Hidden,
             ),
             PickupFlashRoot,
@@ -221,7 +219,7 @@ TextColor(TITLE_TEXT_SECONDARY),
             p.spawn((
                 (
 Text::new(""),
-TextFont { font_size: FontSize::Px(PICKUP_FLASH_FONT_BASE / 1.2), ..default() },
+ui_kit::font(PICKUP_FLASH_FONT_BASE),
 TextColor(TITLE_TEXT_PRIMARY),
 ),
                 PickupFlashText,
@@ -400,7 +398,7 @@ pub fn satchel_temper_display(item: &TemperedItem) -> String {
 
 /// CARD UI-SCALE-SLABS-2 — satchel plate type follows `text_scale` (11–22).
 pub fn satchel_font_px(base: f32, text_scale: f32) -> f32 {
-    (base * text_scale).clamp(11.0, 22.0)
+    ui_kit::scaled_px(base, text_scale)
 }
 
 /// CARD PICKUP-STRIP-SCALE-1 — watch strip and pickup flash follow the same step.
@@ -953,6 +951,23 @@ mod tests {
         }
         rows.sort_by(|a, b| a.0.partial_cmp(&b.0).expect("strip flash font base"));
         rows
+    }
+
+    /// CARD UI-KIT-1 — watch, satchel and pickup spawn from the ui_kit tokens only.
+    #[test]
+    fn satchel_surfaces_spawn_from_ui_kit_tokens() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).add_systems(Startup, spawn_inventory_surfaces);
+        app.update();
+        let world = app.world_mut();
+        let fills: Vec<Color> = world.query_filtered::<&BackgroundColor, Without<Text>>().iter(world).map(|c| c.0).collect();
+        assert_eq!(fills, vec![ui_kit::TITLE_PLATE_BG; 3]);
+        assert!(world.query_filtered::<&BorderColor, Without<Text>>().iter(world).all(|b| *b == BorderColor::all(ui_kit::TITLE_BORDER)));
+        let scale = [ui_kit::TYPE_CUE, ui_kit::TYPE_LABEL, ui_kit::TYPE_READ, ui_kit::TYPE_SMALL, ui_kit::TYPE_HINT];
+        let fonts: Vec<FontSize> = world.query::<&TextFont>().iter(world).map(|f| f.font_size).collect();
+        assert_eq!(fonts.len(), 5);
+        assert!(fonts.iter().all(|f| scale.iter().any(|px| *f == FontSize::Px(px / 1.2))), "{fonts:?}");
+        assert_eq!(satchel_font_px(ui_kit::TYPE_READ, 1.35), ui_kit::scaled_px(13.5, 1.35));
     }
 
     #[test]

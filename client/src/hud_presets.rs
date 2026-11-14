@@ -3580,12 +3580,12 @@ child_style.clone(),
         );
         hit(
             &|style, z| {
-                style.top == Val::Px(10.0)
-                    && style.width == Val::Px(520.0)
-                    && style.margin.left == Val::Px(-260.0)
-                    && global_z(z.as_ref(), LIVED_UI_Z_PAUSE + 1)
+                style.width == Val::Percent(100.0)
+                    && style.justify_content == JustifyContent::SpaceBetween
+                    && style.column_gap == Val::Px(10.0)
+                    && z.is_none()
             },
-            "comfort banner",
+            "comfort banner row",
         );
         hit(
             &|style, z| {
