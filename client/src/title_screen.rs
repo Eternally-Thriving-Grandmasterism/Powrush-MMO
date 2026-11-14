@@ -182,10 +182,11 @@ pub mod gltf_integration;
 // <title-palette> — the colours live in `crate::ui_kit`; re-exported for the importers.
 pub use crate::ui_kit::{
     TITLE_BORDER, TITLE_BORDER_MUTED, TITLE_BTN_ACTIVE_BG, TITLE_BTN_BG, TITLE_BTN_DISABLED_BG,
-    TITLE_BTN_DISABLED_FG, TITLE_BTN_FG, TITLE_DIM_BG, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY,
-    TITLE_TEXT_SECONDARY,
+    TITLE_BTN_DISABLED_FG, TITLE_BTN_FG, TITLE_DIM_BG, TITLE_PLATE_BG, TITLE_SCRIM_BG,
+    TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY,
 };
 // </title-palette> — no colour literal in this file (outside tests).
+use crate::launch_menu::LaunchRow;
 use crate::ui_kit;
 
 /// U5 Steam Deck layout contract. The title plate remains inside this surface.
@@ -212,6 +213,9 @@ pub const YARD_WAITING: &str = "the yard is waiting";
 pub const TITLE_CHROME_PLAY: &str = "Play — first Hands";
 pub const TITLE_CHROME_CONTINUE: &str = "Continue";
 pub const TITLE_CHROME_SETTINGS: &str = "Settings";
+/// CARD LAUNCH-MENU-1 — the two rows `launch_menu` adds above Online grey.
+pub const TITLE_CHROME_CREDITS: &str = "Credits";
+pub const TITLE_CHROME_QUIT: &str = "Quit";
 /// Hint under the Title plate buttons. Its own base, same 11..=22 clamp.
 const TITLE_MENU_HINT: &str = "1 Play · 2 Continue · 3 Settings · Esc from yard opens pause";
 
@@ -628,7 +632,7 @@ impl Default for HouseLabel {
 }
 
 #[derive(Component)]
-struct TitleRoot;
+pub(crate) struct TitleRoot;
 #[derive(Component)]
 struct TitlePlate;
 #[derive(Component)]
@@ -639,11 +643,11 @@ struct TitleGardenWantText;
 #[derive(Component)]
 struct TitleBreath;
 #[derive(Component)]
-struct TitlePlayBtn;
+pub(crate) struct TitlePlayBtn;
 #[derive(Component)]
-struct TitleContinueBtn;
+pub(crate) struct TitleContinueBtn;
 #[derive(Component)]
-struct TitleSettingsBtn;
+pub(crate) struct TitleSettingsBtn;
 #[derive(Component)]
 #[allow(dead_code)]
 struct TitleOnlineBtn;
@@ -850,7 +854,7 @@ struct DressSkipBtn;
 
 // --- MERCY_PERSONA P2: gated title creator (PERSONA_CREATOR_ENABLED) ----------
 #[derive(Component)]
-struct TitlePersonaBtn;
+pub(crate) struct TitlePersonaBtn;
 #[derive(Component)]
 struct PersonaCreatorRoot;
 #[derive(Component)]
@@ -1462,7 +1466,11 @@ impl Plugin for TitleScreenPlugin {
     }
 }
 
-fn spawn_title_screen(mut commands: Commands, settings: Option<Res<LocalSettingsState>>) {
+fn spawn_title_screen(
+    mut commands: Commands,
+    settings: Option<Res<LocalSettingsState>>,
+    launch: Option<Res<crate::launch_menu::LaunchFocus>>,
+) {
     // Missing only in headless spawn tests. 1.00 is today's unscaled size.
     let text_scale = match &settings {
         Some(state) => state.inner.text_scale,
@@ -1478,13 +1486,14 @@ fn spawn_title_screen(mut commands: Commands, settings: Option<Res<LocalSettings
                     justify_content: JustifyContent::Center,
                     align_items: AlignItems::Center,
                     flex_direction: FlexDirection::Column,
-                    row_gap: Val::Px(14.0),
+                    row_gap: Val::Px(ui_kit::SPACE_2XL),
                     // U5: reserve a Deck-safe edge and constrain the centered
                     // plate instead of scaling or restyling the title.
                     padding: UiRect::all(Val::Px(TITLE_SAFE_INSET)),
                     ..default()
                 },
                 // Opaque dimmer — soft GPU must not alpha-blend menu into fog.
+                // `launch_menu` swaps in TITLE_SCRIM_BG on Medium and up only.
                 BackgroundColor(TITLE_DIM_BG),
                 // Consume pointer focus across the opaque title door so clicks
                 // in its gaps cannot reach world UI/interactions below it.
@@ -1502,36 +1511,35 @@ GlobalZIndex(LIVED_UI_Z_TITLE),
                         width: Val::Percent(100.0),
                         max_width: Val::Px(TITLE_PLATE_MAX_WIDTH),
                         max_height: Val::Percent(100.0),
-                        padding: UiRect::all(Val::Px(22.0)),
+                        padding: UiRect::all(Val::Px(TITLE_PLATE_PAD)),
                         flex_direction: FlexDirection::Column,
-                        row_gap: Val::Px(10.0),
-                        border: UiRect::all(Val::Px(2.0)),
+                        row_gap: Val::Px(TITLE_PLATE_ROW_GAP),
+                        border: UiRect::all(Val::Px(TITLE_PLATE_BORDER)),
                         align_items: AlignItems::Stretch,
                         ..default()
                     },
-                    BackgroundColor(TITLE_PLATE_BG),
-                    BorderColor::all(TITLE_BORDER),
+                    ui_kit::plate(),
                 ),
                 TitlePlate,
             ))
             .with_children(|p| {
                 p.spawn((
 Text::new("POWRUSH"),
-TextFont { font_size: FontSize::Px(28.0 / 1.2), ..default() },
+ui_kit::font(ui_kit::TYPE_DISPLAY),
 TextColor(TITLE_TEXT_PRIMARY),
 ));
                 p.spawn((
 Text::new("Steward House · offline first"),
-TextFont { font_size: FontSize::Px(14.0 / 1.2), ..default() },
+ui_kit::font(ui_kit::TYPE_LABEL),
 TextColor(TITLE_TEXT_SECONDARY),
 ));
                 p.spawn((
                     (
 Text::new(first_minutes_people_want_line()),
-TextFont { font_size: FontSize::Px(garden_boot_want_font_px(1.0) / 1.2), ..default() },
+ui_kit::font(garden_boot_want_font_px(1.0)),
 TextColor(TITLE_TEXT_PRIMARY),
 Node {
-                        max_width: Val::Px(TITLE_PLATE_MAX_WIDTH - 44.0),
+                        max_width: Val::Px(TITLE_PLATE_MAX_WIDTH - TITLE_PLATE_PAD * 2.0),
                         ..default()
                     },
 ),
@@ -1540,29 +1548,30 @@ Node {
                 p.spawn((
                     (
 Text::new(""),
-TextFont { font_size: FontSize::Px(13.0 / 1.2), ..default() },
+ui_kit::font(ui_kit::TYPE_SMALL),
 TextColor(TITLE_TEXT_SECONDARY),
 ),
                     TitleCueText,
                 ));
-                spawn_title_plate_btn(p, TITLE_CHROME_PLAY, TitlePlayBtn, true, text_scale);
-                spawn_title_plate_btn(p, TITLE_CHROME_CONTINUE, TitleContinueBtn, true, text_scale);
-                spawn_title_plate_btn(p, TITLE_CHROME_SETTINGS, TitleSettingsBtn, true, text_scale);
+                spawn_title_plate_btn(p, TITLE_CHROME_PLAY, (TitlePlayBtn, LaunchRow::Play), true, text_scale);
+                spawn_title_plate_btn(p, TITLE_CHROME_CONTINUE, (TitleContinueBtn, LaunchRow::Continue), true, text_scale);
+                spawn_title_plate_btn(p, TITLE_CHROME_SETTINGS, (TitleSettingsBtn, LaunchRow::Settings), true, text_scale);
                 spawn_title_plate_btn(
                     p,
                     persona_title_btn_label(PERSONA_CREATOR_ENABLED),
-                    TitlePersonaBtn,
+                    (TitlePersonaBtn, LaunchRow::Persona),
                     PERSONA_CREATOR_ENABLED,
                     text_scale,
                 );
+                // Credits and Quit only with LaunchMenuPlugin, which owns their handlers; never dead rows.
+                if launch.is_some() {
+                    crate::launch_menu::spawn_launch_rows(p, text_scale);
+                }
                 spawn_title_plate_btn(p, ONLINE_STUB_LABEL, TitleOnlineBtn, false, text_scale);
                 let hint_px = title_menu_label_px(TITLE_MENU_HINT_BASE_PX, text_scale);
                 p.spawn((
                     Text::new(TITLE_MENU_HINT),
-                    TextFont {
-                        font_size: FontSize::Px(hint_px / 1.2),
-                        ..default()
-                    },
+                    ui_kit::font(hint_px),
                     TextColor(TITLE_TEXT_SECONDARY),
                     TitleMenuScaledLabel {
                         base_px: TITLE_MENU_HINT_BASE_PX,
@@ -1733,7 +1742,7 @@ TextColor(fg),
 
 /// Title-plate sibling of [`spawn_menu_btn`]. Same chrome and colours.
 /// Font follows text scale. Other `spawn_menu_btn` call sites stay fixed.
-fn spawn_title_plate_btn<C: Component>(
+pub(crate) fn spawn_title_plate_btn<C: Bundle>(
     p: &mut ChildSpawnerCommands,
     label: &str,
     marker: C,
@@ -2510,6 +2519,8 @@ fn title_plate_buttons_fit_one_line(text_scale: f32) -> bool {
         TITLE_CHROME_SETTINGS,
         persona_title_btn_label(true),
         persona_title_btn_label(false),
+        TITLE_CHROME_CREDITS,
+        TITLE_CHROME_QUIT,
         ONLINE_STUB_LABEL,
     ]
     .into_iter()
@@ -2520,8 +2531,8 @@ fn title_plate_buttons_fit_one_line(text_scale: f32) -> bool {
 /// Buttons and the hint use [`title_menu_label_px`]. Other lines stay fixed,
 /// except Garden Want, which already scales on its own.
 fn title_plate_height_px(text_scale: f32) -> f32 {
-    let title = title_line_box_px(28.0);
-    let subtitle = title_line_box_px(14.0);
+    let title = title_line_box_px(ui_kit::TYPE_DISPLAY);
+    let subtitle = title_line_box_px(ui_kit::TYPE_LABEL);
     let want_px = garden_boot_want_font_px(text_scale);
     let want_lines = title_soft_wrap_lines(
         &first_minutes_people_want_line(),
@@ -2529,14 +2540,15 @@ fn title_plate_height_px(text_scale: f32) -> f32 {
         title_plate_inner_width_px(),
     );
     let want = title_line_box_px(want_px) * want_lines;
-    let cue = title_line_box_px(13.0);
+    let cue = title_line_box_px(ui_kit::TYPE_SMALL);
     let hint_px = title_menu_label_px(TITLE_MENU_HINT_BASE_PX, text_scale);
     let hint_lines = title_soft_wrap_lines(TITLE_MENU_HINT, hint_px, title_plate_inner_width_px());
     let hint = title_line_box_px(hint_px) * hint_lines;
     let btn_px = title_menu_label_px(TITLE_MENU_BTN_BASE_PX, text_scale);
     let btn = title_line_box_px(btn_px) + TITLE_MENU_BTN_PAD_Y * 2.0 + TITLE_MENU_BTN_BORDER * 2.0;
-    let buttons = 5.0 * btn;
-    let gaps = 9.0 * TITLE_PLATE_ROW_GAP;
+    // Play · Continue · Settings · Persona · Credits · Quit · Online; twelve children, eleven gaps.
+    let buttons = 7.0 * btn;
+    let gaps = 11.0 * TITLE_PLATE_ROW_GAP;
     let chrome = TITLE_PLATE_PAD * 2.0 + TITLE_PLATE_BORDER * 2.0;
     title + subtitle + want + cue + hint + buttons + gaps + chrome
 }
@@ -2617,7 +2629,7 @@ fn play_and_enter_yard(
     enter_yard(door, label);
 }
 
-fn title_button_clicks(
+pub(crate) fn title_button_clicks(
     mut door: ResMut<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
     mut persona: ResMut<PersonaCreatorState>,
@@ -2706,6 +2718,13 @@ fn title_keyboard_shortcuts(
     }
     match *door {
         LaunchDoor::Title => {
+            // Licences is up: Esc closes it and nothing else; 1 / 2 / 3 / Enter do nothing.
+            if let Some(l) = licences.as_mut().filter(|l| l.open) {
+                if keyboard.just_pressed(KeyCode::Escape) {
+                    l.open = false;
+                }
+                return;
+            }
             if keyboard.just_pressed(KeyCode::Digit1) || keyboard.just_pressed(KeyCode::Enter) {
                 play_and_enter_yard(
                     &mut door,
@@ -2734,7 +2753,6 @@ fn title_keyboard_shortcuts(
             } else if keyboard.just_pressed(KeyCode::Digit3) {
                 label.settings_open = !label.settings_open;
             } else if keyboard.just_pressed(KeyCode::Escape) {
-                if let Some(l) = licences.as_deref_mut().filter(|l| l.open) { l.open = false; return; }
                 // Esc-from-title: close settings / persona plate. Never wipe house/climate/standing/book.
                 label.settings_open = false;
                 // Persona Esc handled in persona_creator_buttons when open.
@@ -2801,7 +2819,7 @@ fn scripted_title_play(
     *latched = true;
 }
 
-fn sync_title_visibility(
+pub(crate) fn sync_title_visibility(
     door: Res<LaunchDoor>,
     label: Res<HouseLabel>,
     mut root: Query<&mut Visibility, With<TitleRoot>>,
@@ -3039,15 +3057,26 @@ fn pause_plate_clicks(
     for i in &quit {
         if *i == Interaction::Pressed {
             // Pause Quit (not Esc).
-            label.settings_open = false;
-            if let Some(places) = places.as_mut() {
-                places.close_door();
-            }
-            persist_in_yard_hour(*door, &mut label, bind.as_deref());
-            exit.write(AppExit::Success);
+            quit_to_desktop(*door, &mut label, places.as_deref_mut(), bind.as_deref(), &mut exit);
             return;
         }
     }
+}
+
+/// Pause Quit and Title Quit: close the plates, run the InYard saves (none on Title), then AppExit.
+pub(crate) fn quit_to_desktop(
+    door: LaunchDoor,
+    label: &mut HouseLabel,
+    places: Option<&mut PlacesPlate>,
+    bind: Option<&LivedHourBind>,
+    exit: &mut MessageWriter<AppExit>,
+) {
+    label.settings_open = false;
+    if let Some(places) = places {
+        places.close_door();
+    }
+    persist_in_yard_hour(door, label, bind);
+    exit.write(AppExit::Success);
 }
 
 /// InYard only: house JSON, then the lived-hour bind. Pause Title and Pause Quit share this.
@@ -7649,16 +7678,16 @@ mod tests {
         assert!((hint - 30.0).abs() < 0.01, "hint box {hint}");
         let want = title_line_box_px(want_px) * 2.0;
         assert!((want - 38.0).abs() < 0.01, "want box {want}");
-        // 28 + 14 + 38 + 13 + 30 + 5×43 + 9×10 + 48.
-        let expected = 28.0 + 14.0 + want + 13.0 + hint + 5.0 * btn + 90.0 + 48.0;
+        // 28 + 14 + 38 + 13 + 30 + 7×43 + 11×10 + 48.
+        let expected = 28.0 + 14.0 + want + 13.0 + hint + 7.0 * btn + 110.0 + 48.0;
         let height = title_plate_height_px(scale);
         assert!(
             (height - expected).abs() < 0.01,
             "height {height} expected {expected}"
         );
         assert!(
-            (height - 476.0).abs() < 0.01,
-            "title plate {height}px, clerk's unscaled-hint measure was about 457"
+            (height - 582.0).abs() < 0.01,
+            "title plate {height}px with Credits and Quit (476 before LAUNCH-MENU-1)"
         );
         assert!(
             height <= safe,
@@ -10346,5 +10375,64 @@ mod tests {
             app.insert_resource(keys).update();
             assert!(!app.world().resource::<HouseLabel>().settings_open, "{door:?}: the next Esc is today's");
         }
+    }
+
+    // --- CARD LAUNCH-MENU-1 — Credits and Quit on the Title plate ---------------
+
+    #[test]
+    fn launch_rows_are_plate_buttons_in_order_text_scaled_online_grey_last() {
+        let mut app = App::new();
+        app.insert_resource(LocalSettingsState::default()).init_resource::<crate::launch_menu::LaunchFocus>()
+            .add_systems(Startup, spawn_title_screen).add_systems(Update, refresh_title_menu_text_scale);
+        app.update();
+        app.world_mut().resource_mut::<LocalSettingsState>().inner.text_scale = 1.35;
+        app.update();
+        let world = app.world_mut();
+        let plate = world.query_filtered::<&Children, With<TitlePlate>>().single(world).unwrap().to_vec();
+        let world = &*world;
+        let rows: Vec<_> = plate.iter().filter_map(|row| {
+            let label = *world.get::<Children>(*row)?.first()?;
+            world.get::<TitleMenuScaledLabel>(label)?;
+            let FontSize::Px(px) = world.get::<TextFont>(label)?.font_size else { return None };
+            Some((world.get::<Text>(label)?.as_str(), world.get::<LaunchRow>(*row).copied(), world.get::<BackgroundColor>(*row)?.0, px))
+        }).collect();
+        let labels: Vec<&str> = rows.iter().map(|r| r.0).collect();
+        let persona = persona_title_btn_label(PERSONA_CREATOR_ENABLED);
+        assert_eq!(labels, [TITLE_CHROME_PLAY, TITLE_CHROME_CONTINUE, TITLE_CHROME_SETTINGS, persona, TITLE_CHROME_CREDITS, TITLE_CHROME_QUIT, ONLINE_STUB_LABEL]);
+        let tags: Vec<Option<LaunchRow>> = rows.iter().map(|r| r.1).collect();
+        assert_eq!(tags, [Some(LaunchRow::Play), Some(LaunchRow::Continue), Some(LaunchRow::Settings), Some(LaunchRow::Persona), Some(LaunchRow::Credits), Some(LaunchRow::Quit), None]);
+        let px = title_menu_label_px(TITLE_MENU_BTN_BASE_PX, 1.35) / 1.2;
+        assert!(rows.iter().all(|r| r.3.to_bits() == px.to_bits()), "every row follows text scale: {rows:?}");
+        assert_eq!((rows[4].2, rows[5].2, rows[6].2), (TITLE_BTN_BG, TITLE_BTN_BG, TITLE_BTN_DISABLED_BG), "Online stays grey");
+        assert!(online_row_is_honest_disabled(ONLINE_STUB_LABEL, false));
+    }
+
+    /// Real layout at 1280×720 and text scale 1.35: seven rows and the first-launch banner end inside the plate.
+    #[test]
+    fn launch_rows_and_banner_fit_inside_672_in_real_layout_at_135() {
+        use bevy::camera::{ComputedCameraValues, RenderTargetInfo};
+        let mut inner = LocalSettings::peace_defaults();
+        inner.text_scale = 1.35;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default(), bevy::input::InputPlugin, bevy::text::TextPlugin, bevy::ui::UiPlugin, crate::ui_font::UiFontPlugin))
+            .init_asset::<Image>().init_asset::<TextureAtlasLayout>().add_message::<bevy::picking::pointer::PointerInput>()
+            .add_message::<bevy::picking::backend::PointerHits>().init_resource::<bevy::picking::hover::HoverMap>().init_resource::<bevy::picking::events::PointerState>()
+            .insert_resource(LaunchDoor::Title).init_resource::<HouseLabel>().init_resource::<PersonaCreatorState>().init_resource::<SessionNetMode>()
+            .insert_resource(LocalSettingsState { inner, dirty: false }).init_resource::<crate::launch_menu::LaunchFocus>()
+            .add_systems(Startup, (spawn_title_screen, spawn_comfort_graphics_banner).chain())
+            .add_systems(Update, (sync_title_visibility, sync_comfort_graphics_banner));
+        let target_info = Some(RenderTargetInfo { physical_size: UVec2::new(1280, 720), scale_factor: 1.0 });
+        app.world_mut().spawn((Camera2d, Camera { computed: ComputedCameraValues { target_info, ..default() }, ..default() }));
+        let world = { (app.update(), app.update()); app.world_mut() };
+        let plate = world.query_filtered::<Entity, With<TitlePlate>>().single(world).unwrap();
+        let world = &*world;
+        let span = |e: Entity| { let (c, h) = (world.get::<bevy::ui::UiGlobalTransform>(e).unwrap().translation.y, world.get::<ComputedNode>(e).unwrap().size().y / 2.0); (c - h, c + h) };
+        let shown: Vec<Entity> = world.get::<Children>(plate).unwrap().to_vec().into_iter().filter(|k| world.get::<ComputedNode>(*k).is_some_and(|n| n.size().y > 0.0)).collect();
+        assert_eq!(shown.iter().filter(|k| world.get::<LaunchRow>(**k).is_some()).count(), 6);
+        assert!(world.get::<ComfortGraphicsBannerRoot>(*shown.last().unwrap()).is_some(), "the banner is the last shown row");
+        let ((top, bottom), last) = (span(plate), span(*shown.last().unwrap()).1);
+        assert!(TITLE_SAFE_INSET <= top && bottom <= 720.0 - TITLE_SAFE_INSET, "plate {top}..{bottom}");
+        let inside = bottom - TITLE_PLATE_PAD - TITLE_PLATE_BORDER;
+        assert!(last <= inside + 0.5, "banner ends at {last}, past the plate's content edge {inside}");
     }
 }

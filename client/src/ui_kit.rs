@@ -39,6 +39,8 @@ pub const TITLE_BTN_ACTIVE_BG: Color = Color::srgb(0.32, 0.16, 0.48);
 /// CARD VP-UI-REGAL-2 — inactive Settings tab border: quiet champagne gold,
 /// dimmer than TITLE_BORDER (not bronze / brown / beige).
 pub const TITLE_BORDER_MUTED: Color = Color::srgb(0.66, 0.58, 0.36);
+/// CARD LAUNCH-MENU-1 — Medium and up: TITLE_DIM_BG at partial alpha, so the static yard reads behind the opaque plate.
+pub const TITLE_SCRIM_BG: Color = Color::srgba(0.04, 0.025, 0.05, 0.72);
 // </title-palette> — every colour literal in this file (outside tests) lives above.
 
 /// Type scale, logical px. Title wordmark.
@@ -130,7 +132,7 @@ mod tests {
         assert_eq!(body.matches("// <title-palette>").count(), 1);
         let outside = format!("{}{}", &body[..open], &body[close..]);
         assert_eq!(colour_literals(&outside), 0, "colour literal outside the palette");
-        assert_eq!(body[open..close].matches("pub const TITLE_").count(), 11);
+        assert_eq!(body[open..close].matches("pub const TITLE_").count(), 12);
     }
 
     #[test]
@@ -142,6 +144,7 @@ mod tests {
         assert_eq!(TITLE_BTN_DISABLED_BG, Color::srgb(0.10, 0.11, 0.12));
         assert_eq!(TITLE_BTN_DISABLED_FG, Color::srgb(0.55, 0.58, 0.60));
         assert_eq!(crate::title_screen::TITLE_BTN_ACTIVE_BG, TITLE_BTN_ACTIVE_BG);
+        assert_eq!((TITLE_SCRIM_BG, crate::title_screen::TITLE_SCRIM_BG), (Color::srgba(0.04, 0.025, 0.05, 0.72), TITLE_DIM_BG.with_alpha(0.72)));
     }
 
     /// The scale is today's sizes, largest first, inside the text-scale clamp.
@@ -177,7 +180,10 @@ mod tests {
     fn pause_and_satchel_sites_read_tokens() {
         let title = prod(include_str!("title_screen.rs"));
         let satchel = prod(include_str!("human_inventory.rs"));
+        let menu = prod(include_str!("launch_menu.rs"));
         let sites = [
+            fn_body(title, "spawn_title_screen"),
+            fn_body(menu, "spawn_launch_rows"),
             fn_body(title, "spawn_menu_btn"),
             fn_body(title, "spawn_title_plate_btn"),
             fn_body(title, "spawn_settings_stub"),
