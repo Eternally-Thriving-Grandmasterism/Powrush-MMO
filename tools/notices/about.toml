@@ -1,0 +1,15 @@
+# cargo-about 0.9.x (cargo install cargo-about --version "~0.9" --locked --features cli).
+# Regenerate from the repo root after any Cargo.lock change:
+#   cargo about generate --frozen -m client/Cargo.toml -c tools/notices/about.toml tools/notices/about.hbs \
+#     -o THIRD-PARTY-NOTICES.txt && sed -i "s/@CARGO_LOCK_SHA256@/$(sha256sum Cargo.lock | cut -c1-64)/" THIRD-PARTY-NOTICES.txt
+accepted = ["MIT", "Apache-2.0", "Unicode-3.0", "Zlib", "ISC", "MIT-0", "BSD-3-Clause"]
+targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
+ignore-build-dependencies = true
+ignore-dev-dependencies = true
+
+[no-clearly-defined]
+
+# client/assets/fonts/OFL.txt (Fira Sans) is scanned as powrush-client's own licence;
+# about.hbs drops our own AG-SML crates (powrush-client, shared, rsil-identity) from the output.
+[powrush-client]
+accepted = ["OFL-1.1"]
