@@ -23,6 +23,13 @@ WASD · look · **Use** (Peace **E** / pad **South**, `aabecfb`) run on the **lo
 
 The canon frame is SC2 **input honesty** — one press → one result **this tick** — not army APM and not an ability rotation (`SIM_AND_HAND_CANON` §3). The named broken hands are ice-skate, eaten E, and Title hitch; a double Use from a frame spike is a **bug**, not a climate.
 
+Acceptance still open (`MOVEMENT_STANDARD.md`):
+
+- no input dropped during landing recovery
+- 180° reversal ≤ N_turn ticks
+
+N_turn stays a symbol until Clerk pins it. This note does not give it a value.
+
 The body is never lockstepped. Classic RTS "wait on turn \(N\) for everyone" is wrong for Peace WASD, and a lagging stranger must not freeze Sanctuary (`SIM_AND_HAND_CANON` §5, `NET_OFFLINE_CONTRACT` §3 / §6). When Online is named later, the wire carries **commands / digests** — Verb · Place · week digest — never poses.
 
 **Different teacher:** WoW teaches a class kit against a shared server clock — ability bars, cooldown rotation, and a pose the server owns. Offline 1.0 teaches **one Use verb whose ack belongs to your own tick**. The universe (well colour, week sum, later digest) may be late; the finger may not.
@@ -84,6 +91,8 @@ Clarity intent: let the bed carry the *Resting* end of the well speech (Idle · 
 One HUD. The satchel (**I**), the ledger sash (**L**), the climate slab, and the one card are the chrome. Clarity is spent making that one surface honest — well captions as words, colourblind tokens, guidance hidden by **H** without losing the sentence — not on a parallel MMO chrome layer.
 
 Refused by standing law and re-stated here: a second HUD, an F-row, an XP bar, a peer count, a talent panel, or a Living Practice overlay in the Offline door (`README`, `TAPE_TRUTH` §3, `STRANGER_LOOP`).
+
+> **DOCS-SYNC-1:** Superseded in part by LEVELS_CANON (2026-10-27): skill levels and a skills panel are canon; an always-on XP bar stays refused. The sentence above is not rewritten.
 
 ---
 

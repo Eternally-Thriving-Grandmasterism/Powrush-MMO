@@ -12,7 +12,7 @@ README **Agent landing** is canon for walked slices: U0–U8 (and related stamps
 
 Cursor / PATSAGi inner-loop agents start at [`docs/AGENT_RUN_BRIEF.md`](docs/AGENT_RUN_BRIEF.md).
 The outer loop does not write code. This seat codes one named slice on a feature branch.
-**Fetch `origin/main` at the start of every seat.** Tip on `main` after #486 Q1b: `e3a6b483` (short `e3a6b48`). Cite [`docs/AGENT_AUTONOMY_COURT_2026-09-22.md`](docs/AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3 + [`docs/CURSOR_GROK_MODEL_SEAT.md`](docs/CURSOR_GROK_MODEL_SEAT.md).
+**Fetch `origin/main` at the start of every seat.** Never trust a tip SHA written in this file. Cite [`docs/AGENT_AUTONOMY_COURT_2026-09-22.md`](docs/AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3 + [`docs/CURSOR_GROK_MODEL_SEAT.md`](docs/CURSOR_GROK_MODEL_SEAT.md).
 BRIEF-P1 locks walked Hour 2/3 fail verbs in `--lib` tests. PLAYTEST-1 locks the stranger hour note in [`docs/FIRST_HOUR_PLAYTEST.md`](docs/FIRST_HOUR_PLAYTEST.md). A human fills OS / GPU / minutes (felt column only).
 Title Online stays grey. `playable-preview` stays `11c577e`. Floor `2163551`.
 Ra-Thor does not drive WASD. Powrush-MMO-Simulator is a third repo.
@@ -20,7 +20,9 @@ Do not rebuild U0–U8 or H-2026-09-15-H2-TAB / Q / L / RESUME / H3-FAB / H3-SEA
 Core gate: `cargo test -p shared -p rsil-identity` then `cargo test -p powrush-client --lib`.
 Default play: `cargo run -p powrush-client`. Contact: [info@Rathor.ai](mailto:info@Rathor.ai).
 
-**Standing runner (CARD Q3):** After merge, the inner loop may continue to the next named CARD on [`docs/GROK_BOT_TODO.md`](docs/GROK_BOT_TODO.md) Next when that CARD already names exact PATHS — no new steward interview. If Next has no PATHS, HOLD that card; do not invent PATHS.
+**Standing runner (CARD Q3):** After merge, the inner loop may continue to the next named CARD when that CARD already names exact PATHS — no new steward interview. If it has no PATHS, HOLD that card; do not invent PATHS. The live queue is #738 Lead posts. [`docs/GROK_BOT_TODO.md`](docs/GROK_BOT_TODO.md) and [`docs/NEXT_NAMED_CARDS.md`](docs/NEXT_NAMED_CARDS.md) "Next" sections are history.
+
+Any card touching locomotion must run the MOVE-FEEL fixtures. Any card spawning a mesh must add an ENTITY-CONTRACT policy row. Any card placing world objects must place them from an authored table and show they sit on the visible ground (mesh tread, not circle). See [`docs/MOVEMENT_STANDARD.md`](docs/MOVEMENT_STANDARD.md).
 
 ## Seats
 

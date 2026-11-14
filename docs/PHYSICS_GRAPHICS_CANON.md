@@ -19,11 +19,13 @@ Parked crates (`server/`, `simulation/`, `host/`, `game/`, `powrush-divine-modul
 ## Four physics layers
 
 1. **Moral physics (shipped, sacred)** — wells `Idle → Glowing → Tended → Resting → Stressed`; flow vs reserve; climate / standing / week (`tons + restored`). This is the base-reality teaching the human feels.
-2. **Body physics (shipped, light)** — Bevy 0.14 kinematics only (WASD / Space / Shift + capsule presence). **No Avian / Rapier / bevy_xpbd** in the lived door.
+2. **Body physics (shipped, light)** — Bevy 0.20 kinematic 60 Hz controller (`human_presence.rs`). Standards: MOVE-FEEL-1 (#738 [6862359532](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6862359532) plus amendments [6862475803](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6862475803) and [6862567059](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6862567059)), PHYS-REAL (#738 [6863026191](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6863026191)), COMBAT-FAIR ([6862567059](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6862567059)). No engine before EA (COLLIDE-CORE study). **No Avian / Rapier / bevy_xpbd** in the lived door. Table: [`MOVEMENT_STANDARD.md`](MOVEMENT_STANDARD.md).
 3. **Lattice physics (Ra-Thor / parked simulation)** — high-fidelity RBE demos stay off the default door until the yard already teaches the claim.
 4. **Mythic / fleet / boarding formulas** — stay in lore docs. Do **not** drop sim-tier Crownstone formulas into Peace hour.
 
 ## Sanctuary graphics
+
+> **DOCS-SYNC-1:** EA visual bar (Sherif t2012u): match the painted references in Drive (precedence in [`VISUAL_TARGET.md`](VISUAL_TARGET.md)) and powrush.com. Low-poly is a budget, not the target. The bullet below is not rewritten. The powrush.com gritty low-poly lines in [`ART_BIBLE.md`](ART_BIBLE.md) stay as written (reserved to Sherif).
 
 - Quiet low trees, stones, colored nodes; climate fog (`FogSettings` / Z planes) answers stress/harmony.
 - G0 light gen (`POWRUSH_GEN=light`, **default off**): hex-seed scatter (≤4 mesh types, low count) + FogSettings on world Camera3d only; cull when Title/pause/Settings/L/Q open; no birds / no second Camera3d / no Avian.

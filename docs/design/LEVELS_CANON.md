@@ -12,7 +12,7 @@ Only the quote above is Sherif's canon. It supersedes the councils' 2026-10-25 "
 
 R1 to R3 and the way R5 is applied are **council decisions under Sherif's 1:58 PM "deliberate and decide" order. Sherif can correct them.**
 
-- **R1 · Where XP comes from.** XP comes from practised verbs: crafting, gathering, hauling, quests and similar. Kills still never pay XP. That is the existing exploit guard in [COMBAT_AND_PVP](COMBAT_AND_PVP.md) :69, :244 and :284, kept under R5. It is not a Sherif quote.
+- **R1 · Where XP comes from.** XP comes from practised verbs: crafting, gathering, hauling, quests and similar. Kills still never pay XP. That is the existing exploit guard in [COMBAT_AND_PVP](COMBAT_AND_PVP.md) :69, :244 and :284, kept under R5. It is not a Sherif quote. Combat XP comes from landed hits under a daily cap (COMBAT-XP-PACE-1); a defeat itself pays nothing.
 - **R2 · What levels.** Professions and skills level up through XP, in the style of RuneScape and WoW. Engineering is a levelling profession per [AUDIO_RADIO_QUEST_DESIGN](AUDIO_RADIO_QUEST_DESIGN.md) :85.
 - **R3 · One power ladder.** Temper, Lumen and Ward stay the only *power* ladder ([MERCY_TEMPER_PROGRESSION](../MERCY_TEMPER_PROGRESSION.md)). Levels unlock recipes and access, not raw stats. There is no second stat ladder. How levels relate to the rungs is left to LEVELS-LADDER-MAP-1.
 - **R4 · OPEN for Sherif, now partly answered** in "R4 answer" below. Otherwise none of the following is decided here. Nobody invents a mapping or a formula. These are banked as LEVELS-LADDER-MAP-1.

@@ -1,6 +1,6 @@
 # GROK_BOT_TODO.md
 
-Tip `5084ce9f` (`5084ce9f94163021901cbd5ef161fac321fbcd24`) — spent #596 through #749. Spent #592 through #595 (bank #593–#595 after TODO-SYNC-RITE #592; P3 CONTINUE-BAK-AWARE RETIRED, not cooked). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). Standing Next: [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT (recorded on #577) · #577–#584 SPENT (recorded on #585) · #585–#586 SPENT (recorded on #587) · #587–#588 SPENT (recorded on #589) · #589–#591 SPENT (recorded on #592) · #592–#595 SPENT (recorded on #596) · #596–#749 SPENT on this tip.
+Tip `5084ce9f` (`5084ce9f94163021901cbd5ef161fac321fbcd24`) — spent #596 through #749. Spent #592 through #595 (bank #593–#595 after TODO-SYNC-RITE #592; P3 CONTINUE-BAK-AWARE RETIRED, not cooked). Fetch `origin/main` at the start of every seat. Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3. Model seat: [`CURSOR_GROK_MODEL_SEAT.md`](CURSOR_GROK_MODEL_SEAT.md). The live queue is #738 Lead posts; this file is history. This stamp is a **design tick**, not a Cargo bump. Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT (recorded on #577) · #577–#584 SPENT (recorded on #585) · #585–#586 SPENT (recorded on #587) · #587–#588 SPENT (recorded on #589) · #589–#591 SPENT (recorded on #592) · #592–#595 SPENT (recorded on #596) · #596–#749 SPENT on this tip.
 
 **Canon pack:** [`docs/AGENT_COMPLETION_PACK_v23.2.md`](AGENT_COMPLETION_PACK_v23.2.md)  
 **Player-experience canon (review only, 2026-09-11):** [`docs/GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md`](GROK_BOT_PLAYER_EXPERIENCE_BRIEF.md)
@@ -311,10 +311,10 @@ Immersion / logistics waves A–E already spent earlier in court (docs + Hands o
 
 ## Next (ordered)
 
-Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. Do not invent PATHS. Online grey. No OFFER NEXT. Standing Next is [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). Cook that file. Do not copy a second queue onto this page.
+The live queue is #738 Lead posts; this file is history. Do not cook the list below.
 
-0. **CARD TODO-SYNC-703** (this card) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Next: HEARTBEAT, then Gap 7 (pending Sherif's word for .github/**). No other card named.
-1. **Standing Next** — [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). CLERK-LAG-LABELS is spent (#578). Do not invent PATHS.
+0. **CARD TODO-SYNC-703** (historical) — PATHS `docs/GROK_BOT_TODO.md` · `docs/NEXT_NAMED_CARDS.md`. Not the live queue.
+1. **Historical note** — [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md) is not the live queue. The live queue is #738 Lead posts.
 
 Bounds (not cards):
 
@@ -324,7 +324,7 @@ Bounds (not cards):
 
 Parked (SKIP or JUNCTION, awaiting a Steward PATH, never spent or landed):
 
-- **FEEL-MOVE** — HELD. `client/src/feel_move.rs` only holds the Use buffer (SIM_HZ 60, USE_BUFFER_SECS 0.120); retuning it would mean inventing numbers nobody named; any visible cue or reduced_motion rule would reach into `client/src/human_presence.rs`, making it a junction.
+- **FEEL-MOVE** — Feel-move is governed by MOVE-FEEL-1 (#997) and its amendments. Retunes need a council-pinned constant table (see [`MOVEMENT_STANDARD.md`](MOVEMENT_STANDARD.md)).
 - **Card 4 FLESH-TAP-USE-ROW** — HELD. The row is wired into the banked tap-to-use feature (its structs, three queries and two system signatures), so removing it is more than a word change.
 - **Method B confirm UI** — JUNCTION. Shared gate exists (`NeedsConfirm` / `MidWasd`). No client Method B slab. FLESH-GENSHARE-CONFIRM SKIP 2026-09-27. Steward names PATH.
 - **Audit rows 6–7** — HELD (Crownstone). `client/src/species_redemption.rs` · `client/src/hybrid_matrix.rs`. `crownstone.rs` stays refused.
@@ -337,13 +337,15 @@ Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/s
 
 **STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 2c084e71. Method B confirm UI stays JUNCTION until Steward names PATH.
 
-**Effective order (verified):** TODO-SYNC-749 → HEARTBEAT. No other card named.
+**Effective order (historical):** the note on this page was TODO-SYNC-749 → HEARTBEAT. The live queue is #738 Lead posts.
 
 **DO-NOT-FREESTYLE (parked):** `war_week.rs` · `crownstone.rs` · `faction*_ui.rs` · `treaty_*.rs` · `steam*_integration.rs` · `networking.rs` · `coop_voice.rs` · `multiplayer_web_deepening.rs` · `webxr_bootstrap.rs` · `server/` · Title Online · App ID · MESH `.glb` · gold · Market · five-gate Title · Ra-Thor repo. Online grey. Bevy pin 0.20. Playable-preview tag `11c577e`. No OFFER NEXT.
 
 **BANK (cite only · do not cook):** Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb · Hour 4 · Market · gold · five-gate Title · playtest minutes = steward only. Five-gate Drive = AFTER House. Never Title lobby. No Hands mesh. No invent PATHS. Online grey. No OFFER NEXT. Bevy pin 0.20 climbing one minor per card (Sherif GO 2026-10-09).
 
 NEVER: race lobby · five-gate Title · gold · XP HUD · Market · Unreal.
+
+Superseded in part: XP HUD → LEVELS_CANON (2026-10-27). Skill levels and a skills panel are canon; an always-on XP bar stays refused.
 
 Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available. One card in flight. Title Online stays grey. Floor `2163551`. Tag `11c577e`. Workspace `21.88.0`.
 

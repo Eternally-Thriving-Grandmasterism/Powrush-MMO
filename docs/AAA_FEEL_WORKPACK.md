@@ -26,7 +26,7 @@ B1 rumble + reduced_motion · B2 well sentences · B3 colorblind tokens · B4/B4
 
 Feel already in hands: first-take glow + camera punch + rumble (when rumble on).
 
-**Feel-move (SC2 contract, named door):** FixedUpdate @ 60 Hz locomotion; accel + stop-on-release; one Use ≤120 ms enter-range buffer. Do not rebuild. A2–A5 still steward-named.
+**Feel-move:** Feel-move is governed by MOVE-FEEL-1 (#997) and its amendments. Retunes need a council-pinned constant table (see [`MOVEMENT_STANDARD.md`](MOVEMENT_STANDARD.md)).
 
 ## AAA slice queue (one PR each)
 
