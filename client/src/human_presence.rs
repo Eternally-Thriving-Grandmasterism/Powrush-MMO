@@ -1550,11 +1550,11 @@ fn push_out_of_moat(pos: &mut Vec3, vel: &mut Vec3) {
     use crate::water::{BATH_INNER, BATH_OUTER};
     let xz = pos.xz();
     let r = xz.length();
-    if r < BATH_INNER || r > BATH_OUTER {
+    let (inner, outer) = (BATH_INNER - PLAYER_TRUNK_RADIUS, BATH_OUTER + PLAYER_TRUNK_RADIUS);
+    if r <= inner || r >= outer {
         return;
     }
     let dir = xz.try_normalize().unwrap_or(Vec2::X);
-    let (inner, outer) = (BATH_INNER - PLAYER_TRUNK_RADIUS, BATH_OUTER + PLAYER_TRUNK_RADIUS);
     let push_r = if (r - inner).abs() <= (outer - r).abs() {
         inner
     } else {
@@ -1564,7 +1564,7 @@ fn push_out_of_moat(pos: &mut Vec3, vel: &mut Vec3) {
     (pos.x, pos.z) = (out.x, out.y);
     let n = (xz - out).try_normalize().unwrap_or(Vec2::ZERO);
     let into = vel.x * n.x + vel.z * n.y;
-    if into < 0.0 {
+    if into > 0.0 {
         vel.x -= into * n.x;
         vel.z -= into * n.y;
     }
@@ -6399,8 +6399,6 @@ mod tests {
         }
     }
 
-    /// CARD YARD-EDGE-1 + TERRAIN-GROUND-1 re-pin — walk and sprint off the court riser; shelf 1 lands at local hip_y.
-    /// Outermost shelf bound is [`terrain::SHELF_OUTER`] minus trunk radius (859.7 m).
     #[test]
     fn yard_edge_1_walk_off_held_inside_plate() {
         let court = crate::terrain::COURT_RADIUS - PLAYER_TRUNK_RADIUS;
@@ -6409,9 +6407,11 @@ mod tests {
         for sprint in [false, true] {
             for (sx, sz) in faces {
                 let out = Vec2::new(sx, sz);
+                let start = out.normalize() * (court - 3.0);
+                assert!(start.length() <= court + 1e-4);
                 let mut app = mf_fresh();
                 let mut p = app.world_mut().resource_mut::<SoftPresence>();
-                p.position = Vec3::new(sx * (court - 3.0), STAND, sz * (court - 3.0));
+                p.position = Vec3::new(start.x, STAND, start.y);
                 (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
                 drop(p);
                 mf_stick(&mut app, sx, -sz, sprint);
@@ -6420,31 +6420,33 @@ mod tests {
                     jb_step(&mut app);
                     let at = app.world().resource::<SoftPresence>().position;
                     let r = at.xz().length();
-                    let row = format!("sprint={sprint} out={out} tick={tick} at={at}");
-                    assert!(r <= outer + 1e-4, "past outer shelf bound {row}");
+                    assert!(r <= outer + 1e-4, "out={out} tick={tick}");
                     let hip = tg_hip_y(at.x, at.z);
                     if r <= court + 1e-4 {
-                        assert!((at.y - STAND).abs() < 0.02, "court height {row}");
+                        assert!((at.y - STAND).abs() < 0.02);
                     } else if app.world().resource::<SoftPresence>().grounded {
-                        assert!((at.y - hip).abs() < 0.02, "shelf hip {row}");
+                        assert!((at.y - hip).abs() < 0.02);
                     }
                     crossed |= r > court + 0.5;
                 }
-                assert!(crossed, "never walked off court sprint={sprint} out={out}");
+                let p = app.world().resource::<SoftPresence>();
+                assert!(crossed && p.position.xz().length() > court + 0.5 && p.grounded
+                    && (p.position.y - tg_hip_y(p.position.x, p.position.z)).abs() < 0.02);
             }
         }
     }
 
-    /// CARD YARD-EDGE-1 + TERRAIN-GROUND-1 re-pin — sprint, jump off the court riser; shelf 1 landing uses local hip_y.
     #[test]
     fn yard_edge_1_sprint_jump_held_inside_plate() {
         let court = crate::terrain::COURT_RADIUS - PLAYER_TRUNK_RADIUS;
         let outer = crate::terrain::SHELF_OUTER[crate::terrain::SHELF_COUNT - 1] - PLAYER_TRUNK_RADIUS;
         for (sx, sz) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0), (1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)] {
             let out = Vec2::new(sx, sz);
+            let start = out.normalize() * (court - 2.5);
+            assert!(start.length() <= court + 1e-4);
             let mut app = mf_fresh();
             let mut p = app.world_mut().resource_mut::<SoftPresence>();
-            p.position = Vec3::new(sx * (court - 2.5), STAND, sz * (court - 2.5));
+            p.position = Vec3::new(start.x, STAND, start.y);
             (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
             drop(p);
             mf_stick(&mut app, sx, -sz, true);
@@ -6468,7 +6470,9 @@ mod tests {
                     break;
                 }
             }
-            assert!(air_edge && landed, "out={out} met the edge in the air={air_edge} landed={landed}");
+            let p = app.world().resource::<SoftPresence>();
+            assert!(air_edge && landed && p.position.xz().length() > court + 0.5
+                && (p.position.y - tg_hip_y(p.position.x, p.position.z)).abs() < 0.02);
         }
     }
 
@@ -6579,7 +6583,21 @@ mod tests {
         STAND + crate::terrain::shelf_offset(x, z)
     }
 
-    /// CARD TERRAIN-GROUND-1 TG1 — shelf 1 spawn at x=45 (outside moat [48,66]) snaps in one tick.
+    fn moat_edge_hold(x0: f32, stick: Vec2, ring: f32, into: Vec2) {
+        let hip = tg_hip_y(x0, 0.0);
+        let mut app = mf_fresh();
+        let mut p = app.world_mut().resource_mut::<SoftPresence>();
+        (p.position, p.velocity, p.grounded) = (Vec3::new(x0, hip, 0.0), Vec3::ZERO, true);
+        (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
+        drop(p);
+        mf_stick(&mut app, stick.x, stick.y, true);
+        for tick in 0..60 {
+            jb_step(&mut app);
+            let p = app.world().resource::<SoftPresence>();
+            assert!((p.position.x - ring).abs() < 0.01 && mf_horiz(&app).dot(into) <= 1e-4, "tick={tick}");
+        }
+    }
+
     #[test]
     fn terrain_ground_1_tg1_wall_lifted_shelf_one_spawn() {
         let x = 45.0f32;
@@ -6602,29 +6620,28 @@ mod tests {
         assert_eq!(p.velocity.y, 0.0);
     }
 
-    /// CARD TERRAIN-GROUND-1 — moat keep-out pushes out of [BATH_INNER, BATH_OUTER] with no inward velocity.
     #[test]
-    fn terrain_ground_1_moat_keep_out_annulus() {
+    fn terrain_ground_1_moat_ac_edge_hold_no_jitter() {
         use crate::water::{BATH_INNER, BATH_OUTER};
-        let spawn = BATH_INNER + 3.0;
-        let mut app = mf_fresh();
-        {
-            let mut p = app.world_mut().resource_mut::<SoftPresence>();
-            let hip = tg_hip_y(spawn, 0.0);
-            (p.position, p.velocity, p.grounded) = (Vec3::new(spawn, hip, 0.0), Vec3::ZERO, true);
-            (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
-        }
-        mf_stick(&mut app, -1.0, 0.0, false);
-        jb_step(&mut app);
-        let p = app.world().resource::<SoftPresence>();
-        let r = p.position.x.abs();
-        assert!(r < BATH_INNER - PLAYER_TRUNK_RADIUS + 0.05 || r > BATH_OUTER + PLAYER_TRUNK_RADIUS - 0.05);
-        let inward = Vec2::new(-p.position.x.signum(), 0.0);
-        let vel = mf_horiz(&app);
-        assert!(vel.dot(inward) <= 1e-4, "inward moat velocity {vel}");
+        moat_edge_hold(BATH_INNER - PLAYER_TRUNK_RADIUS, Vec2::X, BATH_INNER - PLAYER_TRUNK_RADIUS, Vec2::X);
+        moat_edge_hold(BATH_OUTER + PLAYER_TRUNK_RADIUS, Vec2::new(-1.0, 0.0), BATH_OUTER + PLAYER_TRUNK_RADIUS, Vec2::new(-1.0, 0.0));
     }
 
-    /// CARD TERRAIN-GROUND-1 TG2 — walk off the first riser onto shelf 1 and land at hip_y.
+    #[test]
+    fn terrain_ground_1_moat_b_inside_stick_away_keeps_outward_vel() {
+        use crate::water::{BATH_INNER, BATH_OUTER};
+        let x0 = BATH_INNER + 4.0;
+        let mut app = mf_fresh();
+        let mut p = app.world_mut().resource_mut::<SoftPresence>();
+        (p.position, p.velocity, p.grounded) = (Vec3::new(x0, tg_hip_y(x0, 0.0), 0.0), Vec3::ZERO, true);
+        (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
+        drop(p);
+        mf_stick(&mut app, -1.0, 0.0, true);
+        jb_step(&mut app);
+        let r = app.world().resource::<SoftPresence>().position.xz().length();
+        assert!((r <= BATH_INNER - PLAYER_TRUNK_RADIUS + 0.05 || r >= BATH_OUTER + PLAYER_TRUNK_RADIUS - 0.05) && mf_horiz(&app).x < -1e-4);
+    }
+
     #[test]
     fn terrain_ground_1_tg2_walk_off_first_riser_falls_to_shelf_one() {
         let start_r = crate::terrain::COURT_RADIUS - 2.0;
@@ -6651,7 +6668,6 @@ mod tests {
         assert!(landed_shelf_one, "never landed on shelf 1 past the court riser");
     }
 
-    /// CARD TERRAIN-GROUND-1 TG3 — riser lip blocks shelf 1 from walking inward; jump does not clear.
     #[test]
     fn terrain_ground_1_tg3_riser_lip_blocks_jump_does_not_clear() {
         let x = 43.0f32;
@@ -6700,7 +6716,6 @@ mod tests {
         assert!(max_feet < foot_clear, "jump put feet on upper tread {max_feet} >= {foot_clear}");
     }
 
-    /// CARD TERRAIN-GROUND-1 TG4 — lived discrete apex and analytic v²/2g stay under the first riser.
     #[test]
     fn terrain_ground_1_tg4_jump_apex_under_first_riser() {
         let first_riser = crate::terrain::SHELF_Y[0] - crate::terrain::SHELF_Y[1];
@@ -6713,7 +6728,6 @@ mod tests {
         assert!(analytic < feet_rise);
     }
 
-    /// CARD TERRAIN-GROUND-1 TG-RS — yard rocks stay on shelf 0; RS1–RS3 stay on plate ground.
     #[test]
     fn terrain_ground_1_tg_rs_yard_rocks_on_shelf_zero() {
         use crate::living_ecology::{YARD_ROCK_MESH_R, YARD_ROCK_SCALE, YARD_ROCK_SPOTS, YARD_ROCK_JITTER};
