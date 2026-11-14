@@ -1521,16 +1521,32 @@ mod tests {
         assert_eq!(snaps, [2_315_388_260_842_229_u64, 10_694_924_522_835_294_819, 2_993_560_486_008_231_282, 2_631_604_451_141_318_852, 8_468_438_003_070_297_046], "fnv per preset");
     }
 
-    /// CARD TREE-SEAT-1 (c) — the final High and Ultra fields after the default
-    /// wood clearance, relocated plants included, keep out of every band.
+    /// CARD TREE-SEAT-1 (c) / WOOD-RELOC-BAND-1 — the fields after the wood
+    /// clearance at every SITES disk and every preset, relocated plants included,
+    /// keep out of every band and off the rim strip. F-A3 pins High/Ultra bits.
     #[test]
     fn tree_seat_1_cleared_field_clears_bands() {
-        let disk = crate::wood_expedition::WoodClearance::reserve(crate::wood_expedition::first_passing_site().unwrap());
-        for preset in [GraphicsPreset::High, GraphicsPreset::Ultra] {
+        let (inner, outer) = (crate::terrain::PLAY_HALF, crate::terrain::PLAY_HALF + crate::climate_plane::PLATE_EDGE_T);
+        let rim_hit = |p: &VegPlant| { let (c, r) = (Vec2::new(p.x, p.z).abs(), footprint(p.kind, p.scale)); p.kind == VegKind::Tree && !(c.max_element() + r < inner || (c - Vec2::splat(outer)).max(Vec2::ZERO).length() > r) };
+        let combos: Vec<(Vec2, GraphicsPreset)> = crate::wood_expedition::SITES.into_iter().flat_map(|s| GraphicsPreset::ALL.map(move |p| (s, p))).collect();
+        let pass = crate::wood_expedition::first_passing_site();
+        let nones: Vec<(Vec2, GraphicsPreset)> = combos.iter().copied().filter(|(s, p)| cleared_plants(*p, Some(&crate::wood_expedition::WoodClearance::reserve(*s))).is_none()).collect();
+        assert!(nones.is_empty() && pass.is_some() && !nones.iter().any(|(s, _)| Some(*s) == pass), "relocation None vs first_passing_site {pass:?}: {nones:?}");
+        let mut snaps = Vec::new();
+        for &(site, preset) in &combos {
+            let disk = crate::wood_expedition::WoodClearance::reserve(site);
             let plants = cleared_plants(preset, Some(&disk)).unwrap();
             assert_eq!(plants.len() as u32, vegetation_plan(preset).plants() - rim_drop(preset), "{preset:?}");
             assert_eq!(banded(&plants), (0, 0), "{preset:?} after the wood clearance (plants, trees)");
+            assert!(!plants.iter().any(&rim_hit), "{site:?} {preset:?} relocated tree touches the rim strip");
+            if matches!(preset, GraphicsPreset::High | GraphicsPreset::Ultra) {
+                snaps.push(plants.iter().flat_map(|p| [p.x, p.z, p.scale, p.yaw]).fold(0xcbf2_9ce4_8422_2325_u64, |h, v| (h ^ u64::from(v.to_bits())).wrapping_mul(0x100_0000_01b3)));
+            }
         }
+        #[cfg(target_os = "linux")]
+        assert_eq!(snaps, [8451585424578691890, 2368337793608748559, 2631604451141318852, 2265945901943604562, 9677971503590969631, 9130193347064441195, 13685114685305233740, 15164944899544344942], "fnv per site x {{High, Ultra}}");
+        #[cfg(target_os = "linux")]
+        assert_eq!(snaps[2], 2_631_604_451_141_318_852, "SITES[1] High cross-check == TREE-SEAT-1 :1521 High pin");
     }
 
     /// CARD PLATE-EDGE-CUE-1 — trees the rim rail drops, Mobile to Ultra. VegPlan is an upper bound on High and Ultra.
