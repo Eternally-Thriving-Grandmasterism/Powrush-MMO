@@ -1,11 +1,11 @@
 //! First-launch 18+ gate. Month and year stay on this screen and are never stored.
-//! Mouse, keyboard, and touch. No gamepad. Contact: info@Rathor.ai
+//! Mouse, keyboard, touch, and gamepad (D-pad picks and sets, A continues). Contact: info@Rathor.ai
 use bevy::prelude::*;
 use bevy::ui::FocusPolicy;
-use bevy::ui_widgets::Button;
 use crate::local_settings::LocalSettingsState;
-use crate::title_screen::{TITLE_BORDER, TITLE_BTN_BG, TITLE_BTN_DISABLED_BG, TITLE_BTN_FG, TITLE_DIM_BG, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
+use crate::title_screen::{TITLE_BTN_ACTIVE_BG, TITLE_BTN_BG, TITLE_BTN_DISABLED_BG, TITLE_BTN_FG, TITLE_DIM_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_PAUSE};
+use crate::ui_kit;
 pub const AGE_GATE_HEADING: &str = "Before you start";
 pub const AGE_GATE_ASK: &str = "Powrush is made for adults. Please enter your month and year of birth.";
 pub const AGE_GATE_CONTINUE: &str = "Continue";
@@ -40,30 +40,30 @@ fn words(text: &str, px: f32, color: Color) -> (Text, TextFont, TextColor) {
 }
 fn chip(parent: &mut bevy::ecs::relationship::RelatedSpawnerCommands<ChildOf>, label: &str, btn: AgeBtn) {
     parent.spawn((
-        Button, Interaction::default(),
-        Node { width: Val::Px(44.0), height: Val::Px(44.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(1.0)), ..default() },
-        BackgroundColor(TITLE_BTN_BG), BorderColor::all(TITLE_BORDER), btn,
+        ui_kit::button(TITLE_BTN_BG),
+        Node { width: Val::Px(44.0), height: Val::Px(44.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)), ..default() },
+        btn,
     )).with_children(|child| { child.spawn(words(label, 16.0, TITLE_BTN_FG)); });
 }
 fn column() -> Node {
-    Node { width: Val::Px(440.0), max_width: Val::Percent(100.0), padding: UiRect::all(Val::Px(18.0)), flex_direction: FlexDirection::Column, row_gap: Val::Px(8.0), border: UiRect::all(Val::Px(2.0)), ..default() }
+    Node { width: Val::Px(440.0), max_width: Val::Percent(100.0), padding: UiRect::all(Val::Px(18.0)), flex_direction: FlexDirection::Column, row_gap: Val::Px(ui_kit::SPACE_M), border: UiRect::all(Val::Px(2.0)), ..default() }
 }
 fn spawn_age_gate(commands: &mut Commands) {
     commands.spawn((
         Node { position_type: PositionType::Absolute, width: Val::Percent(100.0), height: Val::Percent(100.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, padding: UiRect::all(Val::Px(24.0)), ..default() },
         BackgroundColor(TITLE_DIM_BG), FocusPolicy::Block, GlobalZIndex(LIVED_UI_Z_PAUSE + 3), AgeRoot, LivedUiPlate,
     )).with_children(|root| {
-        root.spawn((column(), BackgroundColor(TITLE_PLATE_BG), BorderColor::all(TITLE_BORDER), Pane::Ask)).with_children(|pane| {
+        root.spawn((column(), ui_kit::plate(), Pane::Ask)).with_children(|pane| {
             pane.spawn(words(AGE_GATE_HEADING, 22.0, TITLE_TEXT_PRIMARY));
             pane.spawn(words(AGE_GATE_ASK, 15.0, TITLE_TEXT_SECONDARY));
-            pane.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(8.0), align_items: AlignItems::Center, ..default() }).with_children(|row| {
+            pane.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(ui_kit::SPACE_M), align_items: AlignItems::Center, ..default() }).with_children(|row| {
                 chip(row, "-", AgeBtn::MonthDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), MonthFace)); chip(row, "+", AgeBtn::MonthInc);
                 chip(row, "-", AgeBtn::YearDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), YearFace)); chip(row, "+", AgeBtn::YearInc);
             });
             chip(pane, AGE_GATE_CONTINUE, AgeBtn::Continue);
             pane.spawn(words(AGE_GATE_NOTE, 13.0, TITLE_TEXT_SECONDARY));
         });
-        root.spawn((column(), BackgroundColor(TITLE_PLATE_BG), BorderColor::all(TITLE_BORDER), Visibility::Hidden, Pane::Denied)).with_children(|pane| {
+        root.spawn((column(), ui_kit::plate(), Visibility::Hidden, Pane::Denied)).with_children(|pane| {
             pane.spawn(words(AGE_GATE_UNDER, 18.0, TITLE_TEXT_PRIMARY));
             chip(pane, AGE_GATE_QUIT, AgeBtn::Quit);
         });
@@ -90,25 +90,29 @@ fn try_continue(entry: &mut AgeEntry, settings: &mut LocalSettingsState) {
 }
 fn age_gate_input(
     mut settings: ResMut<LocalSettingsState>, gate: Res<AgeGate>, mut entry: Option<ResMut<AgeEntry>>,
-    keys: Res<ButtonInput<KeyCode>>, clicks: Query<(&Interaction, &AgeBtn), Changed<Interaction>>, mut exit: MessageWriter<AppExit>,
+    keys: Res<ButtonInput<KeyCode>>, pads: Query<&Gamepad>, clicks: Query<(&Interaction, &AgeBtn), Changed<Interaction>>, mut exit: MessageWriter<AppExit>,
 ) {
     let Some(entry) = entry.as_deref_mut() else { return };
     if !gate.open || entry.close { return }
     let pressed = clicks.iter().find_map(|(i, btn)| (*i == Interaction::Pressed).then_some(*btn));
+    let pad = |b| pads.iter().any(|g| g.just_pressed(b));
+    let enter = keys.just_pressed(KeyCode::Enter) || pad(GamepadButton::South);
     if entry.denied {
-        if pressed == Some(AgeBtn::Quit) || keys.just_pressed(KeyCode::Enter) { exit.write(AppExit::Success); }
+        if pressed == Some(AgeBtn::Quit) || enter { exit.write(AppExit::Success); }
         return;
     }
     if keys.just_pressed(KeyCode::Tab) {
         let back = keys.pressed(KeyCode::ShiftLeft) || keys.pressed(KeyCode::ShiftRight);
         entry.focus = (entry.focus + if back { 2 } else { 1 }) % 3;
     }
+    if pad(GamepadButton::DPadLeft) != pad(GamepadButton::DPadRight) { entry.focus = (entry.focus + if pad(GamepadButton::DPadLeft) { 2 } else { 1 }) % 3; }
     let up = keys.just_pressed(KeyCode::ArrowUp) || keys.just_pressed(KeyCode::ArrowRight);
     let down = keys.just_pressed(KeyCode::ArrowDown) || keys.just_pressed(KeyCode::ArrowLeft);
+    let (up, down) = (up || pad(GamepadButton::DPadUp), down || pad(GamepadButton::DPadDown));
     let nudge = (up != down && entry.focus < 2).then(|| match (entry.focus, up) {
         (0, true) => AgeBtn::MonthInc, (0, false) => AgeBtn::MonthDec, (_, true) => AgeBtn::YearInc, (_, false) => AgeBtn::YearDec,
     });
-    let act = pressed.or(nudge).or_else(|| keys.just_pressed(KeyCode::Enter).then_some(AgeBtn::Continue));
+    let act = pressed.or(nudge).or_else(|| enter.then_some(AgeBtn::Continue));
     match act {
         Some(AgeBtn::MonthDec) => entry.month = Some(step_month(entry.month, false)),
         Some(AgeBtn::MonthInc) => entry.month = Some(step_month(entry.month, true)),
@@ -126,6 +130,7 @@ fn age_gate_sync(
     mut panes: Query<(&Pane, &mut Visibility), Without<AgeRoot>>,
     mut month: Query<&mut Text, With<MonthFace>>, mut year: Query<&mut Text, (With<YearFace>, Without<MonthFace>)>,
     mut buttons: Query<(&AgeBtn, &mut BackgroundColor)>,
+    pads: Query<(), With<Gamepad>>,
 ) {
     let denied = entry.as_ref().is_some_and(|entry| entry.denied);
     let ready = entry.as_ref().is_some_and(|entry| entry.month.is_some() && entry.year.is_some());
@@ -136,8 +141,15 @@ fn age_gate_sync(
     let year_s = entry.as_ref().and_then(|e| e.year).map(|y| y.to_string()).unwrap_or_default();
     for mut text in &mut month { if text.as_str() != month_s { **text = month_s.clone(); } }
     for mut text in &mut year { if text.as_str() != year_s { **text = year_s.clone(); } }
+    // The focused field shows only while a pad is connected; a not-ready Continue stays grey.
+    let focus = entry.as_ref().filter(|_| !pads.is_empty()).map(|entry| entry.focus);
     for (btn, mut bg) in &mut buttons {
-        if *btn == AgeBtn::Continue { *bg = BackgroundColor(if ready { TITLE_BTN_BG } else { TITLE_BTN_DISABLED_BG }); }
+        let fill = match (*btn, focus) {
+            (AgeBtn::Continue, _) if !ready => TITLE_BTN_DISABLED_BG,
+            (AgeBtn::MonthDec | AgeBtn::MonthInc, Some(0)) | (AgeBtn::YearDec | AgeBtn::YearInc, Some(1)) | (AgeBtn::Continue, Some(2)) => TITLE_BTN_ACTIVE_BG,
+            _ => TITLE_BTN_BG,
+        };
+        bg.set_if_neq(BackgroundColor(fill));
     }
 }
 fn age_gate_close(mut commands: Commands, mut gate: ResMut<AgeGate>, entry: Option<Res<AgeEntry>>, roots: Query<Entity, With<AgeRoot>>) {
@@ -229,6 +241,33 @@ mod tests {
             let mut app = boot(false); app.update();
             assert!(app.world().get_resource::<AgeGate>().is_none());
             tap(&mut app, KeyCode::Enter, Key::Enter);
+            assert_eq!(door(&app), LaunchDoor::InYard);
+        }));
+        match &prev { Some(value) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value), None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV) }
+        if let Err(payload) = run { std::panic::resume_unwind(payload); }
+    }
+    /// LAUNCH-MENU-1 fixture 7: a pad alone clears the gate (D-pad sets month, then year; A continues), then A on Title plays.
+    #[test]
+    fn pad_only_boot_clears_age_gate_then_plays() {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent, RawGamepadEvent};
+        let _lock = crate::test_env::lock();
+        let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
+        let fresh = tmp("pad");
+        let run = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            std::fs::write(fresh.0.join("powrush_house.json"), "{}").unwrap();
+            std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &fresh.0);
+            let mut app = boot(true);
+            app.add_plugins(crate::launch_menu::LaunchMenuPlugin);
+            let pad = app.world_mut().spawn_empty().id();
+            app.world_mut().write_message(GamepadConnectionEvent::new(pad, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None }));
+            app.update();
+            let press = |app: &mut App, b| for v in [1.0, 0.0] { app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(pad, b, v))); app.update(); };
+            press(&mut app, GamepadButton::South);
+            assert!(app.world().resource::<AgeGate>().open, "A with no date does nothing");
+            for b in [GamepadButton::DPadUp, GamepadButton::DPadRight, GamepadButton::DPadUp, GamepadButton::South] { press(&mut app, b); }
+            assert!(app.world().resource::<LocalSettingsState>().inner.age_confirmed && !app.world().resource::<AgeGate>().open);
+            assert_eq!(door(&app), LaunchDoor::Title, "the A that clears the gate does not also play");
+            press(&mut app, GamepadButton::South);
             assert_eq!(door(&app), LaunchDoor::InYard);
         }));
         match &prev { Some(value) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value), None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV) }
