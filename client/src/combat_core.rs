@@ -7,6 +7,7 @@ use bevy::window::PrimaryWindow;
 
 use shared::heartwood_lamp::{heartwood_bath_return, HEARTWOOD_BATH_RETURN, WATER_POND_CENTER};
 use shared::hex_travel::PlaceId;
+use shared::temper::Standing;
 
 use crate::coop_voice::VoiceYard;
 use crate::feel_move::{buffer_alive, USE_BUFFER_SECS};
@@ -303,14 +304,24 @@ pub fn land_hit_crossing(combat: &mut CombatState, skills: &mut SkillXp, reach: 
 
 /// DIFFICULTY-REWARDS-1 — `land_hit_crossing` on a tier: only the paid XP scales, the cap still counts hits.
 pub fn land_hit_on(combat: &mut CombatState, skills: &mut SkillXp, reach: bool, tier: DifficultyTier) -> (bool, Option<u32>) {
-    land_hit_paid(combat, skills, reach, tier, None)
+    land_hit_paid(combat, skills, reach, tier, None, None)
 }
-/// RUN-LEDGER-LIVE-1 — `land_hit_on` with the stored best row; pays through `premium_paid` (off: unchanged).
-pub fn land_hit_paid(combat: &mut CombatState, skills: &mut SkillXp, reach: bool, tier: DifficultyTier, row: Option<RunRow>) -> (bool, Option<u32>) {
+/// GEAR-SLOT-1 — the equipped owned find's added strike from its standing: Worn +0, Kept +1, Proven +2, Storied +3 (ceiling +3).
+/// No slot, no `FoundFinds`, an unowned or unknown name all add 0. Reads `temper`/`seated` through `standing()` only; Ward adds 0.
+pub fn equipped_strike_bonus(finds: Option<&FoundFinds>) -> u32 {
+    match finds.and_then(FoundFinds::equipped_find).map(|f| f.standing()) {
+        Some(Standing::Kept) => 1,
+        Some(Standing::Proven) => 2,
+        Some(Standing::Storied) => 3,
+        _ => 0,
+    }
+}
+/// RUN-LEDGER-LIVE-1 — `land_hit_on` with the stored best row; pays through `premium_paid` (off: unchanged). GEAR-SLOT-1 adds the slot bonus.
+pub fn land_hit_paid(combat: &mut CombatState, skills: &mut SkillXp, reach: bool, tier: DifficultyTier, row: Option<RunRow>, finds: Option<&FoundFinds>) -> (bool, Option<u32>) {
     if !reach || combat.predator_taken >= HEALTH {
         return (false, None);
     }
-    combat.predator_taken = combat.predator_taken.saturating_add(HIT).min(HEALTH);
+    combat.predator_taken = combat.predator_taken.saturating_add(HIT + equipped_strike_bonus(finds)).min(HEALTH);
     if skills.combat_day_hits < crate::skill_xp::COMBAT_PAYING_HITS_PER_DAY {
         skills.combat_day_hits += 1;
         (true, skills.gain(COMBAT, premium_paid(tier, XP_PER_LANDED_HIT, row, SKILL_PREMIUM_LIVE)))
@@ -568,7 +579,7 @@ pub fn combat_fire(
         combat.strikes = combat.strikes.wrapping_add(1);
         let before = skills.xp[COMBAT];
         let row = runs.as_deref().and_then(|r| r.row(travel.current, tier));
-        let (hit, level) = land_hit_paid(&mut combat, &mut skills, reach, tier, row);
+        let (hit, level) = land_hit_paid(&mut combat, &mut skills, reach, tier, row, finds.as_deref());
         play_hit(&mut cmd, assets.as_deref(), mute.as_deref(), hit); // COMBAT-FEEL-SFX-1: a landed hit only
         let defeat = hit && combat.predator_taken >= HEALTH && clears_area(travel.current);
         if let (true, Some(mut diff)) = (defeat, diff) {
@@ -2069,5 +2080,58 @@ mod tests {
         assert_eq!(hit_volume(false, None), None);
         assert_eq!(hit_volume(true, Some(&muted)), None);
         assert_eq!(hit_volume(true, Some(&crate::local_settings::MasterMuteGain { gain: 0.0, muted: false })), None);
+    }
+
+    /// GEAR-SLOT-1 — one frame of `sys` at the Heartwood home in the yard: LMB just pressed, a focused window, a due lunge.
+    fn home_frame<M>(sys: impl IntoSystem<(), (), M>, finds: Option<FoundFinds>, combat: CombatState, tier: DifficultyTier) -> World {
+        use bevy::ecs::system::RunSystemOnce;
+        let (mut world, mut time, mut lmb, [x, z]) = (World::new(), Time::<()>::default(), ButtonInput::<MouseButton>::default(), PREDATOR_HOME);
+        time.advance_by(std::time::Duration::from_secs_f32(LUNGE_SECS));
+        lmb.press(FIRE);
+        world.insert_resource(time);
+        world.insert_resource(lmb);
+        world.insert_resource(LaunchDoor::InYard);
+        world.insert_resource(HexTravelState { current: PlaceId::Heartwood });
+        world.insert_resource(SoftPresence { position: Vec3::new(x, STAND_HEIGHT, z), ..Default::default() });
+        world.insert_resource(combat);
+        world.insert_resource(SkillXp::default());
+        world.insert_resource(AreaDifficulty { default: tier, ..Default::default() });
+        world.spawn((Window { focused: true, ..default() }, PrimaryWindow));
+        if let Some(f) = finds { world.insert_resource(f); }
+        world.run_system_once(sys).unwrap();
+        world
+    }
+
+    /// GS2 — CUT table: one landed strike with each owned find equipped is HIT plus its standing step, never past 18, clamped at
+    /// HEALTH. No slot, no FoundFinds, an unowned or unknown name and a cleared slot land exactly HIT; the lunge ignores the slot.
+    #[test]
+    fn gs2_equipped_standing_adds_to_one_outgoing_strike_only() {
+        use shared::temper::{Standing, NAMED_FINDS};
+        let table = [("Yard-Worn Tend Hook", Standing::Kept, 1), ("Steady Climate Pick", Standing::Kept, 1), ("Dawn-Fair Lane Crate", Standing::Proven, 2),
+            ("Neighbour's Mend Spindle", Standing::Proven, 2), ("Quiet Harmony Loom", Standing::Storied, 3), ("Bookkeeper's Hook", Standing::Storied, 3)];
+        let all = FoundFinds { names: NAMED_FINDS.iter().map(|f| f.name).collect(), ..Default::default() };
+        let strike = |finds: Option<&FoundFinds>, taken: u32| {
+            let (mut c, mut s) = (CombatState { predator_taken: taken, ..Default::default() }, SkillXp::default());
+            (land_hit_paid(&mut c, &mut s, true, DifficultyTier::Sheltered, None, finds), c.predator_taken, s.xp[COMBAT])
+        };
+        for ((name, standing, bonus), f) in table.into_iter().zip(NAMED_FINDS.iter()) {
+            let geared = FoundFinds { equipped: Some(name), ..all.clone() };
+            assert_eq!((f.name, f.standing()), (name, standing));
+            assert_eq!(strike(Some(&geared), 0), ((true, None), HIT + bonus, XP_PER_LANDED_HIT), "{name}");
+            assert!(HIT + bonus <= 18 && strike(Some(&geared), HEALTH - 10).1 == HEALTH, "{name} clamps at HEALTH");
+        }
+        let unowned = FoundFinds { names: vec![NAMED_FINDS[0].name], equipped: Some(NAMED_FINDS[5].name), ..Default::default() };
+        let (unknown, mut cleared) = (FoundFinds { equipped: Some("no such find"), ..all.clone() }, FoundFinds { equipped: Some(NAMED_FINDS[5].name), ..all.clone() });
+        cleared.clear_equipped();
+        for finds in [None, Some(&all), Some(&unowned), Some(&unknown), Some(&cleared)] {
+            assert_eq!(strike(finds, 0), ((true, None), HIT, XP_PER_LANDED_HIT));
+        }
+        let storied = FoundFinds { equipped: Some(NAMED_FINDS[5].name), ..all.clone() };
+        let fire = |f| { let w = home_frame(combat_fire, f, CombatState::default(), DifficultyTier::Sheltered); (w.resource::<CombatState>().predator_taken, w.resource::<SkillXp>().xp[COMBAT]) };
+        assert_eq!([fire(None), fire(Some(all.clone())), fire(Some(storied.clone()))], [(HIT, XP_PER_LANDED_HIT), (HIT, XP_PER_LANDED_HIT), (HIT + 3, XP_PER_LANDED_HIT)]);
+        for t in crate::difficulty::TIERS {
+            let hurt = |f| home_frame(predator_lunge, f, CombatState::default(), t).resource::<CombatState>().player_taken;
+            assert_eq!([hurt(None), hurt(Some(storied.clone()))], [enemy_hit(t, HIT); 2], "{t:?} lunge ignores the slot");
+        }
     }
 }
