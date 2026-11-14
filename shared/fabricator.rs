@@ -16,6 +16,7 @@ use crate::temper::{
 
 const PLACE_COST: f32 = 1.0;
 const CRAFT_COST: f32 = 0.5;
+const LANE_CRATE_LINE: &str = "LaneCrate ran — the lane holds a crate";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum Recipe {
@@ -81,6 +82,9 @@ pub struct Fabricator {
     /// Last Tend Hook produced by `craft_tend_hook` / `Recipe::TendHook`.
     #[serde(default)]
     pub last_tempered: Option<TemperedItem>,
+    /// LaneCrates refined from wood after Proof Pack. The civic first run stays `pack.logi`.
+    #[serde(default)]
+    pub crate_stock: u32,
 }
 
 impl Default for Fabricator {
@@ -92,6 +96,7 @@ impl Default for Fabricator {
             last_line: String::new(),
             spool_stock: 0,
             last_tempered: None,
+            crate_stock: 0,
         }
     }
 }
@@ -182,7 +187,7 @@ impl Fabricator {
             }
             Recipe::LaneCrate => {
                 self.pack.logi = true;
-                self.last_line = "LaneCrate ran — the lane holds a crate".into();
+                self.last_line = LANE_CRATE_LINE.into();
             }
             Recipe::TendHook => unreachable!("Tend Hook handled above"),
         }
@@ -243,6 +248,23 @@ impl Fabricator {
         }
         self.last_line = self.pack.line();
         "idle"
+    }
+
+    /// One raw wood unit, passed by value, becomes one stocked LaneCrate once Proof Pack is held.
+    /// Spends no Reserve or spool and leaves `pack`. A refusal writes no stock and no line.
+    pub fn refine_wood(&mut self, wood: u8) -> &'static str {
+        if !self.planted {
+            return "unplanted";
+        }
+        if !self.pack.unlocked() {
+            return "locked";
+        }
+        if wood == 0 {
+            return "no_wood";
+        }
+        self.crate_stock = self.crate_stock.saturating_add(1);
+        self.last_line = LANE_CRATE_LINE.into();
+        "refined"
     }
 
     pub fn slab_line(&self) -> String {
@@ -500,5 +522,90 @@ mod tests {
                 "should refuse {sample}"
             );
         }
+    }
+
+    use crate::hour_two::HourTwoPack;
+    /// `shared/hour_two.rs:108` session-only bytes.
+    const SESSION_ONLY: &str = r#"{"charter_id":"house-local","hex":"Frontier","kind":"House","warrant":{"h":0.0,"i":0.0,"c":0.0,"f":0.0,"x":0.0,"repair":0.0,"return_cargo":0.0,"council":0.0,"tend_spill":0.0}}"#;
+    /// An unlocked Fabricator as `e841cb91` writes it: no `crate_stock` key.
+    const NO_CRATE_STOCK: &str = r#"{"planted":true,"reserve":0.0,"pack":{"repair":true,"logi":true},"last_line":"Proof Pack unlocked — manufacture: repair + logi","spool_stock":1,"last_tempered":null}"#;
+
+    /// Stock as it serializes, so the same read runs on bytes from before `crate_stock`.
+    fn stock(f: &Fabricator) -> u64 {
+        serde_json::to_value(f).unwrap()["crate_stock"].as_u64().unwrap_or(0)
+    }
+
+    fn unlocked() -> Fabricator {
+        let mut f = Fabricator::default();
+        for want in ["planted", "crafted", "unlocked"] {
+            assert_eq!(f.craft_next(), want);
+        }
+        f
+    }
+
+    /// WU1 — after Proof Pack one wood unit stocks one LaneCrate with the shipped line.
+    /// No wood, unplanted or locked writes no stock. The first civic LaneCrate never takes wood.
+    #[test]
+    fn wu1_refine_consumes_one_wood_and_stocks_one_lane_crate() {
+        let mut f = unlocked();
+        let (pack, spool, reserve) = (f.pack.clone(), f.spool_stock, f.reserve);
+        assert_eq!(f.refine_wood(1), "refined");
+        assert_eq!((stock(&f), f.pack.clone(), f.spool_stock, f.reserve), (1, pack, spool, reserve));
+        assert_eq!(f.last_line, "LaneCrate ran — the lane holds a crate");
+        assert!(manufacture_copy_is_honest(&f.last_line));
+        let line = f.last_line.clone();
+        assert_eq!(f.refine_wood(0), "no_wood");
+        assert_eq!((stock(&f), f.last_line.clone(), f.reserve), (1, line, reserve));
+
+        let mut cold = Fabricator::default();
+        assert_eq!(cold.refine_wood(1), "unplanted");
+        assert_eq!((cold.plant(), cold.craft(Recipe::MendSpool)), ("planted", "crafted"));
+        assert_eq!((cold.refine_wood(1), stock(&cold)), ("locked", 0));
+        assert_eq!(cold.craft(Recipe::LaneCrate), "unlocked");
+        assert_eq!(stock(&cold), 0, "the civic LaneCrate is the Proof Pack flag, not stock");
+    }
+
+    /// WU3 (H3) — the session-only HourTwo literal and a Fabricator with no `crate_stock` load as stock 0.
+    #[test]
+    fn wu3_old_hour_two_and_fabricator_bytes_load_as_stock_zero() {
+        let pack = HourTwoPack::from_json(SESSION_ONLY);
+        assert_eq!(pack.session.charter_id.as_deref(), Some("house-local"));
+        assert_eq!((pack.fabricator.clone(), stock(&pack.fabricator)), (Fabricator::default(), 0));
+        let old: Fabricator = serde_json::from_str(NO_CRATE_STOCK).unwrap();
+        assert_eq!((old.clone(), stock(&old)), (unlocked(), 0));
+        let mut raw = serde_json::to_value(HourTwoPack::default()).unwrap();
+        raw["fabricator"] = serde_json::from_str(NO_CRATE_STOCK).unwrap();
+        let loaded = HourTwoPack::from_json(&raw.to_string());
+        assert_eq!((loaded.fabricator.clone(), stock(&loaded.fabricator)), (old, 0));
+    }
+
+    /// WU4 (H3) — `crate_stock` writes and round-trips in Fabricator and HourTwo JSON.
+    #[test]
+    fn wu4_crate_stock_round_trips_in_fabricator_and_hour_two_json() {
+        let mut raw = serde_json::to_value(unlocked()).unwrap();
+        raw["crate_stock"] = 1.into();
+        let f: Fabricator = serde_json::from_value(raw).unwrap();
+        assert_eq!(stock(&f), 1);
+        let json = serde_json::to_string(&f).unwrap();
+        assert!(json.contains(r#""crate_stock":1"#), "{json}");
+        assert_eq!(serde_json::from_str::<Fabricator>(&json).unwrap(), f);
+        let pack = HourTwoPack { fabricator: f.clone(), ..Default::default() };
+        let loaded = HourTwoPack::from_json(&serde_json::to_string_pretty(&pack).unwrap());
+        assert_eq!((stock(&loaded.fabricator), loaded.fabricator), (1, f));
+    }
+
+    /// WU8 — three recipes, no combat stats; Q after Proof Pack is idle before wood; Tend Hook still spends its spool.
+    #[test]
+    fn wu8_idle_before_wood_and_tend_hook_unchanged() {
+        let src = include_str!("fabricator.rs").split("#[cfg(test)]").next().unwrap();
+        let recipes = src.split("pub enum Recipe {").nth(1).unwrap().split('}').next().unwrap();
+        assert_eq!(recipes.matches(',').count(), 3, "{recipes}");
+        let mut f = unlocked();
+        let before = f.clone();
+        assert_eq!(f.craft_next(), "idle");
+        assert_eq!(f.last_line, f.pack.line());
+        assert_eq!((f.reserve, f.spool_stock, f.pack.clone(), stock(&f)), (before.reserve, 1, before.pack, 0));
+        assert_eq!(f.craft(Recipe::TendHook), "crafted");
+        assert_eq!((f.spool_stock, stock(&f), f.craft_next()), (0, 0, "idle"));
     }
 }

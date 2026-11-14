@@ -11,6 +11,9 @@
 //!
 //! CARD TEMPER-VISIBLE-1 — a stocked MendSpool names Digit1 on this slab.
 //! Empty spool does not name a craft. No new recipe. No gold.
+//!
+//! CARD WOOD-USE-1 — once Q is idle after Proof Pack, Q refines the carried wood
+//! unit into one stocked LaneCrate. No `on_lane` / `on_mend`: tons are the haul leg's.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -30,6 +33,7 @@ use crate::input::{InputMapSet, PlayerInput};
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::vertical_factory::FactoryYard;
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
+use crate::wood_expedition::WoodHub;
 
 #[derive(Resource, Debug, Clone)]
 pub struct FabricatorYard {
@@ -115,6 +119,16 @@ pub fn try_craft_proof_pack(
         return None;
     }
     Some(fab.craft_next())
+}
+
+/// Wood is taken only after `craft_next` reports idle, so the civic first LaneCrate never needs it.
+fn refine_wood_when_idle(step: &str, fab: &mut Fabricator, wood: Option<&mut WoodHub>) -> bool {
+    match wood {
+        Some(wood) if step == "idle" && fab.planted && fab.pack.unlocked() => {
+            fab.refine_wood(wood.take_unit()) == "refined"
+        }
+        _ => false,
+    }
 }
 
 /// CARD FLESH-FABRICATOR-LINE — spoken room while standing.
@@ -212,6 +226,7 @@ fn handle_fab_q(
     mut bind: ResMut<LivedHourBind>,
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
+    mut wood: Option<ResMut<WoodHub>>,
 ) {
     // Q / pad West (same sheet verb).
     if !(keyboard.just_pressed(soft_play_bindings::BUILD_WHEEL) || player_input.sheet_q) {
@@ -222,6 +237,9 @@ fn handle_fab_q(
     let Some(step) = try_craft_proof_pack(&hour, factory.factory.tutorial_complete(), &mut yard.fab) else {
         return;
     };
+    if refine_wood_when_idle(step, &mut yard.fab, wood.as_deref_mut()) {
+        yard.bench_glow = 1.0;
+    }
     if yard.fab.pack.repair && !had_repair {
         yard.bench_glow = 1.0;
         bind.climate.on_mend();
@@ -663,5 +681,93 @@ mod tests {
             || line
                 .split(|c: char| !c.is_ascii_alphanumeric())
                 .any(|word| word.eq_ignore_ascii_case("craft"))
+    }
+
+    use crate::wood_expedition::{tests::carried_hub, WoodHub};
+    /// `shared/shard_climate.rs:170` legacy climate bytes.
+    const CLIMATE_V0: &str = r#"{"hex_id":"local-hex","harmony":0.55,"stress":0.15,"regen":0.08,"reserve_pool":0,"restored_count":0,"tons_moved":0,"updated_at":1}"#;
+    fn crate_stock(fab: &Fabricator) -> u64 {
+        serde_json::to_value(fab).unwrap()["crate_stock"].as_u64().unwrap_or(0)
+    }
+
+    /// H1: MinimalPlugins with only `handle_fab_q`, the legacy climate, and the wood hub.
+    fn q_app(hold: bool, steps: usize, hub: WoodHub) -> (App, Fabricator) {
+        use crate::hour_sacred::{try_mark_hour_two_held, try_plant_house, try_ridge_tab};
+        use shared::vertical_factory::VerticalFactory;
+        let mut hour = HourSacred::default();
+        let mut factory = VerticalFactory::default();
+        if hold {
+            assert!(try_ridge_tab(&mut hour, true) && try_plant_house(&mut hour, &mut factory));
+            assert!(try_mark_hour_two_held(&mut hour, true, true));
+        }
+        while !factory.tutorial_complete() && factory.advance() != "unfounded" {}
+        let mut fab = Fabricator::default();
+        for _ in 0..steps { fab.craft_next(); }
+        let mut bind = crate::loot_drops::tests::in_user_dir("wu5-bind", |_| LivedHourBind::default());
+        bind.climate = shared::shard_climate::ShardClimate::from_json(CLIMATE_V0).unwrap();
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .init_resource::<PlayerInput>()
+            .init_resource::<ThrivingMoments>()
+            .insert_resource(hour)
+            .insert_resource(FactoryYard { factory })
+            .insert_resource(FabricatorYard { fab: fab.clone(), bench_glow: 0.0 })
+            .insert_resource(bind)
+            .insert_resource(hub)
+            .add_systems(Update, handle_fab_q);
+        (app, fab)
+    }
+
+    fn press_q(app: &mut App) {
+        let mut keys = ButtonInput::<KeyCode>::default();
+        keys.press(soft_play_bindings::BUILD_WHEEL);
+        app.insert_resource(keys).update();
+    }
+
+    /// WU5 (H1 + H3) — Q after Proof Pack, not Peace, with wood unit 1 refines one LaneCrate and
+    /// takes the unit. No `on_lane` / `on_mend`: climate, standing and week stay as loaded. Peace refines nothing.
+    #[test]
+    fn wu5_q_after_proof_pack_refines_wood_without_tons() {
+        let (hub, live) = carried_hub();
+        let (mut app, fab) = q_app(true, 3, hub);
+        let bind = app.world().resource::<LivedHourBind>().clone();
+        press_q(&mut app);
+        let yard = &app.world().resource::<FabricatorYard>().fab;
+        assert_eq!((crate_stock(yard), yard.last_line.as_str()), (1, "LaneCrate ran — the lane holds a crate"));
+        assert_eq!((yard.pack.clone(), yard.spool_stock, yard.reserve), (fab.pack.clone(), fab.spool_stock, fab.reserve));
+        assert!(fabricator_slab_at_place(yard, None).ends_with(" · Digit1"));
+        let pack = HourTwoPack { fabricator: yard.clone(), ..Default::default() };
+        assert_eq!(crate_stock(&HourTwoPack::from_json(&serde_json::to_string(&pack).unwrap()).fabricator), 1);
+        assert_eq!(app.world().resource::<WoodHub>().memory_unit(), Some(0));
+        let now = app.world().resource::<LivedHourBind>();
+        assert_eq!((&now.climate, &now.standing, &now.week), (&bind.climate, &bind.standing, &bind.week));
+        assert_eq!((now.climate.tons_moved, now.climate.restored_count), (0, 0));
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(2);
+        while live() == crate::wood_expedition::tests::HARVESTED && std::time::Instant::now() < deadline {
+            std::thread::sleep(std::time::Duration::from_millis(2));
+        }
+        let disk: serde_json::Value = serde_json::from_slice(&live()).unwrap();
+        assert_eq!((&disk["schema"], &disk["stand"], &disk["unit"], &disk["charge"]), (&1.into(), &"Depleted".into(), &0.into(), &"Spent".into()));
+        press_q(&mut app);
+        assert_eq!(crate_stock(&app.world().resource::<FabricatorYard>().fab), 1, "no wood, no second crate");
+        app.world_mut().resource_mut::<WoodHub>().shutdown();
+
+        let (mut peace, _) = q_app(false, 3, carried_hub().0);
+        press_q(&mut peace);
+        assert_eq!(crate_stock(&peace.world().resource::<FabricatorYard>().fab), 0);
+        assert_eq!(peace.world().resource::<WoodHub>().memory_unit(), Some(1));
+        peace.world_mut().resource_mut::<WoodHub>().shutdown();
+    }
+
+    /// WU5 — the first civic LaneCrate still runs on Q with wood carried, still writes tons, and leaves the wood.
+    #[test]
+    fn wu5_first_lane_crate_keeps_on_lane_and_leaves_wood() {
+        let (mut app, _) = q_app(true, 2, carried_hub().0);
+        press_q(&mut app);
+        let yard = &app.world().resource::<FabricatorYard>().fab;
+        assert_eq!((yard.pack.unlocked(), crate_stock(yard)), (true, 0));
+        assert_eq!(app.world().resource::<LivedHourBind>().climate.tons_moved, 1);
+        assert_eq!(app.world().resource::<WoodHub>().memory_unit(), Some(1));
+        app.world_mut().resource_mut::<WoodHub>().shutdown();
     }
 }

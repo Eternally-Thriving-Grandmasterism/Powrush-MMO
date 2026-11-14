@@ -488,6 +488,13 @@ fn update_satchel(
     } else {
         format!("\n{find_rows}")
     };
+    // WOOD-USE-1: the shipped LaneCrate name with its wood-refined stock, only once stocked.
+    let crate_block = yard
+        .as_ref()
+        .map(|y| y.fab.crate_stock)
+        .filter(|n| *n > 0)
+        .map(|n| format!("\n\nLaneCrate {n}"))
+        .unwrap_or_default();
     let body_line = format!(
         "{face}
 
@@ -497,7 +504,7 @@ abundance is held, not hoarded
 {} [2] Harmony    {:.1}
 {} [3] Joy        {:.1}
 
-Harvests {}{find_block}{temper_block}
+Harvests {}{find_block}{crate_block}{temper_block}
 
 {}",
         mark(SatchelSlot::Vitality),
@@ -1077,5 +1084,39 @@ mod tests {
         assert_eq!((pool.vitality, pool.harmony, pool.joy, pool.harvests), (2.5, 1.5, 0.5, 3));
         let goods = |b: String| b.lines().filter(|l| l.contains("] ") || l.starts_with("Harvests")).map(str::to_string).collect::<Vec<_>>();
         assert_eq!(goods(body(&mut bare)), goods(body(&mut with)));
+    }
+
+    /// A yard whose Fabricator JSON carries `crate_stock: n`.
+    fn crate_yard(n: u32) -> crate::fabricator::FabricatorYard {
+        let raw = format!(r#"{{"planted":true,"reserve":0.0,"pack":{{"repair":true,"logi":true}},"last_line":"","crate_stock":{n}}}"#);
+        crate::fabricator::FabricatorYard { fab: serde_json::from_str(&raw).unwrap(), bench_glow: 0.0 }
+    }
+
+    /// WU6 (H1) — stocked LaneCrate is one `LaneCrate n` line after the LTS find rows and before temper.
+    /// Stock 0 adds nothing; removing the line gives back the exact old body; slots stay three.
+    #[test]
+    fn wu6_lane_crate_stock_is_one_line_after_finds() {
+        let mut app = open_satchel("wu6", None, Some(all()));
+        let before = body(&mut app);
+        assert_eq!((rows(&before), before.matches("LaneCrate").count()), (all().names, 0), "{before}");
+        app.insert_resource(crate_yard(0));
+        app.update();
+        assert_eq!(body(&mut app), before, "stock 0 adds no line");
+        app.insert_resource(crate_yard(2));
+        app.update();
+        let after = body(&mut app);
+        assert_eq!((after.matches("LaneCrate").count(), after.matches("\n\nLaneCrate 2\n").count()), (1, 1), "{after}");
+        assert_eq!(rows(&after), all().names, "{after}");
+        let at = after.find("LaneCrate 2").unwrap();
+        assert!(NAMED_FINDS.iter().all(|n| after.find(n.sentence).unwrap() < at) && after.find("Harvests 3").unwrap() < at);
+        assert_eq!(after.replacen("\n\nLaneCrate 2", "", 1), before);
+        assert!(shared::fabricator::manufacture_copy_is_honest("LaneCrate 2") && SatchelSlot::Joy as u8 == 2);
+        assert!(after.ends_with(satchel_slot_tooltip(SatchelSlot::Vitality)));
+
+        let item = TemperedItem { tier: ToolTier::TendHook, ..TemperedItem::hands(1, "hands") };
+        app.world_mut().resource_mut::<crate::fabricator::FabricatorYard>().fab.last_tempered = Some(item.clone());
+        app.update();
+        let tempered = body(&mut app);
+        assert!(tempered.find("LaneCrate 2").unwrap() < tempered.find(&satchel_temper_display(&item)).unwrap(), "{tempered}");
     }
 }
