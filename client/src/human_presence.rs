@@ -1253,7 +1253,8 @@ fn strafe_wish(
     }
 }
 
-/// Approach horizontal velocity: accel toward wish, decel to zero on release.
+/// Approach horizontal velocity. Held wish: opposing motion drops on the tick, sideways
+/// motion brakes at `decel`, motion along the wish ramps at `accel`. Release: decel to zero.
 pub fn approach_horizontal(current: Vec2, wish: Vec2, accel: f32, decel: f32, dt: f32) -> Vec2 {
     if wish.length_squared() < 1e-8 {
         let speed = current.length();
@@ -1263,12 +1264,18 @@ pub fn approach_horizontal(current: Vec2, wish: Vec2, accel: f32, decel: f32, dt
         }
         return current * ((speed - max_step) / speed);
     }
-    let delta = wish - current;
-    let max_step = accel * dt;
-    if delta.length_squared() <= max_step * max_step {
-        return wish;
-    }
-    current + delta.normalize() * max_step
+    let wish_speed = wish.length();
+    let dir = wish / wish_speed;
+    let along = current.dot(dir).max(0.0);
+    let along = along + (wish_speed - along).clamp(-accel * dt, accel * dt);
+    let side = current - dir * current.dot(dir);
+    let side_speed = side.length();
+    let side = if side_speed <= decel * dt {
+        Vec2::ZERO
+    } else {
+        side * ((side_speed - decel * dt) / side_speed)
+    };
+    (dir * along + side).clamp_length_max(current.length().max(wish_speed))
 }
 
 fn apply_locomotion(
@@ -4031,6 +4038,122 @@ mod tests {
         assert!(mf_fly_until_land(&mut app), "no land");
         for _ in 0..7 { jb_step(&mut app); }
         assert!(mf_horiz(&app).length() <= 0.05, "{}", mf_horiz(&app).length());
+    }
+    /// CARD GROUND-TURN-1 — run east from rest for 16 grounded ticks (walk or sprint speed).
+    fn gt_run_east(sprint: bool) -> App {
+        let mut app = mf_fresh();
+        mf_stick(&mut app, 1.0, 0.0, sprint);
+        for _ in 0..16 { jb_step(&mut app); }
+        app
+    }
+    #[test]
+    fn ground_turn_f1_reverse_drops_opposing_and_reaches_95_by_7_and_11() {
+        for (sprint, s, n, pin) in [(false, 3.4f32, 7, 3.26667f32), (true, 5.4, 11, 5.13333)] {
+            let mut app = gt_run_east(sprint);
+            assert!((mf_horiz(&app) - Vec2::new(s, 0.0)).length() < 1e-4, "sprint={sprint} run {:?}", mf_horiz(&app));
+            mf_stick(&mut app, -1.0, 0.0, sprint);
+            jb_step(&mut app);
+            let v1 = mf_horiz(&app);
+            assert!(v1.x <= 0.05, "sprint={sprint} tick-1 x {}", v1.x);
+            assert!((v1 - Vec2::new(-0.46667, 0.0)).length() < 1e-4, "sprint={sprint} tick-1 {v1:?}");
+            for tick in 2..=n {
+                jb_step(&mut app);
+                let v = mf_horiz(&app);
+                assert!(v.y.abs() < 1e-4, "sprint={sprint} tick {tick} {v:?}");
+                assert_eq!(-v.x >= 0.95 * s, tick == n, "sprint={sprint} tick {tick} {v:?}");
+            }
+            assert!((mf_horiz(&app).x + pin).abs() < 1e-4, "sprint={sprint} tick {n} {:?}", mf_horiz(&app));
+        }
+    }
+    #[test]
+    fn ground_turn_f2_right_angle_drift_and_reach() {
+        for (sprint, s, n, cap, drift_pin, dip_pin) in [(false, 3.4f32, 7, 0.10f32, 0.09333f32, 1.72047f32), (true, 5.4, 11, 0.27, 0.26, 2.72110)] {
+            let mut app = gt_run_east(sprint);
+            let x0 = app.world().resource::<SoftPresence>().position.x;
+            mf_stick(&mut app, 0.0, 1.0, sprint);
+            let mut dip = f32::MAX;
+            for tick in 1..=n {
+                jb_step(&mut app);
+                let v = mf_horiz(&app);
+                dip = dip.min(v.length());
+                assert_eq!(-v.y >= 0.95 * s, tick == n, "sprint={sprint} tick {tick} {v:?}");
+            }
+            let drift = app.world().resource::<SoftPresence>().position.x - x0;
+            assert!(drift <= cap, "sprint={sprint} drift {drift}");
+            assert!((drift - drift_pin).abs() < 1e-3, "sprint={sprint} drift {drift}");
+            assert!(mf_horiz(&app).x.abs() < 1e-4, "sprint={sprint} side {:?}", mf_horiz(&app));
+            assert!((dip - dip_pin).abs() < 1e-3, "sprint={sprint} dip {dip}");
+        }
+    }
+    #[test]
+    fn ground_turn_f3_release_is_closed_form_per_tick() {
+        for (sprint, s) in [(false, 3.4f32), (true, 5.4)] {
+            let mut app = gt_run_east(sprint);
+            mf_stick(&mut app, 0.0, 0.0, false);
+            for k in 1..=8 {
+                jb_step(&mut app);
+                let want = Vec2::new((s - 0.8 * k as f32).max(0.0), 0.0);
+                assert!((mf_horiz(&app) - want).length() < 1e-4, "sprint={sprint} tick {k} {:?} want {want:?}", mf_horiz(&app));
+            }
+        }
+    }
+    #[test]
+    fn ground_turn_f4_air_rows_unchanged() {
+        for (x, y) in [(-1.0, 0.0), (0.0, 1.0), (1.0, 0.0), (0.0, 0.0)] {
+            let mut app = mf_fresh();
+            mf_sprint_east(&mut app);
+            app.world_mut().resource_mut::<JumpLatch>().pending = true;
+            jb_step(&mut app);
+            mf_stick(&mut app, x, y, x != 0.0 || y != 0.0);
+            let mut air = 0;
+            while !app.world().resource::<SoftPresence>().grounded {
+                assert!((mf_horiz(&app) - Vec2::new(5.4, 0.0)).length() < 1e-4, "({x},{y}) air {:?}", mf_horiz(&app));
+                jb_step(&mut app);
+                air += 1;
+            }
+            assert_eq!(air, 38, "({x},{y}) air ticks");
+        }
+        let mut app = mf_fresh();
+        mf_stick(&mut app, 1.0, 0.0, true);
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        jb_step(&mut app);
+        assert!(mf_fly_until_land(&mut app), "no landing");
+        let land = app.world().resource::<SoftPresence>().position.xz();
+        assert!((land - Vec2::new(3.51, 0.0)).length() < 1e-3, "M2 land {land:?}");
+        for (sprint, s) in [(true, 5.4f32), (false, 3.4)] {
+            let mut app = mf_fresh();
+            mf_sprint_east(&mut app);
+            mf_stick(&mut app, 0.0, 1.0, sprint);
+            app.world_mut().resource_mut::<JumpLatch>().pending = true;
+            jb_step(&mut app);
+            assert!((mf_horiz(&app) - Vec2::new(0.0, -s)).length() < 1e-4, "M4 sprint={sprint} {:?}", mf_horiz(&app));
+        }
+        let landed = mf_horiz(&mf_land_from_east_holding(-1.0, 0.0, true));
+        assert!((landed - Vec2::new(-5.4, 0.0)).length() < 1e-4, "M5 {landed:?}");
+    }
+    #[test]
+    fn ground_turn_f5_shallow_turns_hold_speed_band() {
+        let mut lows = Vec::new();
+        for (sprint, s) in [(false, 3.4f32), (true, 5.4)] {
+            for deg in [15.0f32, 30.0, 45.0] {
+                let mut app = gt_run_east(sprint);
+                let a = deg.to_radians();
+                mf_stick(&mut app, a.cos(), a.sin(), sprint);
+                let mut lo = f32::MAX;
+                for tick in 1..=20 {
+                    jb_step(&mut app);
+                    let v = mf_horiz(&app).length();
+                    assert!(0.95 * s <= v && v <= s + 1e-4, "sprint={sprint} {deg}deg tick {tick} |v| {v}");
+                    lo = lo.min(v);
+                }
+                let end = mf_horiz(&app);
+                assert!((end - Vec2::new(a.cos(), -a.sin()) * s).length() < 1e-3, "sprint={sprint} {deg}deg end {end:?}");
+                lows.push(lo);
+            }
+        }
+        for (lo, pin) in lows.into_iter().zip([3.4f32, 3.4, 3.28862, 5.4, 5.4, 5.24139]) {
+            assert!((lo - pin).abs() < 1e-3, "low {lo} pin {pin}");
+        }
     }
     #[test]
     fn move_feel_m9_held_space_does_not_auto_hop() {
