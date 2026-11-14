@@ -5,9 +5,9 @@
 **Contact:** info@Rathor.ai  
 **Pattern:** Ra-Thor `docs/AGENT_RUN_BRIEF.md` (merged #504 / `bf44300a`), adapted to this seat. The **outer loop does not write code**. This file is the inner-loop contract.
 
-Cursor / PATSAGi inner-loop agents start here. **Fetch `origin/main` at the start of every seat**, then use that tip SHA. Fill every section. Then implement **one slice**. Do not interview for a new brief when [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) Next already names exact PATHS. Do not clone or edit Ra-Thor. Do not start a lattice seat from this repo. **Model:** Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available. (Old Grok-only rule was temporary; retired by Sherif 2026-10-24.) Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3.
+Cursor / PATSAGi inner-loop agents start here. **Fetch `origin/main` at the start of every seat**, then use the fetched tip. Never trust a tip SHA written in this file. Fill every section. Then implement **one slice**. Do not interview for a new brief when [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md) Next already names exact PATHS. Do not clone or edit Ra-Thor. Do not start a lattice seat from this repo. **Model:** Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available. (Old Grok-only rule was temporary; retired by Sherif 2026-10-24.) Standing runner: [`AGENT_AUTONOMY_COURT_2026-09-22.md`](AGENT_AUTONOMY_COURT_2026-09-22.md) §3 CARD Q3.
 
-**Tip (fetch first):** `022de354193eaf3dc626405a311672a6d56a3baa` (short `022de35`) — CARD TODO-SYNC on `main` (#496). Always `git fetch origin main` before branching.
+**Tip (fetch first):** fetch origin/main. Never trust a tip SHA written in this file. Always `git fetch origin main` before branching.
 
 **Spent on tip** (do not rebuild):
 
@@ -27,12 +27,12 @@ Title Online stays grey. Default NetMode Offline. `playable-preview` stays `11c5
 
 ## A. Worked example — VALENCE-HUD-2 (merged #455)
 
-Seat: **VALENCE-HUD-2**. Mode: **routine**. Tip: `6b7d1812` (F4-GENSHARE-ADOPT-CONSENT on `main`). Merged `f06ecd8f`. Keep as the stewardship-quality HUD example; do not rebuild.
+Seat: **VALENCE-HUD-2**. Mode: **routine**. Tip: fetch origin/main. Merged `f06ecd8f`. Keep as the stewardship-quality HUD example; do not rebuild.
 
 ### 1. Target repo + tip SHA
 
 - Repo: https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO
-- Tip SHA (fetch first): `6b7d181292ffb414f1ce7047610539395444b6a8` (short `6b7d1812`)
+- Tip SHA (fetch first): fetch origin/main. Never trust a tip SHA written in this file.
 - Workspace identity: **21.88.0** (Cargo.toml). Lived-hour design tick as README — not a Cargo bump.
 
 ### 2. Job in one sentence
@@ -114,12 +114,12 @@ Capable · Bounded · Corrigible. Not METR. Thunder locked. yoi ⚡
 
 ## A0. Previous example — NEVC-HONEST-1 (merged #451)
 
-Seat: **NEVC-HONEST-1**. Mode: **routine**. Tip: `8bc591d7` (TEST-PEACE-DEFAULT on `main`). Merged `1d3aa6d1`. Keep as the grief-gate copy example; do not rebuild.
+Seat: **NEVC-HONEST-1**. Mode: **routine**. Tip: fetch origin/main. Merged `1d3aa6d1`. Keep as the grief-gate copy example; do not rebuild.
 
 ### 1. Target repo + tip SHA
 
 - Repo: https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO
-- Tip SHA (fetch first): `8bc591d714636d0fadbd2ee24c79a5920df9095e` (short `8bc591d7`)
+- Tip SHA (fetch first): fetch origin/main. Never trust a tip SHA written in this file.
 - Workspace identity: **21.88.0** (Cargo.toml). Lived-hour design tick as README — not a Cargo bump.
 
 ### 2. Job in one sentence
@@ -200,12 +200,12 @@ Capable · Bounded · Corrigible. Not METR. Thunder locked. yoi ⚡
 
 ## A0. Previous example — PLAYTEST-1 (merged #446)
 
-Seat: **PLAYTEST-1**. Mode: **routine**. Tip: `03a0c6e0` (BRIEF-P1 #445 on `main`). Merged `258da81d`. Keep as the stranger-hour note example; do not rebuild.
+Seat: **PLAYTEST-1**. Mode: **routine**. Tip: fetch origin/main. Merged `258da81d`. Keep as the stranger-hour note example; do not rebuild.
 
 ### 1. Target repo + tip SHA
 
 - Repo: https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO
-- Tip SHA (fetch first): `03a0c6e0a8e72a2ae2edf6facf13b7d59f8a2dc6` (short `03a0c6e0`, BRIEF-P1)
+- Tip SHA (fetch first): fetch origin/main. Never trust a tip SHA written in this file.
 - Workspace identity: **21.88.0** (Cargo.toml). Lived-hour design tick as README — not a Cargo bump.
 
 ### 2. Job in one sentence
@@ -295,12 +295,12 @@ Capable · Bounded · Corrigible. Not METR. Thunder locked. yoi ⚡
 
 ## A0. Previous example — BRIEF-P1 (merged #445)
 
-Seat: **BRIEF-P1**. Mode: **routine**. Tip: `edbdf513` (H-2026-09-15-H3-SEAT on `main`). Merged `03a0c6e0`. Keep as the worked test-lock example; do not rebuild.
+Seat: **BRIEF-P1**. Mode: **routine**. Tip: fetch origin/main. Merged `03a0c6e0`. Keep as the worked test-lock example; do not rebuild.
 
 ### 1. Target repo + tip SHA
 
 - Repo: https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO
-- Tip SHA (fetch first): `edbdf513862a2b56b3ba5dc19826b80c326347fe` (short `edbdf513`, H3-SEAT)
+- Tip SHA (fetch first): fetch origin/main. Never trust a tip SHA written in this file.
 - Workspace identity: **21.88.0** (Cargo.toml). Lived-hour design tick as README — not a Cargo bump.
 
 ### 2. Job in one sentence
@@ -404,7 +404,7 @@ Paste a new “worked example” **above** this template (or replace section A).
 ### 1. Target repo + tip SHA
 
 - Repo: https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO
-- Tip SHA (fetch first):
+- Tip SHA (fetch first): fetch origin/main. Never trust a tip SHA written in this file.
 - Workspace identity: 21.88.0 unless the steward named a Cargo bump. Design tick as README.
 
 ### 2. Job in one sentence

@@ -1,12 +1,12 @@
 # NEXT NAMED CARDS — steward 2026-09-24
 
-Spent #596 through #749. Tip `5084ce9f` (`5084ce9f94163021901cbd5ef161fac321fbcd24`). Spent #592 through #595. Bank #593–#595 after TODO-SYNC-RITE #592. P3 CONTINUE-BAK-AWARE RETIRED, not cooked. Standing Next: [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md).
+Spent #596 through #749. Tip `5084ce9f` (`5084ce9f94163021901cbd5ef161fac321fbcd24`). Spent #592 through #595. Bank #593–#595 after TODO-SYNC-RITE #592. P3 CONTINUE-BAK-AWARE RETIRED, not cooked. The live queue is #738 Lead posts; this file is history.
 Keep earlier #499–#541 closed notes (FLESH dress ladder through OPT-REDUCED-MOTION-PULSE / FLESH-WELL / TODO-SYNC-FLESH / OPT-AUDIO / FLESH-GUIDANCE-PLACE / TODO-SYNC / FLESH-EPIPHANY-PLACE / OPT-PUNCH-LOW / TODO-SYNC-512 / FLESH-HARVEST-PLACE / FLESH-EMBASSY-LINE / OPT-WEATHER-FIDELITY-LOW / TODO-SYNC-514 / FLESH-FABRICATOR-LINE / FLESH-HEX-DOOR / TODO-SYNC-518 / FLESH-SKIRMISH-DAWN / TODO-SYNC-522 / FLESH-RESUME-PLACE / FLESH-ALLOCATE-LINE / TODO-SYNC-523 / QA-MACHINE-HOUR / ODD-ZONE-NOTE / FLESH-SATCHEL-LINE / TODO-SYNC-527 / FLESH-WHISPER-PLACE / FLESH-DEPTHS-LAND / FLESH-HEARTWOOD-LIP / TODO-SYNC-531 / FLESH-COMPASS-LINE / FLESH-SOFT-PANEL / TODO-SYNC-534 / FLESH-HANDS-MEMORY / FLESH-WORLD-ANSWER / FLESH-SHARD-CLIMATE / FLESH-CAMERA-PLACE).
 Steward unlock 2026-09-24 ACK · #512–#513 SPENT (recorded on #514) · #514–#517 SPENT (recorded on #518) · #518–#520 SPENT (recorded on #521) · #521–#522 SPENT (recorded on #523) · #523–#525 SPENT (recorded on #526) · #527–#529 SPENT (recorded on #530) · #530–#533 SPENT (recorded on #534) · #534–#536 SPENT (recorded on #537) · #537–#541 SPENT (recorded on #542) · #542–#545 SPENT (recorded on #546) · #546–#550 SPENT (recorded on #551) · #551–#553 SPENT (recorded on #554) · #554–#557 SPENT (recorded on #558) · #558–#560 SPENT (recorded on #561) · #561–#564 SPENT (recorded on #565) · #565–#570 SPENT (recorded on #571) · #571–#576 SPENT (recorded on #577) · #577–#584 SPENT (recorded on #585) · #585–#586 SPENT (recorded on #587) · #587–#588 SPENT (recorded on #589) · #589–#591 SPENT (recorded on #592) · #592–#595 SPENT (recorded on #596) · #596–#703 SPENT on this tip.
 Do not rebuild fog, captions, Continue, pulse hush, the Graphics Low bed cap, the Place-prefix week-bill sentence, the epiphany Place line, the Graphics Low punch scale, the care-cycle Place line, the Embassy Heartwood lamp line, the WeatherFidelity Low fog cap, the fabricator Place line, the Places-door peak-memory line, the Peace well slab_line (five words; soft well_glow unchanged; no second HUD), the Mode B resume Place line (blob stays; no `harvest_feel`; no `rbe_allocate_choice`), the Flow/Reserve Place invite (Flow = field restore; Reserve = repair-rights hold; never gold/price/Market/ticker/XP), the MACHINE QA stamps, the odd-zone note, the satchel pickup line, the whisper place-chip prefix (bare LINE when travel state absent), the Depths Peace restore line ('Depths Peace · teal · wet-stone · restored'), the Heartwood lip hush (material numbers only in the five existing StandardMaterial blocks; dimmer/quieter; Peace node still brightest; pond alpha 0.78), the compass Place line ('{place} · {line}', falls back to the exact line), the realm panel Place head ('{place} · 1–5 choose a climate', falls back to exactly '1–5 choose a climate'), the hands-memory Place on the tend cap (existing echo feed), the world-answer Place note (one Note on the existing Abundance Journey feed after Flow or a banked Steward reserve; Tend, Take, Idle, and an unbanked reserve push nothing), the shard-climate fog lean (PostUpdate nudges FogSettings.color toward the dressed Place bed; Update writers stay unchanged), the idle glance that follows the punch (PostUpdate before TransformPropagate; slerp scales by punch_scale_for_graphics; a missing feel or a punch scale of 0 returns before any camera write), the Heartwood ward Tend note (one Abundance Journey Note from the place chip and the existing WARD_SEALS words; Look, leaving Heartwood, a missing echo, and a second Tend add no other line), the living-day period note (when the named day period changes, turn_the_clock pushes one Journey Note whose text is DayPeriod::name(); the first frame and the Depths push nothing; each period is noted at most once per session), or the thriving-moment lines (the Council invite no longer names C; three fired toasts each cite one peak-memory phrase; locked firsts stay byte-identical), the sovereign banner (`{place} · This hour is yours alone · no servers · the nodes still answer`; absent travel keeps the bare banner; the log stays offline / single human), the quit-rerun welcome sentences (saved current-hex chip; absent travel keeps each sentence; first-play glow stays 0), the factory Q slab (`Q plant a House stake (Frontier)` / `Q next · reserve …`; absent travel keeps each slab), or the spill slab (`Extractor … · spill on the ground · …` while charter skin is live; absent travel keeps the slab), the online ladder (R0–R7; default NetMode Offline; no listen; R2 confirm UI stays JUNCTION; Method B client slab stays SKIP), the pre-release law (prototype ≠ ship; a verb that does nothing is a lie; no franchise strings), or the camera-read law (sim ≠ camera; readable hour on a small machine; Hour 1 lens stays).
 Peak memory locked: walked · tended · week was the bill · yard remembered.
 Title Online · App ID · steamworks · `server/` · MESH `.glb` · Bevy climb · Hour 4 · Market · gold · five-gate Title · playtest minutes stay banked (steward only).
-Online grey. No OFFER NEXT. Do not invent PATHS. Standing Next is [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). Do not copy a second queue.
+Online grey. No OFFER NEXT. Do not invent PATHS. The live queue is #738 Lead posts; this file is history. Do not copy a second queue.
 Bevy pin 0.20. BEVY-CLIMB climbing one minor per card (Sherif GO 2026-10-09).
 
 Fetch `origin/main`. Agents may use Grok or Claude (or other approved models), choosing whichever is strongest for the task. If either Grok or the other models run out of tokens, agents may fall back to using only the one still available. One CARD then stop. No direct push to `main`. No `client/**` outside a named CARD. Do not invent PATHS. Do not invent playtest minutes. Do not invent the next unlock.
@@ -692,7 +692,7 @@ GREEN @ `014f9a81`. Both core gates passed. 0 open PRs on that stamp. Cite only.
 
 ## Next (ordered)
 
-Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / next. No OFFER NEXT. Standing Next is [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md). Cook that file. Do not copy a second queue onto this page.
+The live queue is #738 Lead posts; this file is history. Do not cook the list below.
 
 ### 0. CARD TODO-SYNC-703 (this card)
 
@@ -700,9 +700,9 @@ Hands cooks in order after Dual squash of this PR. One CARD / one PR / squash / 
 
 Next: OFFLINE-BUILD-1 spent (build-only CI artifact, .github/workflows/offline-build.yml; Sherif's word 2026-10-09 via Lead Mate); next HEARTBEAT. No other card named.
 
-### 1. Standing Next — [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md)
+### 1. Historical note — [`docs/GODSPEED_PREP.md`](GODSPEED_PREP.md)
 
-CLERK-LAG-LABELS is spent (#578). Cite `docs/GODSPEED_PREP.md` as standing Next. Do not invent PATHS.
+Not the live queue. The live queue is #738 Lead posts. Do not invent PATHS.
 
 Bounds (not cards):
 
@@ -712,7 +712,7 @@ Bounds (not cards):
 
 Parked (SKIP or JUNCTION, awaiting a Steward PATH, never spent or landed):
 
-- **FEEL-MOVE** — HELD. `client/src/feel_move.rs` only holds the Use buffer (SIM_HZ 60, USE_BUFFER_SECS 0.120); retuning it would mean inventing numbers nobody named; any visible cue or reduced_motion rule would reach into `client/src/human_presence.rs`, making it a junction.
+- **FEEL-MOVE** — Feel-move is governed by MOVE-FEEL-1 (#997) and its amendments. Retunes need a council-pinned constant table (see [`MOVEMENT_STANDARD.md`](MOVEMENT_STANDARD.md)).
 - **Card 4 FLESH-TAP-USE-ROW** — HELD. The row is wired into the banked tap-to-use feature (its structs, three queries and two system signatures), so removing it is more than a word change.
 - **Method B confirm UI** — JUNCTION. Shared gate exists (`NeedsConfirm` / `MidWasd`). No client Method B slab. FLESH-GENSHARE-CONFIRM SKIP 2026-09-27. Steward names PATH.
 - **Audit rows 6–7** — HELD (Crownstone). `client/src/species_redemption.rs` · `client/src/hybrid_matrix.rs`. `crownstone.rs` stays refused.
@@ -725,7 +725,7 @@ Rule: a CARD needing a file not already live (no `pub mod` + plugin in `client/s
 
 **STILL JUNCTION:** `onboarding.rs` · `particles.rs` — no `mod` / `pub mod` in the client crate at 2c084e71. Method B confirm UI stays JUNCTION until Steward names PATH.
 
-**Effective order (verified):** TODO-SYNC-749 → HEARTBEAT. No other card named.
+**Effective order (historical):** the note on this page was TODO-SYNC-749 → HEARTBEAT. The live queue is #738 Lead posts.
 
 Gaps @ tip 2c084e71: listed, not queued, in [`GROK_BOT_TODO.md`](GROK_BOT_TODO.md).
 

@@ -56,6 +56,18 @@ Same house + hex + climate epoch → same light-gen scatter when Grove / `POWRUS
 - Share the recipe / seed story; do **not** ship raw mesh floods or peer triangle blasts on the default door.
 - No GenShare sockets while Online is grey.
 
+## Named rooms
+
+Four named rooms; Threshold is presented as a room but is implemented as a Heartwood sub-area (`threshold_shelf.rs`).
+
+## Walkable bounds
+
+Sanctuary walkable = 56 × 56 plate (PLAY_HALF), with a visible edge treatment. `PLAY_HALF` is `28.0` in `client/src/terrain.rs:35` (`PLAY_HALF * 2.0 == 56.0` at :288).
+
+## Authored solids
+
+Presets change density and LOD of NoCollide decor only. Solids and gameplay objects are a fixed authored table.
+
 ## Sanctuary Prime (now)
 
 - **Yard only** — wells, climate fog, opaque Title / pause / Settings / Ledger plates, Peace keys.

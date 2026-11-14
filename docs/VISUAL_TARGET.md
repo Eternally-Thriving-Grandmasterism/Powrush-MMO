@@ -1,7 +1,7 @@
 # VISUAL_TARGET.md — procedural knobs
 
 **CARD:** ART-TARGET-1
-**Base:** `6b6fe4d19ba96bec26e93928dcc7e31f859038c6` (main tip). Bevy pin 0.14; lockfile crate `bevy` 0.14.2.
+**Base:** `6b6fe4d19ba96bec26e93928dcc7e31f859038c6` (card base). Bevy pin 0.20 (`client/Cargo.toml`).
 **Contact:** info@Rathor.ai
 No certification / AGSi warranty / legal-product claims.
 

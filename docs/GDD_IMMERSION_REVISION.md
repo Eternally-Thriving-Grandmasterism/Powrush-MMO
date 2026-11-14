@@ -41,6 +41,10 @@ Two of the four are already law with Hands **pending Core** (slab clarity, first
 
 Verbs are the sacred five: **Tend / Take / Flow / Reserve / Mend** (`PLACES_BIBLE`). Places are the four: **Sanctuary / Heartwood / Threshold / Depths**. Score is the **House week** — \(T_w\) tons taken, \(U_w\) restored. Currency story is **credit**, never gold (`PLACES_BIBLE` · Market).
 
+> **DOCS-SYNC-1:** Four named rooms; Threshold is presented as a room but is implemented as a Heartwood sub-area (`threshold_shelf.rs`). See [`PLACES_BIBLE.md`](PLACES_BIBLE.md). The "no fifth Place" sentences in this file are not rewritten.
+
+> **DOCS-SYNC-1 (council [#738 6867796772](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6867796772) §5b):** the CO × WoW bar lifts this file's blanket gear refusal **only** for gear with readable, bounded effects on the one power ladder (Temper, Lumen, Ward). There is still no published power scalar, no cash-shop power and no socket gambling. LOOP-SPINE-1 writes the reconciliation. This is a council pick; Sherif may veto. The Refuse rows below are not rewritten.
+
 ### 2.1 Conquer Online — classic 1.0 / early 2.0
 
 | Verdict | Reference beat | Powrush home |
@@ -64,6 +68,8 @@ Verbs are the sacred five: **Tend / Take / Flow / Reserve / Mend** (`PLACES_BIBL
 
 > **CLASSES-CANON-1 (2026-10-28):** for the row's rebirth wording, the class-evolution event is "Confluence". Council decision under Sherif's 2026-10-28 1:01 AM ET delegation ([#738 6461200579](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6461200579)), not his words. Sherif may veto. English-only repo screen, not trademark clearance.
 
+> **DOCS-SYNC-1:** Superseded in part by LEVELS_CANON (2026-10-27): skill levels and a skills panel are canon; an always-on XP bar stays refused. The rows below are not rewritten.
+
 ### 2.2 WoW — Vanilla + TBC
 
 | Verdict | Reference beat | Powrush home |
@@ -78,6 +84,8 @@ Verbs are the sacred five: **Tend / Take / Flow / Reserve / Mend** (`PLACES_BIBL
 | **Refuse** | **Raid lockout / reset week.** | Refused as the week teacher. Our week is a bill you can read, not a timer that owns your calendar. |
 | **Refuse** | **Ability bars / cooldown rotation / F-row.** | Refused. One Use verb, **E** / pad South (`INPUT_CANON`). No second HUD, no XP bar, no talent panel. |
 | **Note** | **KEYS-CANON-1** | The F-row / cooldown-rotation clause of the row above is superseded by the hotkey muscle-memory rule in [INPUT_CANON](INPUT_CANON.md) (KEYS-CANON-1, CUT 6485461841). "One Use verb, **E**" and "No second HUD" stay in force. |
+
+> **DOCS-SYNC-1:** TTD's lesson is that tonnage can carry the score. Combat exists but never scores the week. The "No combat" Keep row below is superseded in part and is not rewritten.
 
 ### 2.3 Transport Tycoon Deluxe
 
@@ -125,7 +133,9 @@ Ordered rungs. **Each rung waits on the previous rung being confirmed and, where
 **Ask:** a stranger names *a person standing in a room* and can read the action being performed, from a still frame, at Sanctuary's default camera distance. Breath / carry / heavy already exist in sim — make them visible on the body.  
 **Scope guard:** one player body read plus the Peace **E** action read. **No art-pack freestyle** — no new mesh set, no texture pack, no animation library, no character creator, no silhouette that implies a class kit or a weapon.  
 **Candidate paths:** `client/src/living_body.rs` · `client/src/human_presence.rs` · `client/src/local_player.rs` · `client/src/harvest_feel.rs` · `client/src/feel_move.rs`.  
-**Refuse inside the rung:** second Camera3d · F-row · combat pose · gear slots · race silhouette · person mesh on Sanctuary that reads as Heartwood dress.  
+**Refuse inside the rung:** second Camera3d · F-row · combat pose · gear slots · race silhouette · person mesh on Sanctuary that reads as Heartwood dress.
+
+> **DOCS-SYNC-1:** "gear slots" in the line above is superseded in part by the §2.1 gear banner (6867796772 §5b). That line is not rewritten.  
 **Gate:** Core confirms §3 rung B **and** names the asset budget. Any mesh or texture add is its own named art slice with its own ballot.
 
 ### Rung C — Settled + book Other Place door clarity
