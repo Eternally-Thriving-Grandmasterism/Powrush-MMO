@@ -6331,4 +6331,27 @@ mod tests {
             assert!(air_edge && landed, "out={out} met the edge in the air={air_edge} landed={landed}");
         }
     }
+
+    /// CARD PLATE-EDGE-CUE-1 P4 — live-constant guard: the real-step jump peak (feet rise) clears
+    /// under the rim rail top, and the rail top stays under every realm's follow look point.
+    #[test]
+    fn plate_edge_p4_jump_peak_under_rail_under_follow_look() {
+        let top = crate::climate_plane::PLATE_EDGE_TOP;
+        let look = [None, Some(0), Some(1), Some(2), Some(3), Some(4)]
+            .map(|realm| STAND + follow_look_height_for_realm(realm)).into_iter().fold(f32::MAX, f32::min);
+        for sprint in [false, true] {
+            let mut app = mf_fresh();
+            mf_stick(&mut app, 1.0, 0.0, sprint);
+            app.world_mut().resource_mut::<JumpLatch>().pending = true;
+            let mut peak = 0.0f32;
+            for _ in 0..90 {
+                jb_step(&mut app);
+                let p = app.world().resource::<SoftPresence>();
+                peak = peak.max(p.position.y - STAND);
+                if p.grounded { break; }
+            }
+            assert!(peak > 1.0 && peak < top && top < look, "sprint={sprint} peak {peak} top {top} look {look}");
+        }
+        assert!(CAM_PITCH_MIN > 0.0, "camera never looks up from under the rail");
+    }
 }
