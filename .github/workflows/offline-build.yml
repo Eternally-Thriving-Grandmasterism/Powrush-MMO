@@ -3,6 +3,7 @@ name: offline-build
 on:
   push:
     branches: [main]
+    tags: ['v*']
   workflow_dispatch:
   pull_request:
     paths:
@@ -42,11 +43,22 @@ jobs:
       - name: Release build (default features)
         run: cargo build --release -p powrush-client --locked
 
+      - name: Assert default=[] and no steamworks
+        if: runner.os == 'Linux'
+        run: |
+          set -euo pipefail
+          cargo metadata --locked --format-version 1 --no-deps | python3 -c 'import json,sys; p=next(x for x in json.load(sys.stdin)["packages"] if x["name"]=="powrush-client"); raise SystemExit(0 if p["features"].get("default", [])==[] else "FAIL default")'
+          if python3 -c 'import sys; sys.exit(0 if ["steam"]==[] else 1)'; then echo "self-test: default=[] missed a feature" >&2; exit 1; fi
+          sw() { cargo tree -p powrush-client --locked --target all -e normal,build --prefix none "$@"; }
+          sw | grep -q '^steamworks ' && { echo "FAIL: steamworks in normal/build tree" >&2; exit 1; }
+          sw --features steam | grep -q '^steamworks ' || { echo "self-test: steam tree missed steamworks" >&2; exit 1; }
+
       - name: Package offline dist
         id: package
         shell: bash
         env:
           HEAD_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          BUILD_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'none' }}
         run: |
           set -euo pipefail
           case "${RUNNER_OS}" in
@@ -98,6 +110,19 @@ jobs:
           Windows: run powrush-client.exe (next to assets/).
           Linux needs: libxkbcommon-x11-0 libasound2t64 libudev1 libvulkan1 libxcursor1 libxi6 and a Vulkan driver (e.g. mesa-vulkan-drivers).
           EOF
+          sha="$(git rev-parse HEAD)"
+          {
+            echo "tag=${BUILD_TAG}"
+            echo "sha=${sha}"
+            echo "os=${os}"
+            (cd "${dist}" && find . -type f ! -name BUILD-ID.txt -print0 | sort -z | xargs -0 -r sha256sum)
+          } > "${dist}/BUILD-ID.txt"
+          no_pdb() { [[ -z "$(find "$1" -iname '*.pdb' -print -quit)" ]]; }
+          no_pdb "${dist}" || { echo "FAIL: .pdb in dist" >&2; exit 1; }
+          t="$(mktemp -d)"; touch "$t/x.pdb"
+          if no_pdb "$t"; then echo "self-test: planted .pdb passed" >&2; exit 1; fi
+          test -s "${dist}/BUILD-ID.txt" || { echo "FAIL: BUILD-ID.txt missing" >&2; exit 1; }
+          if test -s "${t}/NO-BUILD-ID.txt"; then echo "self-test: missing BUILD-ID passed" >&2; exit 1; fi
           {
             echo "os=${os}"
             echo "sha8=${sha8}"
@@ -105,11 +130,25 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Upload offline artifact
+        id: upload
         uses: actions/upload-artifact@v4
         with:
           name: powrush-offline-${{ steps.package.outputs.os }}-${{ steps.package.outputs.sha8 }}
           path: ${{ steps.package.outputs.dist }}
           retention-days: 90
+
+      - name: Record artifact digest
+        shell: bash
+        env:
+          BUILD_TAG: ${{ github.ref_type == 'tag' && github.ref_name || 'none' }}
+          DIGEST: ${{ steps.upload.outputs.artifact-digest }}
+        run: |
+          {
+            echo "tag=${BUILD_TAG}"
+            echo "sha=$(git rev-parse HEAD)"
+            echo "artifact=powrush-offline-${{ steps.package.outputs.os }}-${{ steps.package.outputs.sha8 }}"
+            echo "artifact-digest=${DIGEST}"
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Smoke boot packaged Linux build
         if: runner.os == 'Linux'
