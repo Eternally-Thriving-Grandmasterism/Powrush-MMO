@@ -52,19 +52,51 @@ impl FoundFinds {
         if self.names.contains(&f.name) { return false; }
         self.names.push(f.name); self.pending = Some(find_line(f)); true
     }
-    pub fn encode(&self) -> String { self.names.join("\n") }
+    pub fn encode(&self) -> String {
+        let names = serde_json::to_string(&self.names).unwrap_or_default();
+        format!(r#"{{"schema":"{FINDS_SCHEMA}","names":{names}}}"#)
+    }
+    /// The v1 JSON object, or a pre-JSON save of one name per line. Known names only, in table order.
     pub fn decode(s: Option<&str>) -> Self {
-        let has = |n: &str| s.is_some_and(|s| s.lines().any(|l| l.trim() == n));
+        let s = s.unwrap_or_default();
+        let names = match serde_json::from_str::<FindsDoc>(s) {
+            Ok(FindsDoc {
+                schema: Some(k), ..
+            }) if !k.starts_with("powrush_finds") => Vec::new(),
+            Ok(doc) => doc.names,
+            Err(_) => s.lines().map(str::to_string).collect(),
+        };
+        let has = |n: &str| names.iter().any(|l| l.trim() == n);
         FoundFinds { names: NAMED_FINDS.iter().map(|f| f.name).filter(|n| has(n)).collect(), pending: None }
     }
+}
+pub const FINDS_SCHEMA: &str = "powrush_finds_v1";
+/// `powrush_finds.json` body. Unknown fields and unknown names are ignored on load.
+#[derive(serde::Deserialize)]
+struct FindsDoc {
+    #[serde(default)]
+    schema: Option<String>,
+    #[serde(default)]
+    names: Vec<String>,
 }
 pub fn find_line(f: &NamedFind) -> String { format!("{} · {}", f.name, f.sentence) }
 /// The waiting line shows only once the calm queue is done and the current pulse line has expired.
 pub fn find_ready(calm_done: bool, pulse_until: f64, now: f64) -> bool { calm_done && pulse_until <= now }
-pub fn load_finds(mut finds: ResMut<FoundFinds>) { *finds = FoundFinds::decode(shared::user_persist::read_named(FINDS_SAVE).ok().as_deref()); }
+/// Live, then `.bak`, read raw like wood: `read_named` rejects the pre-JSON newline save, so it cannot be the only path.
+pub fn load_finds(mut finds: ResMut<FoundFinds>) {
+    use shared::user_persist::{read_backup_bytes, read_live_bytes, RawPersist};
+    let read = |raw: std::io::Result<RawPersist>| match raw {
+        Ok(RawPersist::Bytes(b)) => Some(FoundFinds::decode(std::str::from_utf8(&b).ok())),
+        _ => None,
+    };
+    *finds = read(read_live_bytes(FINDS_SAVE))
+        .filter(|f| !f.names.is_empty())
+        .or_else(|| read(read_backup_bytes(FINDS_SAVE)))
+        .unwrap_or_default();
+}
 pub fn save_finds(finds: &FoundFinds) { let _ = shared::user_persist::write_named(FINDS_SAVE, finds.encode()); }
 #[cfg(test)]
-mod tests {
+pub(crate) mod tests {
     use super::*;
     use crate::difficulty::TIERS;
     use shared::temper::VENDOR_STANDING_CEILING;
@@ -132,5 +164,85 @@ mod tests {
         assert_eq!(FoundFinds::decode(Some(&f.encode())), FoundFinds { pending: None, ..f.clone() });
         assert!(FoundFinds::decode(Some("no such find\n")) == FoundFinds::default() && FoundFinds::decode(None) == FoundFinds::default());
         assert!(!find_ready(false, 0.0, 10.0) && !find_ready(true, 12.0, 10.0) && find_ready(true, 10.0, 10.0) && FINDS_SAVE == "powrush_finds.json");
+    }
+
+    /// Exact bytes the pre-JSON `encode` wrote for NAMED_FINDS[1] then [4].
+    pub(crate) const OLD_FINDS: &[u8] = b"Steady Climate Pick\nQuiet Harmony Loom";
+    /// Runs `body` with `POWRUSH_USER_DIR` on a fresh temp dir, under the crate env lock.
+    pub(crate) fn in_user_dir<R>(tag: &str, body: impl FnOnce(&std::path::Path) -> R) -> R {
+        let dir = std::env::temp_dir().join(format!("powrush-finds-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("powrush_seal.json"), b"{}").unwrap();
+        let _guard = crate::test_env::lock();
+        let (env, prev) = (shared::user_persist::USER_DIR_OVERRIDE_ENV, std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok());
+        std::env::set_var(env, &dir);
+        let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| body(&dir)));
+        match prev { Some(v) => std::env::set_var(env, v), None => std::env::remove_var(env) }
+        let _ = std::fs::remove_dir_all(&dir);
+        out.unwrap_or_else(|p| std::panic::resume_unwind(p))
+    }
+    /// What the Startup `load_finds` system leaves in `FoundFinds`.
+    fn loaded() -> FoundFinds {
+        let mut app = App::new();
+        app.init_resource::<FoundFinds>().add_systems(Startup, load_finds);
+        app.update();
+        app.world().resource::<FoundFinds>().clone()
+    }
+    fn two() -> FoundFinds { FoundFinds { names: vec![NAMED_FINDS[1].name, NAMED_FINDS[4].name], pending: None } }
+
+    /// LTS2 (H3) — the exact old newline bytes load from the live file, and from `.bak` when live is gone or unreadable.
+    #[test]
+    fn lts2_old_newline_bytes_load_live_then_bak() {
+        in_user_dir("lts2", |dir| {
+            let (live, bak) = (dir.join(FINDS_SAVE), dir.join(format!("{FINDS_SAVE}.bak")));
+            std::fs::write(&live, OLD_FINDS).unwrap();
+            assert!(shared::user_persist::read_named(FINDS_SAVE).is_err(), "global JSON rule stays");
+            assert_eq!(loaded(), two());
+            std::fs::rename(&live, &bak).unwrap();
+            assert_eq!(loaded(), two(), "old bytes in .bak");
+            std::fs::write(&live, b"").unwrap();
+            assert_eq!(loaded(), two(), "empty live falls back to .bak");
+        });
+    }
+
+    /// LTS3 (H3) — new saves are one JSON value with the v1 schema and round-trip through user_persist; `pending` is not saved.
+    #[test]
+    fn lts3_finds_save_is_json_and_round_trips() {
+        let f = FoundFinds { pending: Some("x".into()), ..two() };
+        assert_eq!(f.encode(), r#"{"schema":"powrush_finds_v1","names":["Steady Climate Pick","Quiet Harmony Loom"]}"#);
+        assert_eq!(serde_json::from_str::<serde_json::Value>(&f.encode()).unwrap()["schema"], "powrush_finds_v1");
+        assert_eq!(FoundFinds::decode(Some(&f.encode())), two());
+        in_user_dir("lts3", |dir| {
+            save_finds(&FoundFinds { names: vec![NAMED_FINDS[1].name], pending: None });
+            save_finds(&f);
+            assert_eq!(FoundFinds::decode(shared::user_persist::read_named(FINDS_SAVE).ok().as_deref()), two());
+            let bak = std::fs::read_to_string(dir.join(format!("{FINDS_SAVE}.bak"))).unwrap();
+            assert_eq!(FoundFinds::decode(Some(&bak)).names, vec![NAMED_FINDS[1].name], "prior JSON save kept as .bak");
+            assert_eq!(loaded(), two());
+        });
+    }
+
+    /// LTS4 (H3) — the SessionBlob v1 literal stays at local_session_persist.rs:278 and finds stay out of that file.
+    #[test]
+    fn lts4_session_v1_literal_pinned() {
+        const V1: &str = r#"{"schema":"powrush_local_session_v1","vitality":1.0,"harmony":0.0,"joy":0.0,"harvests":0,"tends":0,"realm":0,"first_harvest_lived":false,"whisper_lived":false}"#;
+        let src = include_str!("local_session_persist.rs");
+        assert!(src.lines().nth(277).is_some_and(|l| l.contains(&format!("fs::write(&temp.path, r#\"{V1}\"#)"))), "v1 literal moved");
+        assert!(src.lines().nth(278).is_some_and(|l| l.contains("run_best, None")) && !src.contains("finds"));
+        let v: serde_json::Value = serde_json::from_str(V1).unwrap();
+        assert_eq!((v["vitality"].as_f64(), v["harmony"].as_f64(), v["joy"].as_f64()), (Some(1.0), Some(0.0), Some(0.0)));
+    }
+
+    /// LTS5 (H3) — an extra field and an unknown name keep the known names; a foreign schema loads empty.
+    #[test]
+    fn lts5_finds_forward_compat_extra_field() {
+        let s = r#"{"schema":"powrush_finds_v1","names":["Quiet Harmony Loom","no such find","Steady Climate Pick"],"later":{"x":1}}"#;
+        assert_eq!(FoundFinds::decode(Some(s)), two());
+        in_user_dir("lts5", |dir| {
+            std::fs::write(dir.join(FINDS_SAVE), s).unwrap();
+            assert_eq!(loaded(), two());
+        });
+        assert_eq!(FoundFinds::decode(Some(r#"{"schema":"powrush_house_v1","names":["Steady Climate Pick"]}"#)), FoundFinds::default());
     }
 }
