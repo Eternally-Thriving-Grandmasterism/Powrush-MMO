@@ -144,7 +144,7 @@ const JUMP: f32 = 5.6;
 /// CARD JUMP-BUFFER-1 — airborne jump press window in seconds (tunable; council-set, Sherif may veto).
 pub const JUMP_BUFFER_SECS: f32 = 0.12;
 /// CARD JUMP-LAND-RECOVERY-1 — jump lock after an airborne STAND clamp. Nine fixed
-/// 1/60 ticks reject a fresh jump; the tenth accepts one. Movement is not locked.
+/// 1/60 ticks hold a fresh press; the first allowed (tenth) fires it once. Movement is not locked.
 const LANDING_RECOVERY_SECS: f32 = 0.15;
 const CAM_BACK: f32 = 6.4;
 const CAM_UP: f32 = 2.35;
@@ -1381,8 +1381,8 @@ fn apply_locomotion(
     let clamp_landed = std::mem::take(&mut latch.clamp_landed);
     let buffered = yard_step && latch.buffer > 0.0 && clamp_landed && seated;
     if recovering {
-        // Old buffer and a press on this tick are both rejected, not stored.
-        latch.pending = false;
+        // CARD JUMP-PRESS-1 — old buffer dropped; a fresh open-yard, seated press is held for the first allowed tick.
+        latch.pending &= yard_step && seated;
         latch.buffer = 0.0;
     } else if presence.grounded && buffered {
         // Buffered jump on the first grounded tick after a clamp landing: one press, one jump.
@@ -3525,7 +3525,8 @@ mod tests {
         assert!(presence.grounded);
         assert_ne!(presence.velocity.y, JUMP);
         let latch = app.world().resource::<JumpLatch>();
-        assert!(!latch.pending);
+        // CARD JUMP-PRESS-1 — the press is held for the first allowed tick; the buffer is still dropped.
+        assert!(latch.pending);
         assert_eq!(latch.buffer, 0.0);
     }
 
@@ -3562,34 +3563,47 @@ mod tests {
         assert_ne!(app.world().resource::<SoftPresence>().velocity.y, JUMP);
     }
 
+    /// CARD JUMP-PRESS-1 (F1) — a fresh press first seen on lock tick L+k (k in 1..=9) is held, not fired,
+    /// and fires once on the first allowed tick L+10. k = 10 is the control.
     #[test]
-    fn landing_recovery_ninth_press_is_not_buffered() {
-        let mut app = jb_app(false);
-        jr_grounded_jump(&mut app);
-        jr_fall_to_clamp(&mut app);
-        for tick in 1..9 {
-            assert!(
-                app.world().resource::<LandingRecovery>().remaining > 0.0,
-                "tick {tick} began clear"
-            );
-            assert!(!jb_step(&mut app), "idle recovery tick {tick} jumped");
-            assert!(app.world().resource::<SoftPresence>().grounded);
+    fn jump_press_1_lock_press_fires_once_on_first_allowed_tick() {
+        for k in 1..=10 {
+            let mut app = jb_app(false);
+            jr_grounded_jump(&mut app);
+            jr_fall_to_clamp(&mut app);
+            for tick in 1..=9 {
+                assert!(app.world().resource::<LandingRecovery>().remaining > 0.0, "k={k}: tick {tick} began clear");
+                app.world_mut().resource_mut::<JumpLatch>().pending |= tick == k;
+                assert!(!jb_step(&mut app), "k={k}: lock tick {tick} rose");
+                let latch = app.world().resource::<JumpLatch>();
+                assert_eq!(latch.pending, tick >= k, "k={k}: tick {tick} pending");
+                assert_eq!(latch.buffer, 0.0, "k={k}: tick {tick} buffer");
+                assert!(app.world().resource::<SoftPresence>().grounded);
+            }
+            assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0, "k={k}: lock outlived L+9");
+            app.world_mut().resource_mut::<JumpLatch>().pending |= k == 10;
+            assert!(jb_step(&mut app), "k={k}: first allowed tick L+10 did not fire");
+            assert!(!app.world().resource::<JumpLatch>().pending);
+            assert_eq!((0..60).filter(|_| jb_step(&mut app)).count(), 0, "k={k}: one press jumped twice");
         }
-        assert!(app.world().resource::<LandingRecovery>().remaining > 0.0);
-        jr_reject_press(&mut app);
-        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
-        assert!(
-            !jb_step(&mut app),
-            "ninth press was buffered into the tenth tick"
-        );
+    }
+
+    /// CARD JUMP-PRESS-1 (F2) — Space held through landing is one `just_pressed` edge: one rise, one landing, no re-jump.
+    #[test]
+    fn jump_press_1_held_space_through_landing_jumps_once() {
+        let mut app = jb_app(false);
+        app.add_systems(Update, arm_jump_latch);
+        let (mut rises, mut landings) = (0, 0);
+        for frame in 0..150 {
+            app.world_mut().resource_mut::<PlayerInput>().jump = frame == 0;
+            let before = app.world().resource::<SoftPresence>().grounded;
+            rises += usize::from(jb_step(&mut app));
+            landings += usize::from(!before && app.world().resource::<SoftPresence>().grounded);
+        }
+        assert_eq!((rises, landings), (1, 1));
         assert!(app.world().resource::<SoftPresence>().grounded);
-        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
         assert!(!app.world().resource::<JumpLatch>().pending);
-        assert_eq!(app.world().resource::<JumpLatch>().buffer, 0.0);
-        app.world_mut().resource_mut::<JumpLatch>().pending = true;
-        assert!(jb_step(&mut app), "a later fresh pending should jump once");
-        assert!(!jb_step(&mut app));
-        assert_ne!(app.world().resource::<SoftPresence>().velocity.y, JUMP);
+        assert_eq!(app.world().resource::<LandingRecovery>().remaining, 0.0);
     }
 
     #[test]
