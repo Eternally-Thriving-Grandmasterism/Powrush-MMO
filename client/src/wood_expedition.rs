@@ -345,6 +345,14 @@ impl Body {
     }
     /// `claimed` is the predecessor captured at the press, not a fresh clone of memory.
     fn commit_at(&mut self, claimed: &Snap, tx: &Sender<Cmd>) -> Result<(), Reject> {
+        self.commit_by(claimed, tx, successor)
+    }
+    fn commit_by(
+        &mut self,
+        claimed: &Snap,
+        tx: &Sender<Cmd>,
+        step: fn(&Doc) -> Result<Doc, Reject>,
+    ) -> Result<(), Reject> {
         if !self.writable() {
             return Err(Reject::Writable);
         }
@@ -352,7 +360,7 @@ impl Body {
         if prior.id != claimed.id || prior.bytes != claimed.bytes {
             return Err(Reject::Identity);
         }
-        let snap = snap_from(successor(&prior.doc)?).ok_or(Reject::Preview)?;
+        let snap = snap_from(step(&prior.doc)?).ok_or(Reject::Preview)?;
         let (queued, dirty, inflight) = (self.queued.clone(), self.dirty, self.inflight.clone());
         self.memory = Some(snap.clone());
         self.sync_dirty();
@@ -550,6 +558,13 @@ impl WoodHub {
     pub(crate) fn memory_unit(&self) -> Option<u8> {
         self.body.memory.as_ref().map(|snap| snap.doc.unit)
     }
+    /// Refine leg: commits the carried unit out and returns it (1), or 0 when none can be taken.
+    pub(crate) fn take_unit(&mut self) -> u8 {
+        let Some(claimed) = self.body.memory.clone() else {
+            return 0;
+        };
+        u8::from(self.body.commit_by(&claimed, &self.tx, consume).is_ok())
+    }
     #[cfg(test)]
     fn join_after_stop(&mut self) {
         if self.released {
@@ -671,6 +686,24 @@ fn successor(doc: &Doc) -> Result<Doc, Reject> {
         stand: Stand::Depleted,
         unit: 1,
         charge: Charge::None,
+    };
+    domain_ok(&next).then_some(next).ok_or(Reject::Preview)
+}
+/// Refine leg: Depleted + unit 1 → Depleted + unit 0, same charge. Not a harvest path.
+fn consume(doc: &Doc) -> Result<Doc, Reject> {
+    if doc.schema != SCHEMA || doc.tree != TREE_ID || doc.stand != Stand::Depleted || doc.unit != 1
+    {
+        return Err(Reject::Identity);
+    }
+    if doc.charge == Charge::Ready {
+        return Err(Reject::Ready);
+    }
+    let next = Doc {
+        revision: doc.revision.checked_add(1).ok_or(Reject::Overflow)?,
+        generation: doc.generation.checked_add(1).ok_or(Reject::Overflow)?,
+        op: doc.op.checked_add(1).ok_or(Reject::Overflow)?,
+        unit: 0,
+        ..doc.clone()
     };
     domain_ok(&next).then_some(next).ok_or(Reject::Preview)
 }
@@ -3041,5 +3074,103 @@ pub(crate) mod tests {
         deny_wood(stance_offset(), Some(Door::Title), Some(true));
         flipped_claim_is_kept(MidFlip::Move);
         flipped_claim_is_kept(MidFlip::Settings);
+    }
+
+    /// Exact harvested bytes at schema 1: `canon(&sample(SCHEMA, 4, TREE_ID, 1))`.
+    pub(crate) const HARVESTED: &[u8] = br#"{"schema":1,"revision":4,"generation":3,"session":8,"op":2,"tree":0,"stand":"Depleted","unit":1,"charge":"Spent"}"#;
+    fn live_bytes(fake: &Fake) -> Vec<u8> {
+        let Raw::Bytes(bytes) = fake.primary() else { panic!("{:?}", fake.primary()) };
+        bytes
+    }
+    fn both(b: &[u8]) -> [(Raw, Raw, Recovery); 2] {
+        [(Raw::Bytes(b.to_vec()), Raw::NotFound, Recovery::Primary), (Raw::NotFound, Raw::Bytes(b.to_vec()), Recovery::Backup)]
+    }
+    /// A booted hub carrying the pinned harvested unit, and a read of its live bytes.
+    pub(crate) fn carried_hub() -> (WoodHub, impl Fn() -> Vec<u8>) {
+        let (hub, fake) = boot_pair(Raw::Bytes(HARVESTED.to_vec()), Raw::NotFound);
+        (hub, move || live_bytes(&fake))
+    }
+
+    /// WU1 (client) — only a carried unit is taken; standing, empty or inert docs refuse and publish nothing.
+    #[test]
+    fn wu1_take_unit_consumes_only_a_carried_unit() {
+        let (mut hub, fake) = boot_pair(Raw::Bytes(canon(&Doc::fresh(7)).unwrap()), Raw::NotFound);
+        assert_eq!((hub.take_unit(), hub.view_doc(), fake.publishes().len()), (0, Some(Doc::fresh(7)), 0));
+        admit_now(&mut hub).unwrap();
+        assert_eq!((hub.memory_unit(), hub.take_unit()), (Some(1), 1));
+        let doc = hub.view_doc().unwrap();
+        assert_eq!((doc.schema, doc.stand, doc.unit, doc.charge), (SCHEMA, Stand::Depleted, 0, Charge::None));
+        assert_eq!((doc.revision, doc.generation, doc.op, hub.take_unit()), (2, 2, 2, 0));
+        assert_eq!(admit_now(&mut hub), Err(Reject::Identity), "Depleted + unit 0 does not re-harvest");
+        drive(&mut hub, |hub| hub.body.confirmed.as_ref().map(|s| s.doc.unit) == Some(0));
+        assert_eq!(fake.publishes().len(), 2);
+        hub.shutdown();
+        let (mut inert, fake) = boot_pair(Raw::Bytes(b"{".to_vec()), Raw::Bytes(HARVESTED.to_vec()));
+        assert_eq!(inert.take_unit(), 0);
+        inert.shutdown();
+        assert!(fake.publishes().is_empty());
+    }
+
+    /// WU2 (H3) — the pinned harvested bytes still load from live and from bak.
+    #[test]
+    fn wu2_old_harvested_bytes_still_load_live_and_bak() {
+        assert_eq!((canon(&sample(SCHEMA, 4, TREE_ID, 1)).unwrap(), SCHEMA), (HARVESTED.to_vec(), 1));
+        for (primary, backup, class) in both(HARVESTED) {
+            let (mut hub, _) = boot_pair(primary, backup);
+            assert_eq!((hub.body.recovery, hub.view_doc()), (Some(class), Some(sample(SCHEMA, 4, TREE_ID, 1))));
+            hub.shutdown();
+        }
+    }
+
+    /// WU2 (H3) — one take turns those bytes into schema 1, Depleted, unit 0, Spent; that persists and reloads live or bak.
+    #[test]
+    fn wu2_harvested_bytes_consume_to_unit_zero_and_persist() {
+        let want = Doc { revision: 5, generation: 4, op: 3, unit: 0, ..sample(SCHEMA, 4, TREE_ID, 1) };
+        for (primary, backup, _) in both(HARVESTED) {
+            let (mut hub, fake) = boot_pair(primary, backup);
+            assert_eq!((hub.take_unit(), hub.view_doc()), (1, Some(want.clone())));
+            drive(&mut hub, |hub| hub.body.confirmed.as_ref().map(|s| s.doc.unit) == Some(0));
+            let saved = live_bytes(&fake);
+            assert_eq!((saved.clone(), parse_doc(&saved)), (canon(&want).unwrap(), Some(want.clone())));
+            hub.shutdown();
+            for (primary, backup, class) in both(&saved) {
+                let (mut again, fake) = boot_pair(primary, backup);
+                assert_eq!((again.body.recovery, again.view_doc()), (Some(class), Some(want.clone())));
+                assert_eq!(again.take_unit(), 0, "one unit, one take");
+                again.shutdown();
+                assert!(fake.publishes().is_empty());
+            }
+        }
+    }
+
+    /// WU7 — harvest still turns Standing + unit 0 into unit 1; Depleted never re-harvests; `domain_ok` holds its bounds.
+    #[test]
+    fn wu7_harvest_successor_and_domain_unchanged() {
+        for charge in [Charge::None, Charge::Spent] {
+            let next = successor(&standing(9, charge)).map(|n| (n.schema, n.stand, n.unit, n.charge));
+            assert_eq!(next, Ok((SCHEMA, Stand::Depleted, 1, Charge::None)));
+        }
+        assert_eq!(successor(&standing(9, Charge::Ready)), Err(Reject::Ready));
+        for unit in [0, 1] {
+            assert_eq!(successor(&sample(SCHEMA, 4, TREE_ID, unit)), Err(Reject::Identity));
+            assert!(domain_ok(&sample(SCHEMA, 4, TREE_ID, unit)));
+        }
+        assert!(!domain_ok(&sample(SCHEMA, 4, TREE_ID, 2)) && !domain_ok(&sample(2, 4, TREE_ID, 0)));
+        assert!(!domain_ok(&witness(Stand::Depleted, 1, Charge::Ready, TREE_ID)));
+    }
+
+    /// WU10 (H3) — the harvested bytes plus an unknown key stay inert from live or bak, and nothing publishes.
+    #[test]
+    fn wu10_extra_field_wood_json_stays_inert() {
+        let mut extra: serde_json::Value = serde_json::from_slice(HARVESTED).unwrap();
+        extra["extra"] = 1.into();
+        let extra = serde_json::to_vec(&extra).unwrap();
+        assert!(parse_doc(&extra).is_none());
+        for (primary, backup, _) in both(&extra) {
+            let (mut hub, fake) = boot_pair(primary, backup);
+            assert!(hub.body.recovery == Some(Recovery::Inert) && !hub.can_write() && hub.view_doc().is_none());
+            hub.shutdown();
+            assert!(fake.publishes().is_empty());
+        }
     }
 }
