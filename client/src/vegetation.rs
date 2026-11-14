@@ -475,7 +475,8 @@ fn scatter(
             VegLodTier::Coarse
         };
         let (inner, outer) = ring_for(plan, lod);
-        let xz = ring_point(rng, inner, outer);
+        // The widest scale any kind draws (`scale_for`), since scale comes after.
+        let xz = ring_point(rng, inner, outer, footprint(kind, 1.70));
         out.push(VegPlant {
             kind,
             lod,
@@ -506,16 +507,26 @@ fn scale_for(kind: VegKind, rng: &mut Rng) -> f32 {
     lo + rng.next_f32() * (hi - lo)
 }
 
-/// Uniform point in the annulus. Reject the boot-camera pad. If every try
-/// lands in that pad, place the plant on the far side of the ring.
-fn ring_point(rng: &mut Rng, inner: f32, outer: f32) -> Vec2 {
+/// Uniform point in the annulus. Reject the boot-camera pad, and (CARD
+/// TREE-SEAT-1) a footprint of radius `margin` over the moat or a riser band
+/// ([`crate::terrain::seat_clear`]). Mobile, Low, and Medium never reach a
+/// band, so their fields are unchanged. A band reject retries on a spare
+/// stream, so `main` spends what it always did and only banded plants move.
+/// If every try is rejected, place the plant on the far side of the ring.
+fn ring_point(main: &mut Rng, inner: f32, outer: f32, margin: f32) -> Vec2 {
+    let mut spare: Option<Rng> = None;
     for _ in 0..32 {
+        let rng = match spare.as_mut() { Some(spare) => spare, None => &mut *main };
         let angle = rng.next_f32() * TAU;
         let t = rng.next_f32();
         let radius = (inner * inner + t * (outer * outer - inner * inner)).sqrt();
         let point = Vec2::new(angle.cos() * radius, angle.sin() * radius);
-        if point.distance(CAMERA_XZ) >= CAMERA_CLEAR {
+        let camera_ok = point.distance(CAMERA_XZ) >= CAMERA_CLEAR;
+        if camera_ok && crate::terrain::seat_clear(point.x, point.y, margin) {
             return point;
+        }
+        if camera_ok && spare.is_none() {
+            spare = Some(Rng::new(main.0 ^ 0x5EED_5EED));
         }
     }
     let mid = (inner + outer) * 0.5;
@@ -1458,5 +1469,60 @@ mod tests {
         app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(0);
         app.update();
         assert!(!app.world().resource::<FieldTrunks>().0.is_empty());
+    }
+
+    /// (plants, trees) whose footprint touches the moat or a riser band [R·cos(π/12) − fp, R + fp].
+    fn banded(plants: &[VegPlant]) -> (usize, usize) {
+        let chord = (std::f32::consts::PI / 12.0).cos();
+        let hit: Vec<&VegPlant> = plants.iter().filter(|p| {
+            let (r, m) = (Vec2::new(p.x, p.z).length(), footprint(p.kind, p.scale));
+            (r >= crate::water::BATH_INNER - m && r <= crate::water::BATH_OUTER + m)
+                || crate::terrain::SHELF_OUTER[..3].iter().any(|&rim| r >= rim * chord - m && r <= rim + m)
+        }).collect();
+        (hit.len(), hit.iter().filter(|p| p.kind == VegKind::Tree).count())
+    }
+
+    /// CARD TREE-SEAT-1 — no plant footprint in a band; counts hold; Mobile, Low,
+    /// and Medium match main's camera-pad-only scatter within 1e-4 on every OS.
+    /// The exact-bit FNV snapshot per preset is Linux-only (libm sin/cos bits).
+    #[test]
+    fn tree_seat_1_field_clears_moat_and_risers_per_preset() {
+        let (mut got, mut snaps) = (Vec::new(), Vec::new());
+        for preset in GraphicsPreset::ALL {
+            let (plan, plants) = (vegetation_plan(preset), vegetation_plants(preset));
+            let count = |kind| plants.iter().filter(|p| p.kind == kind).count() as u32;
+            assert_eq!((count(VegKind::Tuft), count(VegKind::Shrub), count(VegKind::Tree)), (plan.tufts, plan.shrubs, plan.trees), "{preset:?}");
+            let mut rng = Rng::new(VEG_SEED);
+            for p in plants.iter().filter(|_| !plan.dense) {
+                let (lo, hi) = (YARD_CLEAR * YARD_CLEAR, plan.reach * plan.reach);
+                let mut xz = Vec2::new(0.0, -0.5 * (YARD_CLEAR + plan.reach));
+                for _ in 0..32 {
+                    let (angle, t) = (rng.next_f32() * TAU, rng.next_f32());
+                    let at = Vec2::new(angle.cos(), angle.sin()) * (lo + t * (hi - lo)).sqrt();
+                    if at.distance(CAMERA_XZ) >= CAMERA_CLEAR { xz = at; break; }
+                }
+                let (scale, yaw) = (scale_for(p.kind, &mut rng), rng.next_f32() * TAU);
+                let near = xz.distance(Vec2::new(p.x, p.z)) <= 1e-4 && (scale - p.scale).abs() <= 1e-4 && (yaw - p.yaw).abs() <= 1e-4;
+                assert!(near, "{preset:?} moved from main: {p:?}");
+            }
+            got.push((preset, banded(&plants)));
+            snaps.push(plants.iter().flat_map(|p| [p.x, p.z, p.scale, p.yaw]).fold(0xcbf2_9ce4_8422_2325_u64, |h, v| (h ^ u64::from(v.to_bits())).wrapping_mul(0x100_0000_01b3)));
+        }
+        use GraphicsPreset::*;
+        assert_eq!(got, [(Mobile, (0, 0)), (Low, (0, 0)), (Medium, (0, 0)), (High, (0, 0)), (Ultra, (0, 0))], "R-A moat, R-B riser bands (preset, (plants, trees))");
+        #[cfg(target_os = "linux")]
+        assert_eq!(snaps, [2_315_388_260_842_229_u64, 10_694_924_522_835_294_819, 2_993_560_486_008_231_282, 15_896_017_904_942_478_109, 7_492_226_470_716_398_660], "fnv per preset");
+    }
+
+    /// CARD TREE-SEAT-1 (c) — the final High and Ultra fields after the default
+    /// wood clearance, relocated plants included, keep out of every band.
+    #[test]
+    fn tree_seat_1_cleared_field_clears_bands() {
+        let disk = crate::wood_expedition::WoodClearance::reserve(crate::wood_expedition::first_passing_site().unwrap());
+        for preset in [GraphicsPreset::High, GraphicsPreset::Ultra] {
+            let plants = cleared_plants(preset, Some(&disk)).unwrap();
+            assert_eq!(plants.len() as u32, vegetation_plan(preset).plants(), "{preset:?}");
+            assert_eq!(banded(&plants), (0, 0), "{preset:?} after the wood clearance (plants, trees)");
+        }
     }
 }

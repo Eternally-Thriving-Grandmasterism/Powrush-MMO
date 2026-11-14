@@ -58,7 +58,7 @@ pub const MAX_BACKDROP_DRAWS: usize = 11;
 pub const SILHOUETTE_BAND_COUNT: usize = 5;
 /// Segments around one band. One mesh, one draw.
 const BAND_SEGMENTS: u32 = 80;
-const CONIFER_SEED: u32 = 0x1234_5678;
+pub(crate) const CONIFER_SEED: u32 = 0x1234_5678;
 pub const CONIFER_R_MIN: f32 = 30.0;
 pub const CONIFER_R_MAX: f32 = 150.0;
 
@@ -340,18 +340,35 @@ pub fn ring_peaks() -> Vec<Peak> {
 }
 
 /// Conifer spots `(position, scale)` in the belt, deterministic.
+///
+/// CARD TREE-SEAT-1 — a cone (radius 1.1·s) over the yard plate, the moat,
+/// or a riser band ([`crate::terrain::seat_clear`]) is redrawn from a spare
+/// stream. The main stream still spends three draws per tree, so every other
+/// tree keeps its spot, and the count and the first-64 prefix hold. Every
+/// kept seat matches the mesh on every belt preset, so the once-built belt
+/// never goes stale when `sync_terrace_mesh` retessellates the ground.
 pub fn conifer_spots(seed: u32, count: usize) -> Vec<(Vec3, f32)> {
     let mut rng = Rng::new(seed);
+    let (mut spare, mut on_spare) = (Rng::new(seed ^ 0x5EED_5EED), false);
     (0..count)
-        .map(|_| {
+        .map(|_| loop {
             let a = rng.next_f32() * TAU;
             let r = CONIFER_R_MIN + rng.next_f32() * (CONIFER_R_MAX - CONIFER_R_MIN);
             let s = 0.9 + rng.next_f32() * 1.6;
             let x = a.cos() * r;
             let z = a.sin() * r;
-            // CARD VP-TERRAIN-1 — the court offset is 0, so yard trees stay.
-            // Trees past the court sit on the shelf under them.
-            (Vec3::new(x, shelf_drop(x, z), z), s)
+            let reach = 1.1 * s;
+            let plate = x.abs().max(z.abs()) <= crate::terrain::PLAY_HALF + reach;
+            let clear = !plate && crate::terrain::seat_clear(x, z, reach);
+            // Rejected on main: retry on spare. Kept on spare: back to main.
+            if clear == on_spare {
+                std::mem::swap(&mut rng, &mut spare);
+                on_spare = !on_spare;
+            }
+            if clear {
+                // CARD VP-TERRAIN-1 — trees past the court sit on the shelf under them.
+                break (Vec3::new(x, shelf_drop(x, z), z), s);
+            }
         })
         .collect()
 }
@@ -1038,6 +1055,41 @@ mod tests {
             }
         }
         assert!(on_a_lower_shelf > 0, "belt never reaches a shelf");
+    }
+
+    /// CARD TREE-SEAT-1 — no cone (radius 1.1·s) over the plate, the moat, or a
+    /// riser band [R·cos(π/12) − 1.1·s, R + 1.1·s]; counts and the Low prefix
+    /// hold on every OS; the exact-bit FNV snapshot per preset is Linux-only.
+    #[test]
+    fn tree_seat_1_belt_clears_plate_moat_and_risers_per_preset() {
+        let chord = (std::f32::consts::PI / 12.0).cos();
+        let (mut got, mut snaps) = (Vec::new(), Vec::new());
+        for preset in GraphicsPreset::ALL {
+            let count = backdrop_plan(Some(0), preset).conifers;
+            let spots = conifer_spots(CONIFER_SEED, count);
+            assert_eq!(spots.len(), count, "{preset:?} dropped trees");
+            assert_eq!(spots[..count.min(LOW_CONIFER_COUNT)], conifer_spots(CONIFER_SEED, LOW_CONIFER_COUNT)[..count.min(LOW_CONIFER_COUNT)]);
+            let (mut plate, mut moat, mut riser) = (0, 0, 0);
+            for (p, s) in &spots {
+                let (r, m) = (Vec2::new(p.x, p.z).length(), 1.1 * s);
+                plate += usize::from(p.x.abs().max(p.z.abs()) <= crate::terrain::PLAY_HALF + m);
+                moat += usize::from(r >= crate::water::BATH_INNER - m && r <= crate::water::BATH_OUTER + m);
+                riser += usize::from(crate::terrain::SHELF_OUTER[..3].iter().any(|&rim| r >= rim * chord - m && r <= rim + m));
+            }
+            snaps.push(spots.iter().flat_map(|(p, s)| [p.x, p.y, p.z, *s]).fold(0xcbf2_9ce4_8422_2325_u64, |h, v| (h ^ u64::from(v.to_bits())).wrapping_mul(0x100_0000_01b3)));
+            got.push((preset, count, plate, moat, riser));
+        }
+        use GraphicsPreset::*;
+        let want = [
+            (Mobile, 0, 0, 0, 0),
+            (Low, LOW_CONIFER_COUNT, 0, 0, 0),
+            (Medium, CONIFER_COUNT, 0, 0, 0),
+            (High, CONIFER_COUNT, 0, 0, 0),
+            (Ultra, CONIFER_COUNT, 0, 0, 0),
+        ];
+        assert_eq!(got, want, "R-A plate/moat, R-B riser bands, count (preset, trees, plate, moat, riser)");
+        #[cfg(target_os = "linux")]
+        assert_eq!(snaps, [14_695_981_039_346_656_037_u64, 16_044_640_495_558_315_432, 1_593_527_484_306_527_440, 1_593_527_484_306_527_440, 1_593_527_484_306_527_440], "fnv per preset");
     }
 
     #[test]
