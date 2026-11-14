@@ -11,7 +11,7 @@
 use bevy::prelude::*;
 
 use shared::pause_ledger_face::face_from;
-use shared::temper::{lumen_slots, TemperedItem, ToolTier, WardKind};
+use shared::temper::{lumen_slots, TemperedItem, ToolTier, WardKind, NAMED_FINDS};
 
 use crate::companion_bond::CompanionBond;
 use crate::hud_anchor_registry::{HudSlab, PICKUP, WATCH};
@@ -21,6 +21,7 @@ use crate::hex_travel::HexTravelState;
 use crate::human_soft_panels::HumanSoftPanels;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::LocalSettingsState;
+use crate::loot_drops::{find_line, FoundFinds};
 use crate::title_screen::{HouseLabel, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::ui_kit;
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_LEDGER};
@@ -443,6 +444,7 @@ fn update_satchel(
     bind: Res<LivedHourBind>,
     house_label: Res<HouseLabel>,
     yard: Option<Res<crate::fabricator::FabricatorYard>>,
+    finds: Option<Res<FoundFinds>>,
     mut root: Query<&mut Visibility, With<SatchelRoot>>,
     mut body: Query<&mut Text, With<SatchelBody>>,
 ) {
@@ -475,6 +477,17 @@ fn update_satchel(
         .and_then(|y| y.fab.last_tempered.as_ref())
         .map(|item| format!("\n\n{}", satchel_temper_display(item)))
         .unwrap_or_default();
+    // LOOT-TO-SATCHEL-1: one shipped find line per owned name, in table order, never repeated.
+    let find_rows: String = NAMED_FINDS
+        .iter()
+        .filter(|n| finds.as_ref().is_some_and(|f| f.names.contains(&n.name)))
+        .map(|n| format!("\n{}", find_line(n)))
+        .collect();
+    let find_block = if find_rows.is_empty() {
+        find_rows
+    } else {
+        format!("\n{find_rows}")
+    };
     let body_line = format!(
         "{face}
 
@@ -484,7 +497,7 @@ abundance is held, not hoarded
 {} [2] Harmony    {:.1}
 {} [3] Joy        {:.1}
 
-Harvests {}{temper_block}
+Harvests {}{find_block}{temper_block}
 
 {}",
         mark(SatchelSlot::Vitality),
@@ -978,5 +991,91 @@ mod tests {
             .map(|item| format!("\n\n{}", satchel_temper_display(item)))
             .unwrap_or_default();
         assert!(block.is_empty());
+    }
+
+    use crate::difficulty::DifficultyTier::Sworn;
+    use crate::loot_drops::tests::{in_user_dir, OLD_FINDS};
+    use crate::loot_drops::{load_finds, loot_hash, roll_named_find, FINDS_SAVE, LOOT_BASE_CHANCE, LOOT_BPS};
+
+    /// H1: MinimalPlugins I satchel, open, in a temp user dir. `old` seeds the finds save and runs `load_finds`.
+    fn open_satchel(tag: &str, old: Option<&[u8]>, finds: Option<FoundFinds>) -> App {
+        in_user_dir(tag, |dir| {
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins)
+                .insert_resource(HumanInventory { open: true, ..default() })
+                .insert_resource(SoftRbePool { vitality: 2.5, harmony: 1.5, joy: 0.5, harvests: 3, ..default() })
+                .insert_resource(LivedHourBind::default()).insert_resource(HouseLabel::default())
+                .add_systems(Startup, spawn_inventory_surfaces).add_systems(Update, update_satchel);
+            if let Some(bytes) = old {
+                std::fs::write(dir.join(FINDS_SAVE), bytes).unwrap();
+                app.init_resource::<FoundFinds>().add_systems(Startup, load_finds);
+            }
+            if let Some(f) = finds { app.insert_resource(f); }
+            app.update();
+            app
+        })
+    }
+    fn body(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<SatchelBody>>().single(app.world()).unwrap().as_str().into() }
+    fn rows(body: &str) -> Vec<&'static str> { NAMED_FINDS.iter().filter(|n| body.contains(n.sentence)).map(|n| n.name).collect() }
+    fn landed(s: u32) -> Option<FoundFinds> { let mut f = FoundFinds::default(); f.drop_once(Sworn, s, 1).then_some(f) }
+    fn all() -> FoundFinds { FoundFinds { names: NAMED_FINDS.iter().map(|n| n.name).collect(), pending: None } }
+
+    /// LTS1 (H1) — a forced-roll find lands exactly one `find_line` row on I; goods, harvests, tooltip and three slots stay.
+    #[test]
+    fn lts1_forced_roll_find_lands_one_row_on_i() {
+        let f = (0..2048).find_map(landed).expect("a forced roll lands a find");
+        let body = body(&mut open_satchel("lts1", None, Some(f.clone())));
+        assert_eq!((body.matches(f.pending.as_deref().unwrap()).count(), rows(&body)), (1, f.names.clone()), "{body}");
+        assert!(["[1] Vitality   2.5", "[2] Harmony    1.5", "[3] Joy        0.5", "Harvests 3"].iter().all(|w| body.contains(w)), "{body}");
+        assert!(body.ends_with(satchel_slot_tooltip(SatchelSlot::Vitality)) && SatchelSlot::Joy as u8 == 2);
+    }
+
+    /// LTS2 (H1 + H3) — the exact old newline save loads on relaunch and shows on I, each row once, with no pending pulse.
+    #[test]
+    fn lts2_old_newline_finds_load_and_show_on_i() {
+        let mut app = open_satchel("lts2-i", Some(OLD_FINDS), None);
+        let names = vec![NAMED_FINDS[1].name, NAMED_FINDS[4].name];
+        assert_eq!(app.world().resource::<FoundFinds>(), &FoundFinds { names: names.clone(), pending: None });
+        let body = body(&mut app);
+        assert_eq!(rows(&body), names, "{body}");
+        for n in [&NAMED_FINDS[1], &NAMED_FINDS[4]] { assert_eq!(body.matches(&find_line(n)).count(), 1, "{body}"); }
+    }
+
+    /// LTS6 — a roll that picks an owned name adds no name and no second row.
+    #[test]
+    fn lts6_owned_find_rolled_again_stays_one_row() {
+        let owned = FoundFinds { pending: None, ..(0..2048).find_map(landed).unwrap() };
+        let pick = |h: u32| roll_named_find(Sworn, LOOT_BASE_CHANCE, None, (h % LOOT_BPS) as u16, loot_hash(h, 1, 1)).map(|f| f.name);
+        let s = (0..8192).find(|s| pick(loot_hash(*s, 1, 1)) == Some(owned.names[0])).expect("a roll that picks the owned name");
+        let mut again = owned.clone();
+        assert!(!again.drop_once(Sworn, s, 1) && again == owned);
+        let line = find_line(NAMED_FINDS.iter().find(|n| n.name == owned.names[0]).unwrap());
+        let mut app = open_satchel("lts6", None, Some(again));
+        assert_eq!(body(&mut app).matches(&line).count(), 1);
+        let mut app = open_satchel("lts6-dup", None, Some(FoundFinds { names: vec![owned.names[0]; 2], pending: None }));
+        assert_eq!(body(&mut app).matches(&line).count(), 1, "a repeated name still shows once");
+    }
+
+    /// LTS7 — every find owned, and I still shows no %, chance, weight, standing, temper, Lumen count or Ward.
+    #[test]
+    fn lts7_no_odds_on_i() {
+        let mut app = open_satchel("lts7", None, Some(all()));
+        let body = body(&mut app);
+        for banned in ["%", "chance", "odds", "weight", "+", "Lumen ", "Ward", "0.25", "Kept", "Proven", "Storied"] {
+            assert!(!body.contains(banned), "{banned} in {body}");
+        }
+        let src = include_str!("human_inventory.rs").split("#[cfg(test)]").next().unwrap();
+        assert!(["LOOT_BASE_CHANCE", "roll_named_find", "find_weight", "standing_weight", ".standing()"].iter().all(|w| !src.contains(w)));
+    }
+
+    /// LTS8 — showing finds leaves SoftRbePool goods and the goods lines as they were (R5: a find is not stock).
+    #[test]
+    fn lts8_finds_leave_pool_amounts() {
+        let mut bare = open_satchel("lts8-bare", None, None);
+        let mut with = open_satchel("lts8", None, Some(all()));
+        let pool = with.world().resource::<SoftRbePool>();
+        assert_eq!((pool.vitality, pool.harmony, pool.joy, pool.harvests), (2.5, 1.5, 0.5, 3));
+        let goods = |b: String| b.lines().filter(|l| l.contains("] ") || l.starts_with("Harvests")).map(str::to_string).collect::<Vec<_>>();
+        assert_eq!(goods(body(&mut bare)), goods(body(&mut with)));
     }
 }
