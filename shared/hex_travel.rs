@@ -20,6 +20,7 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 
 use crate::embassy::Embassy;
+use crate::fabricator::Fabricator;
 use crate::hour_two::HourTwoPack;
 use crate::hex_listen::PowrushNet;
 use crate::hex_protocol::default_client_listens;
@@ -561,6 +562,25 @@ pub fn apply_travel_named(
     Ok(load_to)
 }
 
+/// After Places confirm and travel isolation: one Sanctuary→Heartwood-or-Depths arrival
+/// with stock spends one crate and writes one dest ton via `on_haul`. Same place,
+/// dest Sanctuary, or stock 0 are no-ops.
+pub fn deliver_haul(from: PlaceId, dest: &mut HexClimateFile, fab: &mut Fabricator) -> bool {
+    let to = PlaceId::parse(&dest.hex_id).unwrap_or(PlaceId::Sanctuary);
+    if from != PlaceId::Sanctuary || from == to || to == PlaceId::Sanctuary {
+        return false;
+    }
+    match to {
+        PlaceId::Heartwood | PlaceId::Depths => {}
+        PlaceId::Sanctuary => return false,
+    }
+    if !fab.take_crate() {
+        return false;
+    }
+    dest.climate.on_haul();
+    true
+}
+
 /// House week footer may sum tons + restored across hexes. Does not write into a hex.
 pub fn house_week_footer(climates: &[ShardClimate]) -> WeekAudit {
     let tons: u32 = climates.iter().map(|c| c.tons_moved).sum();
@@ -1001,5 +1021,81 @@ mod tests {
         assert!(!hw.standing.declared_lethal);
         assert_eq!(read_current_at(&dir), Some(PlaceId::Sanctuary));
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    use crate::fabricator::Fabricator;
+
+    /// HL1 — Sanctuary → Heartwood / Depths with stock delivers one dest ton via `on_haul`; refusals write nothing.
+    #[test]
+    fn hl1_sanctuary_arrival_delivers_one_crate_as_one_ton() {
+        let mut home = sanctuary_fresh_climate();
+        home.tons_moved = 3;
+        for to in [PlaceId::Heartwood, PlaceId::Depths] {
+            let copied = HexClimateFile { hex_id: to.as_str().into(), climate: home.clone(), ..stub_hex_file(to) };
+            let (src, mut dest) = plan_travel(true, true, PlaceId::Sanctuary, to, &home, &sanctuary_fresh_standing(), Some(copied)).unwrap();
+            let (stub, mut fab) = (dest.clone(), Fabricator { crate_stock: 1, ..Fabricator::default() });
+            assert_eq!(stub.climate.tons_moved, 0);
+            assert!(deliver_haul(PlaceId::Sanctuary, &mut dest, &mut fab));
+            assert_eq!((&fab, src.climate.tons_moved), (&Fabricator::default(), 3));
+            let climate = ShardClimate { tons_moved: 1, updated_at: stub.climate.updated_at + 1, ..stub.climate.clone() };
+            assert_eq!(dest, HexClimateFile { climate, ..stub });
+            let after = dest.clone();
+            assert!(!deliver_haul(PlaceId::Sanctuary, &mut dest, &mut fab));
+            assert_eq!(dest, after);
+        }
+        for (from, to) in [(PlaceId::Heartwood, PlaceId::Heartwood), (PlaceId::Heartwood, PlaceId::Depths), (PlaceId::Sanctuary, PlaceId::Sanctuary), (PlaceId::Depths, PlaceId::Sanctuary)] {
+            let (mut dest, mut fab) = (stub_hex_file(to), Fabricator { crate_stock: 1, ..Fabricator::default() });
+            assert!(!deliver_haul(from, &mut dest, &mut fab) && fab.crate_stock == 1);
+        }
+    }
+
+    /// HL3 (H3) — dest hex, House sum and HourTwo `crate_stock: 0` round-trip after delivery.
+    #[test]
+    fn hl3_delivered_ton_round_trips_on_disk_and_in_hour_two() {
+        let dir = scratch("haul");
+        let mut home = sanctuary_fresh_climate();
+        home.tons_moved = 1;
+        let mut fab = Fabricator { crate_stock: 1, ..Fabricator::default() };
+        let mut dest = apply_travel_at(&dir, true, true, PlaceId::Sanctuary, PlaceId::Heartwood, &home, &sanctuary_fresh_standing()).unwrap();
+        assert!(deliver_haul(PlaceId::Sanctuary, &mut dest, &mut fab));
+        write_hex_at(&dir, &dest).unwrap();
+        let (hw, src) = (read_hex_at(&dir, PlaceId::Heartwood).unwrap(), read_hex_at(&dir, PlaceId::Sanctuary).unwrap());
+        assert_eq!((hw.climate.tons_moved, src.climate.tons_moved, &hw), (1, 1, &dest));
+        assert_eq!(house_week_footer(&[src.climate, hw.climate]).tons_and_restored(), (2, 0));
+        let json = serde_json::to_string_pretty(&HourTwoPack { fabricator: fab.clone(), ..Default::default() }).unwrap();
+        assert!(json.contains(r#""crate_stock": 0"#), "{json}");
+        assert_eq!(HourTwoPack::from_json(&json).fabricator, fab);
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// HL4 — hour with carried stock holds; travel alone never writes a dest ton on first stub land.
+    #[test]
+    fn hl4_hour_holds_and_travel_alone_writes_no_ton() {
+        let (mut house, mut climate, standing, _, _) = crate::f_book_fixture::load_f_book_disk();
+        house.fabricator.crate_stock = 2;
+        house.mark_complete();
+        house.mark_hour_three();
+        let back = HourTwoPack::from_json(&serde_json::to_string(&house).unwrap());
+        assert_eq!((back.complete, back.hour_three_complete, back.fabricator.crate_stock), (true, true, 2));
+        climate.tons_moved = 4;
+        let dir = scratch("hl4");
+        for to in [PlaceId::Heartwood, PlaceId::Depths] {
+            let landed = apply_travel_at(&dir, true, true, PlaceId::Sanctuary, to, &climate, &standing).unwrap();
+            assert_eq!((landed.climate.tons_moved, landed.climate.restored_count), (0, 0));
+            assert!(apply_travel_at(&dir, true, true, to, PlaceId::Sanctuary, &landed.climate, &landed.standing).is_ok());
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// HL5 — still three PlaceIds and three local hexes; the House bill speaks tons and restored only.
+    #[test]
+    fn hl5_three_places_and_the_house_bill_stays_tons_and_restored() {
+        let src = include_str!("hex_travel.rs").split("#[cfg(test)]").next().unwrap();
+        let places = src.split("pub enum PlaceId {").nth(1).unwrap().split('}').next().unwrap();
+        assert_eq!((places.matches(',').count(), LOCAL_HEXES.len()), (3, 3), "{places}");
+        let mut depths = depths_stub_climate();
+        depths.tons_moved = 1;
+        let line = crate::pause_ledger_face::house_week_line(&house_week_footer(&[sanctuary_fresh_climate(), depths]));
+        assert_eq!(line, "House week · 1 tons · 0 restored");
     }
 }
