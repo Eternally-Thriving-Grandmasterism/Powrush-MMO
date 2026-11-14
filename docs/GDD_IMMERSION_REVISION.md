@@ -43,7 +43,7 @@ Verbs are the sacred five: **Tend / Take / Flow / Reserve / Mend** (`PLACES_BIBL
 
 > **DOCS-SYNC-1:** Four named rooms; Threshold is presented as a room but is implemented as a Heartwood sub-area (`threshold_shelf.rs`). See [`PLACES_BIBLE.md`](PLACES_BIBLE.md). The "no fifth Place" sentences in this file are not rewritten.
 
-> **DOCS-SYNC-1 (council [#738 6867796772](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6867796772) §5b):** the CO × WoW bar lifts this file's blanket gear refusal **only** for gear with readable, bounded effects on the one power ladder (Temper, Lumen, Ward). There is still no published power scalar, no cash-shop power and no socket gambling. LOOP-SPINE-1 writes the reconciliation. This is a council pick; Sherif may veto. The Refuse rows below are not rewritten.
+> **DOCS-SYNC-1 (council [#738 6867796772](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6867796772) §5b):** the CO × WoW bar lifts this file's blanket gear refusal **only** for gear with readable, bounded effects on the one power ladder (Temper, Lumen, Ward). There is still no published power scalar, no cash-shop power and no socket gambling. LOOP-SPINE-1's reconciliation is [`EA_BAR.md`](EA_BAR.md). This is a council pick; Sherif may veto. The Refuse rows below are not rewritten.
 
 ### 2.1 Conquer Online — classic 1.0 / early 2.0
 
@@ -151,6 +151,9 @@ Ordered rungs. **Each rung waits on the previous rung being confirmed and, where
 **Ask:** harvest → refine → ship → manufacture as a House-scale loop whose only score is **tons + restored**, with **credit** (repair-rights via **Reserve**) as the currency story.  
 **Hard shape:** not a gold Market. No price, no sell, no ticker, no stall, no auction. Market stays **HOLD** and stays out of the House sum. Every leg must be expressible in the sacred five verbs and must land in the week counters.  
 **Order:** after B and C. A logistics chain performed by unreadable bodies in rooms whose doors do not read is not immersion, it is a spreadsheet.  
+
+> **LOOP-SPINE-1 (council [#738 6867796772](https://github.com/Eternally-Thriving-Grandmasterism/Powrush-MMO/issues/738#issuecomment-6867796772) §5c):** the minimum TTD for EA is one refine leg (wood to output) plus one haul leg that counts tons. Carts and vehicles come after EA. The queue sequences those two legs "After 9" (6867796772 §4, rows 11–12), not after rungs B and C. This records the EA minimum only: it confirms no rung and marks no §5 row, and the hard shape above and the Gate below still bind. This is a council pick; Sherif may veto. See [`EA_BAR.md`](EA_BAR.md). The Order line above is not rewritten.
+
 **Gate:** Core confirms §2.3 and §3 rung D, then a SLICE CARD splits it — one leg per PR, `shared` sim first, client read second.
 
 ### Rung E — NPC schedules (Oblivion-grade) without the broken economy
