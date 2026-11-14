@@ -104,7 +104,7 @@
  */
 
 use std::collections::HashSet;
-use std::f32::consts::{FRAC_PI_2, PI};
+use std::f32::consts::{FRAC_1_SQRT_2, FRAC_PI_2, PI};
 use std::time::Duration;
 
 use bevy::ecs::system::SystemParam;
@@ -1422,14 +1422,18 @@ fn apply_locomotion(
     let velocity = presence.velocity;
     presence.position += velocity * dt;
     // CARD PT-COLLIDE-1 — trunks and yard rocks push out on x/z, only for the set shown in this realm.
-    use crate::living_ecology::{yard_rocks_shown, yard_trees_shown, YARD_ROCK_R, YARD_ROCK_SPOTS, YARD_TREE_SPOTS, YARD_TRUNK_R};
+    use crate::living_ecology::{yard_rocks_shown, yard_trees_shown, YARD_ROCK_SPOTS, YARD_TREE_SPOTS, YARD_TRUNK_R};
     let realm = trees.0.as_ref().and_then(|realm| realm.current);
     let yard = yard_trees_shown(realm).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|spot| (spot.xz(), YARD_TRUNK_R));
-    let rocks = yard_rocks_shown(realm).then_some(YARD_ROCK_SPOTS).into_iter().flatten().map(|spot| (spot.xz(), YARD_ROCK_R));
     let field = trees.1.iter().flat_map(|f| f.0.iter().copied());
     let owned = crate::wood_expedition::owned_blocker(trees.2.as_deref(), trees.3.as_ref().map(|state| state.current), realm);
     let mut vel = presence.velocity;
-    push_out_clear(&mut presence.position, &mut vel, yard.chain(rocks).chain(field).chain(owned));
+    push_out_clear(&mut presence.position, &mut vel, yard);
+    // CARD ROCK-SHAPE-1 — yard rocks push as their yawed mesh ellipse, only while the feet are under the rock top.
+    for spot in yard_rocks_shown(realm).then_some(YARD_ROCK_SPOTS).into_iter().flatten() {
+        push_out_of_rock(&mut presence.position, &mut vel, spot);
+    }
+    push_out_clear(&mut presence.position, &mut vel, field.chain(owned));
     presence.velocity = vel;
     // CARD YARD-EDGE-1 — plate bound after the push-outs; the outward part of velocity drops M8-style.
     let (plate, n) = push_out_of_plate_edge(presence.position.xz());
@@ -1485,6 +1489,41 @@ fn push_out_clear(pos: &mut Vec3, vel: &mut Vec3, trunks: impl IntoIterator<Item
                 vel.z -= into * n.y;
             }
         }
+    }
+}
+
+/// CARD ROCK-SHAPE-1 — a yard rock is its yawed, scaled, unjittered mesh ellipse grown by the body disk. It
+/// blocks only while the feet are under the rock top (jitter envelope). The body moves to the closest ellipse
+/// point and the inward part of `vel` along that ellipse normal drops (M8). Tangent is kept.
+fn push_out_of_rock(pos: &mut Vec3, vel: &mut Vec3, spot: Vec3) {
+    use crate::living_ecology::{yard_prop_yaw, YARD_ROCK_JITTER, YARD_ROCK_MESH_R, YARD_ROCK_SCALE};
+    if pos.y - STAND + silhouette().feet >= spot.y + YARD_ROCK_MESH_R * YARD_ROCK_SCALE.y * (1.0 + YARD_ROCK_JITTER) {
+        return;
+    }
+    let ab = Vec2::new(YARD_ROCK_SCALE.x, YARD_ROCK_SCALE.z) * YARD_ROCK_MESH_R + PLAYER_TRUNK_RADIUS;
+    // Rock-local x and z in world x/z under `Quat::from_rotation_y(yaw)`.
+    let (s, c) = yard_prop_yaw(spot.x, spot.z).sin_cos();
+    let (u, w) = (Vec2::new(c, -s), Vec2::new(s, c));
+    let off = pos.xz() - spot.xz();
+    let local = Vec2::new(off.dot(u), off.dot(w));
+    if (local / ab).length_squared() >= 1.0 {
+        return;
+    }
+    // Closest point in the first quadrant: three fixed evolute steps (inside points included, < 1e-5 m).
+    let (p, mut t) = (local.abs(), Vec2::splat(FRAC_1_SQRT_2));
+    for _ in 0..3 {
+        let e = Vec2::new(ab.x * ab.x - ab.y * ab.y, ab.y * ab.y - ab.x * ab.x) * t * t * t / ab;
+        let (r, q) = ((ab * t - e).length(), (p - e).length().max(1e-6));
+        t = (((p - e) * r / q + e) / ab).clamp(Vec2::ZERO, Vec2::ONE).try_normalize().unwrap_or(Vec2::X);
+    }
+    let on = ab * t * Vec2::new(local.x.signum(), local.y.signum());
+    let out = spot.xz() + u * on.x + w * on.y;
+    (pos.x, pos.z) = (out.x, out.y);
+    let n = (u * (on.x / (ab.x * ab.x)) + w * (on.y / (ab.y * ab.y))).try_normalize().unwrap_or(u);
+    let into = vel.x * n.x + vel.z * n.y;
+    if into < 0.0 {
+        vel.x -= into * n.x;
+        vel.z -= into * n.y;
     }
 }
 
@@ -6198,14 +6237,13 @@ mod tests {
 
     #[test]
     fn rock_collide_1_shown_rock_stops_walk_hidden_rock_does_not() {
-        use crate::living_ecology::{YARD_ROCK_R, YARD_ROCK_SPOTS};
+        use crate::living_ecology::YARD_ROCK_SPOTS;
         let spot = YARD_ROCK_SPOTS[0];
         let rock = spot.xz();
-        let reach = YARD_ROCK_R + PLAYER_TRUNK_RADIUS;
         let mut shown = rock_collide_1_app(Some(4), spot);
         for _ in 0..150 { shown.update(); }
         let at = shown.world().resource::<SoftPresence>().position;
-        assert!((at.xz().distance(rock) - reach).abs() < 1e-3 && at.z > rock.y && at.y == STAND, "Some(4) {at}");
+        assert!((rs_collider(spot, at.xz()).0 - 1.0).abs() < 1e-3 && at.z > rock.y && at.y == STAND, "Some(4) {at}");
         for realm in [None, Some(0), Some(2), Some(3)] {
             let mut hidden = rock_collide_1_app(realm, spot);
             for _ in 0..150 { hidden.update(); }
@@ -6217,7 +6255,7 @@ mod tests {
         for _ in 0..150 {
             app.update();
             let at = app.world().resource::<SoftPresence>().position;
-            if at.xz().distance(rock) < reach && at.z > rock.y {
+            if rs_collider(spot, at.xz()).0 < 1.0 && at.z > rock.y {
                 overlapped = true;
                 break;
             }
@@ -6226,21 +6264,33 @@ mod tests {
         app.insert_resource(RealmWrite(Some(4)));
         app.update();
         let at = app.world().resource::<SoftPresence>().position;
-        assert!((at.xz().distance(rock) - reach).abs() < 1e-3 && at.z > rock.y && at.y == STAND, "first tick {at}");
+        assert!((rs_collider(spot, at.xz()).0 - 1.0).abs() < 1e-3 && at.z > rock.y && at.y == STAND, "first tick {at}");
     }
 
     #[test]
     fn move_feel_m8_push_out_clears_normal_velocity() {
-        use crate::living_ecology::{YARD_ROCK_R, YARD_ROCK_SPOTS, YARD_TREE_SPOTS, YARD_TRUNK_R};
-        let cases = [(Some(4u8), Some(0u8), YARD_ROCK_SPOTS[0].xz(), YARD_ROCK_R), (Some(0u8), Some(4u8), YARD_TREE_SPOTS[0].xz(), YARD_TRUNK_R)];
-        for (shown, hidden, center, radius) in cases {
-            let reach = radius + PLAYER_TRUNK_RADIUS;
+        use crate::living_ecology::{YARD_ROCK_SPOTS, YARD_TREE_SPOTS, YARD_TRUNK_R};
+        let cases = [(Some(4u8), Some(0u8), YARD_ROCK_SPOTS[0], None), (Some(0u8), Some(4u8), YARD_TREE_SPOTS[0], Some(YARD_TRUNK_R))];
+        for (shown, hidden, spot, trunk) in cases {
+            let center = spot.xz();
+            let read = |at: Vec2| trunk.map(|r| ((at - center).length() / (r + PLAYER_TRUNK_RADIUS), (at - center).normalize())).unwrap_or_else(|| rs_collider(spot, at));
+            let start = match trunk {
+                Some(r) => center + Vec2::X * (r + PLAYER_TRUNK_RADIUS + 0.02),
+                None => {
+                    let (u, _) = rs_axes(spot);
+                    center + u * (0.42 * 1.4 + PLAYER_TRUNK_RADIUS + 0.02)
+                }
+            };
+            let reach = trunk.map_or(1.0, |r| r + PLAYER_TRUNK_RADIUS);
+            let approach = trunk.map_or_else(|| {
+                let (u, _) = rs_axes(spot);
+                Vec3::new(-u.x * 4.5, 0.0, -u.y * 4.5)
+            }, |_| Vec3::new(-4.5, 0.0, 2.5));
             let run = |realm: Option<u8>, steps: usize| {
                 let mut app = mf_fresh();
                 app.insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: realm });
-                let start = center + Vec2::X * (reach + 0.02);
                 let mut p = app.world_mut().resource_mut::<SoftPresence>();
-                (p.position, p.velocity, p.grounded) = (Vec3::new(start.x, STAND, start.y), Vec3::new(-4.5, 0.0, 2.5), true);
+                (p.position, p.velocity, p.grounded) = (Vec3::new(start.x, STAND, start.y), approach, true);
                 (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
                 drop(p);
                 mf_stick(&mut app, 0.0, 0.0, false);
@@ -6251,8 +6301,13 @@ mod tests {
             let mut hit = None;
             for step in 1..=20 {
                 let (at, vel) = run(shown, step);
-                let off = at - center;
-                if off.length() <= reach + 1e-4 { hit = Some((step, off.normalize(), vel)); break; }
+                let (k, n) = read(at);
+                if trunk.is_some() {
+                    if (at - center).length() <= reach + 1e-4 { hit = Some((step, n, vel)); break; }
+                } else if k <= 1.0 + 1e-4 {
+                    hit = Some((step, n, vel));
+                    break;
+                }
             }
             let (step, n_out, vel) = hit.expect("no contact");
             assert!(vel.dot(-n_out) <= 1e-4, "inward {} at {center:?}", vel.dot(-n_out));
@@ -6353,5 +6408,85 @@ mod tests {
             assert!(peak > 1.0 && peak < top && top < look, "sprint={sprint} peak {peak} top {top} look {look}");
         }
         assert!(CAM_PITCH_MIN > 0.0, "camera never looks up from under the rail");
+    }
+
+    fn rs_axes(spot: Vec3) -> (Vec2, Vec2) {
+        let (s, c) = crate::living_ecology::yard_prop_yaw(spot.x, spot.z).sin_cos();
+        (Vec2::new(c, -s), Vec2::new(s, c))
+    }
+    fn rs_collider(spot: Vec3, at: Vec2) -> (f32, Vec2) {
+        let ((u, w), off) = (rs_axes(spot), at - spot.xz());
+        let ab = Vec2::new(0.42 * 1.4, 0.42 * 1.1) + PLAYER_TRUNK_RADIUS;
+        let l = Vec2::new(off.dot(u), off.dot(w)) / ab;
+        (l.length(), (u * (l.x / ab.x) + w * (l.y / ab.y)).normalize())
+    }
+    fn rs_gap(spot: Vec3, at: Vec3) -> f32 {
+        let ((u, w), off) = (rs_axes(spot), at.xz() - spot.xz());
+        let (p, ab) = (Vec2::new(off.dot(u), off.dot(w)).abs(), Vec2::new(0.42 * 1.4, 0.42 * 1.1));
+        let d = (0..=1024).map(|i| (ab * Vec2::from_angle(i as f32 / 1024.0 * FRAC_PI_2) - p).length()).fold(f32::MAX, f32::min);
+        if (p / ab).length_squared() < 1.0 { -d - PLAYER_TRUNK_RADIUS } else { d - PLAYER_TRUNK_RADIUS }
+    }
+
+    #[test]
+    fn rock_shape_1_rs1_contact_on_both_axes_and_diagonal() {
+        for spot in crate::living_ecology::YARD_ROCK_SPOTS {
+            let (u, w) = rs_axes(spot);
+            for (name, dir) in [("long", u), ("short", w), ("45deg", (u + w).normalize())] {
+                let mut app = rock_collide_1_app(Some(4), spot);
+                let s = spot.xz() + dir * 2.5;
+                app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(s.x, STAND, s.y);
+                mf_stick(&mut app, -dir.x, dir.y, false);
+                for _ in 0..150 { app.update(); }
+                let at = app.world().resource::<SoftPresence>().position;
+                assert!(rs_gap(spot, at).abs() <= 0.05 && at.y == STAND, "{name} {spot} {at}");
+            }
+        }
+    }
+
+    #[test]
+    fn rock_shape_1_rs2_jump_at_apex_passes_over() {
+        let top = 0.48712f32;
+        for spot in crate::living_ecology::YARD_ROCK_SPOTS {
+            let (u, w) = rs_axes(spot);
+            for dir in [u, w] {
+                let mut app = mf_fresh();
+                app.insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(4) });
+                let s = spot.xz() + dir * (23.0 * 5.4 / 60.0);
+                let mut p = app.world_mut().resource_mut::<SoftPresence>();
+                p.position = Vec3::new(s.x, STAND, s.y);
+                (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
+                drop(p);
+                mf_stick(&mut app, -dir.x, dir.y, true);
+                app.world_mut().resource_mut::<JumpLatch>().pending = true;
+                let mut apex = Vec3::ZERO;
+                for _ in 1..=90 {
+                    jb_step(&mut app);
+                    let p = app.world().resource::<SoftPresence>();
+                    let feet = p.position.y - STAND + silhouette().feet;
+                    if !p.grounded && feet >= top {
+                        assert!((mf_horiz(&app) + dir * 5.4).length() < 1e-4, "{spot} feet {feet} pushed {:?}", mf_horiz(&app));
+                    }
+                    if p.position.y > apex.y { apex = p.position; }
+                    if p.grounded { break; }
+                }
+                assert!(apex.y - STAND + silhouette().feet > top && apex.xz().distance(spot.xz()) < 0.1, "{spot} {apex}");
+            }
+        }
+    }
+
+    #[test]
+    fn rock_shape_1_rs3_grounded_walk_still_stopped() {
+        for spot in crate::living_ecology::YARD_ROCK_SPOTS {
+            let (_, w) = rs_axes(spot);
+            for dir in [w, -w] {
+                let mut app = rock_collide_1_app(Some(1), spot);
+                let s = spot.xz() + dir * 2.5;
+                app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(s.x, STAND, s.y);
+                mf_stick(&mut app, -dir.x, dir.y, true);
+                for _ in 0..120 { app.update(); }
+                let at = app.world().resource::<SoftPresence>().position;
+                assert!(at.y == STAND && rs_gap(spot, at).abs() <= 0.05, "{spot} {at}");
+            }
+        }
     }
 }
