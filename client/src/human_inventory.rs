@@ -1025,7 +1025,7 @@ mod tests {
     fn body(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<SatchelBody>>().single(app.world()).unwrap().as_str().into() }
     fn rows(body: &str) -> Vec<&'static str> { NAMED_FINDS.iter().filter(|n| body.contains(n.sentence)).map(|n| n.name).collect() }
     fn landed(s: u32) -> Option<FoundFinds> { let mut f = FoundFinds::default(); f.drop_once(Sworn, s, 1).then_some(f) }
-    fn all() -> FoundFinds { FoundFinds { names: NAMED_FINDS.iter().map(|n| n.name).collect(), pending: None } }
+    fn all() -> FoundFinds { FoundFinds { names: NAMED_FINDS.iter().map(|n| n.name).collect(), pending: None, equipped: None } }
 
     /// LTS1 (H1) — a forced-roll find lands exactly one `find_line` row on I; goods, harvests, tooltip and three slots stay.
     #[test]
@@ -1042,7 +1042,7 @@ mod tests {
     fn lts2_old_newline_finds_load_and_show_on_i() {
         let mut app = open_satchel("lts2-i", Some(OLD_FINDS), None);
         let names = vec![NAMED_FINDS[1].name, NAMED_FINDS[4].name];
-        assert_eq!(app.world().resource::<FoundFinds>(), &FoundFinds { names: names.clone(), pending: None });
+        assert_eq!(app.world().resource::<FoundFinds>(), &FoundFinds { names: names.clone(), pending: None, equipped: None });
         let body = body(&mut app);
         assert_eq!(rows(&body), names, "{body}");
         for n in [&NAMED_FINDS[1], &NAMED_FINDS[4]] { assert_eq!(body.matches(&find_line(n)).count(), 1, "{body}"); }
@@ -1059,7 +1059,7 @@ mod tests {
         let line = find_line(NAMED_FINDS.iter().find(|n| n.name == owned.names[0]).unwrap());
         let mut app = open_satchel("lts6", None, Some(again));
         assert_eq!(body(&mut app).matches(&line).count(), 1);
-        let mut app = open_satchel("lts6-dup", None, Some(FoundFinds { names: vec![owned.names[0]; 2], pending: None }));
+        let mut app = open_satchel("lts6-dup", None, Some(FoundFinds { names: vec![owned.names[0]; 2], pending: None, equipped: None }));
         assert_eq!(body(&mut app).matches(&line).count(), 1, "a repeated name still shows once");
     }
 
