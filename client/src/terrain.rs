@@ -140,20 +140,7 @@ pub fn terrace_mesh(plan: TerrainPlan) -> Mesh {
     // Keyed on (ring index, i % n): the riser and tread sharing a ring get the
     // same radius (watertight) and index n reuses index 0 (the rim closes).
     // Rings 42, 70, 110 and 860 stay exact so seated props keep their step.
-    let wobble = |ring_ix: usize, radius: f32, i: u32| -> f32 {
-        if ring_ix != 3 && ring_ix != 4 {
-            return radius;
-        }
-        let mut h = (ring_ix as u32).wrapping_mul(0x9E37_79B9) ^ (i % n).wrapping_mul(0x85EB_CA6B);
-        h ^= h >> 15;
-        h = h.wrapping_mul(0x2C1B_3C6D);
-        h ^= h >> 12;
-        h = h.wrapping_mul(0x297A_2D39);
-        h ^= h >> 15;
-        let unit = (h as f32 / u32::MAX as f32) * 2.0 - 1.0;
-        // Amplitude 0.02: at most ±2% of the ring radius.
-        radius * (1.0 + 0.02 * unit)
-    };
+    let wobble = |ring_ix: usize, radius: f32, i: u32| rim_wobble(ring_ix, radius, i, n);
     for i in 0..n {
         // Decreasing angle so the face points up (Y-up, right-handed).
         push_tri(
@@ -193,6 +180,54 @@ pub fn terrace_mesh(plan: TerrainPlan) -> Mesh {
     mesh.duplicate_vertices();
     mesh.compute_flat_normals();
     mesh
+}
+
+/// Radius of vertex `i` of rim `ring_ix` on an `n`-segment mesh.
+fn rim_wobble(ring_ix: usize, radius: f32, i: u32, n: u32) -> f32 {
+    if ring_ix != 3 && ring_ix != 4 {
+        return radius;
+    }
+    let mut h = (ring_ix as u32).wrapping_mul(0x9E37_79B9) ^ (i % n).wrapping_mul(0x85EB_CA6B);
+    h ^= h >> 15;
+    h = h.wrapping_mul(0x2C1B_3C6D);
+    h ^= h >> 12;
+    h = h.wrapping_mul(0x297A_2D39);
+    h ^= h >> 15;
+    let unit = (h as f32 / u32::MAX as f32) * 2.0 - 1.0;
+    // Amplitude 0.02: at most ±2% of the ring radius.
+    radius * (1.0 + 0.02 * unit)
+}
+
+/// CARD TREE-SEAT-1 — world Y of the tread [`terrace_mesh`] draws at
+/// `(x, z)` for `plan`: the first rim whose chord over that sector holds the
+/// point. Same vertices and wobble as the mesh, unlike the circle model.
+pub fn tread_y_mesh(x: f32, z: f32, plan: TerrainPlan) -> f32 {
+    let n = plan.segments.max(3);
+    let i = ((z.atan2(x).rem_euclid(TAU) / TAU * n as f32) as u32).min(n - 1);
+    for (ix, &rim) in SHELF_OUTER.iter().enumerate() {
+        let a = ring(rim_wobble(ix, rim, i, n), 0.0, i, n);
+        let b = ring(rim_wobble(ix, rim, i + 1, n), 0.0, i + 1, n);
+        if (b[0] - a[0]) * (z - a[2]) - (b[2] - a[2]) * (x - a[0]) >= 0.0 {
+            return SHELF_Y[ix];
+        }
+    }
+    SHELF_Y[SHELF_COUNT - 1]
+}
+
+/// CARD TREE-SEAT-1 — true when a prop of footprint radius `margin` at
+/// `(x, z)` misses the moat and every riser band [R·cos(π/12) − margin,
+/// R + margin] for R = 42 / 70 / 110. Outside those bands [`shelf_offset`]
+/// equals [`tread_y_mesh`] under the whole footprint on every rim of 12+
+/// segments (Low and up), so a seat stays right across a preset switch.
+/// The wobbled rims (165, 250) lie past anything seated.
+pub fn seat_clear(x: f32, z: f32, margin: f32) -> bool {
+    let r = (x * x + z * z).sqrt();
+    let chord = (std::f32::consts::PI / 12.0).cos();
+    let riser = SHELF_OUTER[..3]
+        .iter()
+        .any(|&rim| r >= rim * chord - margin && r <= rim + margin);
+    let moat = r >= crate::water::BATH_INNER - margin && r <= crate::water::BATH_OUTER + margin;
+    !riser && !moat
 }
 
 fn ring(radius: f32, y: f32, index: u32, segments: u32) -> [f32; 3] {
@@ -433,6 +468,35 @@ mod tests {
                     }
                 }
             }
+        }
+    }
+
+    /// CARD TREE-SEAT-1 — mid-sector just inside a rim the circle and the mesh
+    /// disagree; that spot is banded. Outside the bands they agree from Low up.
+    #[test]
+    fn tree_seat_1_mesh_tread_matches_circle_outside_bands() {
+        for preset in GraphicsPreset::ALL {
+            let plan = terrain_plan(preset);
+            let half = std::f32::consts::PI / plan.segments as f32;
+            for (shelf, &rim) in SHELF_OUTER[..3].iter().enumerate() {
+                let (x, z) = (half.cos() * (rim - 0.05), half.sin() * (rim - 0.05));
+                assert_eq!(terrace_height(x, z), SHELF_Y[shelf], "{preset:?} {rim}");
+                assert_eq!(tread_y_mesh(x, z, plan), SHELF_Y[shelf + 1], "{preset:?} {rim}");
+                assert_eq!(tread_y_mesh(rim - 0.05, 0.0, plan), SHELF_Y[shelf], "{preset:?} {rim}");
+                assert!(!seat_clear(x, z, 0.0) && !seat_clear(rim + 0.5, 0.0, 1.0));
+            }
+            assert!(seat_clear(0.0, 0.0, 2.0) && seat_clear(90.0, 0.0, 2.0));
+            assert!(!seat_clear(0.0, 57.0, 0.0), "moat");
+            let mut agreed = 0;
+            for k in 0..30_000u32 {
+                let (a, r) = (k as f32 * 2.399_963, 1.0 + (k % 1500) as f32 * 0.1);
+                let (x, z) = (a.cos() * r, a.sin() * r);
+                if plan.segments >= 12 && seat_clear(x, z, 0.0) {
+                    assert_eq!(tread_y_mesh(x, z, plan), terrace_height(x, z), "{preset:?} {x},{z}");
+                    agreed += 1;
+                }
+            }
+            assert!(plan.segments < 12 || agreed > 15_000, "{preset:?} {agreed}");
         }
     }
 }

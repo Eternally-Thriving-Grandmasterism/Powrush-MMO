@@ -97,9 +97,16 @@ fn policy(world: &World, id: Entity) -> Result<Policy, String> {
         world.get::<ClimateStone>(id).is_some() || world.get::<LungeTell>(id).is_some()
             || world.get::<RiseTell>(id).is_some() || world.get::<DroidTell>(id).is_some()
             || world.get::<ClearedTell>(id).is_some() || world.get::<BathMark>(id).is_some()
-            || world.get::<SkyBackdropPart>(id).is_some() || world.get::<HumanPresence>(id).is_some()
+            || world.get::<HumanPresence>(id).is_some()
     };
     if has(id) { return Ok(Policy::NoCollide); }
+    // EC-1c: the belt is one merged mesh at the origin; `ec_1c_belt_trunks_stay_off_the_plate` is its R-C.
+    if let Some(part) = world.get::<SkyBackdropPart>(id) {
+        return match part {
+            SkyBackdropPart::Dome | SkyBackdropPart::Ground | SkyBackdropPart::Ridge | SkyBackdropPart::Band(_) => Ok(Policy::NoCollide),
+            SkyBackdropPart::BeltFull | SkyBackdropPart::BeltLow => Ok(Policy::NoCollide),
+        };
+    }
     if world.get::<Predator>(id).is_some() { return gap("predator"); }
     if world.get::<Droid>(id).is_some() { return gap("droid"); }
     if world.get::<Grazer>(id).is_some() { return gap("grazer"); }
@@ -306,6 +313,15 @@ fn c4_c5_fail_first_fixtures() {
         ("OpenNode".to_string(), Vec3::new(-10.0, y, -10.0), HARVEST_REACH, false),
     ];
     assert_eq!(unreachable(&uses, &reached), ["OutOfYard", "SwallowedNode"]);
+}
+/// EC-1c R-C: no belt trunk (r 0.18·s) reaches the plate inflated by BODY_R, so NoCollide on the belt hides no solid.
+#[test]
+fn ec_1c_belt_trunks_stay_off_the_plate() {
+    use crate::sky_backdrop::{conifer_spots, CONIFER_COUNT, CONIFER_SEED};
+    let on_plate: Vec<(i32, i32)> = conifer_spots(CONIFER_SEED, CONIFER_COUNT).iter()
+        .filter(|(p, s)| p.x.abs().max(p.z.abs()) <= PLAY_HALF + BODY_R + 0.18 * s)
+        .map(|(p, _)| (p.x.round() as i32, p.z.round() as i32)).collect();
+    assert_eq!(on_plate, Vec::<(i32, i32)>::new(), "EC-1c belt trunks on the plate");
 }
 
 macro_rules! site {
