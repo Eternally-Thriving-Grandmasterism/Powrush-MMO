@@ -39,21 +39,21 @@
     "rules": [
       {
         "root": "WinAppDataLocal",
-        "subdirectory": "Powrush-MMO/steam_cloud/audio_moments",
+        "subdirectory": "Powrush/steam_cloud/audio_moments",
         "pattern": "*",
         "recursive": true,
         "platforms": ["windows"]
       },
       {
         "root": "MacAppSupport",
-        "subdirectory": "Powrush-MMO/steam_cloud/audio_moments",
+        "subdirectory": "Powrush/steam_cloud/audio_moments",
         "pattern": "*",
         "recursive": true,
         "platforms": ["macos"]
       },
       {
         "root": "LinuxHome",
-        "subdirectory": ".local/share/Powrush-MMO/steam_cloud/audio_moments",
+        "subdirectory": ".local/share/powrush/steam_cloud/audio_moments",
         "pattern": "*",
         "recursive": true,
         "platforms": ["linux"]
@@ -68,7 +68,7 @@
       },
       {
         "root": "WinAppDataLocal",
-        "subdirectory": "Powrush-MMO/steam_cloud/abundance",
+        "subdirectory": "Powrush/steam_cloud/abundance",
         "pattern": "*.json",
         "recursive": true,
         "platforms": ["windows"],
@@ -76,14 +76,14 @@
       },
       {
         "root": "MacAppSupport",
-        "subdirectory": "Powrush-MMO/steam_cloud/abundance",
+        "subdirectory": "Powrush/steam_cloud/abundance",
         "pattern": "*.json",
         "recursive": true,
         "platforms": ["macos"]
       },
       {
         "root": "LinuxHome",
-        "subdirectory": ".local/share/Powrush-MMO/steam_cloud/abundance",
+        "subdirectory": ".local/share/powrush/steam_cloud/abundance",
         "pattern": "*.json",
         "recursive": true,
         "platforms": ["linux"]
@@ -120,7 +120,7 @@
       "actions": [
         "Add each rule from auto_cloud.rules above",
         "Verify Root / Subdirectory / Pattern match exactly",
-        "Include abundance rules (Powrush-MMO/steam_cloud/abundance)",
+        "Include abundance rules (Powrush/steam_cloud/abundance)",
         "Save / Publish"
       ]
     },

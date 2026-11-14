@@ -9,7 +9,7 @@ Powrush-MMO syncs **recipe catalogs** (not bulk PCM) through Steam Cloud.
 
 | Layer | Path / API | When |
 |-------|------------|------|
-| **Auto-Cloud stage** | OS-specific `…/Powrush-MMO/steam_cloud/audio_moments/catalog_cloud_v1.json` + portable `steam_cloud/audio_moments/` | Always |
+| **Auto-Cloud stage** | OS-specific `…/Powrush/steam_cloud/audio_moments/catalog_cloud_v1.json` + portable `steam_cloud/audio_moments/` | Always |
 | **RemoteStorage SDK** | `FileWrite("catalog_cloud_v1.json")` | `--features steam` + Steam running + app cloud enabled |
 
 ## AppID resolution

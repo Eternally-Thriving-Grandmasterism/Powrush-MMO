@@ -8,6 +8,7 @@ on:
         required: false
         default: 'es,fr,de,ar'
   push:
+    branches: ['**']
     paths:
       - 'content/locales/en.json'
 

@@ -45,9 +45,9 @@ Add **all** of the following rows (from `steam_cloud_config.json`):
 
 | Root | Subdirectory | Pattern | Recursive |
 |------|--------------|---------|-----------|
-| `WinAppDataLocal` | `Powrush-MMO/steam_cloud/audio_moments` | `*` | Yes |
-| `MacAppSupport` | `Powrush-MMO/steam_cloud/audio_moments` | `*` | Yes |
-| `LinuxHome` | `.local/share/Powrush-MMO/steam_cloud/audio_moments` | `*` | Yes |
+| `WinAppDataLocal` | `Powrush/steam_cloud/audio_moments` | `*` | Yes |
+| `MacAppSupport` | `Powrush/steam_cloud/audio_moments` | `*` | Yes |
+| `LinuxHome` | `.local/share/powrush/steam_cloud/audio_moments` | `*` | Yes |
 | `AppInstallDirectory` | `steam_cloud/audio_moments` | `*` | Yes |
 
 Notes:

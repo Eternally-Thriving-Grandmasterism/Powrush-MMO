@@ -27,7 +27,7 @@ pub fn preferred_abundance_stage_root() -> PathBuf {
     {
         if let Ok(local) = std::env::var("LOCALAPPDATA") {
             return Path::new(&local)
-                .join("Powrush-MMO")
+                .join(shared::user_persist::APP_DIR_DISPLAY)
                 .join("steam_cloud")
                 .join("abundance");
         }
@@ -38,7 +38,7 @@ pub fn preferred_abundance_stage_root() -> PathBuf {
             return PathBuf::from(home)
                 .join("Library")
                 .join("Application Support")
-                .join("Powrush-MMO")
+                .join(shared::user_persist::APP_DIR_DISPLAY)
                 .join("steam_cloud")
                 .join("abundance");
         }
@@ -49,7 +49,7 @@ pub fn preferred_abundance_stage_root() -> PathBuf {
             return PathBuf::from(home)
                 .join(".local")
                 .join("share")
-                .join("Powrush-MMO")
+                .join(shared::user_persist::LINUX_APP_DIR)
                 .join("steam_cloud")
                 .join("abundance");
         }
@@ -268,5 +268,49 @@ mod tests {
     #[test]
     fn local_lattice_path_is_data_share() {
         assert_eq!(LOCAL_LATTICE, "data/powrush_lattice_flow_share.json");
+    }
+
+    #[test]
+    fn steam_cloud_rules_use_powrush_roots() {
+        let raw = include_str!("../../publishing/steam/steam_cloud_config.json");
+        let v: serde_json::Value = serde_json::from_str(raw).unwrap();
+        assert!(v["app_id"]["shipping"].is_null());
+        for rule in v["auto_cloud"]["rules"].as_array().unwrap() {
+            let sub = rule["subdirectory"].as_str().unwrap();
+            let root = rule["root"].as_str().unwrap();
+            assert!(!sub.contains("Powrush-MMO"), "{root} {sub}");
+            match root {
+                "WinAppDataLocal" | "MacAppSupport" => {
+                    assert!(sub.starts_with("Powrush/steam_cloud/"), "{sub}");
+                }
+                "LinuxHome" => {
+                    assert!(sub.starts_with(".local/share/powrush/steam_cloud/"), "{sub}");
+                }
+                _ => {}
+            }
+        }
+    }
+
+    #[test]
+    fn abundance_stage_parent_matches_user_persist() {
+        let prod = include_str!("steam_abundance_mirror.rs")
+            .split("#[cfg(test)]")
+            .next()
+            .unwrap();
+        assert!(!prod.contains("\"Powrush-MMO\""));
+        #[cfg(target_os = "linux")]
+        {
+            let got = preferred_abundance_stage_root();
+            let s = got.to_string_lossy().replace('\\', "/");
+            let app = shared::user_persist::LINUX_APP_DIR;
+            let expect = format!(".local/share/{app}/steam_cloud/abundance");
+            assert!(s.ends_with(&expect), "{s}");
+        }
+    }
+
+    #[test]
+    fn steam_feature_off_by_default() {
+        assert!(!cfg!(feature = "steam"));
+        assert!(include_str!("../Cargo.toml").contains("[features]\ndefault = []"));
     }
 }
