@@ -1453,7 +1453,16 @@ fn apply_locomotion(
     let tread_drop =
         crate::terrain::shelf_offset(presence.position.x, presence.position.z) < -1e-4;
     if tread_drop && presence.grounded && presence.position.y > hip + 1e-4 && presence.position.y <= STAND {
-        presence.grounded = false;
+        let still = wish_vel.length_squared() < 1e-8
+            && Vec2::new(presence.velocity.x, presence.velocity.z).length_squared() < 1e-8
+            && presence.velocity.y <= 1e-4;
+        if still {
+            presence.position.y = hip;
+            presence.velocity.y = 0.0;
+            latch.clamp_landed = true;
+        } else {
+            presence.grounded = false;
+        }
     }
     if presence.position.y <= hip {
         // Airline is the pre-clamp grounded flag plus the seated guard.
@@ -6570,33 +6579,49 @@ mod tests {
         STAND + crate::terrain::shelf_offset(x, z)
     }
 
-    /// CARD TERRAIN-GROUND-1 TG1 — shelf 1 spawn stays at x≈50 and snaps to local hip_y.
+    /// CARD TERRAIN-GROUND-1 TG1 — shelf 1 spawn at x=45 (outside moat [48,66]) snaps in one tick.
     #[test]
     fn terrain_ground_1_tg1_wall_lifted_shelf_one_spawn() {
+        let x = 45.0f32;
+        let hip = tg_hip_y(x, 0.0);
         let mut app = mf_fresh();
-        let want_hip = tg_hip_y(50.0, 0.0);
         {
             let mut p = app.world_mut().resource_mut::<SoftPresence>();
-            (p.position, p.velocity, p.grounded) = (Vec3::new(50.0, STAND, 0.0), Vec3::ZERO, true);
+            (p.position, p.velocity, p.grounded) = (Vec3::new(x, STAND, 0.0), Vec3::ZERO, true);
             (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
         }
         mf_stick(&mut app, 0.0, 0.0, false);
-        let mut ticks = 0u32;
-        loop {
-            jb_step(&mut app);
-            ticks += 1;
-            let p = app.world().resource::<SoftPresence>();
-            let hip = tg_hip_y(p.position.x, p.position.z);
-            if p.grounded && (p.position.y - hip).abs() < 0.01 {
-                let bound = crate::terrain::PLAY_HALF - PLAYER_TRUNK_RADIUS;
-                assert!((p.position.x - bound).abs() > 0.5, "old plate wall at {}", p.position.x);
-                assert!((hip - want_hip).abs() < 0.01, "not on shelf 1");
-                assert_eq!(p.velocity.y, 0.0);
-                assert!(ticks <= 90, "settled in {ticks} ticks");
-                return;
-            }
-            assert!(ticks < 90, "no shelf-1 snap");
+        jb_step(&mut app);
+        let p = app.world().resource::<SoftPresence>();
+        let bound = crate::terrain::PLAY_HALF - PLAYER_TRUNK_RADIUS;
+        assert!((p.position.x - bound).abs() > 0.5, "old plate wall at {}", p.position.x);
+        assert!((p.position.x - x).abs() < 0.05, "x moved {}", p.position.x);
+        assert!(p.position.z.abs() < 0.05, "z moved {}", p.position.z);
+        assert!((p.position.y - hip).abs() < 0.01, "y {:?} want hip {hip}", p.position.y);
+        assert!(p.grounded);
+        assert_eq!(p.velocity.y, 0.0);
+    }
+
+    /// CARD TERRAIN-GROUND-1 — moat keep-out pushes out of [BATH_INNER, BATH_OUTER] with no inward velocity.
+    #[test]
+    fn terrain_ground_1_moat_keep_out_annulus() {
+        use crate::water::{BATH_INNER, BATH_OUTER};
+        let spawn = BATH_INNER + 3.0;
+        let mut app = mf_fresh();
+        {
+            let mut p = app.world_mut().resource_mut::<SoftPresence>();
+            let hip = tg_hip_y(spawn, 0.0);
+            (p.position, p.velocity, p.grounded) = (Vec3::new(spawn, hip, 0.0), Vec3::ZERO, true);
+            (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
         }
+        mf_stick(&mut app, -1.0, 0.0, false);
+        jb_step(&mut app);
+        let p = app.world().resource::<SoftPresence>();
+        let r = p.position.x.abs();
+        assert!(r < BATH_INNER - PLAYER_TRUNK_RADIUS + 0.05 || r > BATH_OUTER + PLAYER_TRUNK_RADIUS - 0.05);
+        let inward = Vec2::new(-p.position.x.signum(), 0.0);
+        let vel = mf_horiz(&app);
+        assert!(vel.dot(inward) <= 1e-4, "inward moat velocity {vel}");
     }
 
     /// CARD TERRAIN-GROUND-1 TG2 — walk off the first riser onto shelf 1 and land at hip_y.
