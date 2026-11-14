@@ -17,7 +17,9 @@ use crate::hud_anchor_registry::{
 use crate::lived_hour_bind::LivedHourBind;
 use crate::mercy_harvest_nodes::{CareCycleOffer, NearbyMercyNode};
 use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
-use crate::first_session_guidance::{FirstSessionGuidance, GuidanceObjective};
+use crate::first_session_guidance::{
+    signpost_showing, FirstSessionGuidance, GuidanceObjective, Signpost,
+};
 use crate::lived_hour_support::RbeUiSync;
 use crate::soft_play_bindings;
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
@@ -135,8 +137,7 @@ impl LivingPracticeLoop {
         if self.dismissed || self.active || self.principle_sealed {
             return;
         }
-        let ready = matches!(guidance.objective, GuidanceObjective::FreeExploration)
-            || (guidance.dismissed && guidance.harvests_completed >= 1);
+        let ready = guidance.dismissed && guidance.harvests_completed >= 1;
         if ready {
             self.active = true;
             self.surface = PracticeSurface::SanctuaryCap;
@@ -261,6 +262,7 @@ pub(crate) fn handle_practice_toggle(
 pub(crate) fn update_practice_visibility(
     practice: Res<LivingPracticeLoop>,
     guidance: Res<FirstSessionGuidance>,
+    signpost: Option<Res<Signpost>>,
     care: Option<Res<CareCycleOffer>>,
     epi: Option<Res<FirstHarvestEpiphany>>,
     nearby: Option<Res<NearbyMercyNode>>,
@@ -268,7 +270,10 @@ pub(crate) fn update_practice_visibility(
     time: Res<Time>,
     mut query: Query<&mut Visibility, With<LivingPracticeStrip>>,
 ) {
-    let guidance_showing = guidance.active && !guidance.dismissed;
+    let guidance_showing = signpost
+        .as_deref()
+        .is_some_and(signpost_showing)
+        || (guidance.active && !guidance.dismissed);
     let guidance_hidden = bind.as_ref().is_some_and(|bind| bind.guidance_hidden);
     let (care_strip, care_prompt) = action_bar_prompts_showing(
         care.as_deref(),
@@ -586,6 +591,50 @@ mod tests {
     }
 
     #[test]
+    fn hud_clean_hc2_offline_door_practice_and_signpost() {
+        use crate::first_session_guidance::Signpost;
+
+        let mut practice = LivingPracticeLoop::default();
+        practice.try_activate_from_guidance(&FirstSessionGuidance {
+            objective: GuidanceObjective::FreeExploration,
+            active: true,
+            dismissed: false,
+            ..Default::default()
+        });
+        assert!(!practice.active);
+
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .init_resource::<LivingPracticeLoop>()
+            .init_resource::<FirstSessionGuidance>()
+            .init_resource::<Signpost>()
+            .init_resource::<FirstHarvestEpiphany>()
+            .init_resource::<NearbyMercyNode>()
+            .init_resource::<CareCycleOffer>()
+            .insert_resource(crate::title_screen::LaunchDoor::InYard)
+            .add_systems(Update, (handoff_from_first_session, update_practice_visibility));
+        app.world_mut()
+            .spawn((LivingPracticeStrip, Visibility::Hidden));
+        {
+            let mut guidance = app.world_mut().resource_mut::<FirstSessionGuidance>();
+            guidance.active = true;
+            guidance.dismissed = true;
+            guidance.harvests_completed = 1;
+            guidance.objective = GuidanceObjective::FreeExploration;
+            let mut sign = app.world_mut().resource_mut::<Signpost>();
+            sign.seen = false;
+            sign.until = Some(120.0);
+        }
+        app.update();
+        assert_eq!(
+            *app.world_mut()
+                .query_filtered::<&Visibility, With<LivingPracticeStrip>>()
+                .single(app.world())
+                .unwrap(),
+            Visibility::Hidden
+        );
+    }
+
     fn wood_claim_does_not_credit_practice() {
         let mut app = App::new();
         app.add_plugins(bevy::MinimalPlugins)
