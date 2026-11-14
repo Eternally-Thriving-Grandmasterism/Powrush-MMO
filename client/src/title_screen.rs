@@ -497,7 +497,7 @@ pub fn music_credits_unlocked(present: bool) -> bool {
 #[derive(Component)]
 pub struct MusicCreditsPanel;
 
-fn spawn_music_credits_rows(p: &mut ChildSpawnerCommands, present: bool) {
+pub(crate) fn spawn_music_credits_rows(p: &mut ChildSpawnerCommands, present: bool) {
     for credit in MUSIC_CREDITS.iter().filter(|c| credit_shown(c, present)) {
         p.spawn((
             Text::new(credit.line),
@@ -2024,6 +2024,7 @@ Node {
                     },
 ),
                 );
+                crate::licences_screen::spawn_licences_entry(guide);
             });
             // CARD MUSIC-CREDITS-1 (MC5) — Credits panel only once a track ships.
             let present = crate::combat_core::music_file_present();
@@ -2695,6 +2696,7 @@ fn title_keyboard_shortcuts(
     hour: Option<Res<HourSacred>>,
     mut embassy: Option<ResMut<EmbassyYard>>,
     mut places: Option<ResMut<PlacesPlate>>,
+    mut licences: Option<ResMut<crate::licences_screen::LicencesScreen>>,
 ) {
     if rebind.waiting.is_some() || rebind.suppress_shortcuts {
         return;
@@ -2732,6 +2734,7 @@ fn title_keyboard_shortcuts(
             } else if keyboard.just_pressed(KeyCode::Digit3) {
                 label.settings_open = !label.settings_open;
             } else if keyboard.just_pressed(KeyCode::Escape) {
+                if let Some(l) = licences.as_deref_mut().filter(|l| l.open) { l.open = false; return; }
                 // Esc-from-title: close settings / persona plate. Never wipe house/climate/standing/book.
                 label.settings_open = false;
                 // Persona Esc handled in persona_creator_buttons when open.
@@ -2929,11 +2932,13 @@ fn esc_yard_pause(
     door: Res<LaunchDoor>,
     mut label: ResMut<HouseLabel>,
     mut places: Option<ResMut<PlacesPlate>>,
+    mut licences: Option<ResMut<crate::licences_screen::LicencesScreen>>,
 ) {
     if rebind.waiting.is_some() || rebind.suppress_shortcuts {
         return;
     }
     let esc = keyboard.just_pressed(KeyCode::Escape);
+    if let Some(l) = licences.as_deref_mut().filter(|l| l.open) { l.open = !(esc && *door == LaunchDoor::InYard); return; }
     // Start/Options = same pause toggle as Esc (INPUT_CANON).
     let start = player_input.pause_toggle;
     if !esc && !start {
@@ -10304,5 +10309,42 @@ mod tests {
             chrome.iter(world).filter(|c| open && covered(*c)).for_each(|c| bad.push(format!("{tag}: pause cue/tab {:?} hidden or covered", rect(c))));
         }
         assert!(bad.is_empty(), "{bad:#?}");
+    }
+
+    // --- CARD NOTICES-1b — Guide-tab entry, one Esc closes Licences only -------
+
+    #[test]
+    fn licences_entry_sits_in_guide_tab_not_a_fifth_row() {
+        let mut app = App::new();
+        app.add_systems(Startup, spawn_settings_stub).update();
+        let world = app.world_mut();
+        let entries: Vec<Entity> = world.query_filtered::<Entity, With<crate::licences_screen::LicencesOpenBtn>>().iter(world).collect();
+        assert_eq!(entries.len(), 1, "one Licences entry on the pause plate");
+        let panel = world.get::<ChildOf>(entries[0]).map(|c| c.parent());
+        assert_eq!(panel.and_then(|p| world.get::<PauseTabPanel>(p)).map(|p| p.0), Some(PauseTab::Guide));
+        assert_eq!(PauseTab::ALL.len(), 4);
+    }
+
+    #[test]
+    fn licences_esc_closes_licences_only_then_esc_is_unchanged() {
+        use crate::licences_screen::{open_licences, LicencesScreen};
+        for door in [LaunchDoor::Title, LaunchDoor::InYard] {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, crate::licences_screen::LicencesScreenPlugin))
+                .insert_resource(door)
+                .insert_resource(HouseLabel { settings_open: true, ..default() })
+                .init_resource::<PersonaCreatorState>()
+                .init_resource::<PeaceRebindState>()
+                .insert_resource(PlayerInput::default())
+                .add_systems(Update, (title_keyboard_shortcuts, esc_yard_pause));
+            assert!(open_licences(&mut app.world_mut().resource_mut::<LicencesScreen>(), None, Some(door), false));
+            let mut keys = ButtonInput::<KeyCode>::default();
+            keys.press(KeyCode::Escape);
+            app.insert_resource(keys.clone()).update();
+            assert!(!app.world().resource::<LicencesScreen>().open, "{door:?}: Esc closes Licences");
+            assert!(app.world().resource::<HouseLabel>().settings_open, "{door:?}: the plate stays open");
+            app.insert_resource(keys).update();
+            assert!(!app.world().resource::<HouseLabel>().settings_open, "{door:?}: the next Esc is today's");
+        }
     }
 }

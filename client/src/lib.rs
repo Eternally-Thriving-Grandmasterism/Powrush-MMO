@@ -15,6 +15,7 @@ pub mod hud_presets;
 pub mod hud_edit_mode;
 pub mod title_screen;
 pub mod age_gate;
+pub mod licences_screen;
 pub mod hex_travel;
 pub mod depths_landing;
 pub mod heartwood_lip;
@@ -186,6 +187,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(depths_landing::DepthsLandingPlugin);
         app.add_plugins(local_settings::LocalSettingsPlugin);
         app.add_plugins(age_gate::AgeGatePlugin);
+        app.add_plugins(licences_screen::LicencesScreenPlugin);
         app.add_plugins(InputPlugin);
         app.add_plugins(touch_controls::TouchControlsPlugin);
         app.add_plugins(first_session_guidance::FirstSessionGuidancePlugin);
