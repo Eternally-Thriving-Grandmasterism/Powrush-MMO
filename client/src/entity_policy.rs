@@ -114,6 +114,8 @@ fn policy(world: &World, id: Entity) -> Result<Policy, String> {
     if world.get::<StoneGroundTile>(id).is_some() { return Ok(Policy::Walkable); }
     if world.get::<CamTrunk>(id).is_some() {
         let scale = world.get::<Transform>(id).map(|tf| tf.scale.x).unwrap_or(1.0);
+        let on = world.get::<Transform>(id).is_some_and(|tf| crate::vegetation::trunk_on_plate(tf.translation.x, tf.translation.z, scale));
+        if !on { return Ok(Policy::NoCollide); }
         return Ok(Policy::Solid(TRUNK_RADIUS * scale));
     }
     let name = ancestor_name(world, id);
@@ -279,7 +281,11 @@ fn enter(app: &mut App, place: PlaceId, realm: Option<u8>) {
 }
 #[test]
 fn c1_c2_c3_c6_per_place() {
+    for preset in shared::local_settings::GraphicsPreset::ALL {
     let mut app = boot();
+    let mut inner = shared::local_settings::LocalSettings::default();
+    inner.set_graphics_preset(preset);
+    app.insert_resource(crate::local_settings::LocalSettingsState { inner, dirty: false });
     for (place, realm, solids, _) in PLACES {
         enter(&mut app, place, realm);
         assert_declared(&mut app);
@@ -288,10 +294,15 @@ fn c1_c2_c3_c6_per_place() {
         assert_spawn_clear(place, spawn_of(&app, place), &shown);
         assert_tells(&mut app);
     }
+    }
 }
 #[test]
 fn c4_c5_per_place() {
+    for preset in shared::local_settings::GraphicsPreset::ALL {
     let mut app = boot();
+    let mut inner = shared::local_settings::LocalSettings::default();
+    inner.set_graphics_preset(preset);
+    app.insert_resource(crate::local_settings::LocalSettingsState { inner, dirty: false });
     for (place, realm, _, count) in PLACES {
         enter(&mut app, place, realm);
         let (free, reached) = sweep(&shown_solids(&mut app), spawn_of(&app, place).xz());
@@ -299,6 +310,7 @@ fn c4_c5_per_place() {
         let uses = uses_of(&mut app, place);
         assert_eq!(uses.len(), count, "C5 {place:?} uses {:?}", uses.iter().map(|u| &u.0).collect::<Vec<_>>());
         assert_eq!(unreachable(&uses, &reached), Vec::<String>::new(), "C5 unreachable use in {place:?} {realm:?}");
+    }
     }
 }
 #[test]

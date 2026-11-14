@@ -37,6 +37,15 @@ pub const YARD_CLEAR: f32 = 8.0;
 /// around that pose so the first frame is not inside a trunk.
 pub const CAMERA_XZ: Vec2 = Vec2::new(0.0, 14.0);
 pub const CAMERA_CLEAR: f32 = 3.5;
+/// CARD AREA-FIXED-1 — Medium's on-plate field trees `(x, z, scale, yaw)`. Index 4 moved from (-5.0787816, 19.00453) to (-4, 20) so it clears SITES[3].
+pub const FIELD_TREES: [(f32, f32, f32, f32); 6] = [
+    (17.05229, 4.9707484, 1.1020373, 0.6993568),
+    (-23.160284, 2.6975183, 1.0499687, 4.6129804),
+    (8.546237, 9.991444, 0.9333809, 5.0855203),
+    (2.3413286, -24.607092, 1.1062529, 6.27478),
+    (-4.0, 20.0, 1.6484184, 2.8240364),
+    (19.47901, -2.0900872, 1.2478663, 2.8375225),
+];
 /// Sit just above the yard plate (`y = 0`) and the valley floor (`y = -0.02`).
 /// On a lower VP-TERRAIN-1 shelf, [`seated_y`] adds the shelf drop.
 const GROUND_LIFT: f32 = 0.03;
@@ -165,6 +174,8 @@ pub struct VegBatch {
 /// | Medium | 40/12/6 | none | 5/5 | 28 |
 /// | High | 280/72/28 | 80/24/8 | 4/8 | 48 |
 /// | Ultra | 520/120/48 | 180/48/16 | 5/12 | 64 |
+///
+/// The tree column is the scatter budget. On-plate solids are [`FIELD_TREES`] on every preset.
 pub const fn vegetation_plan(preset: GraphicsPreset) -> VegPlan {
     match preset {
         GraphicsPreset::Mobile => VegPlan {
@@ -382,13 +393,17 @@ pub fn vegetation_plants(preset: GraphicsPreset) -> Vec<VegPlant> {
         plan.fine_trees,
         &plan,
     );
-    // CARD PLATE-EDGE-CUE-1 — drop trees whose footprint disc touches the rim rail strip
-    // (Chebyshev PLAY_HALF to PLAY_HALF + PLATE_EDGE_T). No reseed; other plants keep their bits.
-    let (inner, outer) = (crate::terrain::PLAY_HALF, crate::terrain::PLAY_HALF + crate::climate_plane::PLATE_EDGE_T);
+    // CARD AREA-FIXED-1 — a scattered tree stays only when its footprint is fully outside the outer square.
+    // Tufts, shrubs and those off-plate trees keep their bits. On-plate solids come from FIELD_TREES.
+    let outer = crate::terrain::PLAY_HALF + crate::climate_plane::PLATE_EDGE_T;
     out.retain(|p| {
         let (c, r) = (Vec2::new(p.x, p.z).abs(), footprint(p.kind, p.scale));
-        p.kind != VegKind::Tree || c.max_element() + r < inner || (c - Vec2::splat(outer)).max(Vec2::ZERO).length() > r
+        p.kind != VegKind::Tree || (c - Vec2::splat(outer)).max(Vec2::ZERO).length() > r
     });
+    for (x, z, scale, yaw) in FIELD_TREES {
+        let r = Vec2::new(x, z).length();
+        out.push(VegPlant { kind: VegKind::Tree, lod: if plan.dense && r < plan.near_radius { VegLodTier::Fine } else { VegLodTier::Coarse }, x, z, scale, yaw });
+    }
     out
 }
 
@@ -538,6 +553,11 @@ fn ring_point(main: &mut Rng, inner: f32, outer: f32, margin: f32) -> Vec2 {
     }
     let mid = (inner + outer) * 0.5;
     Vec2::new(0.0, -1.0) * mid
+}
+
+/// Fully inside the plate: Chebyshev distance of the footprint is under [`crate::terrain::PLAY_HALF`].
+pub(crate) fn trunk_on_plate(x: f32, z: f32, scale: f32) -> bool {
+    Vec2::new(x, z).abs().max_element() + footprint(VegKind::Tree, scale) < crate::terrain::PLAY_HALF
 }
 
 fn footprint(kind: VegKind, scale: f32) -> f32 {
@@ -733,7 +753,8 @@ fn sync_vegetation(mut ctx: VegCtx) {
         &mut ctx.held,
         &mut ctx.fade,
     );
-    let trunks = plants.iter().filter(|plant| plant.kind == VegKind::Tree).map(|plant| (Vec2::new(plant.x, plant.z), TRUNK_RADIUS * plant.scale)).collect();
+    // On-plate table trunks only. Off-plate decor is NoCollide while the court is unwalkable; a post-EA walkable court has to restore those trunks.
+    let trunks = plants.iter().filter(|plant| plant.kind == VegKind::Tree && trunk_on_plate(plant.x, plant.z, plant.scale)).map(|plant| (Vec2::new(plant.x, plant.z), TRUNK_RADIUS * plant.scale)).collect();
     ctx.commands.insert_resource(FieldTrunks(trunks));
     if shown {
         spawn_field(meshes, materials, painted, &mut ctx.ramps, &mut ctx.held, &mut ctx.commands, &plants, preset);
@@ -908,7 +929,7 @@ mod tests {
             assert!(plan.instances() <= CHEAP_INSTANCE_CAP, "{preset:?}");
             assert!(plan.instances() < medium.instances() * DENSE_MIN_FACTOR);
             let instances = field(preset);
-            assert_eq!(instances.len() as u32, plan.instances());
+            assert!(instances.len() as u32 <= CHEAP_INSTANCE_CAP && instances.len() as u32 == plan.instances() - 2 * rim_drop(preset) + 2 * FIELD_TREES.len() as u32, "{preset:?}");
             assert!(instances.iter().all(|inst| inst.lod == VegLodTier::Coarse));
             assert_eq!(draws(preset), 4, "{preset:?}");
         }
@@ -948,8 +969,8 @@ mod tests {
         assert!(ultra.instances() > high.instances());
         assert!(ultra.fine_segments > high.fine_segments);
         assert!(ultra.reach > high.reach);
-        assert_eq!(field(GraphicsPreset::High).len() as u32, high.instances() - 2 * rim_drop(GraphicsPreset::High));
-        assert_eq!(field(GraphicsPreset::Ultra).len() as u32, ultra.instances() - 2 * rim_drop(GraphicsPreset::Ultra));
+        assert_eq!(field(GraphicsPreset::High).len() as u32, high.instances() - 2 * rim_drop(GraphicsPreset::High) + 2 * FIELD_TREES.len() as u32);
+        assert_eq!(field(GraphicsPreset::Ultra).len() as u32, ultra.instances() - 2 * rim_drop(GraphicsPreset::Ultra) + 2 * FIELD_TREES.len() as u32);
         assert_eq!(draws(GraphicsPreset::High), 8);
         assert_eq!(draws(GraphicsPreset::Ultra), 8);
         let high_field = field(GraphicsPreset::High);
@@ -1090,7 +1111,7 @@ mod tests {
             for inst in field(preset) {
                 let xz = Vec2::new(inst.translation.x, inst.translation.z);
                 assert!(xz.length() + 1.0e-3 >= YARD_CLEAR, "{preset:?} {xz:?}");
-                assert!(xz.length() <= plan.reach + 1.0e-3, "{preset:?} {xz:?}");
+                assert!(xz.length() <= plan.reach + 1.0e-3 || (matches!(inst.part, VegPart::Trunk | VegPart::Canopy) && FIELD_TREES.iter().any(|&(x, z, s, _)| inst.translation.x.to_bits() == x.to_bits() && inst.translation.z.to_bits() == z.to_bits() && inst.scale.to_bits() == s.to_bits()) && matches!(preset, GraphicsPreset::Mobile | GraphicsPreset::Low)), "{preset:?} {xz:?}");
                 assert!(
                     xz.distance(CAMERA_XZ) + 1.0e-3 >= CAMERA_CLEAR,
                     "{preset:?} {xz:?}"
@@ -1112,7 +1133,7 @@ mod tests {
         for preset in GraphicsPreset::ALL {
             let plants = vegetation_plants(preset);
             let instances = vegetation_instances(&plants);
-            assert_eq!(instances.len() as u32, vegetation_plan(preset).instances() - 2 * rim_drop(preset));
+            assert_eq!(instances.len() as u32, vegetation_plan(preset).instances() - 2 * rim_drop(preset) + 2 * FIELD_TREES.len() as u32);
             for inst in &instances {
                 let ground = seated_y(inst.translation.x, inst.translation.z);
                 match inst.part {
@@ -1246,9 +1267,9 @@ mod tests {
         let mut app = boot(GraphicsPreset::Low);
         app.update();
         let low_plan = vegetation_plan(GraphicsPreset::Low);
-        assert_eq!(tally(&mut app), (low_plan.instances() as usize, 4, 4));
+        assert_eq!(tally(&mut app), ((low_plan.instances() - 2 * rim_drop(GraphicsPreset::Low) + 2 * FIELD_TREES.len() as u32) as usize, 4, 4));
         app.update();
-        assert_eq!(tally(&mut app).0, low_plan.instances() as usize);
+        assert_eq!(tally(&mut app).0, (low_plan.instances() - 2 * rim_drop(GraphicsPreset::Low) + 2 * FIELD_TREES.len() as u32) as usize);
 
         app.world_mut()
             .resource_mut::<LocalSettingsState>()
@@ -1256,7 +1277,7 @@ mod tests {
             .set_graphics_preset(GraphicsPreset::Ultra);
         app.update();
         let ultra = vegetation_plan(GraphicsPreset::Ultra);
-        assert_eq!(tally(&mut app), ((ultra.instances() - 2 * rim_drop(GraphicsPreset::Ultra)) as usize, 8, 4));
+        assert_eq!(tally(&mut app), ((ultra.instances() - 2 * rim_drop(GraphicsPreset::Ultra) + 2 * FIELD_TREES.len() as u32) as usize, 8, 4));
 
         let world = app.world_mut();
         let rows = veg_rows(world);
@@ -1316,7 +1337,7 @@ mod tests {
         assert_eq!(tally(&mut app).0, 0);
         app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(0);
         app.update();
-        assert_eq!(tally(&mut app).0, (ultra.instances() - 2 * rim_drop(GraphicsPreset::Ultra)) as usize);
+        assert_eq!(tally(&mut app).0, (ultra.instances() - 2 * rim_drop(GraphicsPreset::Ultra) + 2 * FIELD_TREES.len() as u32) as usize);
     }
 
     #[test]
@@ -1490,7 +1511,7 @@ mod tests {
     }
 
     /// CARD TREE-SEAT-1 — no plant footprint in a band; counts hold; Mobile, Low,
-    /// and Medium match main's camera-pad-only scatter within 1e-4 on every OS.
+    /// and Medium tufts and shrubs match the camera-pad scatter within 1e-4 on every OS.
     /// The exact-bit FNV snapshot per preset is Linux-only (libm sin/cos bits).
     #[test]
     fn tree_seat_1_field_clears_moat_and_risers_per_preset() {
@@ -1498,9 +1519,9 @@ mod tests {
         for preset in GraphicsPreset::ALL {
             let (plan, plants) = (vegetation_plan(preset), vegetation_plants(preset));
             let count = |kind| plants.iter().filter(|p| p.kind == kind).count() as u32;
-            assert_eq!((count(VegKind::Tuft), count(VegKind::Shrub), count(VegKind::Tree)), (plan.tufts, plan.shrubs, plan.trees - rim_drop(preset)), "{preset:?}");
+            assert_eq!((count(VegKind::Tuft), count(VegKind::Shrub), count(VegKind::Tree)), (plan.tufts, plan.shrubs, plan.trees - rim_drop(preset) + FIELD_TREES.len() as u32), "{preset:?}");
             let mut rng = Rng::new(VEG_SEED);
-            for p in plants.iter().filter(|_| !plan.dense) {
+            for p in plants.iter().filter(|p| !plan.dense && p.kind != VegKind::Tree) {
                 let (lo, hi) = (YARD_CLEAR * YARD_CLEAR, plan.reach * plan.reach);
                 let mut xz = Vec2::new(0.0, -0.5 * (YARD_CLEAR + plan.reach));
                 for _ in 0..32 {
@@ -1518,7 +1539,9 @@ mod tests {
         use GraphicsPreset::*;
         assert_eq!(got, [(Mobile, (0, 0)), (Low, (0, 0)), (Medium, (0, 0)), (High, (0, 0)), (Ultra, (0, 0))], "R-A moat, R-B riser bands (preset, (plants, trees))");
         #[cfg(target_os = "linux")]
-        assert_eq!(snaps, [2_315_388_260_842_229_u64, 10_694_924_522_835_294_819, 2_993_560_486_008_231_282, 2_631_604_451_141_318_852, 8_468_438_003_070_297_046], "fnv per preset");
+        assert_eq!(snaps, [4_977_910_624_845_426_786_u64, 5_406_203_946_631_942_282, 5_463_391_990_647_875_874, 6_546_106_936_470_760_472, 14_272_927_958_549_254_827], "fnv per preset");
+        #[cfg(target_os = "linux")]
+        assert_eq!(GraphicsPreset::ALL.map(|preset| vegetation_plants(preset).into_iter().filter(|p| p.kind != VegKind::Tree || decor_outside(p)).flat_map(|p| [p.x, p.z, p.scale, p.yaw]).fold(0xcbf2_9ce4_8422_2325_u64, |h, v| (h ^ u64::from(v.to_bits())).wrapping_mul(0x100_0000_01b3))), [16_299_235_579_857_560_432, 17_570_237_570_076_176_632, 10_695_891_394_775_656_112, 7_237_517_018_070_735_542, 10_731_098_675_358_656_381], "AF3 decor fnv");
     }
 
     /// CARD TREE-SEAT-1 (c) / WOOD-RELOC-BAND-1 — the fields after the wood
@@ -1536,7 +1559,7 @@ mod tests {
         for &(site, preset) in &combos {
             let disk = crate::wood_expedition::WoodClearance::reserve(site);
             let plants = cleared_plants(preset, Some(&disk)).unwrap();
-            assert_eq!(plants.len() as u32, vegetation_plan(preset).plants() - rim_drop(preset), "{preset:?}");
+            assert_eq!(plants.len() as u32, vegetation_plan(preset).plants() - rim_drop(preset) + FIELD_TREES.len() as u32, "{preset:?}");
             assert_eq!(banded(&plants), (0, 0), "{preset:?} after the wood clearance (plants, trees)");
             assert!(!plants.iter().any(&rim_hit), "{site:?} {preset:?} relocated tree touches the rim strip");
             if matches!(preset, GraphicsPreset::High | GraphicsPreset::Ultra) {
@@ -1544,17 +1567,17 @@ mod tests {
             }
         }
         #[cfg(target_os = "linux")]
-        assert_eq!(snaps, [8451585424578691890, 2368337793608748559, 2631604451141318852, 2265945901943604562, 9677971503590969631, 9130193347064441195, 13685114685305233740, 15164944899544344942], "fnv per site x {{High, Ultra}}");
+        assert_eq!(snaps, [5_794_683_358_818_501_250, 10_788_153_226_833_934_184, 6_546_106_936_470_760_472, 7_934_142_782_234_534_191, 6_546_106_936_470_760_472, 16_250_089_940_685_114_046, 16_732_598_206_749_751_520, 15_940_187_983_008_124_691], "fnv per site x {{High, Ultra}}");
         #[cfg(target_os = "linux")]
-        assert_eq!(snaps[2], 2_631_604_451_141_318_852, "SITES[1] High cross-check == TREE-SEAT-1 :1521 High pin");
+        assert_eq!(snaps[2], 6_546_106_936_470_760_472, "SITES[1] High cross-check == TREE-SEAT-1 High pin");
     }
 
-    /// CARD PLATE-EDGE-CUE-1 — trees the rim rail drops, Mobile to Ultra. VegPlan is an upper bound on High and Ultra.
+    /// CARD AREA-FIXED-1 — scattered trees dropped because they are not fully outside the outer square.
     fn rim_drop(preset: GraphicsPreset) -> u32 {
-        [0, 0, 0, 4, 6][GraphicsPreset::ALL.iter().position(|p| *p == preset).unwrap()]
+        [2, 4, 6, 22, 29][GraphicsPreset::ALL.iter().position(|p| *p == preset).unwrap()]
     }
 
-    /// CARD PLATE-EDGE-CUE-1 V1 — trees per tier are the plan minus [0,0,0,4,6]; no trunk disc meets a rail rectangle.
+    /// CARD PLATE-EDGE-CUE-1 V1 — trees per tier are [`FIELD_TREES`] plus the off-plate scatter; no trunk disc meets a rail.
     #[test]
     fn plate_edge_v1_tree_drop_and_zero_trunk_rail_overlap() {
         use crate::{climate_plane::PLATE_EDGE_T, terrain::PLAY_HALF};
@@ -1562,15 +1585,81 @@ mod tests {
         let rails = [(-o, PLAY_HALF, o, o), (-o, -o, o, -PLAY_HALF), (PLAY_HALF, -PLAY_HALF, o, PLAY_HALF), (-o, -PLAY_HALF, -PLAY_HALF, PLAY_HALF)];
         let trees = |preset| vegetation_plants(preset).into_iter().filter(|p| p.kind == VegKind::Tree).collect::<Vec<_>>();
         let got: Vec<u32> = GraphicsPreset::ALL.iter().map(|&preset| trees(preset).len() as u32).collect();
-        let want: Vec<u32> = GraphicsPreset::ALL.iter().map(|&preset| vegetation_plan(preset).trees - rim_drop(preset)).collect();
-        assert_eq!(got, [2, 4, 6, 24, 42], "trees per tier");
+        let want: Vec<u32> = GraphicsPreset::ALL.iter().map(|&preset| vegetation_plan(preset).trees - rim_drop(preset) + FIELD_TREES.len() as u32).collect();
+        assert_eq!(got, [6, 6, 6, 12, 25], "trees per tier");
         assert_eq!(got, want, "plan minus rim drop");
-        for preset in [GraphicsPreset::Medium, GraphicsPreset::High, GraphicsPreset::Ultra] {
+        for preset in GraphicsPreset::ALL {
             for p in trees(preset) {
                 let (c, r) = (Vec2::new(p.x, p.z), TRUNK_RADIUS * p.scale);
                 for (x0, z0, x1, z1) in rails {
                     let near = Vec2::new(c.x.clamp(x0, x1), c.y.clamp(z0, z1));
                     assert!(c.distance(near) > r, "{preset:?} trunk {c:?} r {r} on rail ({x0},{z0})-({x1},{z1})");
+                }
+            }
+        }
+    }
+
+    fn decor_outside(p: &VegPlant) -> bool {
+        (Vec2::new(p.x, p.z).abs() - Vec2::splat(crate::terrain::PLAY_HALF + crate::climate_plane::PLATE_EDGE_T)).max(Vec2::ZERO).length() > footprint(p.kind, p.scale)
+    }
+    fn plant_bits(p: &VegPlant) -> (u32, u32, u32, u32) {
+        (p.x.to_bits(), p.z.to_bits(), p.scale.to_bits(), p.yaw.to_bits())
+    }
+
+    #[test]
+    fn area_fixed_1_af1_af2_solids_and_no_scattered_on_plate() {
+        use crate::wood_expedition::{first_passing_site, WoodClearance};
+        let table: Vec<_> = FIELD_TREES.iter().map(|(x, z, s, y)| (x.to_bits(), z.to_bits(), s.to_bits(), y.to_bits())).collect();
+        let disk = WoodClearance::reserve(first_passing_site().unwrap());
+        for preset in GraphicsPreset::ALL {
+            for clear in [None, Some(&disk)] {
+                let solids: Vec<_> = cleared_plants(preset, clear).unwrap().iter().filter(|p| p.kind == VegKind::Tree && trunk_on_plate(p.x, p.z, p.scale)).map(|p| plant_bits(p)).collect();
+                assert_eq!(solids, table, "AF1 {preset:?} clear {}", clear.is_some());
+            }
+            for p in vegetation_plants(preset).iter().filter(|p| p.kind == VegKind::Tree && !table.contains(&plant_bits(p))) {
+                assert!(decor_outside(p), "AF2 {preset:?} scattered tree at {}", p.x);
+            }
+        }
+    }
+
+    #[test]
+    fn area_fixed_1_af1_field_trunks_are_one_vec() {
+        use bevy::asset::AssetPlugin;
+        use shared::local_settings::LocalSettings;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<PainterlyMaterial>().add_plugins(VegetationPlugin).insert_resource(SoftPlayerRealm { current: Some(0) });
+        let site = crate::wood_expedition::WoodClearance::reserve(crate::wood_expedition::first_passing_site().unwrap());
+        let want: Vec<_> = FIELD_TREES.iter().map(|&(x, z, s, _)| (Vec2::new(x, z), TRUNK_RADIUS * s)).collect();
+        for preset in GraphicsPreset::ALL {
+            for clear in [false, true] {
+                let mut inner = LocalSettings::default();
+                inner.set_graphics_preset(preset);
+                app.insert_resource(LocalSettingsState { inner, dirty: false });
+                if clear { app.insert_resource(site); } else { app.world_mut().remove_resource::<crate::wood_expedition::WoodClearance>(); }
+                app.update();
+                assert_eq!(&app.world().resource::<FieldTrunks>().0, &want, "AF1 {preset:?} clear {clear}");
+            }
+        }
+    }
+
+    #[test]
+    fn area_fixed_1_af4_solids_clear_and_never_move() {
+        use crate::living_ecology::{YARD_ROCK_R, YARD_ROCK_SPOTS, YARD_TREE_SPOTS, YARD_TRUNK_R};
+        use crate::wood_expedition::{SITES, WoodClearance};
+        let (disk, yard, half) = (WoodClearance::reserve(SITES[0]).radius, (1.05_f32 * 1.04).max(YARD_TRUNK_R), crate::terrain::PLAY_HALF);
+        for preset in GraphicsPreset::ALL {
+            let raw = vegetation_plants(preset);
+            for p in raw.iter().filter(|p| p.kind == VegKind::Tree && trunk_on_plate(p.x, p.z, p.scale)) {
+                let (fp, xz) = (footprint(VegKind::Tree, p.scale), Vec2::new(p.x, p.z));
+                let clear = xz.length() >= YARD_CLEAR + fp && xz.distance(CAMERA_XZ) >= CAMERA_CLEAR + fp && xz.abs().max_element() + fp < half
+                    && YARD_TREE_SPOTS.iter().all(|s| xz.distance(s.xz()) >= yard + fp) && YARD_ROCK_SPOTS.iter().all(|s| xz.distance(s.xz()) >= YARD_ROCK_R + fp)
+                    && SITES.iter().all(|s| xz.distance(*s) >= disk + fp + 0.02);
+                assert!(clear, "AF4 {preset:?} {xz:?}");
+            }
+            for site in SITES {
+                let cleared = cleared_plants(preset, Some(&WoodClearance::reserve(site))).unwrap();
+                for (a, b) in raw.iter().zip(&cleared).filter(|(a, _)| a.kind == VegKind::Tree && trunk_on_plate(a.x, a.z, a.scale)) {
+                    assert_eq!((a.x.to_bits(), a.z.to_bits()), (b.x.to_bits(), b.z.to_bits()), "AF4 moved {preset:?} {site:?}");
                 }
             }
         }
