@@ -140,7 +140,7 @@ const STAND: f32 = 0.90;
 const WALK: f32 = 3.4;
 const SPRINT: f32 = 5.4;
 const GRAVITY: f32 = 18.0;
-const JUMP: f32 = 5.6;
+const JUMP: f32 = 6.62;
 /// CARD JUMP-BUFFER-1 — airborne jump press window in seconds (tunable; council-set, Sherif may veto).
 pub const JUMP_BUFFER_SECS: f32 = 0.12;
 /// CARD JUMP-LAND-RECOVERY-1 — jump lock after an airborne STAND clamp. Nine fixed
@@ -3946,7 +3946,7 @@ mod tests {
         let (twice, _) = land();
         assert_eq!(once, twice, "repeated landing xz diverged");
         let (replay, ticks) = mf_replay_land_xz(takeoff);
-        assert_eq!(ticks, 39, "lived jump is 39 integrations");
+        assert_eq!(ticks, 46, "lived jump is 46 integrations");
         assert!((once - replay).length() < 0.01, "landing {once:?} replay {replay:?}");
     }
     #[test]
@@ -3988,7 +3988,7 @@ mod tests {
         mf_sprint_east(&mut app);
         app.world_mut().resource_mut::<JumpLatch>().pending = true;
         jb_step(&mut app);
-        for _ in 0..37 { jb_step(&mut app); }
+        for _ in 0..44 { jb_step(&mut app); }
         assert!(!app.world().resource::<SoftPresence>().grounded, "coast landed early");
         mf_stick(&mut app, -1.0, 0.0, true);
         jb_step(&mut app);
@@ -4111,7 +4111,7 @@ mod tests {
                 jb_step(&mut app);
                 air += 1;
             }
-            assert_eq!(air, 38, "({x},{y}) air ticks");
+            assert_eq!(air, 45, "({x},{y}) air ticks");
         }
         let mut app = mf_fresh();
         mf_stick(&mut app, 1.0, 0.0, true);
@@ -4119,7 +4119,7 @@ mod tests {
         jb_step(&mut app);
         assert!(mf_fly_until_land(&mut app), "no landing");
         let land = app.world().resource::<SoftPresence>().position.xz();
-        assert!((land - Vec2::new(3.51, 0.0)).length() < 1e-3, "M2 land {land:?}");
+        assert!((land - Vec2::new(4.14, 0.0)).length() < 1e-3, "M2 land {land:?}");
         for (sprint, s) in [(true, 5.4f32), (false, 3.4)] {
             let mut app = mf_fresh();
             mf_sprint_east(&mut app);
@@ -4130,6 +4130,29 @@ mod tests {
         }
         let landed = mf_horiz(&mf_land_from_east_holding(-1.0, 0.0, true));
         assert!((landed - Vec2::new(-5.4, 0.0)).length() < 1e-4, "M5 {landed:?}");
+    }
+    /// CARD MOVE-TUNE-1 — 60 Hz jump from rest through the lived tick, takeoff and landing ticks both counted.
+    #[test]
+    fn move_tune_1_discrete_jump_pins() {
+        for (sprint, land_x) in [(true, 4.1400f32), (false, 2.6067)] {
+            let mut app = mf_fresh();
+            mf_stick(&mut app, 1.0, 0.0, sprint);
+            let x0 = app.world().resource::<SoftPresence>().position.x;
+            app.world_mut().resource_mut::<JumpLatch>().pending = true;
+            let (mut max_y, mut ticks) = (STAND, 0u32);
+            loop {
+                jb_step(&mut app);
+                ticks += 1;
+                let p = app.world().resource::<SoftPresence>();
+                max_y = max_y.max(p.position.y);
+                if p.grounded { break; }
+                assert!(ticks < 90, "sprint={sprint} no landing");
+            }
+            let land = app.world().resource::<SoftPresence>().position.x - x0;
+            assert_eq!(ticks, 46, "sprint={sprint} takeoff-to-landing ticks");
+            assert!((max_y - STAND - 1.27267).abs() < 1e-3, "sprint={sprint} apex {}", max_y - STAND);
+            assert!((land - land_x).abs() < 1e-3, "sprint={sprint} land x {land}");
+        }
     }
     #[test]
     fn ground_turn_f5_shallow_turns_hold_speed_band() {
