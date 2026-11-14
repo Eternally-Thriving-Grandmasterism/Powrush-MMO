@@ -1,4 +1,4 @@
-# cargo-about 0.9.x (cargo install cargo-about --version "~0.9" --locked --features cli).
+# cargo-about 0.9.x (cargo install cargo-about --version "=0.9.3" --locked --features cli).
 # Regenerate from the repo root after any Cargo.lock change:
 #   cargo about generate --frozen -m client/Cargo.toml -c tools/notices/about.toml tools/notices/about.hbs \
 #     -o THIRD-PARTY-NOTICES.txt && sed -i "s/@CARGO_LOCK_SHA256@/$(sha256sum Cargo.lock | cut -c1-64)/" THIRD-PARTY-NOTICES.txt
@@ -6,6 +6,22 @@ accepted = ["MIT", "Apache-2.0", "Unicode-3.0", "Zlib", "ISC", "MIT-0", "BSD-3-C
 targets = ["x86_64-unknown-linux-gnu", "x86_64-pc-windows-msvc"]
 ignore-build-dependencies = true
 ignore-dev-dependencies = true
+# windows-rs crates ship a lowercase license-mit that the scan skips; clarify points at it (checksum-pinned).
+windows.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows-collections.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows-core.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows-future.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows-implement.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows-interface.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows-link.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows-numerics.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows-result.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows-strings.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows-sys.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows-targets.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows-threading.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows_x86_64_gnu.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
+windows_x86_64_msvc.clarify = { license = "MIT OR Apache-2.0", files = [{ path = "license-mit", license = "MIT", checksum = "c2cfccb812fe482101a8f04597dfc5a9991a6b2748266c47ac91b6a5aae15383" }] }
 
 [no-clearly-defined]
 

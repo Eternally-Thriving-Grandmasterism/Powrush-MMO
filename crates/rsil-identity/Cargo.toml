@@ -2,7 +2,7 @@
 name = "rsil-identity"
 version = "0.1.0"
 edition = "2021"
-license = "AG-SML-1.0"
+license.workspace = true
 description = "Ra-Thor Sovereign Identity Lattice - Post-Quantum Self-Sovereign Identity for Powrush-MMO"
 
 [dependencies]
