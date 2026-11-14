@@ -223,6 +223,20 @@ pub const fn yard_trees_shown(realm: Option<u8>) -> bool {
 pub const YARD_ROCK_SPOTS: [Vec3; 3] = [Vec3::new(4.2, 0.22, -5.5), Vec3::new(-4.8, 0.22, -5.0), Vec3::new(7.0, 0.22, 0.4)];
 pub const YARD_ROCK_R: f32 = 0.42 * 1.4 * 1.06;
 pub const fn yard_rocks_shown(realm: Option<u8>) -> bool { matches!(realm, Some(1) | Some(4)) }
+/// CARD ROCK-SHAPE-1 — rock sphere radius, PROC-KIT-2 jitter and scale. Spawn and the rock push-out both read these.
+pub const YARD_ROCK_MESH_R: f32 = 0.42;
+pub const YARD_ROCK_JITTER: f32 = 0.06;
+pub const YARD_ROCK_SCALE: Vec3 = Vec3::new(1.4, 0.6, 1.1);
+
+/// CARD PROC-KIT-2 — yaw-only variety, hashed from the spawn's own x/z. Spawn and the rock push-out both call this.
+pub fn yard_prop_yaw(x: f32, z: f32) -> f32 {
+    let mut h = ((x * 10_000.0).round() as i32 as u32).wrapping_mul(0x27D4_EB2F)
+        ^ ((z * 10_000.0).round() as i32 as u32).wrapping_mul(0x1656_67B1);
+    h ^= h >> 15;
+    h = h.wrapping_mul(0x2C1B_3C6D);
+    h ^= h >> 12;
+    (h & 0xFFFF) as f32 / 65535.0 * std::f32::consts::TAU
+}
 
 fn spawn_ecology(
     mut commands: Commands,
@@ -266,15 +280,6 @@ fn spawn_ecology(
             }
         }
         mesh.compute_smooth_normals();
-    };
-    // CARD PROC-KIT-2 — yaw-only variety, hashed from the spawn's own x/z.
-    let yaw_at = |x: f32, z: f32| -> f32 {
-        let mut h = ((x * 10_000.0).round() as i32 as u32).wrapping_mul(0x27D4_EB2F)
-            ^ ((z * 10_000.0).round() as i32 as u32).wrapping_mul(0x1656_67B1);
-        h ^= h >> 15;
-        h = h.wrapping_mul(0x2C1B_3C6D);
-        h ^= h >> 12;
-        (h & 0xFFFF) as f32 / 65535.0 * std::f32::consts::TAU
     };
     let trunk = meshes.add(Cylinder::new(0.22, 2.4));
     let mut canopy_mesh = Mesh::from(Cone {
@@ -320,7 +325,7 @@ fn spawn_ecology(
                 Mesh3d(canopy.clone()),
                 MeshMaterial3d(leaf.clone()),
                 Transform::from_translation(pos + Vec3::Y * 1.35)
-                    .with_rotation(Quat::from_rotation_y(yaw_at(pos.x, pos.z))),
+                    .with_rotation(Quat::from_rotation_y(yard_prop_yaw(pos.x, pos.z))),
             ),
             EcologyProp { kind: PropKind::Tree },
             crate::painterly_mat::PainterlyMat {
@@ -330,8 +335,8 @@ fn spawn_ecology(
         ));
     }
 
-    let mut rock_mesh = Mesh::from(Sphere::new(0.42));
-    jitter(&mut rock_mesh, 2, 0.06);
+    let mut rock_mesh = Mesh::from(Sphere::new(YARD_ROCK_MESH_R));
+    jitter(&mut rock_mesh, 2, YARD_ROCK_JITTER);
     let rock = meshes.add(rock_mesh);
     let stone = materials.add(StandardMaterial {
         base_color: Color::srgb(0.32, 0.30, 0.28),
@@ -344,8 +349,8 @@ fn spawn_ecology(
                 Mesh3d(rock.clone()),
                 MeshMaterial3d(stone.clone()),
                 Transform::from_translation(pos)
-                    .with_scale(Vec3::new(1.4, 0.6, 1.1))
-                    .with_rotation(Quat::from_rotation_y(yaw_at(pos.x, pos.z))),
+                    .with_scale(YARD_ROCK_SCALE)
+                    .with_rotation(Quat::from_rotation_y(yard_prop_yaw(pos.x, pos.z))),
             ),
             EcologyProp {
                 kind: PropKind::Stone,
@@ -710,6 +715,28 @@ mod tests {
             }
             assert_eq!(n, 3, "{realm:?}");
         }
+    }
+
+    /// CARD ROCK-SHAPE-1 — canopy and rock spawn yaw is the shared `yard_prop_yaw` (PROC-KIT-2 values held). The
+    /// jittered rock silhouette on each rock-local axis is within 0.05 m of the collider semi-axes, under the top.
+    #[test]
+    fn rock_shape_1_spawn_reads_shared_yaw_and_mesh_fits_collider() {
+        let mut app = ecology_build();
+        let (_, canopy, rock, rocks) = yard_canopy_and_rocks(&mut app);
+        for tf in canopy.iter().chain(&rocks) {
+            assert_eq!(tf.rotation, Quat::from_rotation_y(yard_prop_yaw(tf.translation.x, tf.translation.z)));
+        }
+        for (tf, want) in rocks.iter().zip([1.936_105_f32, 2.580_291, 5.639_479]) {
+            assert!((yard_prop_yaw(tf.translation.x, tf.translation.z) - want).abs() < 1e-5, "{tf:?}");
+        }
+        assert_eq!((YARD_ROCK_MESH_R, YARD_ROCK_JITTER, YARD_ROCK_SCALE), (0.42, 0.06, Vec3::new(1.4, 0.6, 1.1)));
+        let pts = mesh_positions(&app, &rock);
+        let ext = |f: fn(&[f32; 3]) -> f32| pts.iter().map(f).fold(f32::MIN, f32::max);
+        let (long, short) = (0.42 * 1.4, 0.42 * 1.1);
+        for (got, axis) in [(ext(|p| p[0]) * 1.4, long), (ext(|p| -p[0]) * 1.4, long), (ext(|p| p[2]) * 1.1, short), (ext(|p| -p[2]) * 1.1, short)] {
+            assert!((got - axis).abs() <= 0.05, "silhouette {got} vs axis {axis}");
+        }
+        assert!(0.22 + ext(|p| p[1]) * 0.6 <= 0.48712 + 1e-5);
     }
 
     /// Leaf / needle green: green clearly leads both other channels.
