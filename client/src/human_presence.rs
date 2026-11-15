@@ -1434,8 +1434,10 @@ fn apply_locomotion(
         push_out_of_rock(&mut presence.position, &mut vel, spot);
     }
     push_out_clear(&mut presence.position, &mut vel, field.chain(owned));
+    push_out_of_moat(&mut presence.position, &mut vel);
+    push_out_of_riser_lips(&mut presence.position, &mut vel);
     presence.velocity = vel;
-    // CARD YARD-EDGE-1 — plate bound after the push-outs; the outward part of velocity drops M8-style.
+    // CARD TERRAIN-GROUND-1 / YARD-EDGE-1 — outer shelf bound after the push-outs; outward vel drops M8-style.
     let (plate, n) = push_out_of_plate_edge(presence.position.xz());
     (presence.position.x, presence.position.z) = (plate.x, plate.y);
     let into = presence.velocity.x * n.x + presence.velocity.z * n.y;
@@ -1443,14 +1445,30 @@ fn apply_locomotion(
         presence.velocity.x -= into * n.x;
         presence.velocity.z -= into * n.y;
     }
-    // The landing snap below reads `wish_vel`; at the edge it keeps only the part along the plate.
+    // The landing snap below reads `wish_vel`; at the edge it keeps only the part along the bound.
     let (_, rim) = push_out_of_plate_edge(presence.position.xz() + wish_vel * dt);
     wish_vel -= wish_vel.dot(rim).min(0.0) * rim;
-    if presence.position.y <= STAND {
+    let hip =
+        STAND + crate::terrain::shelf_offset(presence.position.x, presence.position.z);
+    let tread_drop =
+        crate::terrain::shelf_offset(presence.position.x, presence.position.z) < -1e-4;
+    if tread_drop && presence.grounded && presence.position.y > hip + 1e-4 && presence.position.y <= STAND {
+        let still = wish_vel.length_squared() < 1e-8
+            && Vec2::new(presence.velocity.x, presence.velocity.z).length_squared() < 1e-8
+            && presence.velocity.y <= 1e-4;
+        if still {
+            presence.position.y = hip;
+            presence.velocity.y = 0.0;
+            latch.clamp_landed = true;
+        } else {
+            presence.grounded = false;
+        }
+    }
+    if presence.position.y <= hip {
         // Airline is the pre-clamp grounded flag plus the seated guard.
         // Height and vertical speed do not arm recovery by themselves.
         let landed_from_air = !presence.grounded && seated;
-        presence.position.y = STAND;
+        presence.position.y = hip;
         presence.velocity.y = 0.0;
         presence.grounded = true;
         if landed_from_air {
@@ -1527,10 +1545,73 @@ fn push_out_of_rock(pos: &mut Vec3, vel: &mut Vec3, spot: Vec3) {
     }
 }
 
-/// CARD YARD-EDGE-1 — clamp x/z onto the plate. `n` is the push direction back onto it, ZERO inside.
+/// CARD TERRAIN-GROUND-1 — keep the body out of the Sanctuary moat annulus until WATER-FEEL-1.
+fn push_out_of_moat(pos: &mut Vec3, vel: &mut Vec3) {
+    use crate::water::{BATH_INNER, BATH_OUTER};
+    let xz = pos.xz();
+    let r = xz.length();
+    let (inner, outer) = (BATH_INNER - PLAYER_TRUNK_RADIUS, BATH_OUTER + PLAYER_TRUNK_RADIUS);
+    if r <= inner || r >= outer {
+        return;
+    }
+    let dir = xz.try_normalize().unwrap_or(Vec2::X);
+    let push_r = if (r - inner).abs() <= (outer - r).abs() {
+        inner
+    } else {
+        outer
+    };
+    let out = dir * push_r;
+    (pos.x, pos.z) = (out.x, out.y);
+    let n = (xz - out).try_normalize().unwrap_or(Vec2::ZERO);
+    let into = vel.x * n.x + vel.z * n.y;
+    if into > 0.0 {
+        vel.x -= into * n.x;
+        vel.z -= into * n.y;
+    }
+}
+
+/// CARD TERRAIN-GROUND-1 — height-aware riser lips at each shelf outer. Outward falls are free; inward needs tread feet.
+fn push_out_of_riser_lips(pos: &mut Vec3, vel: &mut Vec3) {
+    let feet = pos.y - STAND + silhouette().feet;
+    let xz = pos.xz();
+    let r = xz.length();
+    if r < 1e-4 {
+        return;
+    }
+    let dir = xz / r;
+    for lip in 1..crate::terrain::SHELF_COUNT {
+        let lip_r = crate::terrain::SHELF_OUTER[lip - 1];
+        let reach = lip_r + PLAYER_TRUNK_RADIUS;
+        if (r - lip_r).abs() > PLAYER_TRUNK_RADIUS + 0.05 {
+            continue;
+        }
+        let clear =
+            crate::terrain::SHELF_Y[lip - 1] - crate::terrain::PLAY_FLOOR_Y + silhouette().feet;
+        if feet + 1e-4 >= clear {
+            continue;
+        }
+        if r + 1e-4 >= reach {
+            continue;
+        }
+        let out = dir * reach;
+        (pos.x, pos.z) = (out.x, out.y);
+        let center = Vec2::new(-dir.x, -dir.y);
+        let into = vel.x * center.x + vel.z * center.y;
+        if into > 0.0 {
+            vel.x -= into * center.x;
+            vel.z -= into * center.y;
+        }
+    }
+}
+
+/// CARD YARD-EDGE-1 — clamp x/z inside the outermost shelf. `n` is the push direction back onto it, ZERO inside.
 fn push_out_of_plate_edge(xz: Vec2) -> (Vec2, Vec2) {
-    let bound = crate::terrain::PLAY_HALF - PLAYER_TRUNK_RADIUS;
-    let at = xz.clamp(Vec2::splat(-bound), Vec2::splat(bound));
+    let bound = crate::terrain::SHELF_OUTER[crate::terrain::SHELF_COUNT - 1] - PLAYER_TRUNK_RADIUS;
+    let r = xz.length();
+    if r <= bound {
+        return (xz, Vec2::ZERO);
+    }
+    let at = xz.normalize_or_zero() * bound;
     (at, (at - xz).normalize_or_zero())
 }
 
@@ -6318,72 +6399,80 @@ mod tests {
         }
     }
 
-    /// CARD YARD-EDGE-1 — walk and sprint off each edge and corner: 16 rows x 180 ticks.
-    /// Once met, the edge holds and no outward velocity is left after any tick.
     #[test]
     fn yard_edge_1_walk_off_held_inside_plate() {
-        let bound = crate::terrain::PLAY_HALF - PLAYER_TRUNK_RADIUS;
+        let court = crate::terrain::COURT_RADIUS - PLAYER_TRUNK_RADIUS;
+        let outer = crate::terrain::SHELF_OUTER[crate::terrain::SHELF_COUNT - 1] - PLAYER_TRUNK_RADIUS;
         let faces = [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0), (1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)];
         for sprint in [false, true] {
             for (sx, sz) in faces {
                 let out = Vec2::new(sx, sz);
-                let n = -out.normalize();
+                let start = out.normalize() * (court - 3.0);
+                assert!(start.length() <= court + 1e-4);
                 let mut app = mf_fresh();
                 let mut p = app.world_mut().resource_mut::<SoftPresence>();
-                p.position = Vec3::new(sx * (bound - 3.0), STAND, sz * (bound - 3.0));
+                p.position = Vec3::new(start.x, STAND, start.y);
                 (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
                 drop(p);
-                // Yaw 0 wish is (stick.x, 0, -stick.y).
                 mf_stick(&mut app, sx, -sz, sprint);
-                let mut met = None;
-                for tick in 0..180 {
+                let mut crossed = false;
+                for tick in 0..240 {
                     jb_step(&mut app);
-                    let (at, vel) = (app.world().resource::<SoftPresence>().position, mf_horiz(&app));
-                    let row = format!("sprint={sprint} out={out} tick={tick} at={at} vel={vel}");
-                    assert!(at.x.abs() <= bound + 1e-4 && at.z.abs() <= bound + 1e-4 && at.y == STAND, "left the plate {row}");
-                    let edge = at.xz().dot(out) >= out.length_squared() * bound - 1e-4;
-                    assert!(edge || met.is_none(), "bounced off the edge met at {met:?} {row}");
-                    if edge {
-                        met.get_or_insert(tick);
-                        assert!(vel.dot(-n) <= 1e-4, "outward {} {row}", vel.dot(-n));
+                    let at = app.world().resource::<SoftPresence>().position;
+                    let r = at.xz().length();
+                    assert!(r <= outer + 1e-4, "out={out} tick={tick}");
+                    let hip = tg_hip_y(at.x, at.z);
+                    if r <= court + 1e-4 {
+                        assert!((at.y - STAND).abs() < 0.02);
+                    } else if app.world().resource::<SoftPresence>().grounded {
+                        assert!((at.y - hip).abs() < 0.02);
                     }
+                    crossed |= r > court + 0.5;
                 }
-                assert!(met.is_some(), "never met the edge sprint={sprint} out={out}");
+                let p = app.world().resource::<SoftPresence>();
+                assert!(crossed && p.position.xz().length() > court + 0.5 && p.grounded
+                    && (p.position.y - tg_hip_y(p.position.x, p.position.z)).abs() < 0.02);
             }
         }
     }
 
-    /// CARD YARD-EDGE-1 — sprint 16 ticks, then jump into each face and corner, stick held through the landing.
-    /// The arc meets the edge in the air; the landing tick is at STAND with no outward velocity.
     #[test]
     fn yard_edge_1_sprint_jump_held_inside_plate() {
-        let bound = crate::terrain::PLAY_HALF - PLAYER_TRUNK_RADIUS;
+        let court = crate::terrain::COURT_RADIUS - PLAYER_TRUNK_RADIUS;
+        let outer = crate::terrain::SHELF_OUTER[crate::terrain::SHELF_COUNT - 1] - PLAYER_TRUNK_RADIUS;
         for (sx, sz) in [(1.0, 0.0), (-1.0, 0.0), (0.0, 1.0), (0.0, -1.0), (1.0, 1.0), (1.0, -1.0), (-1.0, 1.0), (-1.0, -1.0)] {
             let out = Vec2::new(sx, sz);
+            let start = out.normalize() * (court - 2.5);
+            assert!(start.length() <= court + 1e-4);
             let mut app = mf_fresh();
             let mut p = app.world_mut().resource_mut::<SoftPresence>();
-            p.position = Vec3::new(sx * (bound - 2.5), STAND, sz * (bound - 2.5));
+            p.position = Vec3::new(start.x, STAND, start.y);
             (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
             drop(p);
             mf_stick(&mut app, sx, -sz, true);
             let (mut air_edge, mut landed) = (false, false);
-            for tick in 0..90 {
+            for tick in 0..120 {
                 app.world_mut().resource_mut::<JumpLatch>().pending |= tick == 16;
                 jb_step(&mut app);
                 let p = app.world().resource::<SoftPresence>();
                 let (at, vel, grounded) = (p.position, mf_horiz(&app), p.grounded);
+                let r = at.xz().length();
                 let row = format!("out={out} tick={tick} at={at} vel={vel} grounded={grounded}");
-                assert!(at.x.abs() <= bound + 1e-4 && at.z.abs() <= bound + 1e-4, "left the plate {row}");
-                assert!(grounded == (tick < 16) || tick > 16, "takeoff on tick 16 {row}");
-                air_edge |= !grounded && at.xz().dot(out) >= out.length_squared() * bound - 1e-4;
+                assert!(r <= outer + 1e-4, "past outer shelf bound {row}");
+                air_edge |= !grounded && r > court + 0.25;
                 if tick > 16 && grounded {
-                    assert!(at.y == STAND, "landing off STAND {row}");
-                    assert!(vel.dot(out.normalize()) <= 1e-4, "landing tick outward {} {row}", vel.dot(out.normalize()));
+                    let hip = tg_hip_y(at.x, at.z);
+                    assert!((at.y - hip).abs() < 0.02, "landing hip {row}");
+                    if r <= court + 1e-4 {
+                        assert!(vel.dot(out.normalize()) <= 1e-4, "court landing outward {} {row}", vel.dot(out.normalize()));
+                    }
                     landed = true;
                     break;
                 }
             }
-            assert!(air_edge && landed, "out={out} met the edge in the air={air_edge} landed={landed}");
+            let p = app.world().resource::<SoftPresence>();
+            assert!(air_edge && landed && p.position.xz().length() > court + 0.5
+                && (p.position.y - tg_hip_y(p.position.x, p.position.z)).abs() < 0.02);
         }
     }
 
@@ -6488,5 +6577,169 @@ mod tests {
                 assert!(at.y == STAND && rs_gap(spot, at).abs() <= 0.05, "{spot} {at}");
             }
         }
+    }
+
+    fn tg_hip_y(x: f32, z: f32) -> f32 {
+        STAND + crate::terrain::shelf_offset(x, z)
+    }
+
+    fn moat_edge_hold(x0: f32, stick: Vec2, ring: f32, into: Vec2) {
+        let hip = tg_hip_y(x0, 0.0);
+        let mut app = mf_fresh();
+        let mut p = app.world_mut().resource_mut::<SoftPresence>();
+        (p.position, p.velocity, p.grounded) = (Vec3::new(x0, hip, 0.0), Vec3::ZERO, true);
+        (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
+        drop(p);
+        mf_stick(&mut app, stick.x, stick.y, true);
+        for tick in 0..60 {
+            jb_step(&mut app);
+            let p = app.world().resource::<SoftPresence>();
+            assert!((p.position.x - ring).abs() < 0.01 && mf_horiz(&app).dot(into) <= 1e-4, "tick={tick}");
+        }
+    }
+
+    #[test]
+    fn terrain_ground_1_tg1_wall_lifted_shelf_one_spawn() {
+        let x = 45.0f32;
+        let hip = tg_hip_y(x, 0.0);
+        let mut app = mf_fresh();
+        {
+            let mut p = app.world_mut().resource_mut::<SoftPresence>();
+            (p.position, p.velocity, p.grounded) = (Vec3::new(x, STAND, 0.0), Vec3::ZERO, true);
+            (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
+        }
+        mf_stick(&mut app, 0.0, 0.0, false);
+        jb_step(&mut app);
+        let p = app.world().resource::<SoftPresence>();
+        let bound = crate::terrain::PLAY_HALF - PLAYER_TRUNK_RADIUS;
+        assert!((p.position.x - bound).abs() > 0.5, "old plate wall at {}", p.position.x);
+        assert!((p.position.x - x).abs() < 0.05, "x moved {}", p.position.x);
+        assert!(p.position.z.abs() < 0.05, "z moved {}", p.position.z);
+        assert!((p.position.y - hip).abs() < 0.01, "y {:?} want hip {hip}", p.position.y);
+        assert!(p.grounded);
+        assert_eq!(p.velocity.y, 0.0);
+    }
+
+    #[test]
+    fn terrain_ground_1_moat_ac_edge_hold_no_jitter() {
+        use crate::water::{BATH_INNER, BATH_OUTER};
+        moat_edge_hold(BATH_INNER - PLAYER_TRUNK_RADIUS, Vec2::X, BATH_INNER - PLAYER_TRUNK_RADIUS, Vec2::X);
+        moat_edge_hold(BATH_OUTER + PLAYER_TRUNK_RADIUS, Vec2::new(-1.0, 0.0), BATH_OUTER + PLAYER_TRUNK_RADIUS, Vec2::new(-1.0, 0.0));
+    }
+
+    #[test]
+    fn terrain_ground_1_moat_b_inside_stick_away_keeps_outward_vel() {
+        use crate::water::{BATH_INNER, BATH_OUTER};
+        let x0 = BATH_INNER + 4.0;
+        let mut app = mf_fresh();
+        let mut p = app.world_mut().resource_mut::<SoftPresence>();
+        (p.position, p.velocity, p.grounded) = (Vec3::new(x0, tg_hip_y(x0, 0.0), 0.0), Vec3::ZERO, true);
+        (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
+        drop(p);
+        mf_stick(&mut app, -1.0, 0.0, true);
+        jb_step(&mut app);
+        let r = app.world().resource::<SoftPresence>().position.xz().length();
+        assert!((r <= BATH_INNER - PLAYER_TRUNK_RADIUS + 0.05 || r >= BATH_OUTER + PLAYER_TRUNK_RADIUS - 0.05) && mf_horiz(&app).x < -1e-4);
+    }
+
+    #[test]
+    fn terrain_ground_1_tg2_walk_off_first_riser_falls_to_shelf_one() {
+        let start_r = crate::terrain::COURT_RADIUS - 2.0;
+        let mut app = mf_fresh();
+        {
+            let mut p = app.world_mut().resource_mut::<SoftPresence>();
+            (p.position, p.velocity, p.grounded) =
+                (Vec3::new(start_r, STAND, 0.0), Vec3::ZERO, true);
+            (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
+        }
+        mf_stick(&mut app, 1.0, 0.0, false);
+        let mut landed_shelf_one = false;
+        for tick in 0..240 {
+            jb_step(&mut app);
+            let p = app.world().resource::<SoftPresence>();
+            let hip = tg_hip_y(p.position.x, p.position.z);
+            if p.grounded && p.position.x > crate::terrain::COURT_RADIUS + 0.5 {
+                assert!((p.position.y - hip).abs() < 0.01, "tick={tick} y={} hip={hip}", p.position.y);
+                assert!(p.velocity.y.abs() < 1e-4, "tick={tick} vy={}", p.velocity.y);
+                landed_shelf_one = true;
+                break;
+            }
+        }
+        assert!(landed_shelf_one, "never landed on shelf 1 past the court riser");
+    }
+
+    #[test]
+    fn terrain_ground_1_tg3_riser_lip_blocks_jump_does_not_clear() {
+        let x = 43.0f32;
+        let hip = tg_hip_y(x, 0.0);
+        let mut app = mf_fresh();
+        {
+            let mut p = app.world_mut().resource_mut::<SoftPresence>();
+            (p.position, p.velocity, p.grounded) = (Vec3::new(x, hip, 0.0), Vec3::ZERO, true);
+            (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
+        }
+        mf_stick(&mut app, -1.0, 0.0, false);
+        let lip = crate::terrain::COURT_RADIUS + PLAYER_TRUNK_RADIUS;
+        let mut met_lip = false;
+        for _ in 0..180 {
+            jb_step(&mut app);
+            let p = app.world().resource::<SoftPresence>();
+            let r = p.position.xz().length();
+            if (r - lip).abs() <= 0.06 {
+                met_lip = true;
+                assert!(
+                    (r - crate::terrain::COURT_RADIUS).abs() <= PLAYER_TRUNK_RADIUS + 0.05,
+                    "lip contact r={r}"
+                );
+            }
+        }
+        assert!(met_lip, "never met the first riser lip");
+        let mut app = mf_fresh();
+        {
+            let mut p = app.world_mut().resource_mut::<SoftPresence>();
+            (p.position, p.grounded) = (Vec3::new(x, hip, 0.0), true);
+            (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
+        }
+        mf_stick(&mut app, -1.0, 0.0, false);
+        app.world_mut().resource_mut::<JumpLatch>().pending = true;
+        let foot_clear =
+            crate::terrain::SHELF_Y[0] - crate::terrain::PLAY_FLOOR_Y + silhouette().feet;
+        let mut max_feet = f32::MIN;
+        for _ in 0..90 {
+            jb_step(&mut app);
+            let p = app.world().resource::<SoftPresence>();
+            max_feet = max_feet.max(p.position.y - STAND + silhouette().feet);
+            if p.grounded {
+                break;
+            }
+        }
+        assert!(max_feet < foot_clear, "jump put feet on upper tread {max_feet} >= {foot_clear}");
+    }
+
+    #[test]
+    fn terrain_ground_1_tg4_jump_apex_under_first_riser() {
+        let first_riser = crate::terrain::SHELF_Y[0] - crate::terrain::SHELF_Y[1];
+        let feet_rise = first_riser - (silhouette().feet - crate::terrain::PLAY_FLOOR_Y);
+        let analytic = JUMP * JUMP / (2.0 * GRAVITY);
+        let discrete = 1.27267f32;
+        assert!((first_riser - 1.38).abs() < 1e-3);
+        assert!(discrete < first_riser);
+        assert!(discrete < feet_rise);
+        assert!(analytic < feet_rise);
+    }
+
+    #[test]
+    fn terrain_ground_1_tg_rs_yard_rocks_on_shelf_zero() {
+        use crate::living_ecology::{YARD_ROCK_MESH_R, YARD_ROCK_SCALE, YARD_ROCK_SPOTS, YARD_ROCK_JITTER};
+        let reach = YARD_ROCK_SCALE.x * YARD_ROCK_MESH_R + PLAYER_TRUNK_RADIUS;
+        for spot in YARD_ROCK_SPOTS {
+            assert_eq!(spot.y, 0.22);
+            assert_eq!(crate::terrain::terrace_shelf(spot.x, spot.z), 0);
+            assert!((tg_hip_y(spot.x, spot.z) - STAND).abs() < 1e-6, "{spot}");
+            let r = spot.xz().length();
+            assert!(r + reach < crate::terrain::COURT_RADIUS);
+        }
+        let top = 0.22 + YARD_ROCK_MESH_R * YARD_ROCK_SCALE.y * (1.0 + YARD_ROCK_JITTER);
+        assert!(silhouette().feet < top);
     }
 }

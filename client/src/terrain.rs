@@ -1,10 +1,10 @@
 //! CARD VP-TERRAIN-1 — terraces and terrain shaping.
 //!
-//! Stepped, readable shelves around the Sanctuary yard. The shelves are a
-//! visual mesh only. The play footprint (the 56×56 yard plate the player
-//! stands on) stays at the old valley-floor height, so the fixed stand
-//! height still meets flat ground. Nothing here writes collision or the
-//! STAND clamp.
+//! Stepped, readable shelves around the Sanctuary yard. The circle model
+//! [`terrace_height`] / [`shelf_offset`] / [`SHELF_OUTER`] drives the lived
+//! floor snap and riser lips in [`human_presence::apply_locomotion`]. High and
+//! Ultra rim wobble on rings 165 and 250 affects only [`tread_y_mesh`] drawing,
+//! not that collider set.
 //!
 //! Shelf radii and heights are the same on every preset, so the shape is
 //! deterministic. Angular segments are the detail knob, the same split
