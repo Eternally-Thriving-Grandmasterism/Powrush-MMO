@@ -100,12 +100,12 @@ fn attach_body_colliders(mut c: Commands, q: Query<(Entity, &Name, Option<&crate
     }
 }
 #[allow(clippy::type_complexity)]
-fn push_player_from_creature_bodies(input: Res<crate::input::PlayerInput>, mut presence: ResMut<crate::human_presence::SoftPresence>, bodies: Query<(&BodyCollider, &Transform, &InheritedVisibility)>, trees: (Option<Res<crate::living_practice_loop::SoftPlayerRealm>>, Option<Res<crate::vegetation::FieldTrunks>>, Option<Res<crate::wood_expedition::WoodHub>>, Option<Res<crate::hex_travel::HexTravelState>>)) {
+fn push_player_from_creature_bodies(input: Res<crate::input::PlayerInput>, mut presence: ResMut<crate::human_presence::SoftPresence>, bond: Option<Res<crate::companion_bond::CompanionBond>>, bodies: Query<(&BodyCollider, &Transform, &InheritedVisibility, Option<&Name>)>, trees: (Option<Res<crate::living_practice_loop::SoftPlayerRealm>>, Option<Res<crate::vegetation::FieldTrunks>>, Option<Res<crate::wood_expedition::WoodHub>>, Option<Res<crate::hex_travel::HexTravelState>>)) {
     #[cfg(test)]
     if TEST_CREATURE_SKIP.load(Ordering::Relaxed) & 1 != 0 { return; }
     let driven = input.movement.length_squared() > 1e-8 || Vec2::new(presence.velocity.x, presence.velocity.z).length_squared() > 1e-8 || presence.prev_tick.zip(presence.curr_tick).is_some_and(|(a, b)| (a.xz() - b.xz()).length_squared() > 1e-8);
     if !driven { return; }
-    let discs: Vec<_> = bodies.iter().filter(|(_, _, v)| v.get()).map(|(b, t, _)| (t.translation.xz(), b.r)).collect();
+    let discs: Vec<_> = bodies.iter().filter(|(_, _, v, n)| v.get() && !bond.as_deref().is_some_and(|b| b.mounted && n.is_some_and(|n| n.as_str() == "ResonantDeer"))).map(|(b, t, _, _)| (t.translation.xz(), b.r)).collect();
     if discs.is_empty() { return; }
     use crate::living_ecology::{yard_trees_shown, YARD_TREE_SPOTS, YARD_TRUNK_R};
     let realm = trees.0.as_ref().and_then(|r| r.current);
@@ -130,12 +130,12 @@ fn push_player_from_creature_bodies(input: Res<crate::input::PlayerInput>, mut p
     presence.velocity.x = vel.x;
     presence.velocity.z = vel.z;
 }
-fn clamp_creature_stop_at_contact(presence: Option<Res<crate::human_presence::SoftPresence>>, mut q: Query<(&mut Transform, &BodyCollider, &InheritedVisibility), Without<crate::grazer::Grazer>>) {
+fn clamp_creature_stop_at_contact(presence: Option<Res<crate::human_presence::SoftPresence>>, bond: Option<Res<crate::companion_bond::CompanionBond>>, mut q: Query<(&mut Transform, &BodyCollider, &InheritedVisibility, Option<&Name>), Without<crate::grazer::Grazer>>) {
     #[cfg(test)]
     if TEST_CREATURE_SKIP.load(Ordering::Relaxed) & 4 != 0 { return; }
     let Some(p) = presence.as_deref().map(|s| s.position) else { return };
-    for (mut tf, body, vis) in &mut q {
-        if !vis.get() { continue; } let off = tf.translation.xz() - p.xz();
+    for (mut tf, body, vis, name) in &mut q {
+        if !vis.get() || bond.as_deref().is_some_and(|b| b.mounted && name.is_some_and(|n| n.as_str() == "ResonantDeer")) { continue; } let off = tf.translation.xz() - p.xz();
         let d2 = off.length_squared();
         let reach = body.r + PLAYER_TRUNK_RADIUS;
         if d2 < reach * reach && d2 > 1e-10 {
@@ -195,18 +195,14 @@ mod tests {
             pos.z += 0.08;
             push_out_of_trunks(&mut pos, trunks.iter().copied());
         });
-        assert!(
-            (pos.xz().distance(center) - reach).abs() < 1e-3,
-            "walk did not stop at off-plate trunk {pos}"
-        );
-        assert!(pos.z < center.y + 1e-3, "walked through {pos}");
+        assert!((pos.xz().distance(center) - reach).abs() < 1e-3 && pos.z < center.y + 1e-3, "walk off-plate trunk {pos}");
     }
     fn body_app() -> App {
         use crate::human_presence::SoftPresence;
         use crate::input::PlayerInput;
         let mut app = App::new();
-        app.add_plugins((MinimalPlugins, CreatureBodyPlugin));
-        app.insert_resource(SoftPresence { position: Vec3::new(0.0, 0.9, 0.0), velocity: Vec3::new(0.0, 0.0, 0.5), grounded: true, ..default() })
+        app.add_plugins((MinimalPlugins, CreatureBodyPlugin))
+            .insert_resource(SoftPresence { position: Vec3::new(0.0, 0.9, 0.0), velocity: Vec3::new(0.0, 0.0, 0.5), grounded: true, ..default() })
             .insert_resource(PlayerInput { movement: Vec2::new(0.0, 1.0), ..default() })
             .insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(3) });
         app
@@ -217,45 +213,36 @@ mod tests {
         let mut p = app.world_mut().resource_mut::<crate::human_presence::SoftPresence>();
         p.position = Vec3::new(0.0, 0.9, if inward { body_z + 0.5 } else { body_z - reach - 0.35 });
         let (step, n, vz) = if inward { (-0.04f32, 48usize, -0.5f32) } else { (0.08, 32, 0.5) };
-        for _ in 0..n {
-            let (prev, nxt) = (p.position, p.position + Vec3::new(0.0, 0.0, step));
-            (p.position, p.velocity, p.prev_tick, p.curr_tick) = (nxt, Vec3::new(0.0, 0.0, vz), Some(prev), Some(nxt));
-            drop(p);
-            app.world_mut().run_schedule(FixedPostUpdate);
-            p = app.world_mut().resource_mut::<crate::human_presence::SoftPresence>();
-        }
+        for _ in 0..n { let (prev, nxt) = (p.position, p.position + Vec3::new(0., 0., step)); (p.position, p.velocity, p.prev_tick, p.curr_tick) = (nxt, Vec3::new(0., 0., vz), Some(prev), Some(nxt)); drop(p); app.world_mut().run_schedule(FixedPostUpdate); p = app.world_mut().resource_mut::<crate::human_presence::SoftPresence>(); }
     }
 
     #[test]
     fn creature_body_fixture_1_walk_visible_bodies_contact() {
-        let _g = TEST_CREATURE_LOCK.lock().unwrap();
-        TEST_CREATURE_SKIP.store(0, Ordering::Relaxed);
+        let _g = TEST_CREATURE_LOCK.lock().unwrap(); TEST_CREATURE_SKIP.store(0, Ordering::Relaxed);
         for r in [0.16f32, 0.22f32, 0.35, 0.35, 0.5] {
             let z = r + PLAYER_TRUNK_RADIUS;
             let mut app = body_app();
             app.world_mut().spawn((BodyCollider { r }, Transform::from_xyz(0.0, 0.55, z), InheritedVisibility::VISIBLE, Visibility::Visible));
             push_walk(&mut app, z, r, false);
-            let pos = app.world().resource::<crate::human_presence::SoftPresence>().position;
-            assert!((pos.xz().distance(Vec2::new(0.0, z)) - z).abs() < 2e-3, "r={r} pos={pos}");
+            let p = app.world().resource::<crate::human_presence::SoftPresence>();
+            assert!((p.position.xz().distance(Vec2::new(0.0, z)) - z).abs() < 2e-3 && p.velocity.z <= 1e-3 && (p.position.y - 0.9).abs() < 1e-6, "r={r} pos={}", p.position);
         }
         let bz = crate::terrain::SHELF_OUTER[crate::terrain::SHELF_COUNT - 1] - PLAYER_TRUNK_RADIUS + 40.0;
         let mut app = body_app();
         app.world_mut().spawn((BodyCollider { r: 0.16 }, Transform::from_xyz(0.0, 0.55, bz), InheritedVisibility::VISIBLE, Visibility::Visible));
         push_walk(&mut app, bz, 0.16, true);
-        let pos = app.world().resource::<crate::human_presence::SoftPresence>().position;
-        assert!((pos.xz().distance(Vec2::new(0.0, bz)) - 0.46).abs() < 2e-3, "field pos={pos}");
+        let p = app.world().resource::<crate::human_presence::SoftPresence>();
+        assert!((p.position.xz().distance(Vec2::new(0.0, bz)) - 0.46).abs() < 2e-3 && p.velocity.z <= 1e-3 && (p.position.y - 0.9).abs() < 1e-6, "field pos={}", p.position);
         TEST_CREATURE_SKIP.store(1, Ordering::Relaxed);
         let mut app = body_app();
         app.world_mut().spawn((BodyCollider { r: 0.16 }, Transform::from_xyz(0.0, 0.55, 0.46), InheritedVisibility::VISIBLE, Visibility::Visible));
         push_walk(&mut app, 0.46, 0.16, false);
-        let end = app.world().resource::<crate::human_presence::SoftPresence>().position;
-        assert!((end.xz().distance(Vec2::new(0.0, 0.46)) - 0.46).abs() > 0.05, "push stub should not hold contact {end}");
+        assert!((app.world().resource::<crate::human_presence::SoftPresence>().position.xz().distance(Vec2::new(0.0, 0.46)) - 0.46).abs() > 0.05);
     }
 
     #[test]
     fn creature_body_fixture_2_hidden_body_no_block() {
-        let _g = TEST_CREATURE_LOCK.lock().unwrap();
-        TEST_CREATURE_SKIP.store(0, Ordering::Relaxed);
+        let _g = TEST_CREATURE_LOCK.lock().unwrap(); TEST_CREATURE_SKIP.store(0, Ordering::Relaxed);
         let mut app = body_app();
         app.world_mut().spawn((BodyCollider { r: 0.16 }, Transform::from_xyz(0.0, 0.55, 0.46), InheritedVisibility::VISIBLE, Visibility::Visible));
         app.world_mut().spawn((BodyCollider { r: 0.16 }, Transform::from_xyz(0.42, 0.55, 0.58), InheritedVisibility::HIDDEN, Visibility::Visible));
@@ -268,20 +255,17 @@ mod tests {
 
     #[test]
     fn creature_body_fixture_3_nov6_stationary_player_no_bounce() {
-        let _g = TEST_CREATURE_LOCK.lock().unwrap();
-        TEST_CREATURE_SKIP.store(0, Ordering::Relaxed);
+        let _g = TEST_CREATURE_LOCK.lock().unwrap(); TEST_CREATURE_SKIP.store(0, Ordering::Relaxed);
         let mut app = body_app();
         app.world_mut().spawn((BodyCollider { r: 0.16 }, Transform::from_xyz(0.0, 0.55, 0.46), InheritedVisibility::VISIBLE, Visibility::Visible));
         let still = app.world().resource::<crate::human_presence::SoftPresence>().position;
-        app.world_mut().resource_mut::<crate::input::PlayerInput>().movement = Vec2::ZERO;
         let id = app.world_mut().query::<(Entity, &Transform)>().iter(app.world()).next().unwrap().0;
-        app.world_mut().get_mut::<Transform>(id).unwrap().translation.z = 0.18;
+        app.world_mut().resource_mut::<crate::input::PlayerInput>().movement = Vec2::ZERO;
         app.world_mut().resource_mut::<crate::human_presence::SoftPresence>().velocity = Vec3::ZERO;
+        app.world_mut().get_mut::<Transform>(id).unwrap().translation.z = 0.18;
         app.world_mut().run_schedule(PostUpdate);
-        let p = app.world().resource::<crate::human_presence::SoftPresence>();
-        let tf = app.world().get::<Transform>(id).unwrap();
-        assert!(p.position == still && p.velocity == Vec3::ZERO);
-        assert!((tf.translation.xz().distance(p.position.xz()) - 0.46).abs() < 1e-3);
+        let (p, tf) = (app.world().resource::<crate::human_presence::SoftPresence>(), app.world().get::<Transform>(id).unwrap());
+        assert!(p.position == still && p.velocity == Vec3::ZERO && (tf.translation.xz().distance(p.position.xz()) - 0.46).abs() < 1e-3);
         TEST_CREATURE_SKIP.store(4, Ordering::Relaxed);
         app.world_mut().get_mut::<Transform>(id).unwrap().translation.z = 0.12;
         app.world_mut().run_schedule(PostUpdate);
@@ -290,34 +274,48 @@ mod tests {
 
     #[test]
     fn creature_body_fixture_6_wedge_trunk_guard() {
-        let _g = TEST_CREATURE_LOCK.lock().unwrap();
-        TEST_CREATURE_SKIP.store(0, Ordering::Relaxed);
+        let _g = TEST_CREATURE_LOCK.lock().unwrap(); TEST_CREATURE_SKIP.store(0, Ordering::Relaxed);
         use crate::living_ecology::{YARD_TREE_SPOTS, YARD_TRUNK_R};
         let trunk = YARD_TREE_SPOTS[0].xz();
-        let tr = YARD_TRUNK_R + PLAYER_TRUNK_RADIUS;
-        let player_z = trunk.y - tr - 0.04;
+        let pz = trunk.y - YARD_TRUNK_R - PLAYER_TRUNK_RADIUS - 0.04;
         let mut app = body_app();
         app.world_mut().resource_mut::<crate::living_practice_loop::SoftPlayerRealm>().current = None;
-        app.world_mut().spawn((BodyCollider { r: 0.16 }, Transform::from_xyz(trunk.x, 0.55, player_z - 0.16), InheritedVisibility::VISIBLE, Visibility::Visible));
-        let mut p = app.world_mut().resource_mut::<crate::human_presence::SoftPresence>();
-        p.position = Vec3::new(trunk.x, 0.9, player_z);
-        p.velocity = Vec3::new(0.0, 0.0, -0.25);
-        (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
-        drop(p);
+        app.world_mut().spawn((BodyCollider { r: 0.16 }, Transform::from_xyz(trunk.x, 0.55, pz - 0.16), InheritedVisibility::VISIBLE, Visibility::Visible));
         let sk = [(trunk, YARD_TRUNK_R)];
+        let kick = |app: &mut App, vz: f32| {
+            let mut p = app.world_mut().resource_mut::<crate::human_presence::SoftPresence>();
+            (p.position, p.velocity, p.prev_tick, p.curr_tick) = (Vec3::new(trunk.x, 0.9, pz), Vec3::new(0., 0., vz), Some(Vec3::new(trunk.x, 0.9, pz)), Some(Vec3::new(trunk.x, 0.9, pz)));
+        };
+        kick(&mut app, -0.25);
         let before = squeeze_depth(app.world().resource::<crate::human_presence::SoftPresence>().position, None, &sk);
         app.world_mut().run_schedule(FixedPostUpdate);
-        let pos = app.world().resource::<crate::human_presence::SoftPresence>().position;
-        let after = squeeze_depth(pos, None, &sk);
-        assert!(after <= before + 1e-3);
+        assert!(squeeze_depth(app.world().resource::<crate::human_presence::SoftPresence>().position, None, &sk) <= before + 1e-3);
         TEST_CREATURE_SKIP.store(2, Ordering::Relaxed);
-        let mut p = app.world_mut().resource_mut::<crate::human_presence::SoftPresence>();
-        p.position = Vec3::new(trunk.x, 0.9, player_z);
-        p.velocity = Vec3::new(0.0, 0.0, -0.35);
-        (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
-        drop(p);
+        kick(&mut app, -0.35);
         app.world_mut().run_schedule(FixedPostUpdate);
         assert!(squeeze_depth(app.world().resource::<crate::human_presence::SoftPresence>().position, None, &sk) > before + 1e-4);
+    }
+
+    #[test]
+    fn creature_body_fixture_7_mounted_companion_deer_skip() {
+        let _g = TEST_CREATURE_LOCK.lock().unwrap(); TEST_CREATURE_SKIP.store(0, Ordering::Relaxed);
+        use crate::companion_bond::CompanionBond;
+        let mut app = body_app();
+        app.insert_resource(CompanionBond { mounted: true, ..default() });
+        let s = app.world().resource::<crate::human_presence::SoftPresence>().position;
+        let seat = s + Vec3::new(0.0, 0.15, 0.0);
+        let id = app.world_mut().spawn((BodyCollider { r: 0.16 }, Transform::from_translation(seat), InheritedVisibility::VISIBLE, Visibility::Visible, Name::new("ResonantDeer"))).id();
+        app.world_mut().resource_mut::<crate::human_presence::SoftPresence>().velocity = Vec3::new(0.0, 0.0, 0.5);
+        app.world_mut().run_schedule(FixedPostUpdate);
+        app.world_mut().run_schedule(PostUpdate);
+        assert_eq!(app.world().resource::<crate::human_presence::SoftPresence>().position, s);
+        let (mut probe, mut vel) = (s, Vec3::ZERO);
+        push_out_clear(&mut probe, &mut vel, [(seat.xz(), 0.16)]);
+        assert!((probe - s).length() > 1e-4, "mount skip RED");
+        app.world_mut().resource_mut::<CompanionBond>().mounted = false;
+        app.world_mut().get_mut::<Transform>(id).unwrap().translation = Vec3::new(0.0, 0.55, 0.46);
+        push_walk(&mut app, 0.46, 0.16, false);
+        assert!((app.world().resource::<crate::human_presence::SoftPresence>().position.xz().distance(Vec2::new(0.0, 0.46)) - 0.46).abs() < 2e-3);
     }
 
 }
