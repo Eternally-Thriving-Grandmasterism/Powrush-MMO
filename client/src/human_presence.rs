@@ -172,8 +172,7 @@ const FOLLOW_LERP_AT_60: f32 = 0.12;
 const CAM_WALL_MARGIN: f32 = 0.3;
 /// CARD CAM-COLLIDE-1 — closest the wall pull may place the camera to the pivot.
 const CAM_WALL_FLOOR: f32 = 0.6;
-/// CARD PT-COLLIDE-1 — player body radius for the trunk push-out. Playtest-tunable placeholder.
-const PLAYER_TRUNK_RADIUS: f32 = 0.3;
+pub(crate) use crate::collide::PLAYER_TRUNK_RADIUS;
 /// Horizontal accel toward wish speed (units/s²).
 pub const MOVE_ACCEL: f32 = 28.0;
 /// Horizontal decel when wish is released — stop-on-release, no ice-skate.
@@ -1427,13 +1426,14 @@ fn apply_locomotion(
     let yard = yard_trees_shown(realm).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|spot| (spot.xz(), YARD_TRUNK_R));
     let field = trees.1.iter().flat_map(|f| f.0.iter().copied());
     let owned = crate::wood_expedition::owned_blocker(trees.2.as_deref(), trees.3.as_ref().map(|state| state.current), realm);
+    let feet = silhouette().feet;
     let mut vel = presence.velocity;
-    push_out_clear(&mut presence.position, &mut vel, yard);
+    crate::collide::push_out_clear(&mut presence.position, &mut vel, yard);
     // CARD ROCK-SHAPE-1 — yard rocks push as their yawed mesh ellipse, only while the feet are under the rock top.
     for spot in yard_rocks_shown(realm).then_some(YARD_ROCK_SPOTS).into_iter().flatten() {
-        push_out_of_rock(&mut presence.position, &mut vel, spot);
+        crate::collide::push_out_of_rock(&mut presence.position, &mut vel, spot, STAND, feet);
     }
-    push_out_clear(&mut presence.position, &mut vel, field.chain(owned));
+    crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned));
     push_out_of_moat(&mut presence.position, &mut vel);
     push_out_of_riser_lips(&mut presence.position, &mut vel);
     presence.velocity = vel;
@@ -1487,63 +1487,7 @@ fn apply_locomotion(
     presence.curr_tick = Some(presence.position);
 }
 
-/// CARD PT-COLLIDE-1 — position-only push. Tests call this; locomotion uses [`push_out_clear`].
-fn push_out_of_trunks(pos: &mut Vec3, trunks: impl IntoIterator<Item = (Vec2, f32)>) {
-    let mut vel = Vec3::ZERO;
-    push_out_clear(pos, &mut vel, trunks);
-}
-
-/// CARD MOVE-FEEL-1 M8 — push out on x/z and drop the inward part of `vel`. Tangent is kept.
-fn push_out_clear(pos: &mut Vec3, vel: &mut Vec3, trunks: impl IntoIterator<Item = (Vec2, f32)>) {
-    for (center, radius) in trunks {
-        let (off, reach) = (pos.xz() - center, radius + PLAYER_TRUNK_RADIUS);
-        if off.length_squared() < reach * reach {
-            let n = off.try_normalize().unwrap_or(Vec2::X);
-            let out = center + n * reach;
-            (pos.x, pos.z) = (out.x, out.y);
-            let into = vel.x * n.x + vel.z * n.y;
-            if into < 0.0 {
-                vel.x -= into * n.x;
-                vel.z -= into * n.y;
-            }
-        }
-    }
-}
-
-/// CARD ROCK-SHAPE-1 — a yard rock is its yawed, scaled, unjittered mesh ellipse grown by the body disk. It
-/// blocks only while the feet are under the rock top (jitter envelope). The body moves to the closest ellipse
-/// point and the inward part of `vel` along that ellipse normal drops (M8). Tangent is kept.
-fn push_out_of_rock(pos: &mut Vec3, vel: &mut Vec3, spot: Vec3) {
-    use crate::living_ecology::{yard_prop_yaw, YARD_ROCK_JITTER, YARD_ROCK_MESH_R, YARD_ROCK_SCALE};
-    if pos.y - STAND + silhouette().feet >= spot.y + YARD_ROCK_MESH_R * YARD_ROCK_SCALE.y * (1.0 + YARD_ROCK_JITTER) {
-        return;
-    }
-    let ab = Vec2::new(YARD_ROCK_SCALE.x, YARD_ROCK_SCALE.z) * YARD_ROCK_MESH_R + PLAYER_TRUNK_RADIUS;
-    // Rock-local x and z in world x/z under `Quat::from_rotation_y(yaw)`.
-    let (s, c) = yard_prop_yaw(spot.x, spot.z).sin_cos();
-    let (u, w) = (Vec2::new(c, -s), Vec2::new(s, c));
-    let off = pos.xz() - spot.xz();
-    let local = Vec2::new(off.dot(u), off.dot(w));
-    if (local / ab).length_squared() >= 1.0 {
-        return;
-    }
-    // Closest point in the first quadrant: three fixed evolute steps (inside points included, < 1e-5 m).
-    let (p, mut t) = (local.abs(), Vec2::splat(FRAC_1_SQRT_2));
-    for _ in 0..3 {
-        let e = Vec2::new(ab.x * ab.x - ab.y * ab.y, ab.y * ab.y - ab.x * ab.x) * t * t * t / ab;
-        let (r, q) = ((ab * t - e).length(), (p - e).length().max(1e-6));
-        t = (((p - e) * r / q + e) / ab).clamp(Vec2::ZERO, Vec2::ONE).try_normalize().unwrap_or(Vec2::X);
-    }
-    let on = ab * t * Vec2::new(local.x.signum(), local.y.signum());
-    let out = spot.xz() + u * on.x + w * on.y;
-    (pos.x, pos.z) = (out.x, out.y);
-    let n = (u * (on.x / (ab.x * ab.x)) + w * (on.y / (ab.y * ab.y))).try_normalize().unwrap_or(u);
-    let into = vel.x * n.x + vel.z * n.y;
-    if into < 0.0 {
-        vel.x -= into * n.x;
-        vel.z -= into * n.y;
-    }
-}
+pub(crate) use crate::collide::push_out_of_trunks;
 
 /// CARD TERRAIN-GROUND-1 — keep the body out of the Sanctuary moat annulus until WATER-FEEL-1.
 fn push_out_of_moat(pos: &mut Vec3, vel: &mut Vec3) {

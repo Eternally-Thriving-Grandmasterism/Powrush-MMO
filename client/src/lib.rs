@@ -67,6 +67,7 @@ pub mod painterly_mat;
 pub mod painterly_shader;
 pub mod sky_backdrop;
 pub mod terrain;
+pub mod collide;
 pub mod vegetation;
 pub mod water;
 pub mod living_body;
