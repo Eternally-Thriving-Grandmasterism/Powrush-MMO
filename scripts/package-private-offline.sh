@@ -13,16 +13,34 @@ allowed_private_path() {
   return 1
 }
 
-assert_stone_only_private_tree() {
-  local bad=0 f rel
+require_private_pack_inputs() {
+  [[ -f "${PDIR}/LICENCES.md" ]] || {
+    echo "[[private-packager]]: missing private LICENCES.md" >&2
+    exit 1
+  }
+  [[ -f "${PDIR}/ASSETS-NOTICE.md" ]] || {
+    echo "[[private-packager]]: missing private ASSETS-NOTICE.md" >&2
+    exit 1
+  }
+  [[ -d "${PDIR}/textures/stone-painterly-08" ]] || {
+    echo "[[private-packager]]: textures/stone-painterly-08 missing" >&2
+    exit 1
+  }
+  if ! find "${PDIR}/textures/stone-painterly-08" -type f -print -quit | grep -q .; then
+    echo "[[private-packager]]: no files under textures/stone-painterly-08" >&2
+    exit 1
+  fi
+}
+
+log_other_private_packs() {
+  local f rel
   while IFS= read -r -d '' f; do
     rel="${f#${PDIR}/}"
     if ! allowed_private_path "${rel}"; then
-      echo "[[private-packager]]: disallowed private path: ${rel}" >&2
-      bad=1
+      echo "[[private-packager]]: other private packs present; only stone-08 will be copied" >&2
+      return
     fi
   done < <(find "${PDIR}" \( -path "${PDIR}/.git" -o -path "${PDIR}/.git/*" \) -prune -o -type f -print0)
-  [[ "${bad}" -eq 0 ]] || exit 1
 }
 
 assert_dist_private_allowlist() {
@@ -109,7 +127,8 @@ EOF
 cd "${ROOT}"
 ensure_private_tree
 verify_pin
-assert_stone_only_private_tree
+require_private_pack_inputs
+log_other_private_packs
 bash "${ROOT}/scripts/check_asset_licenses.sh" --private "${ROOT}"
 
 case "$(uname -s)" in
