@@ -103,7 +103,7 @@ fn on_heartwood_stub(travel: Option<&crate::hex_travel::HexTravelState>) -> bool
 /// Seated copy and the Proof-Pack wait stay the exact `slab_line`.
 fn embassy_display_place(embassy: &Embassy) -> Option<&'static str> {
     if embassy.lamp_live && !embassy.seated {
-        Some("Heartwood")
+        None
     } else {
         None
     }
@@ -377,10 +377,10 @@ mod tests {
             "Embassy lamp · E Request seat · civic after manufacture proof"
         );
         assert_eq!(embassy_slab_at_place(&waiting, None), request);
-        assert_eq!(embassy_display_place(&waiting), Some("Heartwood"));
+        assert!(embassy_display_place(&waiting).is_none());
         let named = embassy_slab_at_place(&waiting, embassy_display_place(&waiting));
-        assert_eq!(named, format!("Heartwood · {request}"));
-        assert_eq!(named.matches("Heartwood").count(), 1);
+        assert_eq!(named, request);
+        assert!(!named.contains("Heartwood ·"));
         assert_eq!(named.matches("E Request seat").count(), 1);
         assert_eq!(named.matches('\n').count(), 0);
         assert!(embassy_copy_is_honest(&named));
@@ -418,5 +418,75 @@ mod tests {
         assert_eq!(PlaceId::Heartwood.display_name(), "Heartwood");
         assert!(!STEWARD_ONLINE_YES);
         assert!(!ONLINE_PICKER_ENABLED);
+    }
+
+    fn embassy_slab_1_bench() -> (HourSacred, FabricatorYard) {
+        use crate::hour_sacred::{try_mark_hour_two_held, try_plant_house, try_ridge_tab};
+        use shared::fabricator::Fabricator;
+        use shared::space_law::SpaceSession;
+        use shared::vertical_factory::VerticalFactory;
+        let mut hour = HourSacred {
+            session: SpaceSession::default(),
+            complete: false,
+            hour_three_complete: false,
+        };
+        assert!(try_ridge_tab(&mut hour, true));
+        let mut vf = VerticalFactory::default();
+        assert!(try_plant_house(&mut hour, &mut vf));
+        assert!(try_mark_hour_two_held(&mut hour, true, true));
+        let mut fab = Fabricator::default();
+        for s in ["planted", "crafted", "unlocked"] {
+            assert_eq!(fab.craft_next(), s);
+        }
+        (hour, FabricatorYard { fab, bench_glow: 0.0 })
+    }
+
+    #[test]
+    fn embassy_slab_1_offer_on_sanctuary_has_no_heartwood_prefix_and_e_seats() {
+        use crate::hex_travel::HexTravelState;
+        use bevy::input::keyboard::{Key, KeyboardInput};
+        use bevy::input::{ButtonState, InputPlugin as BevyInputPlugin};
+        use shared::hex_travel::PlaceId;
+
+        let request = "Embassy lamp · E Request seat · civic after manufacture proof";
+        let (hour, fabricator) = embassy_slab_1_bench();
+        for (place, want_vis, want_seat) in
+            [(Some(PlaceId::Sanctuary), true, true), (Some(PlaceId::Heartwood), false, false), (None, true, true)]
+        {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, BevyInputPlugin, EmbassyPlugin))
+                .insert_resource(hour.clone())
+                .insert_resource(fabricator.clone())
+                .insert_resource(VoiceYard::default())
+                .insert_resource(LedgerYard::default())
+                .insert_resource(ThrivingMoments::default())
+                .insert_resource(FirstHarvestEpiphany::default())
+                .insert_resource(EmbassyYard::default());
+            if let Some(p) = place {
+                app.insert_resource(HexTravelState { current: p });
+            }
+            app.update();
+            app.update();
+            let mut vis_q = app.world_mut().query_filtered::<&Visibility, With<EmbassySlabRoot>>();
+            let mut txt_q = app.world_mut().query_filtered::<&Text, With<EmbassySlabText>>();
+            assert_eq!(matches!(*vis_q.single(app.world()).unwrap(), Visibility::Visible), want_vis);
+            if want_vis {
+                assert_eq!(txt_q.single(app.world()).unwrap().as_str(), request);
+            }
+            let w = Entity::PLACEHOLDER;
+            for state in [ButtonState::Pressed, ButtonState::Released] {
+                app.world_mut().write_message(KeyboardInput { key_code: soft_play_bindings::INTERACT, logical_key: Key::Character("e".into()), state, repeat: false, text: None, window: w });
+                app.update();
+                app.update();
+            }
+            assert_eq!(app.world().resource::<EmbassyYard>().embassy.seated, want_seat);
+            assert_eq!(app.world().resource::<ThrivingMoments>().fired.contains(&ThrivingKind::FirstEmbassy), want_seat);
+            if want_seat {
+                let seated = app.world().resource::<EmbassyYard>().embassy.slab_line();
+                let slab = txt_q.single(app.world()).unwrap().as_str();
+                assert_eq!(slab, seated);
+                assert!(!slab.contains("Heartwood ·"));
+            }
+        }
     }
 }
