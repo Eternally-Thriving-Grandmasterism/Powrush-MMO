@@ -3247,7 +3247,14 @@ pub(crate) mod tests {
             .interact = false;
         app.update();
         stop(&mut app);
-        until(|| fake.publishes().len() == 1);
+        until(|| {
+            let hub = app.world().resource::<WoodHub>();
+            hub.released && fake.publishes().len() == 1
+        });
+        assert!(
+            app.world().resource::<WoodHub>().released,
+            "stop() calls WoodHub::shutdown(), which joins the worker in release_join"
+        );
         assert_eq!(fake.publishes().len(), 1);
         assert!(!app.world().resource::<WoodClaim>().blocks());
         assert_eq!(app.world().resource::<WoodHub>().memory_unit(), Some(1));
@@ -3298,44 +3305,52 @@ pub(crate) mod tests {
         );
     }
 
-    fn late_rejection_companion_press(
-        app: &mut App,
-        fake: &Fake,
-        bytes: &[u8],
-        start_mounted: bool,
-    ) {
+    fn arm_companion_mount(app: &mut App, start_mounted: bool) {
+        let mut bond = app
+            .world_mut()
+            .resource_mut::<crate::companion_bond::CompanionBond>();
+        bond.trust = 0.6;
+        bond.nearby = true;
+        bond.mounted = start_mounted;
+    }
+    fn late_rejection_companion_arm(app: &mut App, fake: &Fake, bytes: &[u8], arm: &str, start_mounted: bool) {
         still(app, fake, bytes);
-        assert!(app.world().resource::<WoodClaim>().blocks());
+        assert!(
+            app.world().resource::<WoodClaim>().blocks(),
+            "{arm}: rejected claim frame should still hold the press"
+        );
+        assert_eq!(
+            app.world()
+                .resource::<crate::companion_bond::CompanionBond>()
+                .mounted,
+            start_mounted,
+            "{arm}: same-frame E with held claim must not toggle mount"
+        );
         app.world_mut()
             .resource_mut::<crate::input::PlayerInput>()
             .interact = false;
         app.update();
-        assert!(!app.world().resource::<WoodClaim>().blocks());
-        {
-            let mut bond = app
-                .world_mut()
-                .resource_mut::<crate::companion_bond::CompanionBond>();
-            bond.trust = 0.6;
-            bond.nearby = true;
-            bond.mounted = start_mounted;
-        }
+        assert!(
+            !app.world().resource::<WoodClaim>().blocks(),
+            "{arm}: claim should release after late rejection"
+        );
         companion_only_press(app);
         assert_eq!(
             app.world()
                 .resource::<crate::companion_bond::CompanionBond>()
                 .mounted,
             !start_mounted,
-            "companion press after rejection"
+            "{arm}: fresh companion-only press should toggle mount"
         );
     }
 
     #[test]
     fn fresh_companion_press_after_late_wood_rejection() {
-        for (flip, start_mounted) in [
-            (MidFlip::Move, false),
-            (MidFlip::Move, true),
-            (MidFlip::Settings, false),
-            (MidFlip::Settings, true),
+        for (flip, start_mounted, arm) in [
+            (MidFlip::Move, false, "late CONTACT rejection"),
+            (MidFlip::Move, true, "late CONTACT rejection"),
+            (MidFlip::Settings, false, "late YARD rejection"),
+            (MidFlip::Settings, true, "late YARD rejection"),
         ] {
             let (mut app, fake, bytes) =
                 boot_contact(stance_offset(), Some(Door::InYard), Some(false));
@@ -3346,9 +3361,10 @@ pub(crate) mod tests {
                     .after(claim_wood_press)
                     .before(admit_wood_press),
             );
+            arm_companion_mount(&mut app, start_mounted);
             pulse(&mut app);
             app.update();
-            late_rejection_companion_press(&mut app, &fake, &bytes, start_mounted);
+            late_rejection_companion_arm(&mut app, &fake, &bytes, arm, start_mounted);
             stop(&mut app);
         }
         fn block_write_after_claim(mut hub: ResMut<WoodHub>) {
@@ -3357,6 +3373,7 @@ pub(crate) mod tests {
             hub.body.conflict = true;
         }
         for start_mounted in [false, true] {
+            let arm = "late WRITE rejection";
             let (mut app, fake, bytes) =
                 boot_contact(stance_offset(), Some(Door::InYard), Some(false));
             attach_companion(&mut app);
@@ -3366,9 +3383,10 @@ pub(crate) mod tests {
                     .after(claim_wood_press)
                     .before(admit_wood_press),
             );
+            arm_companion_mount(&mut app, start_mounted);
             pulse(&mut app);
             app.update();
-            late_rejection_companion_press(&mut app, &fake, &bytes, start_mounted);
+            late_rejection_companion_arm(&mut app, &fake, &bytes, arm, start_mounted);
             stop(&mut app);
         }
     }
