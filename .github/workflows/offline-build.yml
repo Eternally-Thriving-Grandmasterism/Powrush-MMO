@@ -180,6 +180,20 @@ jobs:
             exit 1
           fi
 
+      - name: Capture packaged lavapipe frames
+        if: runner.os == 'Linux'
+        shell: bash
+        env: { DIST: "${{ steps.package.outputs.dist }}", SHA8: "${{ steps.package.outputs.sha8 }}" }
+        run: |
+          set -euo pipefail
+          sudo apt-get install -y --no-install-recommends scrot imagemagick x11-utils
+          cap="${RUNNER_TEMP}/media-capture"; rm -rf "${cap}"; mkdir -p "${cap}"
+          cp -a "${DIST}/." "${cap}/"; tar -xzf "${cap}/powrush-offline-linux-${SHA8}.tar.gz" -C "${cap}"
+          export POWRUSH_CAPTURE_SHA="$(git rev-parse HEAD)"; timeout 90 bash scripts/capture-packaged-frames.sh "${cap}"
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with: { name: "powrush-packaged-frames-${{ steps.package.outputs.sha8 }}", path: "${{ runner.temp }}/media-capture/media-capture-frames" }
+
   # Matrix outputs keep whichever leg finishes last, so recompute sha8
   # from the same expression the package step uses.
   clean-boot:
