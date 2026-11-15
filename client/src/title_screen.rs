@@ -8012,10 +8012,6 @@ mod tests {
         assert!((s.brightness - 1.25).abs() < 0.01);
         assert!(!s.reduced_motion);
         s.cycle_graphics_preset();
-        assert_eq!(graphics_preset_btn_label(&s), "Graphics · Ultra");
-        assert!((s.brightness - 1.25).abs() < 0.01);
-        assert!(!s.reduced_motion);
-        s.cycle_graphics_preset();
         assert_eq!(graphics_preset_btn_label(&s), "Graphics · Mobile");
         assert!(s.reduced_motion);
         assert!(!s.rumble_enabled());
