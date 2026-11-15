@@ -303,15 +303,14 @@ mod tests {
         let mut app = body_app();
         app.insert_resource(CompanionBond { mounted: true, ..default() });
         let s = app.world().resource::<crate::human_presence::SoftPresence>().position;
-        let seat = s + Vec3::new(0.0, 0.15, 0.0);
+        let seat = s + Vec3::new(0.1, 0.15, 0.0);
         let id = app.world_mut().spawn((BodyCollider { r: 0.16 }, Transform::from_translation(seat), InheritedVisibility::VISIBLE, Visibility::Visible, Name::new("ResonantDeer"))).id();
+        let deer0 = app.world().get::<Transform>(id).unwrap().translation;
         app.world_mut().resource_mut::<crate::human_presence::SoftPresence>().velocity = Vec3::new(0.0, 0.0, 0.5);
         app.world_mut().run_schedule(FixedPostUpdate);
         app.world_mut().run_schedule(PostUpdate);
         assert_eq!(app.world().resource::<crate::human_presence::SoftPresence>().position, s);
-        let (mut probe, mut vel) = (s, Vec3::ZERO);
-        push_out_clear(&mut probe, &mut vel, [(seat.xz(), 0.16)]);
-        assert!((probe - s).length() > 1e-4, "mount skip RED");
+        assert_eq!(app.world().get::<Transform>(id).unwrap().translation, deer0);
         app.world_mut().resource_mut::<CompanionBond>().mounted = false;
         app.world_mut().get_mut::<Transform>(id).unwrap().translation = Vec3::new(0.0, 0.55, 0.46);
         push_walk(&mut app, 0.46, 0.16, false);
