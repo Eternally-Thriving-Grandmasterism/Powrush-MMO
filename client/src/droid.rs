@@ -171,7 +171,7 @@ fn droid_tick(
     }
     if let Some(p) = at {
         crate::combat_text::hook_droid_frame(
-            settings.as_deref_mut(), strike_b, state.taken, strike_miss, shot_t0, before,
+            &mut cmd, settings.as_deref_mut(), strike_b, state.taken, strike_miss, shot_t0, before,
             combat.player_taken, dt, armed_b, grounded, tip_edge, p,
         );
     }

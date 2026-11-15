@@ -581,7 +581,7 @@ pub fn combat_fire(
         let row = runs.as_deref().and_then(|r| r.row(travel.current, tier));
         let pred_before = combat.predator_taken;
         let (hit, level) = land_hit_paid(&mut combat, &mut skills, reach, tier, row, finds.as_deref());
-        crate::combat_text::hook_after_fire(travel.current, pred_before, combat.predator_taken, hit, presence.position);
+        crate::combat_text::hook_after_fire(&mut cmd, travel.current, pred_before, combat.predator_taken, hit, presence.position);
         play_hit(&mut cmd, assets.as_deref(), mute.as_deref(), hit); // COMBAT-FEEL-SFX-1: a landed hit only
         let defeat = hit && combat.predator_taken >= HEALTH && clears_area(travel.current);
         if let (true, Some(mut diff)) = (defeat, diff) {
@@ -658,7 +658,7 @@ fn predator_lunge(
     let before = combat.player_taken; // CL-C1: one edge per frame, read before the reseat
     let t0 = combat.lunge_timer;
     let defeated = predator_tick(&mut combat, time.delta_secs(), reach, grounded, tier);
-    crate::combat_text::hook_after_lunge(t0, before, time.delta_secs(), reach, grounded, combat.player_taken, presence.position);
+    crate::combat_text::hook_after_lunge(&mut cmd, t0, before, time.delta_secs(), reach, grounded, combat.player_taken, presence.position);
     if hurt_edge(before, combat.player_taken) {
         combat.hurt = combat.hurt.wrapping_add(1);
         if !tell_visible(combat.lunge_timer, reach) { play_hurt(&mut cmd, assets.as_deref(), mute.as_deref()); } // P4: never on a tell frame
@@ -809,7 +809,7 @@ fn lunge_tell(
             set_pulse(epi, LUNGE_TELL_TEXT.to_string(), time.elapsed_secs_f64() + f64::from(LUNGE_TELL_SECS));
         }
     }
-    if tip_edge { crate::combat_text::hook_tip_edge(settings.as_deref_mut(), presence.position, PREDATOR_NAME); }
+    if tip_edge { crate::combat_text::hook_tip_edge(&mut cmd, settings.as_deref_mut(), presence.position, PREDATOR_NAME); }
     for mut vis in &mut dots {
         vis.set_if_neq(if *armed && !hides_cues(tier) {
             Visibility::Visible
