@@ -121,7 +121,7 @@ fn spawn_droid(mut cmd: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mats: Re
 fn show(on: bool) -> Visibility { if on { Visibility::Visible } else { Visibility::Hidden } }
 
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
-pub(crate) fn droid_tick(
+fn droid_tick(
     time: Res<Time>,
     mut last: Local<u32>,
     (door, travel, presence): (Option<Res<LaunchDoor>>, Option<Res<HexTravelState>>, Option<Res<SoftPresence>>),
@@ -132,7 +132,6 @@ pub(crate) fn droid_tick(
     mut dots: Query<&mut Visibility, (With<DroidTell>, Without<Droid>)>,
     (mut cmd, assets, diff, mut was): (Commands, Option<Res<AssetServer>>, Option<Res<AreaDifficulty>>, Local<bool>),
     mute: Option<Res<crate::local_settings::MasterMuteGain>>,
-    mut queue: Option<ResMut<crate::combat_text::CombatTextQueue>>,
     mut settings: Option<ResMut<crate::local_settings::LocalSettingsState>>,
 ) {
     let place = travel.as_deref().map(|t| t.current);
@@ -172,7 +171,7 @@ pub(crate) fn droid_tick(
     }
     if let Some(p) = at {
         crate::combat_text::hook_droid_frame(
-            queue.as_deref_mut(), settings.as_deref_mut(), strike_b, state.taken, strike_miss, shot_t0, before,
+            settings.as_deref_mut(), strike_b, state.taken, strike_miss, shot_t0, before,
             combat.player_taken, dt, armed_b, grounded, tip_edge, p,
         );
     }

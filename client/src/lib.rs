@@ -233,8 +233,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(combat_core::CombatCorePlugin);
         app.add_plugins(grazer::GrazerPlugin);
         app.add_plugins(droid::DroidPlugin);
-        app.add_plugins(combat_text::CombatTextPlugin)
-            .add_systems(Update, combat_text::drain_combat_text.after(droid::droid_tick));
+        app.add_plugins(combat_text::CombatTextPlugin);
         app.add_plugins(run_ledger::RunLedgerPlugin);
         app.add_plugins(first_whisper::FirstWhisperPlugin);
         app.add_plugins(first_hour_camera::FirstHourCameraPlugin);

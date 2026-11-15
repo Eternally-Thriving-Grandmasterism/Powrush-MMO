@@ -1222,7 +1222,17 @@ mod tests {
         assert!(s.resolve_on_screen_sticks(true));
         assert!((s.master_gain() - 1.0).abs() < f32::EPSILON);
         assert!((s.look_y_sign() - 1.0).abs() < f32::EPSILON);
-        assert!(s.combat_floating_on && !s.combat_log_on && !s.combat_tip_shown);
+    }
+
+    #[test]
+    fn combat_text_acceptance_t1_h3_legacy_json_combat_defaults() {
+        let raw = r#"{"schema":"powrush_settings_v1","mute":false}"#;
+        let s = LocalSettings::from_json(raw).unwrap();
+        assert!(s.combat_floating_on && !s.combat_log_on && s.combat_show_dealt && s.combat_show_taken && s.combat_show_missed);
+        let json = s.to_json().unwrap();
+        let back = LocalSettings::from_json(&json).unwrap();
+        assert_eq!(back.combat_layout, "default");
+        assert!(!back.combat_tip_shown);
     }
 
     #[test]
