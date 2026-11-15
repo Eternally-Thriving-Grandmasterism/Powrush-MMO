@@ -63,7 +63,12 @@ impl Plugin for CompanionBondPlugin {
         app.init_resource::<CompanionBond>()
             .add_systems(
                 Update,
-                (note_care, follow_or_wait, try_mount).chain(),
+                (
+                    note_care,
+                    follow_or_wait,
+                    try_mount.after(crate::wood_expedition::claim_wood_press),
+                )
+                    .chain(),
             );
     }
 }
@@ -128,6 +133,7 @@ fn try_mount(
     input: Res<PlayerInput>,
     nearby_node: Res<NearbyMercyNode>,
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
+    claim: Option<Res<crate::wood_expedition::WoodClaim>>,
     mut bond: ResMut<CompanionBond>,
 ) {
     if nearby_node.in_range {
@@ -135,6 +141,9 @@ fn try_mount(
     }
     let press = keyboard.just_pressed(soft_play_bindings::INTERACT) || input.interact;
     if !press {
+        return;
+    }
+    if claim.is_some_and(|c| c.blocks()) {
         return;
     }
     let place = travel.as_ref().map(|state| state.chip_name());
@@ -196,5 +205,79 @@ mod tests {
             assert!(!low.contains("widget"), "{sample}");
             assert!(!sample.contains("Threshold"), "{sample}");
         }
+    }
+
+    #[test]
+    fn absent_wood_claim_keeps_legacy_mount_and_held_claim_blocks() {
+        use crate::input::PlayerInput;
+        use crate::living_practice_loop::SoftPlayerRealm;
+        use crate::wood_expedition::WoodClaim;
+
+        fn bond_app(claim: bool) -> App {
+            let mut app = App::new();
+            app.add_plugins(bevy::MinimalPlugins)
+                .init_resource::<CompanionBond>()
+                .init_resource::<NearbyMercyNode>()
+                .init_resource::<PlayerInput>()
+                .init_resource::<SoftPlayerRealm>()
+                .init_resource::<crate::human_presence::SoftPresence>()
+                .init_resource::<WorldAnswer>()
+                .init_resource::<ButtonInput<KeyCode>>()
+                .add_plugins(CompanionBondPlugin);
+            if claim {
+                app.init_resource::<WoodClaim>();
+            }
+            let here = Vec3::new(0.0, 0.9, 0.0);
+            app.world_mut()
+                .resource_mut::<crate::human_presence::SoftPresence>()
+                .position = here;
+            app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(0);
+            app.world_mut().spawn((
+                Name::new("ResonantDeer"),
+                Transform::from_translation(here + Vec3::new(0.4, 0.55, 0.4)),
+            ));
+            {
+                let mut bond = app.world_mut().resource_mut::<CompanionBond>();
+                bond.trust = 0.6;
+                bond.nearby = true;
+            }
+            app
+        }
+
+        fn tap(app: &mut App) {
+            app.world_mut()
+                .resource_mut::<ButtonInput<KeyCode>>()
+                .press(soft_play_bindings::INTERACT);
+            app.world_mut().resource_mut::<PlayerInput>().interact = true;
+            app.update();
+        }
+
+        let mut legacy = bond_app(false);
+        tap(&mut legacy);
+        assert!(
+            legacy.world().resource::<CompanionBond>().mounted,
+            "absent claim should still mount"
+        );
+        tap(&mut legacy);
+        assert!(
+            !legacy.world().resource::<CompanionBond>().mounted,
+            "absent claim should still dismount"
+        );
+
+        let mut held = bond_app(true);
+        held.world_mut().resource_mut::<WoodClaim>().set_held(true);
+        let mounted_before = held.world().resource::<CompanionBond>().mounted;
+        tap(&mut held);
+        assert_eq!(
+            held.world().resource::<CompanionBond>().mounted,
+            mounted_before,
+            "held wood claim should block mount toggle"
+        );
+        held.world_mut().resource_mut::<CompanionBond>().mounted = true;
+        tap(&mut held);
+        assert!(
+            held.world().resource::<CompanionBond>().mounted,
+            "held wood claim should block dismount"
+        );
     }
 }

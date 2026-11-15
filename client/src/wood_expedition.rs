@@ -3159,6 +3159,238 @@ pub(crate) mod tests {
         assert!(!domain_ok(&witness(Stand::Depleted, 1, Charge::Ready, TREE_ID)));
     }
 
+    fn attach_companion(app: &mut App) {
+        let player = app
+            .world()
+            .resource::<crate::human_presence::SoftPresence>()
+            .position;
+        app.init_resource::<crate::companion_bond::CompanionBond>()
+            .add_plugins(crate::companion_bond::CompanionBondPlugin);
+        app.world_mut().spawn((
+            Name::new("ResonantDeer"),
+            Transform::from_translation(player + Vec3::new(0.5, 0.55, 0.5)),
+        ));
+        let mut bond = app
+            .world_mut()
+            .resource_mut::<crate::companion_bond::CompanionBond>();
+        bond.trust = 0.6;
+        bond.nearby = true;
+    }
+    fn companion_only_press(app: &mut App) {
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(crate::soft_play_bindings::INTERACT);
+        app.world_mut()
+            .resource_mut::<crate::input::PlayerInput>()
+            .interact = true;
+        app.update();
+        app.world_mut()
+            .resource_mut::<crate::input::PlayerInput>()
+            .interact = false;
+    }
+    fn companion_wood_hub_app() -> App {
+        let mut app = schedule_app(open_hub());
+        attach_companion(&mut app);
+        app
+    }
+
+    #[test]
+    fn same_frame_wood_claim_blocks_mount_and_dismount() {
+        let mut unmounted = companion_wood_hub_app();
+        unmounted.update();
+        press(&mut unmounted);
+        unmounted.update();
+        assert!(unmounted.world().resource::<WoodClaim>().blocks());
+        assert!(
+            !unmounted
+                .world()
+                .resource::<crate::companion_bond::CompanionBond>()
+                .mounted,
+            "wood claim frame must not mount"
+        );
+        assert_eq!(unmounted.world().resource::<WoodHub>().memory_unit(), Some(1));
+        unmounted.world_mut().resource_mut::<WoodHub>().shutdown();
+
+        let mut mounted = companion_wood_hub_app();
+        mounted.update();
+        mounted
+            .world_mut()
+            .resource_mut::<crate::companion_bond::CompanionBond>()
+            .mounted = true;
+        press(&mut mounted);
+        mounted.update();
+        assert!(mounted.world().resource::<WoodClaim>().blocks());
+        assert!(
+            mounted
+                .world()
+                .resource::<crate::companion_bond::CompanionBond>()
+                .mounted,
+            "wood claim frame must not dismount"
+        );
+        mounted.world_mut().resource_mut::<WoodHub>().shutdown();
+    }
+
+    #[test]
+    fn companion_wood_harvest_one_publish_after_stop_drain() {
+        let (mut app, fake, _) = boot_contact(stance_offset(), Some(Door::InYard), Some(false));
+        attach_companion(&mut app);
+        pulse(&mut app);
+        app.update();
+        until(|| fake.publishes().len() == 1);
+        assert!(
+            !app.world()
+                .resource::<crate::companion_bond::CompanionBond>()
+                .mounted
+        );
+        app.world_mut()
+            .resource_mut::<crate::input::PlayerInput>()
+            .interact = false;
+        app.update();
+        stop(&mut app);
+        until(|| {
+            let hub = app.world().resource::<WoodHub>();
+            hub.released && fake.publishes().len() == 1
+        });
+        assert!(
+            app.world().resource::<WoodHub>().released,
+            "stop() calls WoodHub::shutdown(), which joins the worker in release_join"
+        );
+        assert_eq!(fake.publishes().len(), 1);
+        assert!(!app.world().resource::<WoodClaim>().blocks());
+        assert_eq!(app.world().resource::<WoodHub>().memory_unit(), Some(1));
+    }
+
+    #[test]
+    fn absent_wood_claim_keeps_companion_mount_cycle() {
+        let site = first_passing_site().unwrap();
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .init_resource::<crate::companion_bond::CompanionBond>()
+            .init_resource::<crate::input::PlayerInput>()
+            .init_resource::<crate::living_practice_loop::SoftPlayerRealm>()
+            .init_resource::<crate::human_presence::SoftPresence>()
+            .init_resource::<crate::mercy_harvest_nodes::NearbyMercyNode>()
+            .init_resource::<crate::world_answer::WorldAnswer>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .add_plugins(crate::companion_bond::CompanionBondPlugin);
+        app.world_mut()
+            .resource_mut::<crate::human_presence::SoftPresence>()
+            .position = Vec3::new(site.x + 40.0, 0.9, site.y);
+        app.world_mut()
+            .resource_mut::<crate::living_practice_loop::SoftPlayerRealm>()
+            .current = Some(0);
+        app.world_mut().spawn((
+            Name::new("ResonantDeer"),
+            Transform::from_translation(Vec3::new(site.x + 40.4, 0.55, site.y + 0.4)),
+        ));
+        {
+            let mut bond = app
+                .world_mut()
+                .resource_mut::<crate::companion_bond::CompanionBond>();
+            bond.trust = 0.6;
+            bond.nearby = true;
+        }
+        app.update();
+        companion_only_press(&mut app);
+        assert!(
+            app.world()
+                .resource::<crate::companion_bond::CompanionBond>()
+                .mounted
+        );
+        companion_only_press(&mut app);
+        assert!(
+            !app.world()
+                .resource::<crate::companion_bond::CompanionBond>()
+                .mounted
+        );
+    }
+
+    fn arm_companion_mount(app: &mut App, start_mounted: bool) {
+        let mut bond = app
+            .world_mut()
+            .resource_mut::<crate::companion_bond::CompanionBond>();
+        bond.trust = 0.6;
+        bond.nearby = true;
+        bond.mounted = start_mounted;
+    }
+    fn late_rejection_companion_arm(app: &mut App, fake: &Fake, bytes: &[u8], arm: &str, start_mounted: bool) {
+        still(app, fake, bytes);
+        assert!(
+            app.world().resource::<WoodClaim>().blocks(),
+            "{arm}: rejected claim frame should still hold the press"
+        );
+        assert_eq!(
+            app.world()
+                .resource::<crate::companion_bond::CompanionBond>()
+                .mounted,
+            start_mounted,
+            "{arm}: same-frame E with held claim must not toggle mount"
+        );
+        app.world_mut()
+            .resource_mut::<crate::input::PlayerInput>()
+            .interact = false;
+        app.update();
+        assert!(
+            !app.world().resource::<WoodClaim>().blocks(),
+            "{arm}: claim should release after late rejection"
+        );
+        companion_only_press(app);
+        assert_eq!(
+            app.world()
+                .resource::<crate::companion_bond::CompanionBond>()
+                .mounted,
+            !start_mounted,
+            "{arm}: fresh companion-only press should toggle mount"
+        );
+    }
+
+    #[test]
+    fn fresh_companion_press_after_late_wood_rejection() {
+        for (flip, start_mounted, arm) in [
+            (MidFlip::Move, false, "late CONTACT rejection"),
+            (MidFlip::Move, true, "late CONTACT rejection"),
+            (MidFlip::Settings, false, "late YARD rejection"),
+            (MidFlip::Settings, true, "late YARD rejection"),
+        ] {
+            let (mut app, fake, bytes) =
+                boot_contact(stance_offset(), Some(Door::InYard), Some(false));
+            attach_companion(&mut app);
+            app.insert_resource(flip).add_systems(
+                Update,
+                flip_after_claim
+                    .after(claim_wood_press)
+                    .before(admit_wood_press),
+            );
+            arm_companion_mount(&mut app, start_mounted);
+            pulse(&mut app);
+            app.update();
+            late_rejection_companion_arm(&mut app, &fake, &bytes, arm, start_mounted);
+            stop(&mut app);
+        }
+        fn block_write_after_claim(mut hub: ResMut<WoodHub>) {
+            hub.body.inert = true;
+            hub.body.blocked = true;
+            hub.body.conflict = true;
+        }
+        for start_mounted in [false, true] {
+            let arm = "late WRITE rejection";
+            let (mut app, fake, bytes) =
+                boot_contact(stance_offset(), Some(Door::InYard), Some(false));
+            attach_companion(&mut app);
+            app.add_systems(
+                Update,
+                block_write_after_claim
+                    .after(claim_wood_press)
+                    .before(admit_wood_press),
+            );
+            arm_companion_mount(&mut app, start_mounted);
+            pulse(&mut app);
+            app.update();
+            late_rejection_companion_arm(&mut app, &fake, &bytes, arm, start_mounted);
+            stop(&mut app);
+        }
+    }
+
     /// WU10 (H3) — the harvested bytes plus an unknown key stay inert from live or bak, and nothing publishes.
     #[test]
     fn wu10_extra_field_wood_json_stays_inert() {
