@@ -468,26 +468,25 @@ mod tests {
             app.update();
             app.update();
             let mut vis_q = app.world_mut().query_filtered::<&Visibility, With<EmbassySlabRoot>>();
+            let mut txt_q = app.world_mut().query_filtered::<&Text, With<EmbassySlabText>>();
             assert_eq!(matches!(*vis_q.single(app.world()).unwrap(), Visibility::Visible), want_vis);
             if want_vis {
-                let mut txt_q = app.world_mut().query_filtered::<&Text, With<EmbassySlabText>>();
                 assert_eq!(txt_q.single(app.world()).unwrap().as_str(), request);
             }
             let w = Entity::PLACEHOLDER;
             for state in [ButtonState::Pressed, ButtonState::Released] {
-                app.world_mut().write_message(KeyboardInput {
-                    key_code: soft_play_bindings::INTERACT,
-                    logical_key: Key::Character("e".into()),
-                    state,
-                    repeat: false,
-                    text: None,
-                    window: w,
-                });
+                app.world_mut().write_message(KeyboardInput { key_code: soft_play_bindings::INTERACT, logical_key: Key::Character("e".into()), state, repeat: false, text: None, window: w });
                 app.update();
                 app.update();
             }
             assert_eq!(app.world().resource::<EmbassyYard>().embassy.seated, want_seat);
             assert_eq!(app.world().resource::<ThrivingMoments>().fired.contains(&ThrivingKind::FirstEmbassy), want_seat);
+            if want_seat {
+                let seated = app.world().resource::<EmbassyYard>().embassy.slab_line();
+                let slab = txt_q.single(app.world()).unwrap().as_str();
+                assert_eq!(slab, seated);
+                assert!(!slab.contains("Heartwood ·"));
+            }
         }
     }
 }
