@@ -18,8 +18,8 @@ require_private_pack_inputs() {
     echo "[[private-packager]]: missing private LICENCES.md" >&2
     exit 1
   }
-  [[ -f "${PDIR}/ASSETS-NOTICE.md" ]] || {
-    echo "[[private-packager]]: missing private ASSETS-NOTICE.md" >&2
+  [[ -f "${PDIR}/textures/stone-painterly-08/ASSETS-NOTICE.md" ]] || {
+    echo "[[private-packager]]: missing textures/stone-painterly-08/ASSETS-NOTICE.md" >&2
     exit 1
   }
   [[ -d "${PDIR}/textures/stone-painterly-08" ]] || {
