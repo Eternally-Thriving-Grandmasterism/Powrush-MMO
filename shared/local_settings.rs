@@ -190,13 +190,13 @@ impl GraphicsPreset {
         }
     }
 
-    /// Cycle Mobile → Low → Medium → High → Ultra → Mobile.
+    /// Cycle Mobile → Low → Medium → High → Mobile (Ultra skipped in Comfort door).
     pub const fn next(self) -> Self {
         match self {
             Self::Mobile => Self::Low,
             Self::Low => Self::Medium,
             Self::Medium => Self::High,
-            Self::High => Self::Ultra,
+            Self::High => Self::Mobile,
             Self::Ultra => Self::Mobile,
         }
     }
@@ -679,8 +679,9 @@ impl LocalSettings {
 
     /// Legacy / unknown serde already lands on Medium via enum default.
     pub fn normalize_graphics_preset(&mut self) {
-        // Enum is closed; keep for clamp_all symmetry with Grove / LAN.
-        let _ = self.graphics_preset;
+        if self.graphics_preset == GraphicsPreset::Ultra {
+            self.graphics_preset = GraphicsPreset::High;
+        }
     }
 
     /// Apply the selected graphics preset to comfort fidelity fields.
@@ -1696,7 +1697,7 @@ mod tests {
         assert_eq!(GraphicsPreset::Mobile.next(), GraphicsPreset::Low);
         assert_eq!(GraphicsPreset::Low.next(), GraphicsPreset::Medium);
         assert_eq!(GraphicsPreset::Medium.next(), GraphicsPreset::High);
-        assert_eq!(GraphicsPreset::High.next(), GraphicsPreset::Ultra);
+        assert_eq!(GraphicsPreset::High.next(), GraphicsPreset::Mobile);
         assert_eq!(GraphicsPreset::Ultra.next(), GraphicsPreset::Mobile);
 
         let mut s = LocalSettings::peace_defaults();
@@ -1704,11 +1705,6 @@ mod tests {
         s.cycle_graphics_preset();
         assert_eq!(s.graphics_preset, GraphicsPreset::High);
         assert!((s.brightness - 1.25).abs() < 0.01);
-        s.cycle_graphics_preset();
-        assert_eq!(s.graphics_preset, GraphicsPreset::Ultra);
-        assert_eq!(s.graphics_preset.label(), "Ultra");
-        assert!((s.brightness - 1.25).abs() < 0.01);
-        assert!(!s.reduced_motion);
         s.cycle_graphics_preset();
         assert_eq!(s.graphics_preset, GraphicsPreset::Mobile);
         assert_eq!(s.graphics_preset.label(), "Mobile");
@@ -1847,10 +1843,7 @@ mod tests {
             assert_eq!(loaded.graphics_preset.label(), preset.label());
         }
 
-        for (preset, token) in [
-            (GraphicsPreset::Mobile, "mobile"),
-            (GraphicsPreset::Ultra, "ultra"),
-        ] {
+        for (preset, token) in [(GraphicsPreset::Mobile, "mobile")] {
             let mut s = LocalSettings::peace_defaults();
             s.graphics_preset = preset;
             let raw = s.to_json().unwrap();
@@ -1859,6 +1852,16 @@ mod tests {
             assert_eq!(back.graphics_preset, preset);
             assert_eq!(back.graphics_preset.label(), preset.label());
         }
+
+        let ultra_saved = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"brightness":1.25,"text_scale":1.0,"graphics_preset":"ultra","grove":"off"}"#;
+        let ultra_loaded = LocalSettings::from_json(ultra_saved).unwrap();
+        assert_eq!(ultra_loaded.graphics_preset, GraphicsPreset::High);
+        let high_raw = ultra_loaded.to_json().unwrap();
+        assert!(high_raw.contains("\"graphics_preset\": \"high\""));
+        assert_eq!(
+            LocalSettings::from_json(&high_raw).unwrap().graphics_preset,
+            GraphicsPreset::High,
+        );
     }
 
     #[test]
