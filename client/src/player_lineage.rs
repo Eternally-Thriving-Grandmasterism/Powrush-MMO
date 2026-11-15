@@ -9,9 +9,14 @@
 use bevy::prelude::*;
 
 use crate::harvest_feel::SoftRbePool;
+use crate::hex_travel::PlacesPlate;
+use crate::hud_edit_mode::HudEditMode;
 use crate::human_presence::HumanPresence;
 use crate::living_freshness::LivingFreshness;
+use crate::local_settings::LocalSettingsState;
+use crate::title_screen::{HouseLabel, LaunchDoor, PersonaCreatorState};
 use crate::world_answer::{AnswerKind, WorldAnswer};
+use shared::local_settings::{LocalSettings, PeaceKey};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Lineage {
@@ -76,15 +81,28 @@ impl Plugin for PlayerLineagePlugin {
     }
 }
 
+fn peace_key_c_is_bound(s: &LocalSettings) -> bool {
+    [s.key_move_up,s.key_move_down,s.key_move_left,s.key_move_right,s.key_jump,s.key_sprint,s.key_use,s.key_satchel,s.key_hide,s.key_allocate].into_iter().any(|k| k==PeaceKey::C)
+}
+
+fn lineage_c_is_free(settings_open: bool, text_entry: bool, panel_open: bool, c_peace_bound: bool) -> bool {
+    !settings_open && !text_entry && !panel_open && !c_peace_bound
+}
+
 fn cycle_lineage(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut lineage: ResMut<PlayerLineage>,
     mut inv_line: Option<ResMut<crate::human_inventory::HumanInventory>>,
     time: Res<Time>,
+    house: Option<Res<HouseLabel>>, door: Option<Res<LaunchDoor>>, persona: Option<Res<PersonaCreatorState>>,
+    places: Option<Res<PlacesPlate>>, hud_edit: Option<Res<HudEditMode>>, settings: Option<Res<LocalSettingsState>>,
 ) {
-    if !keyboard.just_pressed(KeyCode::KeyC) {
-        return;
-    }
+    if !keyboard.just_pressed(KeyCode::KeyC) || !lineage_c_is_free(
+        house.as_deref().is_some_and(|h| h.settings_open),
+        door.as_deref().is_some_and(|d| *d == LaunchDoor::NameHouse) || persona.as_deref().is_some_and(|p| p.open),
+        places.as_deref().is_some_and(|p| p.open) || hud_edit.as_deref().is_some_and(|h| h.active),
+        settings.as_deref().is_some_and(|s| peace_key_c_is_bound(&s.inner)),
+    ) { return; }
     lineage.current = lineage.current.next();
     if let Some(mut inv) = inv_line {
         inv.pickup_until = time.elapsed_secs_f64() + 2.2;
@@ -163,5 +181,41 @@ fn lineage_care(
             pool.joy += 0.03;
         }
         _ => {}
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use shared::local_settings::LocalSettings;
+
+    #[test]
+    fn default_c_free_cycles_all_five_and_wraps() {
+        assert!(lineage_c_is_free(false, false, false, false));
+        let mut l = Lineage::Human;
+        for _ in 0..5 {
+            l = l.next();
+        }
+        assert_eq!(l, Lineage::Human);
+        assert!(!peace_key_c_is_bound(&LocalSettings::peace_defaults()));
+    }
+
+    #[test]
+    fn ui_gates_block_c() {
+        assert!(!lineage_c_is_free(true, false, false, false));
+        assert!(!lineage_c_is_free(false, true, false, false));
+        assert!(!lineage_c_is_free(false, false, true, false));
+    }
+
+    #[test]
+    fn peace_c_rebind_blocks_until_defaults() {
+        let mut s = LocalSettings::peace_defaults();
+        s.key_move_right = PeaceKey::C;
+        assert!(!lineage_c_is_free(false, false, false, peace_key_c_is_bound(&s)));
+        s = LocalSettings::peace_defaults();
+        s.key_use = PeaceKey::C;
+        assert!(!lineage_c_is_free(false, false, false, peace_key_c_is_bound(&s)));
+        s = LocalSettings::peace_defaults();
+        assert!(lineage_c_is_free(false, false, false, peace_key_c_is_bound(&s)));
     }
 }
