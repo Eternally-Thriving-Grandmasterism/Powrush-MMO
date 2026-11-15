@@ -1705,6 +1705,7 @@ mod tests {
         s.cycle_graphics_preset();
         assert_eq!(s.graphics_preset, GraphicsPreset::High);
         assert!((s.brightness - 1.25).abs() < 0.01);
+        assert!(!s.reduced_motion);
         s.cycle_graphics_preset();
         assert_eq!(s.graphics_preset, GraphicsPreset::Mobile);
         assert_eq!(s.graphics_preset.label(), "Mobile");
@@ -1843,7 +1844,9 @@ mod tests {
             assert_eq!(loaded.graphics_preset.label(), preset.label());
         }
 
-        for (preset, token) in [(GraphicsPreset::Mobile, "mobile")] {
+        for (preset, token) in [
+            (GraphicsPreset::Mobile, "mobile"),
+        ] {
             let mut s = LocalSettings::peace_defaults();
             s.graphics_preset = preset;
             let raw = s.to_json().unwrap();
