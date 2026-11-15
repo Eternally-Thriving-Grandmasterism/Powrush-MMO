@@ -132,13 +132,16 @@ fn droid_tick(
     mut dots: Query<&mut Visibility, (With<DroidTell>, Without<Droid>)>,
     (mut cmd, assets, diff, mut was): (Commands, Option<Res<AssetServer>>, Option<Res<AreaDifficulty>>, Local<bool>),
     mute: Option<Res<crate::local_settings::MasterMuteGain>>,
+    mut settings: Option<ResMut<crate::local_settings::LocalSettingsState>>,
 ) {
     let place = travel.as_deref().map(|t| t.current);
     let tier = place.zip(diff.as_deref()).map_or(DifficultyTier::Sheltered, |(pl, d)| d.tier(pl));
     let gate = place.is_some_and(predator_present) && door.as_deref().copied() == Some(LaunchDoor::InYard);
     let at = presence.as_deref().map(|p| p.position);
     let reach = gate && place.zip(at).is_some_and(|(pl, p)| droid_in_reach(pl, &state, p.x, p.z));
+    let strike_b = state.taken;
     let line = strike_step(&mut state, &mut last, combat.strikes, gate, reach);
+    let strike_miss = line.as_ref().is_some_and(|l| l.starts_with("Missed"));
     let line = line.map(|l| cue_line(tier, l, HEALTH - state.taken, HEALTH));
     if let (Some(line), Some(epi)) = (line, epi.as_mut()) {
         set_pulse(epi, line, time.elapsed_secs_f64() + DROID_CUE_SECS);
@@ -147,6 +150,7 @@ fn droid_tick(
     down_step(&mut state, dt);
     let before = combat.player_taken;
     let grounded = presence.as_deref().is_some_and(|p| p.grounded);
+    let (shot_t0, armed_b) = (state.shot_timer, shot_armed(&state, combat.player_taken, gate, reach));
     let armed = shot_step(&mut state, &mut combat.player_taken, dt, gate, reach, grounded, tier);
     if hurt_edge(before, combat.player_taken) { // DROID-HURT-READOUT-1: the predator's hurt path, combat_core.rs:636-644
         combat.hurt = combat.hurt.wrapping_add(1);
@@ -158,11 +162,18 @@ fn droid_tick(
     let alive = gate && droid_alive(&state);
     body.iter_mut().for_each(|mut v| _ = v.set_if_neq(show(alive)));
     let tell = alive && shot_tell_visible(state.shot_timer, armed);
+    let tip_edge = !*was && armed && tell;
     if tell_arm(&mut was, armed, tell) {
         play_tell(&mut cmd, assets.as_deref(), mute.as_deref());
         if let (true, Some(epi)) = (hides_cues(tier), epi.as_mut()) {
             set_pulse(epi, DROID_TELL_TEXT.to_string(), time.elapsed_secs_f64() + f64::from(DROID_SHOT_TELL_SECS));
         }
+    }
+    if let Some(p) = at {
+        crate::combat_text::hook_droid_frame(
+            &mut cmd, settings.as_deref_mut(), strike_b, state.taken, strike_miss, shot_t0, before,
+            combat.player_taken, dt, armed_b, grounded, tip_edge, p,
+        );
     }
     let tell = tell && !hides_cues(tier); // tiers 3-4: the ring stays hidden
     dots.iter_mut().for_each(|mut v| _ = v.set_if_neq(show(tell)));
@@ -533,5 +544,17 @@ mod tests {
         let absent = run_droid_tick(None, 0.4, DROID_SHOT_SECS);
         assert_eq!((absent.resource::<CombatState>().player_taken, absent.resource::<CombatState>().hurt, absent.resource::<DroidState>().shot_timer), (0, 0, 0.0));
         assert!(absent.get_resource::<SoftPresence>().is_none());
+    }
+
+    #[test]
+    fn combat_text_hook_strike_delta_matches_hit() {
+        use crate::combat_text::{hook_droid_strike, CombatTextQueue};
+        let mut state = DroidState::default();
+        let mut last = 0u32;
+        let before = state.taken;
+        let _ = strike_step(&mut state, &mut last, 1, true, true);
+        let mut q = CombatTextQueue::default();
+        hook_droid_strike(&mut q, before, state.taken, false, Vec3::ZERO);
+        assert_eq!(q.events[0].amount, state.taken.saturating_sub(before));
     }
 }

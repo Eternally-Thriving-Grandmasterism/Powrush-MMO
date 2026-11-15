@@ -76,6 +76,7 @@ pub mod combat_core;
 pub mod difficulty;
 pub mod grazer;
 pub mod droid;
+pub mod combat_text;
 pub mod run_ledger;
 pub mod loot_drops;
 pub mod living_freshness;
@@ -232,6 +233,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(combat_core::CombatCorePlugin);
         app.add_plugins(grazer::GrazerPlugin);
         app.add_plugins(droid::DroidPlugin);
+        app.add_plugins(combat_text::CombatTextPlugin);
         app.add_plugins(run_ledger::RunLedgerPlugin);
         app.add_plugins(first_whisper::FirstWhisperPlugin);
         app.add_plugins(first_hour_camera::FirstHourCameraPlugin);

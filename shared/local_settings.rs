@@ -430,6 +430,15 @@ pub struct LocalSettings {
     /// or older file shows the gate once. Birth month and year are not stored.
     #[serde(default)]
     pub age_confirmed: bool,
+    #[serde(default = "default_true")] pub combat_floating_on: bool,
+    #[serde(default)] pub combat_log_on: bool,
+    #[serde(default = "default_true")] pub combat_show_dealt: bool,
+    #[serde(default = "default_true")] pub combat_show_taken: bool,
+    #[serde(default = "default_true")] pub combat_show_missed: bool,
+    #[serde(default = "combat_text_size_default")] pub combat_text_size: String,
+    #[serde(default)] pub combat_high_contrast: bool,
+    #[serde(default = "combat_layout_default")] pub combat_layout: String,
+    #[serde(default)] pub combat_tip_shown: bool,
 }
 
 fn default_mouse_look() -> bool {
@@ -537,6 +546,9 @@ fn default_control_preset() -> String {
     "modern".into()
 }
 
+fn combat_text_size_default() -> String { "normal".into() }
+fn combat_layout_default() -> String { "default".into() }
+
 /// "classic" | "minimal" | "management". Anything else, including a blank, is classic.
 pub fn canonical_hud_preset(raw: &str) -> String {
     match raw.trim().to_ascii_lowercase().as_str() {
@@ -598,6 +610,15 @@ impl Default for LocalSettings {
             mouse_look: true,
             raw_look: false,
             age_confirmed: false,
+            combat_floating_on: true,
+            combat_log_on: false,
+            combat_show_dealt: true,
+            combat_show_taken: true,
+            combat_show_missed: true,
+            combat_text_size: combat_text_size_default(),
+            combat_high_contrast: false,
+            combat_layout: combat_layout_default(),
+            combat_tip_shown: false,
         }
     }
 }
@@ -652,6 +673,7 @@ impl LocalSettings {
         self.normalize_lan();
         self.normalize_controls();
         self.normalize_hud_preset();
+        self.normalize_combat_text();
     }
 
 
@@ -891,6 +913,12 @@ impl LocalSettings {
             "classic" => "classic".into(),
             _ => "modern".into(),
         };
+    }
+
+    pub fn normalize_combat_text(&mut self) {
+        let (size, layout) = (self.combat_text_size.trim().to_ascii_lowercase(), self.combat_layout.trim().to_ascii_lowercase());
+        self.combat_text_size = if size == "small" || size == "large" { size } else { "normal".into() };
+        self.combat_layout = if layout == "hive" { "hive".into() } else { "default".into() };
     }
 
     pub fn control_preset_is_classic(&self) -> bool {
@@ -1194,6 +1222,17 @@ mod tests {
         assert!(s.resolve_on_screen_sticks(true));
         assert!((s.master_gain() - 1.0).abs() < f32::EPSILON);
         assert!((s.look_y_sign() - 1.0).abs() < f32::EPSILON);
+    }
+
+    #[test]
+    fn combat_text_acceptance_t1_h3_legacy_json_combat_defaults() {
+        let raw = r#"{"schema":"powrush_settings_v1","mute":false}"#;
+        let s = LocalSettings::from_json(raw).unwrap();
+        assert!(s.combat_floating_on && !s.combat_log_on && s.combat_show_dealt && s.combat_show_taken && s.combat_show_missed);
+        let json = s.to_json().unwrap();
+        let back = LocalSettings::from_json(&json).unwrap();
+        assert_eq!(back.combat_layout, "default");
+        assert!(!back.combat_tip_shown);
     }
 
     #[test]
