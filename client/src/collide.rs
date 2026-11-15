@@ -64,3 +64,60 @@ pub(crate) fn push_out_of_rock(pos: &mut Vec3, vel: &mut Vec3, spot: Vec3, stand
         vel.z -= into * n.y;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::vegetation::{
+        cleared_plants, trunk_on_plate, vegetation_plan, FieldTrunks, VegKind, TRUNK_RADIUS,
+    };
+    use shared::local_settings::GraphicsPreset;
+
+    /// CARD COLLIDE-CORE-1 CC2 — a walk into an off-plate field trunk stops at its radius.
+    #[test]
+    fn collide_core_1_cc2_off_plate_trunk_stops_walk() {
+        use bevy::asset::AssetPlugin;
+        use bevy::prelude::*;
+        use shared::local_settings::LocalSettings;
+        use crate::painterly_shader::PainterlyMaterial;
+        let plant = cleared_plants(GraphicsPreset::High, None)
+            .unwrap()
+            .into_iter()
+            .find(|p| {
+                p.kind == VegKind::Tree
+                    && !trunk_on_plate(p.x, p.z, p.scale)
+                    && {
+                        let r = Vec2::new(p.x, p.z).length();
+                        r > crate::terrain::COURT_RADIUS
+                            && r < vegetation_plan(GraphicsPreset::High).reach
+                    }
+            })
+            .expect("walkable off-plate trunk");
+        let center = Vec2::new(plant.x, plant.z);
+        let trunk_r = TRUNK_RADIUS * plant.scale;
+        let reach = trunk_r + PLAYER_TRUNK_RADIUS;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .init_asset::<Mesh>()
+            .init_asset::<StandardMaterial>()
+            .init_asset::<PainterlyMaterial>()
+            .add_plugins(crate::vegetation::VegetationPlugin)
+            .insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) });
+        let mut inner = LocalSettings::default();
+        inner.set_graphics_preset(GraphicsPreset::High);
+        app.insert_resource(crate::local_settings::LocalSettingsState { inner, dirty: false });
+        app.update();
+        let trunks = app.world().resource::<FieldTrunks>().0.clone();
+        assert!(trunks.iter().any(|(c, r)| c.distance(center) < 1e-4 && (*r - trunk_r).abs() < 1e-5));
+        let mut pos = Vec3::new(center.x, 0.9, center.y - reach - 1.5);
+        (0..180).for_each(|_| {
+            pos.z += 0.08;
+            push_out_of_trunks(&mut pos, trunks.iter().copied());
+        });
+        assert!(
+            (pos.xz().distance(center) - reach).abs() < 1e-3,
+            "walk did not stop at off-plate trunk {pos}"
+        );
+        assert!(pos.z < center.y + 1e-3, "walked through {pos}");
+    }
+}

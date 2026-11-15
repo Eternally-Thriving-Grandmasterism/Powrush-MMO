@@ -753,8 +753,7 @@ fn sync_vegetation(mut ctx: VegCtx) {
         &mut ctx.held,
         &mut ctx.fade,
     );
-    // On-plate table trunks only. Off-plate decor is NoCollide while the court is unwalkable; a post-EA walkable court has to restore those trunks.
-    let trunks = plants.iter().filter(|plant| plant.kind == VegKind::Tree && trunk_on_plate(plant.x, plant.z, plant.scale)).map(|plant| (Vec2::new(plant.x, plant.z), TRUNK_RADIUS * plant.scale)).collect();
+    let trunks = plants.iter().filter(|plant| plant.kind == VegKind::Tree).map(|plant| (Vec2::new(plant.x, plant.z), TRUNK_RADIUS * plant.scale)).collect();
     ctx.commands.insert_resource(FieldTrunks(trunks));
     if shown {
         spawn_field(meshes, materials, painted, &mut ctx.ramps, &mut ctx.held, &mut ctx.commands, &plants, preset);
@@ -1629,7 +1628,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<PainterlyMaterial>().add_plugins(VegetationPlugin).insert_resource(SoftPlayerRealm { current: Some(0) });
         let site = crate::wood_expedition::WoodClearance::reserve(crate::wood_expedition::first_passing_site().unwrap());
-        let want: Vec<_> = FIELD_TREES.iter().map(|&(x, z, s, _)| (Vec2::new(x, z), TRUNK_RADIUS * s)).collect();
+        let table: Vec<_> = FIELD_TREES.iter().map(|&(x, z, s, _)| (Vec2::new(x, z), TRUNK_RADIUS * s)).collect();
         for preset in GraphicsPreset::ALL {
             for clear in [false, true] {
                 let mut inner = LocalSettings::default();
@@ -1637,8 +1636,79 @@ mod tests {
                 app.insert_resource(LocalSettingsState { inner, dirty: false });
                 if clear { app.insert_resource(site); } else { app.world_mut().remove_resource::<crate::wood_expedition::WoodClearance>(); }
                 app.update();
-                assert_eq!(&app.world().resource::<FieldTrunks>().0, &want, "AF1 {preset:?} clear {clear}");
+                let disk = if clear { Some(&site) } else { None };
+                let expect = if matches!(
+                    preset,
+                    GraphicsPreset::Mobile | GraphicsPreset::Low | GraphicsPreset::Medium
+                ) {
+                    table.clone()
+                } else {
+                    cleared_plants(preset, disk)
+                        .unwrap()
+                        .iter()
+                        .filter(|p| p.kind == VegKind::Tree)
+                        .map(|p| (Vec2::new(p.x, p.z), TRUNK_RADIUS * p.scale))
+                        .collect()
+                };
+                assert_eq!(&app.world().resource::<FieldTrunks>().0, &expect, "AF1 {preset:?} clear {clear}");
             }
+        }
+    }
+
+    /// CARD COLLIDE-CORE-1 CC1 — off-plate trunks land in [`FieldTrunks`] on High and Ultra.
+    #[test]
+    fn collide_core_1_cc1_off_plate_trunks_on_high_ultra() {
+        use bevy::asset::AssetPlugin;
+        use shared::local_settings::LocalSettings;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .init_asset::<Mesh>()
+            .init_asset::<StandardMaterial>()
+            .init_asset::<PainterlyMaterial>()
+            .add_plugins(VegetationPlugin)
+            .insert_resource(SoftPlayerRealm { current: Some(0) });
+        let site = crate::wood_expedition::WoodClearance::reserve(crate::wood_expedition::first_passing_site().unwrap());
+        for preset in [GraphicsPreset::High, GraphicsPreset::Ultra] {
+            let mut inner = LocalSettings::default();
+            inner.set_graphics_preset(preset);
+            app.insert_resource(LocalSettingsState { inner, dirty: false });
+            app.insert_resource(site);
+            app.update();
+            let got = &app.world().resource::<FieldTrunks>().0;
+            let plants = cleared_plants(preset, Some(&site)).unwrap();
+            let want: Vec<_> = plants
+                .iter()
+                .filter(|p| p.kind == VegKind::Tree)
+                .map(|p| (Vec2::new(p.x, p.z), TRUNK_RADIUS * p.scale))
+                .collect();
+            assert_eq!(got, &want, "{preset:?}");
+            let off = plants
+                .iter()
+                .filter(|p| p.kind == VegKind::Tree && !trunk_on_plate(p.x, p.z, p.scale))
+                .count();
+            assert_eq!(off, if preset == GraphicsPreset::High { 6 } else { 19 }, "{preset:?}");
+        }
+    }
+
+    /// CARD COLLIDE-CORE-1 CC3 — cheap presets keep [`FieldTrunks`] on the table set only.
+    #[test]
+    fn collide_core_1_cc3_cheap_field_trunks_match_field_trees() {
+        use bevy::asset::AssetPlugin;
+        use shared::local_settings::LocalSettings;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .init_asset::<Mesh>()
+            .init_asset::<StandardMaterial>()
+            .init_asset::<PainterlyMaterial>()
+            .add_plugins(VegetationPlugin)
+            .insert_resource(SoftPlayerRealm { current: Some(0) });
+        let want: Vec<_> = FIELD_TREES.iter().map(|&(x, z, s, _)| (Vec2::new(x, z), TRUNK_RADIUS * s)).collect();
+        for preset in [GraphicsPreset::Mobile, GraphicsPreset::Low, GraphicsPreset::Medium] {
+            let mut inner = LocalSettings::default();
+            inner.set_graphics_preset(preset);
+            app.insert_resource(LocalSettingsState { inner, dirty: false });
+            app.update();
+            assert_eq!(&app.world().resource::<FieldTrunks>().0, &want, "{preset:?}");
         }
     }
 
