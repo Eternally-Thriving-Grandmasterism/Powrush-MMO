@@ -100,6 +100,25 @@ jobs:
           arr_notice "$q/models"
           if bash scripts/check_asset_licenses.sh --private "$u"; then echo "self-test: ARR bad notice did not stop walk"; exit 1; fi
 
+      - name: Public dist leak guard (+ self-test)
+        run: |
+          set -euo pipefail
+          t="$(mktemp -d)"
+          mkdir -p "$t/assets/models"
+          echo ok > "$t/assets/models/x.glb"
+          bash scripts/assert-public-dist-has-no-private.sh "$t"
+          mkdir -p "$t/assets/private/textures/other"
+          echo leak > "$t/assets/private/leak.txt"
+          if bash scripts/assert-public-dist-has-no-private.sh "$t"; then
+            echo "self-test: planted assets/private passed"; exit 1
+          fi
+          rm -rf "$t/assets/private"
+          mkdir -p "$t/assets/foo/stone-painterly-08"
+          echo leak > "$t/assets/foo/stone-painterly-08/x.png"
+          if bash scripts/assert-public-dist-has-no-private.sh "$t"; then
+            echo "self-test: planted stone-painterly-08 passed"; exit 1
+          fi
+
       - name: Third-party notices drift guard (+ self-test)
         run: |
           notices_drift() {
