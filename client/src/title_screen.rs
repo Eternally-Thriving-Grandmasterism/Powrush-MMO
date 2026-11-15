@@ -171,6 +171,9 @@ use shared::local_settings::{
     refuse_online_socket_toggle, LocalSettings, PeaceKey, SETTINGS_PATH,
     COMFORT_GRAPHICS_BANNER_COPY,
 };
+use shared::local_settings::apply_combat_text_starter_preset;
+use crate::hud_presets::HudLayoutCommand;
+use crate::local_settings::hud_preset_id;
 #[cfg(test)]
 use shared::local_settings::GraphicsPreset;
 use shared::pause_ledger_face::lethal_sign_row;
@@ -764,6 +767,18 @@ pub(crate) struct SettingsHudEditBtn;
 struct SettingsHudEditLabel;
 #[derive(Component)]
 struct SettingsHudLayoutLabel;
+#[derive(Component)]
+pub(crate) struct SettingsCombatFloatingBtn;
+#[derive(Component)]
+pub(crate) struct SettingsCombatFloatingLabel;
+#[derive(Component)]
+pub(crate) struct SettingsCombatLogBtn;
+#[derive(Component)]
+pub(crate) struct SettingsCombatLogLabel;
+#[derive(Component)]
+pub(crate) struct SettingsCombatPresetBtn(pub(crate) u8);
+#[derive(Component)]
+pub(crate) struct SettingsCombatCustomLabel;
 #[derive(Component)]
 struct SettingsReducedMotionBtn;
 #[derive(Component)]
@@ -1396,6 +1411,8 @@ impl Plugin for TitleScreenPlugin {
             )
             .add_systems(Update, refresh_title_menu_text_scale)
             .add_systems(Update, control_preset_clicks)
+            .add_systems(Update, combat_text_settings_clicks.before(crate::hud_presets::apply_hud_layout_commands))
+            .add_message::<HudLayoutCommand>()
             .add_systems(Update, refresh_hud_layout_label)
             // Same-frame as Places row Pressed: hide Comfort before soft-GPU composites.
             .add_systems(
@@ -1809,6 +1826,15 @@ const CONTROLS_ROW_PAD_Y: f32 = 1.0;
 const CONTROLS_ROW_GAP: f32 = 1.0;
 /// Keep in sync with the Controls children in `spawn_settings_stub`.
 const CONTROLS_SETTINGS_ROWS: u32 = 16;
+/// COMBAT-TEXT-1b — HUD tab rows including the compact combat-text block.
+const HUD_SETTINGS_ROWS: u32 = 6;
+
+// PLACEHOLDER COPY: council pick pending, Sherif may veto
+pub(crate) const PLACEHOLDER_COMBAT_TEXT_SECTION: &str = "[[COMBAT_TEXT_SECTION]]";
+pub(crate) const PLACEHOLDER_FLOATING_TOGGLE: &str = "[[FLOATING_TOGGLE]]";
+pub(crate) const PLACEHOLDER_LOG_TOGGLE: &str = "[[LOG_TOGGLE]]";
+pub(crate) const PLACEHOLDER_COMBAT_CUSTOM: &str = "[[CUSTOM]]";
+pub(crate) const COMBAT_PRESET_LABELS: [&str; 8] = ["[[PRESET_1]]", "[[PRESET_2]]", "[[PRESET_3]]", "[[PRESET_4]]", "[[PRESET_5]]", "[[PRESET_6]]", "[[PRESET_7]]", "[[PRESET_8]]"];
 /// One conflict can wrap to two lines ("share either Shift", "share
 /// Backspace"). The row is capped here so a file full of duplicates cannot
 /// grow the plate.
@@ -2013,6 +2039,7 @@ TextColor(TITLE_TEXT_PRIMARY),
                 );
                 spawn_settings_row(hud, "Edit HUD", SettingsHudEditBtn, SettingsHudEditLabel);
                 spawn_settings_row(hud, "Reset UI", SettingsHudResetBtn, SettingsHudResetLabel);
+                spawn_combat_text_hud_section(hud);
             });
             // Guide tab — one peak-memory sentence, wrapped in this plate.
             p.spawn((
@@ -3362,6 +3389,27 @@ fn spawn_comfort_row<B: Component, L: Component>(
     spawn_settings_row_padded(p, label, btn, text_marker, COMFORT_ROW_PAD_Y);
 }
 
+fn spawn_combat_text_hud_section(hud: &mut ChildSpawnerCommands) {
+    hud.spawn((Text::new(PLACEHOLDER_COMBAT_TEXT_SECTION), ui_kit::font(ui_kit::TYPE_LABEL), TextColor(TITLE_TEXT_SECONDARY), Node { width: Val::Percent(100.0), margin: UiRect::top(Val::Px(ui_kit::SPACE_XS)), ..default() }));
+    hud.spawn(Node { width: Val::Percent(100.0), flex_direction: FlexDirection::Row, column_gap: Val::Px(ui_kit::SPACE_XS), ..default() }).with_children(|row| {
+        spawn_combat_text_chip(row, PLACEHOLDER_FLOATING_TOGGLE, SettingsCombatFloatingBtn, SettingsCombatFloatingLabel);
+        spawn_combat_text_chip(row, PLACEHOLDER_LOG_TOGGLE, SettingsCombatLogBtn, SettingsCombatLogLabel);
+    });
+    hud.spawn(Node { width: Val::Percent(100.0), flex_direction: FlexDirection::Row, flex_wrap: FlexWrap::Wrap, row_gap: Val::Px(ui_kit::SPACE_XS), column_gap: Val::Px(ui_kit::SPACE_XS), justify_content: JustifyContent::Center, ..default() }).with_children(|grid| {
+        for (i, label) in COMBAT_PRESET_LABELS.iter().enumerate() {
+            spawn_combat_text_chip(grid, label, SettingsCombatPresetBtn(i as u8), Name::new(format!("combat preset {i}")));
+        }
+    });
+    hud.spawn((Text::new(PLACEHOLDER_COMBAT_CUSTOM), ui_kit::font(ui_kit::TYPE_LABEL), TextColor(TITLE_TEXT_SECONDARY), SettingsCombatCustomLabel, Node { width: Val::Percent(100.0), ..default() }));
+}
+
+fn spawn_combat_text_chip<B: Component, L: Component>(p: &mut ChildSpawnerCommands, label: &str, btn: B, text_marker: L) {
+    p.spawn((ui_kit::button(TITLE_BTN_BG), Node { padding: UiRect::axes(Val::Px(8.0), Val::Px(2.0)), justify_content: JustifyContent::Center, border: UiRect::all(Val::Px(SETTINGS_ROW_BORDER)), flex_shrink: 0.0, ..default() }, btn))
+        .with_children(|b| {
+            b.spawn((Text::new(label), ui_kit::font(ui_kit::TYPE_LABEL), TextColor(TITLE_BTN_FG), text_marker));
+        });
+}
+
 fn spawn_settings_row_padded<B: Component, L: Component>(
     p: &mut ChildSpawnerCommands,
     label: &str,
@@ -3466,6 +3514,11 @@ fn controls_pause_plate_height_px(text_scale: f32) -> f32 {
     let conflict = controls_conflict_max_height_px(text_scale);
     let panel = (rows - 1.0) * single + conflict + (rows - 1.0) * CONTROLS_ROW_GAP;
     pause_plate_chrome_px() + panel
+}
+
+fn hud_pause_plate_height_px(text_scale: f32) -> f32 {
+    let row = settings_row_line_px(text_scale) + SETTINGS_ROW_PAD_Y * 2.0 + SETTINGS_ROW_BORDER * 2.0;
+    pause_plate_chrome_px() + HUD_SETTINGS_ROWS as f32 * row + (HUD_SETTINGS_ROWS as f32 - 1.0) * SETTINGS_TAB_ROW_GAP
 }
 
 /// Inner width of a Controls row's text, border box, plate width 420.
@@ -4278,6 +4331,27 @@ fn local_settings_clicks(
     if changed {
         settings.mark_and_persist();
     }
+}
+
+fn combat_text_settings_clicks(
+    label: Res<HouseLabel>,
+    mut settings: ResMut<LocalSettingsState>,
+    mut commands: MessageWriter<HudLayoutCommand>,
+    mut presses: ParamSet<(
+        Query<&Interaction, (Changed<Interaction>, With<SettingsCombatFloatingBtn>)>,
+        Query<&Interaction, (Changed<Interaction>, With<SettingsCombatLogBtn>)>,
+        Query<(&Interaction, &SettingsCombatPresetBtn), Changed<Interaction>>,
+    )>,
+) {
+    if !label.settings_open { return; }
+    let hud_before = settings.inner.hud_preset.clone();
+    let mut changed = false;
+    for i in presses.p0().iter() { if *i == Interaction::Pressed { settings.inner.combat_floating_on = !settings.inner.combat_floating_on; changed = true; } }
+    for i in presses.p1().iter() { if *i == Interaction::Pressed { settings.inner.combat_log_on = !settings.inner.combat_log_on; changed = true; } }
+    for (i, preset) in presses.p2().iter() { if *i == Interaction::Pressed { apply_combat_text_starter_preset(&mut settings.inner, preset.0 as usize); changed = true; } }
+    if !changed { return; }
+    if settings.inner.hud_preset != hud_before { commands.write(HudLayoutCommand::Apply(hud_preset_id(&settings.inner))); }
+    settings.mark_and_persist();
 }
 
 fn control_preset_clicks(
@@ -7841,6 +7915,22 @@ mod tests {
             FontSize::Px(px) => px,
             other => panic!("pause label font is {other:?}"),
         }
+    }
+
+    /// COMBAT-TEXT-1b — HUD tab plate fits 1280×720 at max text scale.
+    #[test]
+    fn hud_plate_fits_720p_at_max_text_scale() {
+        let scale = shared::local_settings::TEXT_SCALE_MAX;
+        let height = hud_pause_plate_height_px(scale);
+        let cap = 720.0 * 0.98;
+        assert!(
+            cap - height >= 16.0,
+            "HUD plate {height}px leaves under 16px inside the 720p cap {cap}"
+        );
+        let bottom = 720.0 * 0.01 + height;
+        assert!(bottom <= 720.0, "HUD plate ends at {bottom}, past 720");
+        assert_eq!(HUD_SETTINGS_ROWS, 6);
+        assert!(hud_pause_plate_height_px(1.0) < height);
     }
 
     /// CARD CAM-MOUSELOOK-1B — fourteen Comfort rows fit 1280×720 at max text scale.
