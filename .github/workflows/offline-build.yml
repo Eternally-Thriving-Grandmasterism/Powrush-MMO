@@ -129,6 +129,14 @@ jobs:
             echo "dist=${dist}"
           } >> "${GITHUB_OUTPUT}"
 
+      - name: Assert public dist has no private assets
+        shell: bash
+        env:
+          DIST: ${{ steps.package.outputs.dist }}
+        run: |
+          set -euo pipefail
+          bash scripts/assert-public-dist-has-no-private.sh "${DIST}"
+
       - name: Upload offline artifact
         id: upload
         uses: actions/upload-artifact@v4
