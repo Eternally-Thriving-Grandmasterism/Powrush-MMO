@@ -55,8 +55,19 @@ where
     None
 }
 
+fn script_timeline_for_boot<I, S>(args: I, honor_script: bool) -> Option<PathBuf>
+where
+    I: IntoIterator<Item = S>,
+    S: AsRef<str>,
+{
+    if !honor_script {
+        return None;
+    }
+    script_timeline_from_args(args)
+}
+
 fn main() {
-    let script_timeline = script_timeline_from_args(std::env::args());
+    let script_timeline = script_timeline_for_boot(std::env::args(), cfg!(debug_assertions));
     // Resolve once, before `App::new()`. `persist_path("data/crash.log")`
     // creates the directory and may adopt cwd `data/`. Do not call it
     // from the hook. `CRASH_LOG_PERSIST_NAME` is that name.
@@ -272,7 +283,7 @@ mod frame_time_log_tests {
 
 #[cfg(test)]
 mod script_arg_tests {
-    use super::script_timeline_from_args;
+    use super::{script_timeline_for_boot, script_timeline_from_args};
     use std::path::PathBuf;
 
     #[test]
@@ -296,5 +307,12 @@ mod script_arg_tests {
         assert!(script_timeline_from_args(["powrush-client", "--foo", "bar"]).is_none());
         assert!(script_timeline_from_args(["powrush-client", "--script"]).is_none());
         assert!(script_timeline_from_args(["powrush-client", "--script", ""]).is_none());
+    }
+
+    #[test]
+    fn boot_wrapper_honors_script_only_in_debug_profile() {
+        let args = ["powrush", "--script", "t.txt"];
+        assert!(script_timeline_for_boot(args, false).is_none());
+        assert_eq!(script_timeline_for_boot(args, true).unwrap(), PathBuf::from("t.txt"));
     }
 }
