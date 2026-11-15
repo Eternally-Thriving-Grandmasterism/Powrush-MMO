@@ -2,12 +2,25 @@
 //! LOOP-PACING-1 adds a Last waiter. That waiter is release spacing only: not a frame, present,
 //! or render cap, and not a safety, thermal, or leak claim.
 
+use std::io::Write;
 use std::time::{Duration, Instant};
 
 use bevy::diagnostic::LogDiagnosticsPlugin;
 use bevy::prelude::*;
+use bevy::render::renderer::RenderAdapterInfo;
 use bevy::time::Real;
 use bevy::window::PrimaryWindow;
+
+pub fn perf_log_on(v: Option<&str>) -> bool {
+    matches!(v.map(|s| s.trim().to_ascii_lowercase()).as_deref(), Some("1" | "on" | "true" | "yes"))
+}
+#[derive(Resource, Clone, Copy)] struct PerfLog(pub bool);
+#[derive(Resource, Default)] struct PerfLogHead(bool);
+fn append_perf_line(s: &str) {
+    let p = shared::user_persist::persist_path("data/perf.log");
+    let _ = p.parent().map(std::fs::create_dir_all);
+    let _ = std::fs::OpenOptions::new().create(true).append(true).open(&p).and_then(|mut f| f.write_all(s.as_bytes()).and_then(|_| f.write_all(b"\n")));
+}
 
 /// One frame at 60 Hz, in seconds.
 pub const FRAME_BUDGET_SECS: f64 = 1.0 / 60.0;
@@ -127,6 +140,8 @@ impl Plugin for FramePacePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<FramePace>()
             .init_resource::<ReleasePace>()
+            .init_resource::<PerfLogHead>()
+            .insert_resource(PerfLog(perf_log_on(std::env::var("POWRUSH_PERF_LOG").ok().as_deref())))
             .insert_resource(Clock(Box::new(InstantClock)))
             .insert_resource(Sleeper(Box::new(ThreadSleeper)))
             .add_systems(Update, frame_pace_system)
@@ -134,7 +149,7 @@ impl Plugin for FramePacePlugin {
     }
 }
 
-fn frame_pace_system(time: Res<Time<Real>>, mut pace: ResMut<FramePace>) {
+fn frame_pace_system(time: Res<Time<Real>>, mut pace: ResMut<FramePace>, perf: Res<PerfLog>, mut head: ResMut<PerfLogHead>, adapter: Option<Res<RenderAdapterInfo>>) {
     let roll_secs = LogDiagnosticsPlugin::default().wait_duration.as_secs_f64();
     if let Some(c) = pace.tick(time.delta_secs_f64(), roll_secs) {
         // p50 / p95 as the upper ms edge of the first bucket reaching that share of frames.
@@ -155,6 +170,7 @@ fn frame_pace_system(time: Res<Time<Real>>, mut pace: ResMut<FramePace>) {
                 (i + 1).to_string()
             }
         };
+        if !perf.0 { return; }
         info!(
             "frame_pace: frames={} over_budget={} hitches={} p50_ms<={} p95_ms<={}",
             c.frames,
@@ -163,6 +179,9 @@ fn frame_pace_system(time: Res<Time<Real>>, mut pace: ResMut<FramePace>) {
             edge(p50.unwrap_or(31)),
             edge(p95.unwrap_or(31))
         );
+        let mut lead = String::new();
+        if !head.0 { head.0 = true; if let Some(a) = adapter.as_deref() { lead = format!("adapter={} ", a.name); } }
+        append_perf_line(&format!("frame_pace: {lead}frames={} over_budget={} hitches={} p50_ms<={} p95_ms<={}", c.frames, c.over_budget, c.hitches, edge(p50.unwrap_or(31)), edge(p95.unwrap_or(31))));
     }
 }
 
@@ -972,5 +991,14 @@ mod tests {
         let pace = app.world().resource::<ReleasePace>();
         assert!(pace.overflow_hold);
         assert!(pace.deadline.is_none());
+    }
+
+    #[test]
+    fn perf_log_env_and_roll_file() {
+        for (v, on) in [(None, false), (Some("0"), false), (Some("junk"), false), (Some("1"), true), (Some("on"), true), (Some("true"), true), (Some("yes"), true)] { assert_eq!(perf_log_on(v), on); }
+        let _g = crate::test_env::lock(); let k = shared::user_persist::USER_DIR_OVERRIDE_ENV; let prev = std::env::var(k).ok(); let dir = std::env::temp_dir().join(format!("p{}", std::process::id())); std::env::set_var(k, &dir);
+        assert!(FramePace::default().tick(1.01, 1.0).is_some()); assert!(!shared::user_persist::persist_path("data/perf.log").exists());
+        let c = { let mut p = FramePace::default(); p.tick(1.01, 1.0).unwrap() }; append_perf_line(&format!("frame_pace: frames={} over_budget={} hitches={} p50_ms<=2 p95_ms<=2", c.frames, c.over_budget, c.hitches));
+        let s = std::fs::read_to_string(shared::user_persist::persist_path("data/perf.log")).unwrap(); assert!(s.contains("p50_ms") && !s.contains("adapter=")); match prev { Some(v) => std::env::set_var(k, v), None => std::env::remove_var(k) }
     }
 }
