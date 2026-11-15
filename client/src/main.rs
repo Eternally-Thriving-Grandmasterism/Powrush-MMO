@@ -21,6 +21,10 @@ const CRASH_LOG_FILE: &str = "crash.log";
 /// Argument to `persist_path`. The file name stays [`CRASH_LOG_FILE`].
 const CRASH_LOG_PERSIST_NAME: &str = "data/crash.log";
 
+fn maybe_frame_time_log() -> Option<LogDiagnosticsPlugin> {
+    powrush_client::frame_pace::perf_log_on(std::env::var("POWRUSH_PERF_LOG").ok().as_deref()).then(frame_time_log_plugin)
+}
+
 /// Console log of FPS and frame time. Bevy defaults stay, including the log interval.
 fn frame_time_log_plugin() -> LogDiagnosticsPlugin {
     LogDiagnosticsPlugin {
@@ -106,10 +110,10 @@ fn main() {
         .add_plugins(PowrushClientBundle)
         .add_plugins((
             FrameTimeDiagnosticsPlugin::default(),
-            frame_time_log_plugin(),
             powrush_client::frame_pace::FramePacePlugin,
         ))
         .add_systems(Startup, spawn_sun_and_camera);
+    if let Some(log) = maybe_frame_time_log() { app.add_plugins(log); }
     if let Some(path) = script_timeline {
         app.insert_resource(powrush_client::input::ScriptTimeline::from_path(path));
     }
@@ -279,6 +283,9 @@ mod frame_time_log_tests {
         assert!(store.get(&FrameTimeDiagnosticsPlugin::FPS).is_some());
         assert!(store.get(&FrameTimeDiagnosticsPlugin::FRAME_TIME).is_some());
     }
+
+    #[test]
+    fn perf_log_boot_frame_time_log_optional() { assert!(super::maybe_frame_time_log().is_none()); std::env::set_var("POWRUSH_PERF_LOG", "on"); assert!(super::maybe_frame_time_log().is_some()); std::env::remove_var("POWRUSH_PERF_LOG"); }
 }
 
 #[cfg(test)]

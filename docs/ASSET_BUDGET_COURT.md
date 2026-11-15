@@ -72,7 +72,7 @@ Exact triangle / draw-call numbers stay **blank** for a later Core / Hands measu
 | Medium (default) · 1080p | not measured | not measured |
 | Steam Deck | unmeasured | unmeasured |
 
-Run a release build with `cargo run --release -p powrush-client` and read the once-per-second `frame_pace:` log line (`p50_ms<=` / `p95_ms<=`). Caveat: that line is vsync-capped at the default 1280×800 window, so it is not a Medium 1080p measurement.
+Run a release build with `POWRUSH_PERF_LOG=1 cargo run --release -p powrush-client` and read the once-per-second `frame_pace:` console line or `data/perf.log` (`p50_ms<=` / `p95_ms<=`). Caveat: that line is vsync-capped at the default 1280×800 window, so it is not a Medium 1080p measurement.
 
 Delivery spirit (law, not PATHS): modern methods for optimal delivery — LOD and Comfort scaling already named; no binary pack in this tree this tick.
 
