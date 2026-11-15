@@ -32,6 +32,7 @@ use crate::local_settings::LocalSettingsState;
 
 const DROP_SECS: f32 = 0.11;
 const BEAD_LIFE: f32 = 0.72;
+const RIBBON_TRAIL_CAP: usize = 0;
 const AWE_SECS: f32 = 5.2;
 /// CARD PUSH-FEEL-1 — the nectar current is beads only; it never writes the player body.
 pub(crate) const NECTAR_FROM: Vec3 = Vec3::new(-5.2, 1.15, -1.4);
@@ -149,6 +150,7 @@ struct NectarBead;
 #[derive(Resource)]
 struct RibbonKit {
     mesh: Handle<Mesh>,
+    bead_material: Handle<StandardMaterial>,
 }
 
 pub struct FlowWeatherPlugin;
@@ -172,9 +174,10 @@ impl Plugin for FlowWeatherPlugin {
     }
 }
 
-fn seed_ribbon(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>) {
+fn seed_ribbon(mut commands: Commands, mut meshes: ResMut<Assets<Mesh>>, mut materials: ResMut<Assets<StandardMaterial>>) {
     commands.insert_resource(RibbonKit {
         mesh: meshes.add(Sphere::new(0.06)),
+        bead_material: materials.add(StandardMaterial { base_color: Color::srgb(0.92, 0.95, 0.78), perceptual_roughness: 0.35, ..default() }),
     });
 }
 
@@ -274,7 +277,6 @@ fn apply_awe_light(
 
 fn drop_beads(
     mut commands: Commands,
-    mut materials: ResMut<Assets<StandardMaterial>>,
     kit: Option<Res<RibbonKit>>,
     presence: Res<SoftPresence>,
     weather: Res<FlowWeather>,
@@ -282,10 +284,17 @@ fn drop_beads(
     settings: Option<Res<LocalSettingsState>>,
     time: Res<Time>,
     mut last: Local<f32>,
+    live: Query<Entity, With<RibbonBead>>,
 ) {
+    if RIBBON_TRAIL_CAP == 0 {
+        return;
+    }
     let Some(kit) = kit else {
         return;
     };
+    if live.iter().count() >= RIBBON_TRAIL_CAP {
+        return;
+    }
     let fidelity = settings
         .as_ref()
         .map(|s| s.inner.weather_fidelity())
@@ -307,12 +316,7 @@ fn drop_beads(
     } else {
         place_mood_glow(mood, weather.band, fidelity)
     };
-    let handle = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.92, 0.95, 0.78),
-        emissive: glow,
-        perceptual_roughness: 0.35,
-        ..default()
-    });
+    let handle = kit.bead_material.clone();
     let scale = bead_scale_for(weather.band, inhaling, fidelity);
     commands.spawn((
         (
@@ -478,6 +482,42 @@ mod tests {
             assert!(!low.contains("hud"), "{sample}");
             assert!(!low.contains("online"), "{sample}");
             assert!(!sample.contains("Threshold"), "{sample}");
+        }
+    }
+
+    /// TRAIL-DOTS-1 — follower ribbon off: moving airborne + grounded idle controls.
+    #[test]
+    fn ribbon_trail_hidden_follower_emitter() {
+        use std::time::Duration;
+        use crate::human_presence::SoftPresence;
+        use crate::living_practice_loop::SoftPlayerRealm;
+        let step = Duration::from_secs_f32(1.0 / 60.0);
+        for presence in [
+            SoftPresence { position: Vec3::new(1.0, 2.0, 3.0), velocity: Vec3::new(2.0, 0.0, 1.0), grounded: false, ..default() },
+            SoftPresence::default(),
+        ] {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+                .init_resource::<Assets<Mesh>>()
+                .init_resource::<Assets<StandardMaterial>>()
+                .init_resource::<FlowWeather>()
+                .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(step))
+                .insert_resource(presence)
+                .insert_resource(SoftPlayerRealm { current: Some(0) })
+                .add_systems(Startup, seed_ribbon)
+                .add_systems(Update, (drop_beads, fade_beads));
+            app.update();
+            let start = app.world().resource::<SoftPresence>().position;
+            let mats = app.world().resource::<Assets<StandardMaterial>>().len();
+            let mut elapsed = 0.0_f32;
+            while elapsed < 1.05 {
+                app.update();
+                elapsed = app.world().resource::<Time>().elapsed_secs();
+            }
+            assert!(elapsed >= 1.0, "simulated {elapsed} s");
+            assert_eq!(app.world().resource::<SoftPresence>().position, start);
+            assert_eq!(app.world().resource::<Assets<StandardMaterial>>().len(), mats);
+            assert_eq!(app.world_mut().query::<&RibbonBead>().iter(app.world()).count(), 0);
         }
     }
 }
