@@ -1171,6 +1171,37 @@ pub fn local_settings_opens_socket(_settings: &LocalSettings) -> bool {
     false
 }
 
+/// COMBAT-TEXT-1b starter rows: float, log, dealt, taken, missed, size, contrast, layout, hide, use, hud.
+type CombatStarterRow = (bool, bool, bool, bool, bool, &'static str, bool, &'static str, bool, bool, &'static str);
+pub const COMBAT_TEXT_STARTER_PRESETS: [CombatStarterRow; 8] = [
+    (true, false, true, true, true, "normal", false, "default", false, true, "classic"),
+    (true, true, true, true, true, "normal", false, "default", false, true, "classic"),
+    (true, false, true, false, false, "small", false, "default", true, false, "minimal"),
+    (true, true, true, true, true, "small", false, "hive", false, true, "classic"),
+    (true, false, true, true, false, "large", true, "hive", false, true, "classic"),
+    (false, true, true, true, true, "normal", false, "default", true, true, "minimal"),
+    (true, true, true, true, true, "large", false, "default", false, true, "management"),
+    (true, true, false, false, true, "normal", true, "default", false, false, "classic"),
+];
+
+fn apply_starter_row(s: &mut LocalSettings, (a, b, c, d, e, sz, hc, ly, hs, su, hp): CombatStarterRow) {
+    s.combat_floating_on = a; s.combat_log_on = b; s.combat_show_dealt = c; s.combat_show_taken = d; s.combat_show_missed = e;
+    s.combat_text_size = sz.into(); s.combat_high_contrast = hc; s.combat_layout = ly.into(); s.hide_slabs = hs; s.show_use_prompt = su; s.hud_preset = hp.into();
+}
+
+pub fn combat_text_starter_preset_index(s: &LocalSettings) -> Option<usize> {
+    COMBAT_TEXT_STARTER_PRESETS.iter().position(|&row| {
+        let (a, b, c, d, e, sz, hc, ly, hs, su, hp) = row;
+        s.combat_floating_on == a && s.combat_log_on == b && s.combat_show_dealt == c && s.combat_show_taken == d && s.combat_show_missed == e
+            && s.combat_text_size == sz && s.combat_high_contrast == hc && s.combat_layout == ly && s.hide_slabs == hs && s.show_use_prompt == su && s.hud_preset == hp
+    })
+}
+
+pub fn apply_combat_text_starter_preset(s: &mut LocalSettings, index: usize) -> bool {
+    let Some(row) = COMBAT_TEXT_STARTER_PRESETS.get(index) else { return false; };
+    apply_starter_row(s, *row); s.clamp_all(); s.persist(); true
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1233,6 +1264,32 @@ mod tests {
         let back = LocalSettings::from_json(&json).unwrap();
         assert_eq!(back.combat_layout, "default");
         assert!(!back.combat_tip_shown);
+    }
+
+    #[test]
+    fn combat_text_acceptance_t3_t8_starter_presets_round_trip() {
+        for (index, row) in COMBAT_TEXT_STARTER_PRESETS.iter().enumerate() {
+            let mut s = LocalSettings::default();
+            assert!(apply_combat_text_starter_preset(&mut s, index));
+            assert_eq!(combat_text_starter_preset_index(&s), Some(index));
+            let json = s.to_json().unwrap();
+            let mut loaded = LocalSettings::from_json(&json).unwrap();
+            assert_eq!(combat_text_starter_preset_index(&loaded), Some(index));
+            assert!(!json.contains("combat_text_preset"));
+            loaded.combat_floating_on = !row.0;
+            loaded.clamp_all();
+            assert_eq!(combat_text_starter_preset_index(&loaded), None);
+        }
+    }
+
+    #[test]
+    fn combat_text_acceptance_t10_presets_preserve_tell_path() {
+        for index in 0..COMBAT_TEXT_STARTER_PRESETS.len() {
+            let mut s = LocalSettings::default();
+            assert!(apply_combat_text_starter_preset(&mut s, index));
+            assert!(!s.mute);
+            assert_eq!(s.master_gain(), 1.0);
+        }
     }
 
     #[test]
