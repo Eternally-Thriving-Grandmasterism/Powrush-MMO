@@ -312,7 +312,8 @@ mod tests {
         heartwood_lip_is_valid, in_heartwood_lamp_disk, in_heartwood_water, HeartwoodLipKind,
         HEARTWOOD_BATH_RETURN,
     };
-    use shared::hex_travel::{confirm_leave, places_eligible};
+    use shared::hex_travel::{confirm_leave, hex_file_name, places_eligible, read_hex_named};
+    use shared::user_persist::{persist_path, USER_DIR_OVERRIDE_ENV};
     use shared::stranger_loop_proof::hour_three_held_fixture;
     use shared::threshold_shelf::{
         threshold_node_is_valid, threshold_shelf_is_valid, visit_threshold, ThresholdPeaceNode,
@@ -419,11 +420,29 @@ mod tests {
     /// never see the second well. One E must leave restored ink on this room.
     #[test]
     fn one_e_at_the_pipe_inks_the_heartwood_room_climate() {
+        let dir = std::env::temp_dir().join(format!(
+            "powrush-hw-lip-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let _lock = crate::test_env::lock();
+        let prev = std::env::var(USER_DIR_OVERRIDE_ENV).ok();
+        std::env::set_var(USER_DIR_OVERRIDE_ENV, &dir);
+
         let mut app = pipe_app(
             PlaceId::Heartwood,
             THRESHOLD_SHELF_CENTER[0],
             THRESHOLD_SHELF_CENTER[2],
         );
+        use bevy::ecs::schedule::SingleThreadedExecutor;
+        app.edit_schedule(bevy::prelude::PreUpdate, |s| {
+            s.set_executor(SingleThreadedExecutor::new());
+        });
+        app.edit_schedule(bevy::prelude::Update, |s| {
+            s.set_executor(SingleThreadedExecutor::new());
+        });
         let mut heartwood = shared::hex_travel::heartwood_stub_climate();
         heartwood.hex_id = PlaceId::Heartwood.as_str().into();
         app.insert_resource(LivedHourBind {
@@ -453,6 +472,18 @@ mod tests {
             satchel_before,
             "a Tend is not a Take: no stock moved"
         );
+
+        let written = read_hex_named(PlaceId::Heartwood).expect("Heartwood hex in scratch dir");
+        assert_eq!(written.climate.restored_count, 1);
+        assert_eq!(written.climate.tons_moved, 0);
+        assert!(persist_path(&hex_file_name(PlaceId::Heartwood)).starts_with(&dir));
+        assert!(read_hex_named(PlaceId::Sanctuary).is_none() && read_hex_named(PlaceId::Depths).is_none());
+
+        match &prev {
+            Some(value) => std::env::set_var(USER_DIR_OVERRIDE_ENV, value),
+            None => std::env::remove_var(USER_DIR_OVERRIDE_ENV),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// One room's numbers must never be stamped into another room's file.

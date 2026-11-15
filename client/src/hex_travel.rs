@@ -2244,6 +2244,8 @@ mod tests {
         if let Some(n) = stock {
             app.insert_resource(FabricatorYard { fab: Fabricator { crate_stock: n, ..Fabricator::default() }, bench_glow: 0.0 });
         }
+        assert!(read_hex_named(PlaceId::Heartwood).is_none());
+        assert!(read_hex_named(PlaceId::Depths).is_none());
         app.update();
         (app, hold, dir)
     }
@@ -2273,6 +2275,7 @@ mod tests {
             app.world().resource::<LivedHourBind>().clone(),
         );
         assert_eq!((stock, tons, bind.climate.tons_moved, bind.week.tons_moved), (1, [0, 1, 0], 1, 1));
+        assert_eq!(bind.week.tons_and_restored(), (1, 0));
         leave_to(&mut app, PlacesRoom::Sanctuary);
         assert_eq!((app.world().resource::<FabricatorYard>().fab.crate_stock, LOCAL_HEXES.map(|p| read_hex_named(p).map_or(0, |f| f.climate.tons_moved))), (1, [0, 1, 0]));
         leave_to(&mut app, PlacesRoom::Threshold);
