@@ -528,7 +528,7 @@ pub fn combat_fire(
         Option<Res<HumanInventory>>,
         Option<Res<HumanSoftPanels>>,
     ),
-    (buffer, fixed, diff, runs, mut cmd, assets, mute, mut finds): (
+    (buffer, fixed, diff, runs,         mut cmd, assets, mute, mut finds, mut queue): (
         Option<ResMut<StrikeBuffer>>,
         Option<Res<Time<Fixed>>>,
         Option<ResMut<crate::difficulty::AreaDifficulty>>,
@@ -537,6 +537,7 @@ pub fn combat_fire(
         Option<Res<AssetServer>>,
         Option<Res<crate::local_settings::MasterMuteGain>>,
         Option<ResMut<FoundFinds>>,
+        Option<ResMut<crate::combat_text::CombatTextQueue>>,
     ),
 ) {
     let fire = buttons.is_some_and(|b| b.just_pressed(FIRE))
@@ -579,7 +580,9 @@ pub fn combat_fire(
         combat.strikes = combat.strikes.wrapping_add(1);
         let before = skills.xp[COMBAT];
         let row = runs.as_deref().and_then(|r| r.row(travel.current, tier));
+        let pred_before = combat.predator_taken;
         let (hit, level) = land_hit_paid(&mut combat, &mut skills, reach, tier, row, finds.as_deref());
+        crate::combat_text::hook_after_fire(queue.as_deref_mut(), travel.current, pred_before, combat.predator_taken, hit, presence.position);
         play_hit(&mut cmd, assets.as_deref(), mute.as_deref(), hit); // COMBAT-FEEL-SFX-1: a landed hit only
         let defeat = hit && combat.predator_taken >= HEALTH && clears_area(travel.current);
         if let (true, Some(mut diff)) = (defeat, diff) {
@@ -631,7 +634,7 @@ fn predator_lunge(
     mut shown: Query<&mut Visibility, With<Predator>>,
     mut diff: Option<ResMut<AreaDifficulty>>,
     (mut seated, mut homed): (Local<Vec3>, Query<(&mut Transform, Has<Predator>), Or<(With<Predator>, With<LungeTell>, With<ClearedTell>)>>),
-    (mut cmd, assets, mute, mut mats, tinted): (Commands, Option<Res<AssetServer>>, Option<Res<crate::local_settings::MasterMuteGain>>, Option<ResMut<Assets<StandardMaterial>>>, Query<(&MeshMaterial3d<StandardMaterial>, Has<Predator>, Has<RiseTell>), Or<(With<Predator>, With<LungeTell>, With<RiseTell>)>>),
+    (mut cmd, assets, mute, mut mats, tinted, mut queue): (Commands, Option<Res<AssetServer>>, Option<Res<crate::local_settings::MasterMuteGain>>, Option<ResMut<Assets<StandardMaterial>>>, Query<(&MeshMaterial3d<StandardMaterial>, Has<Predator>, Has<RiseTell>), Or<(With<Predator>, With<LungeTell>, With<RiseTell>)>>, Option<ResMut<crate::combat_text::CombatTextQueue>>),
 ) {
     let (Some(travel), Some(mut presence)) = (travel, presence) else {
         return;
@@ -654,7 +657,9 @@ fn predator_lunge(
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
     let grounded = presence.grounded;
     let before = combat.player_taken; // CL-C1: one edge per frame, read before the reseat
-    let defeated = predator_tick(&mut combat, time.delta_secs(), reach, grounded, tier);
+    let (t0, dt) = (combat.lunge_timer, time.delta_secs());
+    let defeated = predator_tick(&mut combat, dt, reach, grounded, tier);
+    crate::combat_text::hook_after_lunge(queue.as_deref_mut(), t0, before, dt, reach, grounded, combat.player_taken, presence.position);
     if hurt_edge(before, combat.player_taken) {
         combat.hurt = combat.hurt.wrapping_add(1);
         if !tell_visible(combat.lunge_timer, reach) { play_hurt(&mut cmd, assets.as_deref(), mute.as_deref()); } // P4: never on a tell frame
@@ -785,6 +790,8 @@ fn lunge_tell(
     presence: Option<Res<SoftPresence>>,
     combat: Option<Res<CombatState>>,
     mut dots: Query<&mut Visibility, With<LungeTell>>,
+    mut queue: Option<ResMut<crate::combat_text::CombatTextQueue>>,
+    mut settings: Option<ResMut<crate::local_settings::LocalSettingsState>>,
 ) {
     let (Some(travel), Some(presence), Some(combat)) = (travel, presence, combat) else {
         for mut vis in &mut dots {
@@ -797,12 +804,14 @@ fn lunge_tell(
     let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
     let (tell, tier) = (tell_visible(combat.lunge_timer, reach), diff.map_or(DifficultyTier::Sheltered, |d| d.tier(travel.current)));
+    let tip_edge = !*armed && reach && tell;
     if tell_arm(&mut armed, reach, tell) {
         play_tell(&mut cmd, assets.as_deref(), mute.as_deref());
         if let (true, Some(epi)) = (hides_cues(tier), epi.as_mut()) {
             set_pulse(epi, LUNGE_TELL_TEXT.to_string(), time.elapsed_secs_f64() + f64::from(LUNGE_TELL_SECS));
         }
     }
+    crate::combat_text::hook_tip_edge(queue.as_deref_mut(), settings.as_deref_mut(), tip_edge, presence.position);
     for mut vis in &mut dots {
         vis.set_if_neq(if *armed && !hides_cues(tier) {
             Visibility::Visible
@@ -1401,6 +1410,24 @@ mod tests {
         let line = fire_cue(PlaceId::Heartwood, &c, true, s.xp[COMBAT] - before).unwrap();
         assert_eq!(line, format!("{PREDATOR_NAME} {} / {HEALTH}", HEALTH - HIT));
         assert!(!line.contains("XP"));
+    }
+
+    #[test]
+    fn combat_text_acceptance_t4_t5_hooks() {
+        use crate::combat_text::{hook_lunge_after, hook_player_strike, CombatTextKind, CombatTextQueue};
+        let (mut q, mut c) = (CombatTextQueue::default(), CombatState::default());
+        hook_player_strike(&mut q, PlaceId::Sanctuary, 0, 0, false, Vec3::ZERO);
+        assert!(q.events.len() == 1 && fire_cue(PlaceId::Sanctuary, &c, false, 0).is_none());
+        c.lunge_timer = LUNGE_SECS;
+        let b = c.player_taken;
+        predator_tick(&mut c, 0.0, true, true, DifficultyTier::Unbroken);
+        hook_lunge_after(&mut q, b, c.player_taken, 1, true, Vec3::ZERO, PREDATOR_NAME);
+        assert_eq!(q.events.last().unwrap().amount, c.player_taken - b);
+        c.lunge_timer = LUNGE_SECS;
+        let b2 = c.player_taken;
+        predator_tick(&mut c, 0.0, true, false, DifficultyTier::Sheltered);
+        hook_lunge_after(&mut q, b2, c.player_taken, 1, false, Vec3::ZERO, PREDATOR_NAME);
+        assert_eq!(q.events.last().unwrap().kind, CombatTextKind::EnemyMissed);
     }
 
     #[test]
