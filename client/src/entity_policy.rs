@@ -118,6 +118,22 @@ fn policy(world: &World, id: Entity) -> Result<Policy, String> {
         if !on { return Ok(Policy::NoCollide); }
         return Ok(Policy::Solid(TRUNK_RADIUS * scale));
     }
+    if world.get::<Mesh3d>(id).is_some() {
+        let mut hop = id;
+        for _ in 0..10 {
+            if let Some(n) = world.get::<Name>(hop) {
+                if matches!(n.as_str(), "Mira" | "Ko" | "Ren")
+                    && world.get::<Name>(id).map(|x| x.as_str()) != Some(n.as_str())
+                {
+                    return Ok(Policy::NoCollide);
+                }
+            }
+            hop = match world.get::<ChildOf>(hop) {
+                Some(c) => c.parent(),
+                None => break,
+            };
+        }
+    }
     let name = ancestor_name(world, id);
     name.as_deref().and_then(by_name).unwrap_or_else(|| Err(name.unwrap_or_else(|| format!("{id:?}"))))
 }
@@ -342,6 +358,9 @@ fn ec_1c_belt_trunks_stay_off_the_plate() {
 macro_rules! site {
     ($path:literal, $n:literal) => { ($path, include_str!($path).matches(MESH3D).count(), $n as usize) };
 }
+
+#[test]
+fn char_model_f9_policy_c1_holds() { c1_c2_c3_c6_per_place(); }
 
 #[test]
 fn mesh3d_site_count_guard() {

@@ -131,24 +131,47 @@ pub fn optional_authored_glb_present_in(dir: &std::path::Path) -> bool {
     })
 }
 
-/// Presence of the UAL1 Standard body under the AssetServer root
-/// (`assets/`), resolved the same way Bevy's default `FileAssetReader`
-/// does: `BEVY_ASSET_ROOT`, else `CARGO_MANIFEST_DIR`, else the
-/// executable directory, then `assets/`. Pack path is private pin :28 only.
-pub fn optional_ual1_standard_glb_present() -> bool {
-    let base = if let Ok(root) = std::env::var("BEVY_ASSET_ROOT") {
+fn bevy_assets_base() -> std::path::PathBuf {
+    if let Ok(root) = std::env::var("BEVY_ASSET_ROOT") {
         std::path::PathBuf::from(root)
     } else if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
-        std::path::PathBuf::from(manifest)
+        let m = std::path::PathBuf::from(manifest);
+        if m.ends_with("client") {
+            m.join("..")
+        } else {
+            m
+        }
     } else {
         std::env::current_exe()
             .ok()
             .and_then(|p| p.parent().map(|d| d.to_path_buf()))
             .unwrap_or_else(|| std::path::PathBuf::from("."))
+    }
+}
+
+/// True when `assets/{rel}` is a real glb (not an LFS pointer).
+pub fn asset_file_present(rel: &str) -> bool {
+    use std::io::Read;
+    let path = bevy_assets_base().join("assets").join(rel);
+    let Ok(mut file) = std::fs::File::open(&path) else {
+        return false;
     };
-    base.join("assets")
-        .join("private/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb")
-        .is_file()
+    let mut head = [0u8; 12];
+    if file.read_exact(&mut head).is_err() {
+        return false;
+    }
+    if head.starts_with(b"version https://git-lfs.github.com/spec/v1") {
+        return false;
+    }
+    head[..4] == *b"glTF"
+}
+
+/// Presence of the UAL1 Standard body under the AssetServer root
+/// (`assets/`), resolved the same way Bevy's default `FileAssetReader`
+/// does: `BEVY_ASSET_ROOT`, else `CARGO_MANIFEST_DIR`, else the
+/// executable directory, then `assets/`. Pack path is private pin :28 only.
+pub fn optional_ual1_standard_glb_present() -> bool {
+    asset_file_present("private/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb")
 }
 
 /// High PersonaCommit dress for lived presence — only when the plan asks
@@ -321,6 +344,13 @@ mod tests {
         assert!(!persona_commit_dress_active(&high, false));
         assert!(persona_commit_dress_active(&high, true));
         assert!(!persona_commit_dress_active(&low, true));
+    }
+
+    #[test]
+    fn char_model_f7_assets_models_scan_unchanged() {
+        let before = optional_authored_glb_present();
+        let _ = asset_file_present("models/quaternius-modular-men/mira-traveler.glb");
+        assert_eq!(optional_authored_glb_present(), before);
     }
 
     #[test]
