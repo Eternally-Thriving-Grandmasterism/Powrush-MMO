@@ -4,8 +4,10 @@
 //! One process. No cross-process exclusion.
 //! Final exit wait is a 250 ms design ceiling, not a measured guarantee.
 
+use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
 use bevy::mesh::{ConeAnchor, ConeMeshBuilder, CylinderAnchor, CylinderMeshBuilder};
 use bevy::prelude::*;
+use shared::peace_audio::audio_output_safe;
 use serde::{Deserialize, Serialize};
 use shared::heartwood_wards::{WARD_POST_CENTERS, WARD_USE_RADIUS};
 use shared::hex_travel::PlaceId;
@@ -1119,6 +1121,27 @@ pub(crate) fn claim_wood_press(
     claim.held = true;
     claim.prior = Some(prior);
 }
+/// SFX-WIRE-1 — wood commit chop (Kenney RPG Audio `chop.ogg`, CC0).
+pub const WOOD_CHOP_ASSET: &str = "audio/wood_chop.ogg";
+/// File peak −1.6 dBFS; x0.04 stays under −27.7 dBFS.
+pub const WOOD_CHOP_GAIN: f32 = 0.04;
+
+pub(crate) fn wood_chop_volume(mute: Option<&crate::local_settings::MasterMuteGain>) -> Option<f32> {
+    let gain = mute.map_or(1.0, |m| if m.muted { 0.0 } else { m.gain }) * WOOD_CHOP_GAIN;
+    (gain > 0.0).then_some(gain)
+}
+
+pub(crate) fn play_wood_chop(
+    cmd: &mut Commands,
+    assets: Option<&AssetServer>,
+    mute: Option<&crate::local_settings::MasterMuteGain>,
+) {
+    if let (true, Some(gain), Some(assets)) = (audio_output_safe(), wood_chop_volume(mute), assets) {
+        let play = PlaybackSettings::DESPAWN.with_volume(Volume::Linear(gain));
+        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(WOOD_CHOP_ASSET)), play));
+    }
+}
+
 pub(crate) fn admit_wood_press(
     claim: Res<WoodClaim>,
     mut hub: ResMut<WoodHub>,
@@ -1127,6 +1150,9 @@ pub(crate) fn admit_wood_press(
     realm: Option<Res<crate::living_practice_loop::SoftPlayerRealm>>,
     door: Option<Res<crate::title_screen::LaunchDoor>>,
     house: Option<Res<crate::title_screen::HouseLabel>>,
+    mut cmd: Commands,
+    assets: Option<Res<AssetServer>>,
+    mute: Option<Res<crate::local_settings::MasterMuteGain>>,
 ) {
     let Some(prior) = claim.prior.clone() else {
         return;
@@ -1139,7 +1165,9 @@ pub(crate) fn admit_wood_press(
     {
         return;
     }
-    let _ = hub.commit_at(&prior);
+    if hub.commit_at(&prior).is_ok() {
+        play_wood_chop(&mut cmd, assets.as_deref(), mute.as_deref());
+    }
 }
 pub(crate) fn project_wood(
     mut commands: Commands,
@@ -3391,7 +3419,28 @@ pub(crate) mod tests {
         }
     }
 
-    /// WU10 (H3) — the harvested bytes plus an unknown key stay inert from live or bak, and nothing publishes.
+    #[test]
+    fn sfx_wire_muted_or_zero_gain_silent_wood() {
+        let full = crate::local_settings::MasterMuteGain { gain: 1.0, muted: false };
+        assert_eq!(super::wood_chop_volume(Some(&full)), Some(super::WOOD_CHOP_GAIN));
+        let mut g = crate::local_settings::MasterMuteGain { gain: 1.0, muted: true };
+        assert_eq!(super::wood_chop_volume(Some(&g)), None);
+        g.muted = false;
+        assert_eq!(super::wood_chop_volume(Some(&g)), Some(super::WOOD_CHOP_GAIN));
+    }
+
+    #[test]
+    fn sfx_wire_wood_commit_one_chop_no_sting() {
+        let p = include_str!("wood_expedition.rs").split("\n#[cfg(test)]\npub(crate) mod tests {").next().unwrap();
+        assert!(p.contains(".is_ok()") && p.contains("play_wood_chop") && !p.contains("STING_ASSET"));
+    }
+
+    #[test]
+    fn sfx_wire_gain_pins_wood() {
+        assert!(super::WOOD_CHOP_GAIN > 0.0);
+        assert!(-1.6 + 20.0 * super::WOOD_CHOP_GAIN.log10() <= -27.7);
+    }
+
     #[test]
     fn wu10_extra_field_wood_json_stays_inert() {
         let mut extra: serde_json::Value = serde_json::from_slice(HARVESTED).unwrap();

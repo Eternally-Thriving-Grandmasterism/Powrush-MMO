@@ -25,6 +25,7 @@
 
 use bevy::audio::{AudioSink, Volume};
 use bevy::prelude::*;
+use bevy::ui_widgets::Button;
 
 use shared::hex_travel::PlaceId;
 use shared::local_settings::GraphicsPreset;
@@ -84,6 +85,43 @@ struct PeaceWellSting;
 #[derive(Component)]
 struct PeaceFirstEOneShot;
 
+/// SFX-WIRE-1 — Kenney Interface Sounds `click_001.ogg`, mono Vorbis −3 dB.
+pub const UI_CLICK_ASSET: &str = "audio/ui_click.ogg";
+/// Quieter than the combat hit; file peak −4.6 dBFS × gain stays under −27.7 dBFS.
+pub const UI_CLICK_GAIN: f32 = 0.04;
+const _: () = assert!(UI_CLICK_GAIN <= 0.05);
+
+/// Buttons carrying this marker never fire the shared UI click hook (touch overlay, HUD-edit chrome).
+#[derive(Component)]
+pub struct NoUiClick;
+
+/// `None` unless `pressed` and mute allows a click at `UI_CLICK_GAIN`.
+pub fn ui_click_volume(pressed: bool, mute: &MasterMuteGain) -> Option<f32> {
+    let gain = if mute.muted { 0.0 } else { mute.gain } * UI_CLICK_GAIN;
+    (pressed && gain > 0.0).then_some(gain)
+}
+
+fn play_ui_click(
+    mut commands: Commands,
+    asset_server: Res<AssetServer>,
+    mute: Res<MasterMuteGain>,
+    presses: Query<
+        (&Interaction, Option<&BackgroundColor>),
+        (Changed<Interaction>, With<Button>, Without<NoUiClick>),
+    >,
+) {
+    let pressed = presses.iter().any(|(interaction, bg)| {
+        *interaction == Interaction::Pressed
+            && !bg.is_some_and(|b| b.0 == crate::ui_kit::TITLE_BTN_DISABLED_BG)
+    });
+    if let (true, Some(gain)) = (audio_output_safe(), ui_click_volume(pressed, &mute)) {
+        commands.spawn((
+            AudioPlayer::<AudioSource>(asset_server.load(UI_CLICK_ASSET)),
+            PlaybackSettings::DESPAWN.with_volume(Volume::Linear(gain)),
+        ));
+    }
+}
+
 pub struct PeaceAudioPlugin;
 
 impl Plugin for PeaceAudioPlugin {
@@ -97,7 +135,8 @@ impl Plugin for PeaceAudioPlugin {
                 sync_well_sting,
             )
                 .chain(),
-        );
+        )
+        .add_systems(Update, play_ui_click.after(sync_voice_from_settings));
     }
 }
 
@@ -512,5 +551,77 @@ mod tests {
         assert_eq!(BED_ASSET, "audio/peace_yard_bed.ogg");
         assert!(title_online_stays_grey());
         assert!(!peace_audio_opens_socket(&PeaceVoice::new(false, true)));
+    }
+
+    fn sfx_n() -> usize { audio_output_safe() as usize }
+
+    fn ui_click_spawns(bundle: impl Bundle) -> usize {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.insert_resource(MasterMuteGain { gain: 1.0, muted: false });
+        app.add_systems(Update, super::play_ui_click);
+        app.world_mut().spawn(bundle);
+        app.update();
+        for mut i in app.world_mut().query::<&mut Interaction>().iter_mut(app.world_mut()) {
+            *i = Interaction::Pressed;
+        }
+        app.update();
+        app.world_mut().query::<&AudioPlayer>().iter(app.world_mut()).count()
+    }
+
+    #[test]
+    fn sfx_wire_ui_click_once_per_press() {
+        let btn = (bevy::ui_widgets::Button, Interaction::None, BackgroundColor(crate::ui_kit::TITLE_BTN_BG));
+        assert_eq!(ui_click_spawns(btn), sfx_n());
+    }
+
+    #[test]
+    fn sfx_wire_ui_click_skips_touch_overlay() {
+        assert_eq!(ui_click_spawns((bevy::ui_widgets::Button, Interaction::None, NoUiClick)), 0);
+    }
+
+    #[test]
+    fn sfx_wire_muted_or_zero_gain_silent_ui() {
+        let full = MasterMuteGain { gain: 1.0, muted: false };
+        assert_eq!(ui_click_volume(true, &full), Some(UI_CLICK_GAIN));
+        assert_eq!(ui_click_volume(true, &MasterMuteGain { gain: 1.0, muted: true }), None);
+        assert_eq!(ui_click_volume(true, &MasterMuteGain { gain: 0.0, muted: false }), None);
+        let mut open = MasterMuteGain { gain: 1.0, muted: true };
+        open.muted = false;
+        assert_eq!(ui_click_volume(true, &open), Some(UI_CLICK_GAIN));
+    }
+
+    #[test]
+    fn sfx_wire_disabled_button_silent() {
+        let grey = (bevy::ui_widgets::Button, Interaction::None, BackgroundColor(crate::ui_kit::TITLE_BTN_DISABLED_BG));
+        assert_eq!(ui_click_spawns(grey), 0);
+    }
+
+    #[test]
+    fn sfx_wire_gain_pins_ui() {
+        assert!(UI_CLICK_GAIN > 0.0 && UI_CLICK_GAIN <= crate::combat_core::HIT_GAIN);
+        assert!(-4.6 + 20.0 * UI_CLICK_GAIN.log10() <= -27.7);
+        assert!(include_str!("../../assets/asset-licenses.csv").contains("ui_click.ogg"));
+        let p = include_str!("peace_audio.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        assert!(p.contains("sync_well_sting") && !p.contains("WOOD_CHOP"));
+    }
+
+    #[test]
+    fn sfx_wire_hud_edit_frame_silent() {
+        assert_eq!(ui_click_spawns((bevy::ui_widgets::Button, Interaction::None, NoUiClick)), 0);
+    }
+
+    #[test]
+    fn sfx_wire_new_audio_has_csv_row() {
+        assert!(include_str!("../../assets/asset-licenses.csv").contains("wood_chop.ogg"));
+    }
+
+    #[test]
+    fn sfx_wire_missing_asset_no_panic_ui() {
+        let _ = ui_click_spawns((
+            bevy::ui_widgets::Button,
+            Interaction::None,
+            BackgroundColor(crate::ui_kit::TITLE_BTN_BG),
+        ));
     }
 }

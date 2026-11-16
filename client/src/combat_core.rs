@@ -37,6 +37,10 @@ use shared::peace_audio::{audio_output_safe, STING_ASSET};
 pub const HIT_ASSET: &str = "audio/combat_hit.ogg";
 /// The hit file peaks at -4.0 dBFS; x0.05 (-26 dB) keeps it under the sting's -27.7 dBFS.
 pub const HIT_GAIN: f32 = 0.05;
+/// SFX-WIRE-1 — named-find reveal (Kenney RPG Audio `handleSmallLeather.ogg`, CC0).
+pub const FIND_ASSET: &str = "audio/find_pickup.ogg";
+/// File peak −14.6 dBFS; x0.05 stays under the sting ceiling.
+pub const FIND_GAIN: f32 = 0.05;
 
 pub const PREDATOR_NAME: &str = "Heartwood Prowler";
 pub const HEALTH: u32 = 200; // player and predator pools, per CUT A1
@@ -599,10 +603,21 @@ pub fn combat_fire(
 }
 
 /// LOOT-DROPS-WIRE-1 — a waiting find line shows once the calm queue is done and the current pulse has expired.
-fn show_find(time: Res<Time>, finds: Option<ResMut<FoundFinds>>, mut epi: Option<ResMut<FirstHarvestEpiphany>>, calm: Option<Res<CalmQueue>>) {
+fn show_find(
+    time: Res<Time>,
+    finds: Option<ResMut<FoundFinds>>,
+    mut epi: Option<ResMut<FirstHarvestEpiphany>>,
+    calm: Option<Res<CalmQueue>>,
+    mut cmd: Commands,
+    assets: Option<Res<AssetServer>>,
+    mute: Option<Res<crate::local_settings::MasterMuteGain>>,
+) {
     let (Some(mut finds), Some(epi), now) = (finds, epi.as_mut(), time.elapsed_secs_f64()) else { return };
     if finds.pending.is_some() && find_ready(calm.is_some_and(|c| c.done(now)), epi.pulse_until, now) {
-        if let Some(line) = finds.pending.take() { set_pulse(epi, line, now + CUE_SECS); }
+        if let Some(line) = finds.pending.take() {
+            set_pulse(epi, line, now + CUE_SECS);
+            play_find(&mut cmd, assets.as_deref(), mute.as_deref());
+        }
     }
 }
 
@@ -701,6 +716,19 @@ pub fn play_hit(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&
     if let (true, Some(gain), Some(assets)) = (audio_output_safe(), hit_volume(hit, mute), assets) {
         let play = PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain));
         cmd.spawn((AudioPlayer::<AudioSource>(assets.load(HIT_ASSET)), play));
+    }
+}
+
+/// SFX-WIRE-1 — the find pickup uses the same guard path as `play_hit`.
+pub fn find_volume(mute: Option<&crate::local_settings::MasterMuteGain>) -> Option<f32> {
+    let gain = mute.map_or(1.0, |m| if m.muted { 0.0 } else { m.gain }) * FIND_GAIN;
+    (gain > 0.0).then_some(gain)
+}
+
+pub fn play_find(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&crate::local_settings::MasterMuteGain>) {
+    if let (true, Some(gain), Some(assets)) = (audio_output_safe(), find_volume(mute), assets) {
+        let play = PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain));
+        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(FIND_ASSET)), play));
     }
 }
 
@@ -2092,9 +2120,12 @@ mod tests {
     fn hit_gain_stays_under_the_sting() {
         assert!(HIT_GAIN <= 0.05 && HIT_GAIN > 0.0);
         assert!(-4.0 + 20.0 * HIT_GAIN.log10() <= -27.7);
+        assert!(FIND_GAIN > 0.0 && FIND_GAIN <= HIT_GAIN && -14.6 + 20.0 * FIND_GAIN.log10() <= -27.7);
         let full = crate::local_settings::MasterMuteGain { gain: 1.0, muted: false };
         assert_eq!(hit_volume(true, Some(&full)), Some(HIT_GAIN));
+        assert_eq!(find_volume(Some(&full)), Some(FIND_GAIN));
         assert_eq!(hit_volume(true, None), Some(HIT_GAIN));
+        assert!(include_str!("../../assets/asset-licenses.csv").contains("find_pickup.ogg"));
     }
 
     /// COMBAT-FEEL-SFX-1 (d) — a miss, mute or zero gain gives no hit sound.
@@ -2105,6 +2136,41 @@ mod tests {
         assert_eq!(hit_volume(false, None), None);
         assert_eq!(hit_volume(true, Some(&muted)), None);
         assert_eq!(hit_volume(true, Some(&crate::local_settings::MasterMuteGain { gain: 0.0, muted: false })), None);
+        assert_eq!(find_volume(Some(&muted)), None);
+    }
+
+    #[test]
+    fn sfx_wire_find_reveal_once() {
+        use bevy::ecs::system::RunSystemOnce;
+        let n = audio_output_safe() as usize;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.insert_resource(Time::<()>::default());
+        app.insert_resource(FirstHarvestEpiphany::default());
+        app.insert_resource(CalmQueue::default());
+        app.insert_resource(crate::loot_drops::FoundFinds { pending: Some("hook".into()), ..Default::default() });
+        app.world_mut().run_system_once(show_find).unwrap();
+        assert_eq!(app.world_mut().query::<&AudioPlayer>().iter(app.world_mut()).count(), n);
+        app.world_mut().run_system_once(show_find).unwrap();
+    }
+
+    #[test]
+    fn sfx_wire_one_thud_per_strike() {
+        let n = audio_output_safe() as usize;
+        let mut w = home_frame(combat_fire, None, CombatState::default(), DifficultyTier::Sheltered);
+        assert_eq!(w.query::<&AudioPlayer>().iter(&mut w).count(), n);
+    }
+
+    #[test]
+    fn sfx_wire_missing_asset_no_panic_find() {
+        use bevy::ecs::system::RunSystemOnce;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.insert_resource(Time::<()>::default());
+        app.insert_resource(FirstHarvestEpiphany::default());
+        app.insert_resource(CalmQueue::default());
+        app.insert_resource(crate::loot_drops::FoundFinds { pending: Some("x".into()), ..Default::default() });
+        app.world_mut().run_system_once(show_find).unwrap();
     }
 
     /// GEAR-SLOT-1 — one frame of `sys` at the Heartwood home in the yard: LMB just pressed, a focused window, a due lunge.
