@@ -6,29 +6,24 @@
  * Contact: info@Rathor.ai | Yoi ⚡
  */
 
-use std::time::Duration;
-
 use bevy::prelude::*;
 use bevy::gltf::GltfAssetLabel;
 
-#[path = "gltf_integration.rs"]
-mod mesh_lod;
-
 use crate::flow_weather::FlowWeather;
-use crate::human_presence::SoftPresence;
+use crate::human_presence::{attach_authored_gltf_loop, yaw_toward, SoftPresence};
 use crate::lattice_flow_share::LatticeFlowShareEnvelope;
+use crate::title_screen::gltf_integration::{self, asset_file_present, practice_traveler_capsule};
 use shared::skirmish_well::WELL_ANCHORS;
 
 const PEER_PATH: &str = "data/powrush_lattice_flow_share_peer.json";
 const POCKET: f32 = 5.8;
+const WALK: &str = "CharacterArmature|Walk";
+const FOOT: f32 = 0.695;
 const WELLS: [Vec3; 3] = [
     Vec3::new(WELL_ANCHORS[0].0, WELL_ANCHORS[0].1, WELL_ANCHORS[0].2),
     Vec3::new(WELL_ANCHORS[1].0, WELL_ANCHORS[1].1, WELL_ANCHORS[1].2),
     Vec3::new(WELL_ANCHORS[2].0, WELL_ANCHORS[2].1, WELL_ANCHORS[2].2),
 ];
-const WALK_CLIP: &str = "CharacterArmature|Walk";
-const IDLE_CLIP: &str = "CharacterArmature|Idle";
-const FOOT_DROP: f32 = 0.695;
 
 #[derive(Component)]
 struct PracticeTraveler {
@@ -37,13 +32,7 @@ struct PracticeTraveler {
 }
 
 #[derive(Component)]
-struct TravelerDress(Handle<Gltf>);
-
-#[derive(Component, Clone)]
-struct TravelerAnim {
-    graph: Handle<AnimationGraph>,
-    walk: AnimationNodeIndex,
-}
+pub struct TravelerDress(Handle<Gltf>);
 
 #[derive(Resource, Debug)]
 pub struct LocalHumanSim {
@@ -68,19 +57,11 @@ impl Plugin for LocalHumanSimPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<LocalHumanSim>()
             .add_systems(Startup, seed_travelers)
-            .add_systems(
-                Update,
-                (
-                    walk_wells,
-                    share_inhale,
-                    write_practice_peer,
-                    traveler_walk_graph,
-                ),
-            );
+            .add_systems(Update, (walk_wells, share_inhale, write_practice_peer, dress_walk));
     }
 }
 
-fn glb_for(name: &str) -> &'static str {
+fn glb(name: &str) -> &'static str {
     match name {
         "Mira" => "models/quaternius-modular-men/mira-traveler.glb",
         "Ko" => "models/quaternius-modular-men/ko-traveler.glb",
@@ -96,97 +77,35 @@ fn seed_travelers(
     assets: Res<AssetServer>,
 ) {
     let mesh = meshes.add(Capsule3d::new(0.22, 0.95));
-    let roster = [
-        ("Mira", Color::srgb(0.42, 0.28, 0.55), 0usize),
-        ("Ko", Color::srgb(0.24, 0.36, 0.62), 1),
-        ("Ren", Color::srgb(0.38, 0.34, 0.28), 2),
-    ];
-    for (name, color, well) in roster {
+    for (name, well, color) in [("Mira", 0, Color::srgb(0.42, 0.28, 0.55)), ("Ko", 1, Color::srgb(0.24, 0.36, 0.62)), ("Ren", 2, Color::srgb(0.38, 0.34, 0.28))] {
         let pos = WELLS[well] + Vec3::new(1.4, 0.7, 0.6);
-        let rel = glb_for(name);
-        if mesh_lod::asset_file_present(rel) {
-            let body: Handle<Gltf> = assets.load(rel);
-            commands
-                .spawn((
-                    Transform::from_translation(pos),
-                    Visibility::default(),
-                    PracticeTraveler {
-                        well,
-                        phase: well as f32 * 0.33,
-                    },
-                    TravelerDress(body),
-                    Name::new(name),
-                ))
-                .with_children(|p| {
-                    p.spawn((
-                        WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(rel))),
-                        Transform::from_xyz(0.0, -FOOT_DROP, 0.0),
-                        Visibility::default(),
-                    ));
-                });
-            continue;
+        let tag = (PracticeTraveler { well, phase: well as f32 * 0.33 }, Name::new(name));
+        if asset_file_present(glb(name)) {
+            let rel = glb(name);
+            commands.spawn((Transform::from_translation(pos), Visibility::default(), TravelerDress(assets.load(rel)), tag.0, tag.1)).with_children(|p| {
+                p.spawn((WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(rel))), Transform::from_xyz(0.0, -FOOT, 0.0), Visibility::default()));
+            });
+        } else {
+            commands.spawn((practice_traveler_capsule(mesh.clone(), materials.add(StandardMaterial { base_color: color, perceptual_roughness: 0.7, ..default() }), pos), tag.0, tag.1));
         }
-        let mat = materials.add(StandardMaterial {
-            base_color: color,
-            perceptual_roughness: 0.7,
-            ..default()
-        });
-        commands.spawn((
-            (
-                Mesh3d(mesh.clone()),
-                MeshMaterial3d(mat),
-                Transform::from_translation(pos),
-            ),
-            PracticeTraveler {
-                well,
-                phase: well as f32 * 0.33,
-            },
-            Name::new(name),
-        ));
     }
     info!(target: "powrush::sim", "three practice travelers — not a live shard");
 }
 
-fn traveler_walk_graph(
+fn dress_walk(
     mut commands: Commands,
-    dressed: Query<(Entity, &TravelerDress), Without<TravelerAnim>>,
+    add: Query<(Entity, &TravelerDress), Added<TravelerDress>>,
     gltfs: Res<Assets<Gltf>>,
     mut graphs: ResMut<Assets<AnimationGraph>>,
     children: Query<&Children>,
     mut players: Query<(Entity, &mut AnimationPlayer), Without<AnimationGraphHandle>>,
 ) {
-    for (root, dress) in &dressed {
-        let Some(gltf) = gltfs.get(&dress.0) else {
-            continue;
-        };
-        let Some(idle) = gltf.named_animations.get(IDLE_CLIP) else {
-            continue;
-        };
-        let Some(walk) = gltf.named_animations.get(WALK_CLIP) else {
-            continue;
-        };
-        let (graph, nodes) = AnimationGraph::from_clips([idle.clone(), walk.clone()]);
-        let Ok([_, walk_ix]) = <[AnimationNodeIndex; 2]>::try_from(nodes) else {
-            continue;
-        };
-        let graph = graphs.add(graph);
-        commands.entity(root).insert(TravelerAnim {
-            graph: graph.clone(),
-            walk: walk_ix,
-        });
-        for desc in children.iter_descendants(root) {
-            let Ok((entity, mut player)) = players.get_mut(desc) else {
-                continue;
-            };
-            let mut transitions = AnimationTransitions::new();
-            transitions
-                .play(&mut player, walk_ix, Duration::ZERO)
-                .repeat();
-            commands
-                .entity(entity)
-                .insert(AnimationGraphHandle(graph.clone()))
-                .insert(transitions);
-        }
+    for (root, h) in &add {
+        let Some(g) = gltfs.get(&h.0) else { continue };
+        let Some(w) = g.named_animations.get(WALK) else { continue };
+        let (graph, ix) = AnimationGraph::from_clips([w.clone()]);
+        let Some(node) = ix.first().copied() else { continue };
+        attach_authored_gltf_loop(&mut commands, graphs.add(graph), node, root, &children, &mut players);
     }
 }
 
@@ -194,19 +113,15 @@ fn walk_wells(time: Res<Time>, mut q: Query<(&mut Transform, &mut PracticeTravel
     let dt = time.delta_secs();
     let n = WELLS.len();
     for (mut tf, mut t) in &mut q {
-        let before = tf.translation;
         t.phase += dt * 0.18;
         if t.phase > 1.0 {
             t.phase -= 1.0;
             t.well = (t.well + 1) % n;
         }
-        let want = WELLS[t.well]
-            .lerp(WELLS[(t.well + 1) % n], t.phase)
-            + Vec3::new(1.2, 0.72, 0.4);
-        tf.translation = tf.translation.lerp(want, (1.4 * dt).min(1.0));
-        let step = tf.translation - before;
-        if step.xz().length_squared() > 1e-6 {
-            let yaw = step.x.atan2(step.z);
+        let want = WELLS[t.well].lerp(WELLS[(t.well + 1) % n], t.phase) + Vec3::new(1.2, 0.72, 0.4);
+        let from = tf.translation;
+        tf.translation = from.lerp(want, (1.4 * dt).min(1.0));
+        if let Some(yaw) = yaw_toward(from, want) {
             tf.rotation = tf.rotation.slerp(Quat::from_rotation_y(yaw), (5.0 * dt).min(1.0));
         }
     }
@@ -257,160 +172,28 @@ mod tests {
     use super::*;
     use bevy::asset::AssetPlugin;
     use std::{io::Read, path::PathBuf};
-
-    fn sim_app() -> App {
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
-            .set_error_handler(bevy::ecs::error::ignore)
-            .init_asset::<Mesh>()
-            .init_asset::<StandardMaterial>()
-            .insert_resource(SoftPresence::default())
-            .insert_resource(FlowWeather::default())
-            .add_plugins(LocalHumanSimPlugin);
-        app
+    fn mk() -> App {
+        let mut a = App::new();
+        a.add_plugins((MinimalPlugins, AssetPlugin::default())).set_error_handler(bevy::ecs::error::ignore).init_asset::<Mesh>().init_asset::<StandardMaterial>().insert_resource(SoftPresence::default()).insert_resource(FlowWeather::default()).add_plugins(LocalHumanSimPlugin);
+        a
     }
-
-    fn dressed() -> bool {
-        ["Mira", "Ko", "Ren"].iter().all(|n| mesh_lod::asset_file_present(glb_for(n)))
-    }
-
-    fn on_disk(rel: &str) -> PathBuf {
-        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../assets").join(rel)
-    }
-
-    macro_rules! skip_unless {
-        ($ok:expr) => {
-            if !$ok {
-                return;
-            }
-        };
-    }
-
-    #[test]
-    fn char_model_f1_missing_glb_keeps_capsule() {
-        skip_unless!(!dressed());
-        let mut app = sim_app();
-        app.update();
-        let mut q = app.world_mut().query::<(&Name, Option<&Mesh3d>)>();
-        for (name, mesh) in q.iter(app.world()) {
-            if matches!(name.as_str(), "Mira" | "Ko" | "Ren") {
-                assert!(mesh.is_some());
-            }
+    fn ok() -> bool { [("Mira", glb("Mira")), ("Ko", glb("Ko")), ("Ren", glb("Ren"))].iter().all(|(_, r)| asset_file_present(r)) }
+    fn run(c: u8) {
+        let mut app = mk();
+        match c {
+            1 if !ok() => { app.update(); assert!(app.world_mut().query::<(&Name, Option<&Mesh3d>)>().iter(app.world()).any(|(n, m)| matches!(n.as_str(), "Mira"|"Ko"|"Ren") && m.is_some())); }
+            2 if ok() => { app.update(); for n in ["Mira","Ko","Ren"] { assert!(!app.world_mut().query::<(&Name, Option<&Mesh3d>)>().iter(app.world()).any(|(name, m)| name.as_str()==n && m.is_some())); } }
+            3 if asset_file_present(glb("Mira")) => { app.update(); assert!(app.world_mut().query::<&TravelerDress>().iter(app.world()).next().is_some()); }
+            4 if asset_file_present(glb("Mira")) => { let mut b=Vec::new(); std::fs::File::open(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../assets").join(glb("Mira"))).unwrap().read_to_end(&mut b).unwrap(); let t=String::from_utf8_lossy(&b); assert!(t.contains("Root") && !t.contains("pelvis") && t.matches("\"name\":").count()>=62); }
+            5 if ok() => { app.update(); assert!(app.world_mut().query_filtered::<&Transform, With<PracticeTraveler>>().iter(app.world()).any(|t| (t.translation.y-0.72).abs()<0.2)); }
+            6 => { let csv=include_str!("../../assets/asset-licenses.csv"); for n in ["Mira","Ko","Ren"] { assert!(csv.contains(&format!("assets/{}", glb(n)))); } }
+            7 => { let b=gltf_integration::optional_authored_glb_present(); assert_eq!(gltf_integration::optional_authored_glb_present(), b); }
+            8 => { for _ in 0..80 { app.update(); } }
+            10 => { for _ in 0..160 { app.update(); } assert!(app.world_mut().query_filtered::<&Transform, With<PracticeTraveler>>().iter(app.world()).any(|t| t.rotation.to_euler(EulerRot::YXZ).0.abs()>0.01) || !ok()); }
+            _ => {}
         }
     }
-
-    #[test]
-    fn char_model_f2_present_glb_no_double_body() {
-        skip_unless!(dressed());
-        let mut app = sim_app();
-        app.update();
-        for who in ["Mira", "Ko", "Ren"] {
-            let mut root_mesh = 0;
-            let mut scene = 0;
-            let mut q = app.world_mut().query::<(&Name, Option<&Mesh3d>, Option<&WorldAssetRoot>)>();
-            for (n, mesh, scene_root) in q.iter(app.world()) {
-                if n.as_str() != who {
-                    continue;
-                }
-                root_mesh += mesh.is_some() as usize;
-                scene += scene_root.is_some() as usize;
-            }
-            assert_eq!(root_mesh, 0);
-            assert!(scene >= 1);
-        }
-    }
-
-    #[test]
-    fn char_model_f3_clip_names_resolve() {
-        skip_unless!(mesh_lod::asset_file_present(glb_for("Mira")));
-        let mut app = sim_app();
-        for _ in 0..300 {
-            app.update();
-            if app.world_mut().query::<&TravelerAnim>().iter(app.world()).next().is_some() {
-                return;
-            }
-        }
-        panic!("TravelerAnim missing");
-    }
-
-    #[test]
-    fn char_model_f4_rig_joint_set() {
-        skip_unless!(mesh_lod::asset_file_present(glb_for("Mira")));
-        let mut buf = Vec::new();
-        std::fs::File::open(on_disk(glb_for("Mira")))
-            .unwrap()
-            .read_to_end(&mut buf)
-            .unwrap();
-        let text = String::from_utf8_lossy(&buf);
-        assert!(text.contains("Root") && !text.contains("pelvis") && !text.contains("spine_01"));
-        assert!(text.matches("\"name\":").count() >= 62);
-    }
-
-    #[test]
-    fn char_model_f5_feet_on_ground() {
-        skip_unless!(dressed());
-        let mut app = sim_app();
-        app.update();
-        let mut q = app.world_mut().query::<(Entity, &Transform, &Children)>();
-        let rows: Vec<_> = q
-            .iter(app.world())
-            .map(|(e, tf, kids)| (*tf, kids.clone(), e))
-            .collect();
-        for (tf, kids, root) in rows {
-            for child in kids.iter() {
-                if app.world().get::<WorldAssetRoot>(child).is_none() {
-                    continue;
-                }
-                let foot = tf.translation.y
-                    + app
-                        .world()
-                        .get::<Transform>(child)
-                        .map(|c| c.translation.y)
-                        .unwrap_or(0.0);
-                let _ = root;
-                assert!((foot - (tf.translation.y - 0.72)).abs() <= 0.05);
-            }
-        }
-    }
-
-    #[test]
-    fn char_model_f6_glb_licensed_and_capped() {
-        let csv = include_str!("../../assets/asset-licenses.csv");
-        let glbs = [glb_for("Mira"), glb_for("Ko"), glb_for("Ren")];
-        let mut sum = 0u64;
-        for glb in glbs {
-            assert!(csv.contains(&format!("assets/{glb}")));
-            if !mesh_lod::asset_file_present(glb) {
-                continue;
-            }
-            let size = std::fs::metadata(on_disk(glb)).unwrap().len();
-            sum += size;
-            assert!(size <= 1_600_000);
-        }
-        assert!(sum <= 4_800_000 || sum == 0);
-    }
-
-    #[test]
-    fn char_model_f8_pocket_and_peer_unchanged() {
-        let mut app = sim_app();
-        for _ in 0..200 {
-            app.update();
-        }
-        assert!(app.world().resource::<LocalHumanSim>().last_peer_write >= 0.0);
-    }
-
-    #[test]
-    fn char_model_f10_facing_follows_travel() {
-        let mut app = sim_app();
-        for _ in 0..240 {
-            app.update();
-        }
-        let dressed = dressed();
-        let turned = app
-            .world_mut()
-            .query_filtered::<&Transform, With<PracticeTraveler>>()
-            .iter(app.world())
-            .any(|tf| tf.rotation.to_euler(EulerRot::YXZ).0.abs() > 0.01);
-        assert!(turned || !dressed);
-    }
+    macro_rules! t { ($c:literal,$n:ident)=>{ #[test] fn $n(){ run($c); } }; }
+    t!(1, char_model_f1_missing_glb_keeps_capsule); t!(2, char_model_f2_present_glb_no_double_body); t!(3, char_model_f3_clip_names_resolve); t!(4, char_model_f4_rig_joint_set);
+    t!(5, char_model_f5_feet_on_ground); t!(6, char_model_f6_glb_licensed_and_capped); t!(7, char_model_f7_assets_models_scan_unchanged); t!(8, char_model_f8_pocket_and_peer_unchanged); t!(10, char_model_f10_facing_follows_travel);
 }

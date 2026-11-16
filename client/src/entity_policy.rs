@@ -41,6 +41,7 @@ const PLACES: [(PlaceId, Option<u8>, usize, usize); 7] = [
 /// Owning card per walk-through. The row is that mesh's only declaration.
 const KNOWN_GAPS: &[(&str, &str)] = &[
     ("deer", "CREATURE-BODY-1"), ("crystal", "PROP-COLLIDE-1"), ("traveler", "CREATURE-BODY-1"),
+    ("travelerdress", "CHAR-MODEL-1a"),
     ("predator", "CREATURE-BODY-1"), ("droid", "CREATURE-BODY-1"), ("grazer", "CREATURE-BODY-1"),
     ("ward", "PROP-COLLIDE-1"), ("walkway", "PROP-COLLIDE-1"), ("rib", "PROP-COLLIDE-1"), ("shelf", "PROP-COLLIDE-1"),
 ];
@@ -120,18 +121,11 @@ fn policy(world: &World, id: Entity) -> Result<Policy, String> {
     }
     if world.get::<Mesh3d>(id).is_some() {
         let mut hop = id;
-        for _ in 0..10 {
-            if let Some(n) = world.get::<Name>(hop) {
-                if matches!(n.as_str(), "Mira" | "Ko" | "Ren")
-                    && world.get::<Name>(id).map(|x| x.as_str()) != Some(n.as_str())
-                {
-                    return Ok(Policy::NoCollide);
-                }
+        while let Some(c) = world.get::<ChildOf>(hop) {
+            hop = c.parent();
+            if world.get::<crate::local_human_sim::TravelerDress>(hop).is_some() {
+                return gap("travelerdress");
             }
-            hop = match world.get::<ChildOf>(hop) {
-                Some(c) => c.parent(),
-                None => break,
-            };
         }
     }
     let name = ancestor_name(world, id);
@@ -296,6 +290,8 @@ fn enter(app: &mut App, place: PlaceId, realm: Option<u8>) {
     app.update(); app.update();
 }
 #[test]
+fn char_model_f9_policy_c1_holds() { c1_c2_c3_c6_per_place(); }
+#[test]
 fn c1_c2_c3_c6_per_place() {
     for preset in shared::local_settings::GraphicsPreset::ALL {
     let mut app = boot();
@@ -360,15 +356,12 @@ macro_rules! site {
 }
 
 #[test]
-fn char_model_f9_policy_c1_holds() { c1_c2_c3_c6_per_place(); }
-
-#[test]
 fn mesh3d_site_count_guard() {
     let rows = [
-        site!("climate_plane.rs", 10), site!("combat_core.rs", 4), site!("depths_landing.rs", 2),
+        site!("gltf_integration.rs", 1), site!("climate_plane.rs", 10), site!("combat_core.rs", 4), site!("depths_landing.rs", 2),
         site!("droid.rs", 2), site!("flow_weather.rs", 2), site!("grazer.rs", 1),
         site!("heartwood_lip.rs", 4), site!("heartwood_wards.rs", 1), site!("human_presence.rs", 9),
-        site!("light_gen.rs", 4), site!("living_ecology.rs", 6), site!("local_human_sim.rs", 1),
+        site!("light_gen.rs", 4), site!("living_ecology.rs", 6), site!("local_human_sim.rs", 0),
         site!("mercy_harvest_nodes.rs", 1), site!("sky_backdrop.rs", 6), site!("stone_ground.rs", 1),
         site!("tend_flow_vfx.rs", 1), site!("vegetation.rs", 2), site!("water.rs", 3),
         site!("wood_expedition.rs", 3),
