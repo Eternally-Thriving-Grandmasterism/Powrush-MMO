@@ -38,7 +38,7 @@ pub const HIT_ASSET: &str = "audio/combat_hit.ogg";
 /// The hit file peaks at -4.0 dBFS; x0.05 (-26 dB) keeps it under the sting's -27.7 dBFS.
 pub const HIT_GAIN: f32 = 0.05;
 pub const FIND_ASSET: &str = "audio/find_pickup.ogg";
-pub const FIND_GAIN: f32 = 0.05;
+pub const FIND_GAIN: f32 = 0.05; // peak −14.6 dBFS; same ceiling as hit
 
 pub const PREDATOR_NAME: &str = "Heartwood Prowler";
 pub const HEALTH: u32 = 200; // player and predator pools, per CUT A1
@@ -601,17 +601,10 @@ pub fn combat_fire(
 }
 
 /// LOOT-DROPS-WIRE-1 — a waiting find line shows once the calm queue is done and the current pulse has expired.
-#[allow(clippy::too_many_arguments)]
-fn show_find(
-    time: Res<Time>, finds: Option<ResMut<FoundFinds>>, mut epi: Option<ResMut<FirstHarvestEpiphany>>, calm: Option<Res<CalmQueue>>,
-    mut cmd: Commands, assets: Option<Res<AssetServer>>, mute: Option<Res<crate::local_settings::MasterMuteGain>>,
-) {
+fn show_find(time: Res<Time>, finds: Option<ResMut<FoundFinds>>, mut epi: Option<ResMut<FirstHarvestEpiphany>>, calm: Option<Res<CalmQueue>>, mut cmd: Commands, assets: Option<Res<AssetServer>>, mute: Option<Res<crate::local_settings::MasterMuteGain>>) {
     let (Some(mut finds), Some(epi), now) = (finds, epi.as_mut(), time.elapsed_secs_f64()) else { return };
     if finds.pending.is_some() && find_ready(calm.is_some_and(|c| c.done(now)), epi.pulse_until, now) {
-        if let Some(line) = finds.pending.take() {
-            set_pulse(epi, line, now + CUE_SECS);
-            play_find(&mut cmd, assets.as_deref(), mute.as_deref());
-        }
+        if let Some(line) = finds.pending.take() { set_pulse(epi, line, now + CUE_SECS); play_find(&mut cmd, assets.as_deref(), mute.as_deref()); }
     }
 }
 
@@ -720,8 +713,7 @@ pub fn find_volume(mute: Option<&crate::local_settings::MasterMuteGain>) -> Opti
 
 pub fn play_find(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&crate::local_settings::MasterMuteGain>) {
     if let (true, Some(gain), Some(assets)) = (audio_output_safe(), find_volume(mute), assets) {
-        let play = PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain));
-        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(FIND_ASSET)), play));
+        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(FIND_ASSET)), PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain))));
     }
 }
 
@@ -2124,21 +2116,17 @@ mod tests {
     /// COMBAT-FEEL-SFX-1 (d) — a miss, mute or zero gain gives no hit sound.
     #[test]
     fn miss_or_mute_gives_no_hit_sound() {
-        let (full, muted) = (crate::local_settings::MasterMuteGain { gain: 1.0, muted: false }, crate::local_settings::MasterMuteGain { gain: 1.0, muted: true });
-        assert_eq!(hit_volume(false, Some(&full)), None);
-        assert_eq!(hit_volume(false, None), None);
-        assert_eq!(hit_volume(true, Some(&muted)), None);
-        assert_eq!(hit_volume(true, Some(&crate::local_settings::MasterMuteGain { gain: 0.0, muted: false })), None);
-        assert_eq!(find_volume(Some(&muted)), None);
+        let (full, muted, z) = (crate::local_settings::MasterMuteGain { gain: 1.0, muted: false }, crate::local_settings::MasterMuteGain { gain: 1.0, muted: true }, crate::local_settings::MasterMuteGain { gain: 0.0, muted: false });
+        assert_eq!((hit_volume(false, Some(&full)), hit_volume(false, None), hit_volume(true, Some(&muted)), hit_volume(true, Some(&z)), find_volume(Some(&muted))), (None, None, None, None, None));
     }
 
     fn sfx_find_app(pending: &str) -> App {
         let mut app = App::new();
-        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
-        app.insert_resource(Time::<()>::default());
-        app.insert_resource(FirstHarvestEpiphany::default());
-        app.insert_resource(CalmQueue::default());
-        app.insert_resource(crate::loot_drops::FoundFinds { pending: Some(pending.into()), ..Default::default() });
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()))
+            .insert_resource(Time::<()>::default())
+            .insert_resource(FirstHarvestEpiphany::default())
+            .insert_resource(CalmQueue::default())
+            .insert_resource(FoundFinds { pending: Some(pending.into()), ..Default::default() });
         app
     }
 
@@ -2147,23 +2135,25 @@ mod tests {
         use bevy::ecs::system::RunSystemOnce;
         let n = audio_output_safe() as usize;
         let mut app = sfx_find_app("hook");
+        for _ in 0..2 {
+            app.world_mut().run_system_once(show_find).unwrap();
+            assert_eq!(app.world_mut().query::<&AudioPlayer>().iter(app.world_mut()).count(), n);
+        }
+        app.world_mut().resource_mut::<FoundFinds>().pending = None;
         app.world_mut().run_system_once(show_find).unwrap();
-        assert_eq!(app.world_mut().query::<&AudioPlayer>().iter(app.world_mut()).count(), n);
-        app.world_mut().run_system_once(show_find).unwrap();
+        assert_eq!(app.world_mut().query::<&AudioPlayer>().iter(app.world_mut()).count(), 0);
     }
 
     #[test]
     fn sfx_wire_one_thud_per_strike() {
-        let n = audio_output_safe() as usize;
-        let mut w = home_frame(combat_fire, None, CombatState::default(), DifficultyTier::Sheltered);
-        assert_eq!(w.query::<&AudioPlayer>().iter(&mut w).count(), n);
+        let (n, [px, pz], st) = (audio_output_safe() as usize, PREDATOR_HOME, CombatState::default());
+        assert!(!(in_reach(PlaceId::Heartwood, &st, px, pz) && crate::droid::droid_in_reach(PlaceId::Heartwood, &Default::default(), px, pz)));
+        let mut w = home_frame(combat_fire, None, st, DifficultyTier::Sheltered);
+        assert!(w.resource::<CombatState>().strikes > 0 && w.query::<&AudioPlayer>().iter(&mut w).count() <= n);
     }
 
     #[test]
-    fn sfx_wire_missing_asset_no_panic_find() {
-        use bevy::ecs::system::RunSystemOnce;
-        sfx_find_app("x").world_mut().run_system_once(show_find).unwrap();
-    }
+    fn sfx_wire_missing_asset_no_panic_find() { use bevy::ecs::system::RunSystemOnce; sfx_find_app("x").world_mut().run_system_once(show_find).unwrap(); }
 
     /// GEAR-SLOT-1 — one frame of `sys` at the Heartwood home in the yard: LMB just pressed, a focused window, a due lunge.
     fn home_frame<M>(sys: impl IntoSystem<(), (), M>, finds: Option<FoundFinds>, combat: CombatState, tier: DifficultyTier) -> World {

@@ -1121,9 +1121,7 @@ pub(crate) fn claim_wood_press(
     claim.held = true;
     claim.prior = Some(prior);
 }
-/// SFX-WIRE-1 — wood commit chop (Kenney RPG Audio `chop.ogg`, CC0).
 pub const WOOD_CHOP_ASSET: &str = "audio/wood_chop.ogg";
-/// File peak −1.6 dBFS; x0.04 stays under −27.7 dBFS.
 pub const WOOD_CHOP_GAIN: f32 = 0.04;
 
 pub(crate) fn wood_chop_volume(mute: Option<&crate::local_settings::MasterMuteGain>) -> Option<f32> {
@@ -3429,10 +3427,30 @@ pub(crate) mod tests {
         assert_eq!(super::wood_chop_volume(Some(&g)), Some(super::WOOD_CHOP_GAIN));
     }
 
+    fn wood_sfx_app() -> App {
+        let mut app = schedule_app(open_hub());
+        app.add_plugins(bevy::asset::AssetPlugin::default());
+        app.insert_resource(crate::local_settings::MasterMuteGain { gain: 1.0, muted: false });
+        app
+    }
+
     #[test]
     fn sfx_wire_wood_commit_one_chop_no_sting() {
-        let p = include_str!("wood_expedition.rs").split("\n#[cfg(test)]\npub(crate) mod tests {").next().unwrap();
-        assert!(p.contains(".is_ok()") && p.contains("play_wood_chop") && !p.contains("STING_ASSET"));
+        let n = audio_output_safe() as usize;
+        let mut app = wood_sfx_app();
+        let h0 = app.world().resource::<crate::harvest_feel::SoftRbePool>().harvests;
+        app.update();
+        press(&mut app);
+        app.update();
+        app.world_mut().resource_mut::<crate::input::PlayerInput>().interact = false;
+        app.update();
+        assert_eq!((app.world_mut().query::<&AudioPlayer>().iter(app.world_mut()).count(), app.world().resource::<crate::harvest_feel::SoftRbePool>().harvests), (n, h0));
+        let mut bad = wood_sfx_app();
+        bad.update();
+        bad.world_mut().resource_mut::<WoodHub>().shutdown();
+        press(&mut bad);
+        bad.update();
+        assert_eq!(bad.world_mut().query::<&AudioPlayer>().iter(bad.world_mut()).count(), 0);
     }
 
     #[test]
@@ -3441,6 +3459,7 @@ pub(crate) mod tests {
         assert!(-1.6 + 20.0 * super::WOOD_CHOP_GAIN.log10() <= -27.7);
     }
 
+    /// WU10 (H3) — the harvested bytes plus an unknown key stay inert from live or bak, and nothing publishes.
     #[test]
     fn wu10_extra_field_wood_json_stays_inert() {
         let mut extra: serde_json::Value = serde_json::from_slice(HARVESTED).unwrap();

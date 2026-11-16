@@ -85,7 +85,6 @@ struct PeaceWellSting;
 #[derive(Component)]
 struct PeaceFirstEOneShot;
 
-/// SFX-WIRE-1 — Kenney `click_001.ogg` (−3 dB mono); `UI_CLICK_GAIN` stays under the hit ceiling.
 pub const UI_CLICK_ASSET: &str = "audio/ui_click.ogg";
 pub const UI_CLICK_GAIN: f32 = 0.04;
 const _: () = assert!(UI_CLICK_GAIN <= 0.05);
@@ -93,24 +92,24 @@ const _: () = assert!(UI_CLICK_GAIN <= 0.05);
 #[derive(Component)]
 pub struct NoUiClick;
 
-pub fn ui_click_volume(pressed: bool, mute: &MasterMuteGain) -> Option<f32> {
-    let gain = if mute.muted { 0.0 } else { mute.gain } * UI_CLICK_GAIN;
+pub fn ui_click_volume(pressed: bool, mute: Option<&MasterMuteGain>) -> Option<f32> {
+    let gain = mute.map_or(1.0, |m| if m.muted { 0.0 } else { m.gain }) * UI_CLICK_GAIN;
     (pressed && gain > 0.0).then_some(gain)
 }
 
 fn play_ui_click(
     mut commands: Commands,
-    asset_server: Res<AssetServer>,
-    mute: Res<MasterMuteGain>,
+    asset_server: Option<Res<AssetServer>>,
+    mute: Option<Res<MasterMuteGain>>,
     presses: Query<(&Interaction, Option<&BackgroundColor>), (Changed<Interaction>, With<Button>, Without<NoUiClick>)>,
 ) {
     let pressed = presses.iter().any(|(interaction, bg)| {
         *interaction == Interaction::Pressed
             && !bg.is_some_and(|b| b.0 == crate::ui_kit::TITLE_BTN_DISABLED_BG)
     });
-    if let (true, Some(gain)) = (audio_output_safe(), ui_click_volume(pressed, &mute)) {
+    if let (true, Some(gain), Some(assets)) = (audio_output_safe(), ui_click_volume(pressed, mute.as_deref()), asset_server.as_deref()) {
         commands.spawn((
-            AudioPlayer::<AudioSource>(asset_server.load(UI_CLICK_ASSET)),
+            AudioPlayer::<AudioSource>(assets.load(UI_CLICK_ASSET)),
             PlaybackSettings::DESPAWN.with_volume(Volume::Linear(gain)),
         ));
     }
@@ -549,23 +548,35 @@ mod tests {
 
     fn sfx_n() -> usize { audio_output_safe() as usize }
 
-    fn ui_click_spawns(bundle: impl Bundle) -> usize {
+    fn ui_click_app(assets: bool) -> App {
         let mut app = App::new();
-        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
-        app.insert_resource(MasterMuteGain { gain: 1.0, muted: false });
+        if assets { app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default())); } else { app.add_plugins(MinimalPlugins); }
+        if assets { app.insert_resource(MasterMuteGain { gain: 1.0, muted: false }); }
         app.add_systems(Update, super::play_ui_click);
+        app
+    }
+
+    fn ui_click_press(app: &mut App, bundle: impl Bundle) -> usize {
         app.world_mut().spawn(bundle);
         app.update();
-        for mut i in app.world_mut().query::<&mut Interaction>().iter_mut(app.world_mut()) {
-            *i = Interaction::Pressed;
-        }
+        for mut i in app.world_mut().query::<&mut Interaction>().iter_mut(app.world_mut()) { *i = Interaction::Pressed; }
         app.update();
         app.world_mut().query::<&AudioPlayer>().iter(app.world_mut()).count()
     }
 
+    fn ui_click_spawns(bundle: impl Bundle) -> usize { ui_click_press(&mut ui_click_app(true), bundle) }
+
     #[test]
     fn sfx_wire_ui_click_once_per_press() {
-        assert_eq!(ui_click_spawns((Button, Interaction::None, BackgroundColor(crate::ui_kit::TITLE_BTN_BG))), sfx_n());
+        let n = sfx_n();
+        let mut app = ui_click_app(true);
+        assert_eq!(ui_click_press(&mut app, (Button, Interaction::None, BackgroundColor(crate::ui_kit::TITLE_BTN_BG))), n);
+        app.update();
+        assert_eq!(app.world_mut().query::<&AudioPlayer>().iter(app.world_mut()).count(), n);
+        let mut h = ui_click_app(true);
+        h.world_mut().spawn((Button, Interaction::Hovered, BackgroundColor(crate::ui_kit::TITLE_BTN_BG)));
+        h.update();
+        assert_eq!(h.world_mut().query::<&AudioPlayer>().iter(h.world_mut()).count(), 0);
     }
 
     #[test]
@@ -576,12 +587,10 @@ mod tests {
     #[test]
     fn sfx_wire_muted_or_zero_gain_silent_ui() {
         let full = MasterMuteGain { gain: 1.0, muted: false };
-        assert_eq!(ui_click_volume(true, &full), Some(UI_CLICK_GAIN));
-        assert_eq!(ui_click_volume(true, &MasterMuteGain { gain: 1.0, muted: true }), None);
-        assert_eq!(ui_click_volume(true, &MasterMuteGain { gain: 0.0, muted: false }), None);
-        let mut open = MasterMuteGain { gain: 1.0, muted: true };
-        open.muted = false;
-        assert_eq!(ui_click_volume(true, &open), Some(UI_CLICK_GAIN));
+        assert_eq!(ui_click_volume(true, Some(&full)), Some(UI_CLICK_GAIN));
+        assert_eq!(ui_click_volume(true, None), Some(UI_CLICK_GAIN));
+        assert_eq!(ui_click_volume(true, Some(&MasterMuteGain { gain: 1.0, muted: true })), None);
+        assert_eq!(ui_click_volume(true, Some(&MasterMuteGain { gain: 0.0, muted: false })), None);
     }
 
     #[test]
@@ -596,9 +605,12 @@ mod tests {
         assert!(include_str!("../../assets/asset-licenses.csv").contains("ui_click.ogg") && prod.contains("sync_well_sting") && !prod.contains("WOOD_CHOP"));
     }
 
+    #[derive(Component)]
+    struct HudEditFrameStub;
+
     #[test]
     fn sfx_wire_hud_edit_frame_silent() {
-        assert_eq!(ui_click_spawns((Button, Interaction::None, NoUiClick)), 0);
+        assert_eq!(ui_click_spawns((Button, Interaction::None, HudEditFrameStub, NoUiClick)), 0);
     }
 
     #[test]
@@ -608,6 +620,6 @@ mod tests {
 
     #[test]
     fn sfx_wire_missing_asset_no_panic_ui() {
-        let _ = ui_click_spawns((Button, Interaction::None, BackgroundColor(crate::ui_kit::TITLE_BTN_BG)));
+        assert_eq!(ui_click_press(&mut ui_click_app(false), (Button, Interaction::None, BackgroundColor(crate::ui_kit::TITLE_BTN_BG))), 0);
     }
 }
