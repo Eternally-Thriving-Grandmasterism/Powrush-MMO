@@ -85,17 +85,14 @@ struct PeaceWellSting;
 #[derive(Component)]
 struct PeaceFirstEOneShot;
 
-/// SFX-WIRE-1 — Kenney Interface Sounds `click_001.ogg`, mono Vorbis −3 dB.
+/// SFX-WIRE-1 — Kenney `click_001.ogg` (−3 dB mono); `UI_CLICK_GAIN` stays under the hit ceiling.
 pub const UI_CLICK_ASSET: &str = "audio/ui_click.ogg";
-/// Quieter than the combat hit; file peak −4.6 dBFS × gain stays under −27.7 dBFS.
 pub const UI_CLICK_GAIN: f32 = 0.04;
 const _: () = assert!(UI_CLICK_GAIN <= 0.05);
 
-/// Buttons carrying this marker never fire the shared UI click hook (touch overlay, HUD-edit chrome).
 #[derive(Component)]
 pub struct NoUiClick;
 
-/// `None` unless `pressed` and mute allows a click at `UI_CLICK_GAIN`.
 pub fn ui_click_volume(pressed: bool, mute: &MasterMuteGain) -> Option<f32> {
     let gain = if mute.muted { 0.0 } else { mute.gain } * UI_CLICK_GAIN;
     (pressed && gain > 0.0).then_some(gain)
@@ -105,10 +102,7 @@ fn play_ui_click(
     mut commands: Commands,
     asset_server: Res<AssetServer>,
     mute: Res<MasterMuteGain>,
-    presses: Query<
-        (&Interaction, Option<&BackgroundColor>),
-        (Changed<Interaction>, With<Button>, Without<NoUiClick>),
-    >,
+    presses: Query<(&Interaction, Option<&BackgroundColor>), (Changed<Interaction>, With<Button>, Without<NoUiClick>)>,
 ) {
     let pressed = presses.iter().any(|(interaction, bg)| {
         *interaction == Interaction::Pressed
@@ -571,13 +565,12 @@ mod tests {
 
     #[test]
     fn sfx_wire_ui_click_once_per_press() {
-        let btn = (bevy::ui_widgets::Button, Interaction::None, BackgroundColor(crate::ui_kit::TITLE_BTN_BG));
-        assert_eq!(ui_click_spawns(btn), sfx_n());
+        assert_eq!(ui_click_spawns((Button, Interaction::None, BackgroundColor(crate::ui_kit::TITLE_BTN_BG))), sfx_n());
     }
 
     #[test]
     fn sfx_wire_ui_click_skips_touch_overlay() {
-        assert_eq!(ui_click_spawns((bevy::ui_widgets::Button, Interaction::None, NoUiClick)), 0);
+        assert_eq!(ui_click_spawns((Button, Interaction::None, NoUiClick)), 0);
     }
 
     #[test]
@@ -593,22 +586,19 @@ mod tests {
 
     #[test]
     fn sfx_wire_disabled_button_silent() {
-        let grey = (bevy::ui_widgets::Button, Interaction::None, BackgroundColor(crate::ui_kit::TITLE_BTN_DISABLED_BG));
-        assert_eq!(ui_click_spawns(grey), 0);
+        assert_eq!(ui_click_spawns((Button, Interaction::None, BackgroundColor(crate::ui_kit::TITLE_BTN_DISABLED_BG))), 0);
     }
 
     #[test]
     fn sfx_wire_gain_pins_ui() {
-        assert!(UI_CLICK_GAIN > 0.0 && UI_CLICK_GAIN <= crate::combat_core::HIT_GAIN);
-        assert!(-4.6 + 20.0 * UI_CLICK_GAIN.log10() <= -27.7);
-        assert!(include_str!("../../assets/asset-licenses.csv").contains("ui_click.ogg"));
-        let p = include_str!("peace_audio.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
-        assert!(p.contains("sync_well_sting") && !p.contains("WOOD_CHOP"));
+        assert!(UI_CLICK_GAIN > 0.0 && UI_CLICK_GAIN <= crate::combat_core::HIT_GAIN && -4.6 + 20.0 * UI_CLICK_GAIN.log10() <= -27.7);
+        let prod = include_str!("peace_audio.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        assert!(include_str!("../../assets/asset-licenses.csv").contains("ui_click.ogg") && prod.contains("sync_well_sting") && !prod.contains("WOOD_CHOP"));
     }
 
     #[test]
     fn sfx_wire_hud_edit_frame_silent() {
-        assert_eq!(ui_click_spawns((bevy::ui_widgets::Button, Interaction::None, NoUiClick)), 0);
+        assert_eq!(ui_click_spawns((Button, Interaction::None, NoUiClick)), 0);
     }
 
     #[test]
@@ -618,10 +608,6 @@ mod tests {
 
     #[test]
     fn sfx_wire_missing_asset_no_panic_ui() {
-        let _ = ui_click_spawns((
-            bevy::ui_widgets::Button,
-            Interaction::None,
-            BackgroundColor(crate::ui_kit::TITLE_BTN_BG),
-        ));
+        let _ = ui_click_spawns((Button, Interaction::None, BackgroundColor(crate::ui_kit::TITLE_BTN_BG)));
     }
 }

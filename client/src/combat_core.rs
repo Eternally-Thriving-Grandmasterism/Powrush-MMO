@@ -37,9 +37,7 @@ use shared::peace_audio::{audio_output_safe, STING_ASSET};
 pub const HIT_ASSET: &str = "audio/combat_hit.ogg";
 /// The hit file peaks at -4.0 dBFS; x0.05 (-26 dB) keeps it under the sting's -27.7 dBFS.
 pub const HIT_GAIN: f32 = 0.05;
-/// SFX-WIRE-1 — named-find reveal (Kenney RPG Audio `handleSmallLeather.ogg`, CC0).
 pub const FIND_ASSET: &str = "audio/find_pickup.ogg";
-/// File peak −14.6 dBFS; x0.05 stays under the sting ceiling.
 pub const FIND_GAIN: f32 = 0.05;
 
 pub const PREDATOR_NAME: &str = "Heartwood Prowler";
@@ -603,14 +601,10 @@ pub fn combat_fire(
 }
 
 /// LOOT-DROPS-WIRE-1 — a waiting find line shows once the calm queue is done and the current pulse has expired.
+#[allow(clippy::too_many_arguments)]
 fn show_find(
-    time: Res<Time>,
-    finds: Option<ResMut<FoundFinds>>,
-    mut epi: Option<ResMut<FirstHarvestEpiphany>>,
-    calm: Option<Res<CalmQueue>>,
-    mut cmd: Commands,
-    assets: Option<Res<AssetServer>>,
-    mute: Option<Res<crate::local_settings::MasterMuteGain>>,
+    time: Res<Time>, finds: Option<ResMut<FoundFinds>>, mut epi: Option<ResMut<FirstHarvestEpiphany>>, calm: Option<Res<CalmQueue>>,
+    mut cmd: Commands, assets: Option<Res<AssetServer>>, mute: Option<Res<crate::local_settings::MasterMuteGain>>,
 ) {
     let (Some(mut finds), Some(epi), now) = (finds, epi.as_mut(), time.elapsed_secs_f64()) else { return };
     if finds.pending.is_some() && find_ready(calm.is_some_and(|c| c.done(now)), epi.pulse_until, now) {
@@ -719,7 +713,6 @@ pub fn play_hit(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&
     }
 }
 
-/// SFX-WIRE-1 — the find pickup uses the same guard path as `play_hit`.
 pub fn find_volume(mute: Option<&crate::local_settings::MasterMuteGain>) -> Option<f32> {
     let gain = mute.map_or(1.0, |m| if m.muted { 0.0 } else { m.gain }) * FIND_GAIN;
     (gain > 0.0).then_some(gain)
@@ -2139,16 +2132,21 @@ mod tests {
         assert_eq!(find_volume(Some(&muted)), None);
     }
 
-    #[test]
-    fn sfx_wire_find_reveal_once() {
-        use bevy::ecs::system::RunSystemOnce;
-        let n = audio_output_safe() as usize;
+    fn sfx_find_app(pending: &str) -> App {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
         app.insert_resource(Time::<()>::default());
         app.insert_resource(FirstHarvestEpiphany::default());
         app.insert_resource(CalmQueue::default());
-        app.insert_resource(crate::loot_drops::FoundFinds { pending: Some("hook".into()), ..Default::default() });
+        app.insert_resource(crate::loot_drops::FoundFinds { pending: Some(pending.into()), ..Default::default() });
+        app
+    }
+
+    #[test]
+    fn sfx_wire_find_reveal_once() {
+        use bevy::ecs::system::RunSystemOnce;
+        let n = audio_output_safe() as usize;
+        let mut app = sfx_find_app("hook");
         app.world_mut().run_system_once(show_find).unwrap();
         assert_eq!(app.world_mut().query::<&AudioPlayer>().iter(app.world_mut()).count(), n);
         app.world_mut().run_system_once(show_find).unwrap();
@@ -2164,13 +2162,7 @@ mod tests {
     #[test]
     fn sfx_wire_missing_asset_no_panic_find() {
         use bevy::ecs::system::RunSystemOnce;
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
-        app.insert_resource(Time::<()>::default());
-        app.insert_resource(FirstHarvestEpiphany::default());
-        app.insert_resource(CalmQueue::default());
-        app.insert_resource(crate::loot_drops::FoundFinds { pending: Some("x".into()), ..Default::default() });
-        app.world_mut().run_system_once(show_find).unwrap();
+        sfx_find_app("x").world_mut().run_system_once(show_find).unwrap();
     }
 
     /// GEAR-SLOT-1 — one frame of `sys` at the Heartwood home in the yard: LMB just pressed, a focused window, a due lunge.
