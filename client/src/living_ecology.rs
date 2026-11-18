@@ -1114,11 +1114,36 @@ mod tests {
         assert_eq!((before.iter().filter(|(_, f, _)| *f == PropMeshFit::Stone).count(), before.iter().filter(|(_, f, _)| *f == PropMeshFit::Trunk).count()), (12, 5));
         for _ in 0..2400 { app.update(); tick_global_task_pools_on_main_thread(); }
         assert!(before.iter().all(|(e, _, h0)| app.world().get::<Mesh3d>(*e).is_some_and(|m| m.0.id() != *h0) && !matches!(app.world().get::<Visibility>(*e), Some(Visibility::Hidden))));
-        let ext = |w: &World, h: &Handle<Mesh>| w.resource::<Assets<Mesh>>().get(h).unwrap().attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()).unwrap().iter().map(|p| p[0].abs().max(p[2].abs())).fold(0_f32, f32::max);
+        use crate::climate_plane::{prop_mesh_drawn_xz_extent, prop_mesh_drawn_y_min_max};
         let (th, ch, se, sh) = { let w = app.world_mut(); let mut q = w.query::<(Entity, &PropMesh, &Mesh3d)>(); let t = q.iter(w).find(|(_, p, _)| p.fit == PropMeshFit::Trunk).unwrap(); let c = q.iter(w).find(|(_, p, _)| p.fit == PropMeshFit::Canopy).unwrap(); let s = q.iter(w).find(|(_, p, _)| p.fit == PropMeshFit::Stone).unwrap(); (t.2.0.clone(), c.2.0.clone(), s.0, s.2.0.clone()) };
-        assert!((ext(app.world(), &th) - YARD_TRUNK_R).abs() <= 0.01 && app.world().resource::<Assets<Mesh>>().get(&ch).unwrap().attribute(Mesh::ATTRIBUTE_COLOR).is_some());
-        app.world_mut().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Low }); app.update();
-        assert!((app.world().get::<Transform>(se).unwrap().scale.x - place_dress_lod_scale(shared::local_settings::GraphicsPreset::Low)).abs() < f32::EPSILON && ext(app.world(), &sh) > 0.1 && ext(app.world(), &sh) < 0.5);
+        let (tmin, tmax, trunk_xz, canopy_color, stone_xz, canopy_seat, cmin) = {
+            let meshes = app.world().resource::<Assets<Mesh>>();
+            let tm = meshes.get(&th).unwrap();
+            let cm = meshes.get(&ch).unwrap();
+            let sm = meshes.get(&sh).unwrap();
+            let (tmin, tmax) = prop_mesh_drawn_y_min_max(tm);
+            let (cmin, cmax) = prop_mesh_drawn_y_min_max(cm);
+            let _ = cmax;
+            let canopy_seat = cmin + 0.02 >= tmax;
+            (
+                tmin,
+                tmax,
+                prop_mesh_drawn_xz_extent(tm),
+                cm.attribute(Mesh::ATTRIBUTE_COLOR).is_some(),
+                prop_mesh_drawn_xz_extent(sm),
+                canopy_seat,
+                cmin,
+            )
+        };
+        assert!((trunk_xz - YARD_TRUNK_R).abs() <= 0.01);
+        assert!(tmin.abs() <= 0.02, "trunk ground contact (drawn min y), got {tmin}");
+        assert!(canopy_seat, "canopy seat (drawn): canopy min {cmin} trunk max {tmax}");
+        assert!(canopy_color);
+        app.world_mut().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Low });
+        app.update();
+        assert!((app.world().get::<Transform>(se).unwrap().scale.x - place_dress_lod_scale(shared::local_settings::GraphicsPreset::Low)).abs() < f32::EPSILON
+            && stone_xz > 0.1
+            && stone_xz < 0.5);
         if let Some(v) = save { std::env::set_var("BEVY_ASSET_ROOT", v); } else { std::env::remove_var("BEVY_ASSET_ROOT"); }
     }
 }
