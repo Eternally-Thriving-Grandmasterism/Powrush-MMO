@@ -287,6 +287,7 @@ fn enter(app: &mut App, place: PlaceId, realm: Option<u8>) {
 fn char_model_f9_policy_c1_holds() { assert!(KNOWN_GAPS.contains(&("travelerdress", "CHAR-MODEL-1a"))); }
 #[test]
 fn c1_c2_c3_c6_per_place() {
+    let _g = crate::test_env::lock();
     for preset in shared::local_settings::GraphicsPreset::ALL {
     let mut app = boot();
     let mut inner = shared::local_settings::LocalSettings::default();
@@ -376,6 +377,7 @@ fn mesh3d_site_count_guard() {
 /// PLATE-EDGE-CUE-1 P3 — in plane and stone modes the 36 rim pieces are shown NoCollide, C1 holds, and the C3/C4/C5 rows stay.
 #[test]
 fn plate_edge_p3_rim_is_nocollide_in_plane_and_stone_modes() {
+    let _g = crate::test_env::lock();
     use crate::stone_ground::{tests::{layout, scratch, write_pack, PNG_1X1}, StoneAssetDir};
     let dir = scratch("edge-p3");
     write_pack(&dir, &layout(), PNG_1X1);

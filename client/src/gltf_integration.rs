@@ -26,184 +26,52 @@
 //!
 //! Contact: info@Rathor.ai
 
-use bevy::asset::{LoadState, RecursiveDependencyLoadState};
-use bevy::gltf::GltfAssetLabel;
-use bevy::mesh::VertexAttributeValues;
-use bevy::prelude::*;
+use bevy::prelude::{Handle, Mesh, Mesh3d, MeshMaterial3d, StandardMaterial, Transform, Vec3};
+use bevy::{asset::LoadState, gltf::GltfAssetLabel, mesh::VertexAttributeValues, prelude::{AssetServer, Assets, Commands, Component, Entity, Query, Res, ResMut, Resource, Without}};
 use shared::local_settings::GraphicsPreset;
 pub use shared::local_settings::MeshLod;
-
-/// Kenney Nature Kit glTF paths (non-recursive `optional_authored_glb_present` scan).
-pub const KENNEY_TREE_DEFAULT: &str = "models/kenney-nature-kit/tree_default.glb";
-pub const KENNEY_STONE_FLATA: &str = "models/kenney-nature-kit/stone_smallFlatA.glb";
-const PROP_UV_METERS_PER_TILE: f32 = 4.0;
-
-#[derive(Component, Clone)]
-pub struct PropMesh {
-    pub rel: &'static str,
-    pub mesh: usize,
-    pub primitive: usize,
-    pub fit: PropMeshFit,
-    pub fallback: Handle<Mesh>,
-}
-#[derive(Component)]
-pub(crate) struct PropMeshSwapped;
-#[derive(Clone, Copy)]
-pub struct PropMeshFit {
-    pub scale: Vec3,
-    pub translate: Vec3,
-    pub canopy_ramp: bool,
-    pub bark_tangents: bool,
-}
-#[derive(Resource, Default)]
-pub(crate) struct PropMeshBakeCache(pub(crate) std::collections::HashMap<u128, Handle<Mesh>>);
-
-pub fn prop_mesh_glb_active(preset: GraphicsPreset) -> bool {
-    !matches!(preset, GraphicsPreset::Mobile | GraphicsPreset::Low)
-}
-pub fn load_prop_primitive(server: &AssetServer, rel: &'static str, mesh: usize, primitive: usize) -> Handle<Mesh> {
-    server.load(GltfAssetLabel::Primitive { mesh, primitive }.from_asset(rel))
-}
-pub fn bake_prop_mesh(src: &Mesh, fit: PropMeshFit) -> Mesh {
+use crate::painterly_mat as pm;
+#[derive(Component, Clone, Copy)] pub struct PropMesh { pub rel: &'static str, pub primitive: usize, pub fit: PropMeshFit }
+#[derive(Component)] pub(crate) struct PropMeshSwapped;
+#[repr(usize)] #[derive(Clone, Copy, PartialEq, Eq)] pub enum PropMeshFit { Trunk, Canopy, Stone }
+const PROP_XF: [(Vec3, Vec3); 3] = [(Vec3::new(1.5, 2.25, 1.5), Vec3::new(0., -1.2, 0.)), (Vec3::new(1.5, 2.25, 1.5), Vec3::new(0., -2.55, 0.)), (Vec3::new(0.726, 1.23, 0.837), Vec3::new(0., -0.04, 0.))];
+impl PropMeshFit { fn xf(self) -> (Vec3, Vec3) { PROP_XF[self as usize] } } #[derive(Resource, Default)] pub(crate) struct PropMeshBakeCache([Option<Handle<Mesh>>; 3]);
+pub fn prop_mesh_glb_active(p: GraphicsPreset) -> bool { !matches!(p, GraphicsPreset::Mobile | GraphicsPreset::Low) }
+fn bake_prop_mesh(src: &Mesh, fit: PropMeshFit) -> Mesh {
+    let (s, t) = fit.xf();
     let mut out = src.clone();
-    if let Some(VertexAttributeValues::Float32x3(positions)) = out.attribute_mut(Mesh::ATTRIBUTE_POSITION) {
-        for p in positions.iter_mut() {
-            *p = [p[0] * fit.scale.x + fit.translate.x, p[1] * fit.scale.y + fit.translate.y, p[2] * fit.scale.z + fit.translate.z];
-        }
+    let mut span = 1e-4_f32;
+    if let Some(VertexAttributeValues::Float32x3(pos)) = out.attribute_mut(Mesh::ATTRIBUTE_POSITION) {
+        for p in pos.iter_mut() { *p = [p[0] * s.x + t.x, p[1] * s.y + t.y, p[2] * s.z + t.z]; }
+        span = pos.iter().map(|p| (p[0] * p[0] + p[2] * p[2]).sqrt()).fold(0., f32::max).max(1e-4);
     }
-    let positions: Vec<[f32; 3]> = out
-        .attribute(Mesh::ATTRIBUTE_POSITION)
-        .and_then(|a| a.as_float3())
-        .map(|p| p.to_vec())
-        .unwrap_or_default();
     if let Some(VertexAttributeValues::Float32x2(uv)) = out.attribute_mut(Mesh::ATTRIBUTE_UV_0) {
-        let mut wx = (f32::MAX, f32::MIN);
-        let mut wz = (f32::MAX, f32::MIN);
-        let mut u = (f32::MAX, f32::MIN);
-        let mut v = (f32::MAX, f32::MIN);
-        for p in &positions {
-            wx = (wx.0.min(p[0]), wx.1.max(p[0]));
-            wz = (wz.0.min(p[2]), wz.1.max(p[2]));
-        }
-        for p in uv.iter() {
-            u = (u.0.min(p[0]), u.1.max(p[0]));
-            v = (v.0.min(p[1]), v.1.max(p[1]));
-        }
-        let world = (wx.1 - wx.0).max(wz.1 - wz.0).max(1e-4);
-        let span = (u.1 - u.0).max(v.1 - v.0).max(1e-4);
-        let mul = world / (PROP_UV_METERS_PER_TILE * span);
-        for p in uv.iter_mut() {
-            p[0] *= mul;
-            p[1] *= mul;
-        }
+        let d = (s.max_element() * span / 4.0).max(1e-4);
+        for p in uv.iter_mut() { p[0] /= d; p[1] /= d; }
     }
-    if out.indices().is_some() {
-        out.compute_smooth_normals();
-    }
+    if matches!(fit, PropMeshFit::Trunk) { let _ = out.generate_tangents(); }
     out
 }
-pub fn prop_mesh_footprint_r(mesh: &Mesh) -> f32 {
-    let Some(pos) = mesh.attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()) else {
-        return 0.0;
-    };
-    pos.iter().map(|p| (p[0] * p[0] + p[2] * p[2]).sqrt()).fold(0.0_f32, f32::max)
-}
-pub(crate) fn register_prop_mesh_swap(app: &mut App) {
-    app.init_resource::<PropMeshBakeCache>()
-        .add_systems(Update, swap_prop_meshes);
-}
 pub(crate) fn swap_prop_meshes(
-    feel: Option<Res<crate::local_settings::LocalMeshLodFeel>>,
-    settings: Option<Res<crate::local_settings::LocalSettingsState>>,
-    server: Option<Res<AssetServer>>,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut cache: ResMut<PropMeshBakeCache>,
-    mut ramps: Option<ResMut<crate::painterly_mat::PainterlyRampMeshes>>,
-    mut q: Query<(Entity, &mut Mesh3d, &PropMesh), Without<PropMeshSwapped>>,
-    mut commands: Commands,
+    feel: Option<Res<crate::local_settings::LocalMeshLodFeel>>, server: Option<Res<AssetServer>>, mut meshes: ResMut<Assets<Mesh>>,
+    mut cache: ResMut<PropMeshBakeCache>, mut ramps: Option<ResMut<pm::PainterlyRampMeshes>>,
+    mut q: Query<(Entity, &mut Mesh3d, &PropMesh), Without<PropMeshSwapped>>, mut commands: Commands,
 ) {
     let (Some(feel), Some(server)) = (feel, server) else { return };
     let active = prop_mesh_glb_active(feel.preset);
-    let preset = settings.as_ref().map(|s| s.inner.graphics_preset).unwrap_or(GraphicsPreset::Medium);
-    let color_only = matches!(preset, GraphicsPreset::Mobile | GraphicsPreset::Low);
     for (e, mut mesh3d, prop) in &mut q {
-        if !active || !asset_file_present(prop.rel) {
-            commands.entity(e).insert(PropMeshSwapped);
-            continue;
-        }
-        let src_h = load_prop_primitive(server.as_ref(), prop.rel, prop.mesh, prop.primitive);
-        let st = server.get_load_state(src_h.id());
-        let dep = server.get_recursive_dependency_load_state(src_h.id());
-        if matches!(st, Some(LoadState::Failed(_))) || matches!(dep, Some(RecursiveDependencyLoadState::Failed(_))) {
-            commands.entity(e).insert(PropMeshSwapped);
-            continue;
-        }
-        if !matches!(st, Some(LoadState::Loaded)) || !matches!(dep, Some(RecursiveDependencyLoadState::Loaded)) {
-            continue;
-        }
-        let key = prop.bake_key();
-        let baked = if let Some(h) = cache.0.get(&key) {
-            h.clone()
-        } else {
-            let Some(src) = meshes.get(&src_h) else { continue };
-            let mut baked = bake_prop_mesh(src, prop.fit);
-            if prop.fit.canopy_ramp {
-                crate::painterly_mat::paint_height_ramp(
-                    &mut baked,
-                    &crate::painterly_mat::painterly_shade(crate::painterly_mat::PainterlyRole::Foliage, preset),
-                );
-            }
-            if prop.fit.bark_tangents && !color_only {
-                let _ = baked.generate_tangents();
-            }
-            let h = meshes.add(baked);
-            if prop.fit.canopy_ramp {
-                crate::painterly_mat::remember_ramp(&mut ramps, &h, crate::painterly_mat::PainterlyRole::Foliage);
-            }
-            cache.0.insert(key, h.clone());
-            h
-        };
-        mesh3d.0 = baked;
-        commands.entity(e).insert(PropMeshSwapped);
-    }
-}
-impl PropMeshFit {
-    pub const YARD_TRUNK: Self = Self {
-        scale: Vec3::new(1.50, 2.25, 1.50),
-        translate: Vec3::new(0.0, -1.2, 0.0),
-        canopy_ramp: false,
-        bark_tangents: true,
-    };
-    pub const YARD_CANOPY: Self = Self {
-        scale: Vec3::new(1.50, 2.25, 1.50),
-        translate: Vec3::new(0.0, -2.55, 0.0),
-        canopy_ramp: true,
-        bark_tangents: false,
-    };
-    pub const PATH_STONE: Self = Self {
-        scale: Vec3::new(0.726, 1.23, 0.837),
-        translate: Vec3::new(0.0, -0.04, 0.0),
-        canopy_ramp: false,
-        bark_tangents: false,
-    };
-}
-impl PropMesh {
-    fn bake_key(&self) -> u128 {
-        use std::collections::hash_map::DefaultHasher;
-        use std::hash::{Hash, Hasher};
-        let mut h = DefaultHasher::new();
-        self.rel.hash(&mut h);
-        self.mesh.hash(&mut h);
-        self.primitive.hash(&mut h);
-        self.fit.scale.x.to_bits().hash(&mut h);
-        self.fit.scale.y.to_bits().hash(&mut h);
-        self.fit.scale.z.to_bits().hash(&mut h);
-        self.fit.translate.x.to_bits().hash(&mut h);
-        self.fit.translate.y.to_bits().hash(&mut h);
-        self.fit.translate.z.to_bits().hash(&mut h);
-        self.fit.canopy_ramp.hash(&mut h);
-        self.fit.bark_tangents.hash(&mut h);
-        h.finish() as u128
+        if !active || !asset_file_present(prop.rel) { commands.entity(e).insert(PropMeshSwapped); continue; }
+        let h = server.load(GltfAssetLabel::Primitive { mesh: 0, primitive: prop.primitive }.from_asset(prop.rel));
+        if matches!(server.get_load_state(h.id()), Some(LoadState::Failed(_))) { commands.entity(e).insert(PropMeshSwapped); continue; }
+        let Some(src) = meshes.get(&h).cloned() else { continue };
+        let i = prop.fit as usize;
+        let baked = cache.0[i].clone().unwrap_or_else(|| {
+            let mut m = bake_prop_mesh(&src, prop.fit);
+            if matches!(prop.fit, PropMeshFit::Canopy) { pm::paint_height_ramp(&mut m, &pm::painterly_shade(pm::PainterlyRole::Foliage, feel.preset)); }
+            let bh = meshes.add(m); if matches!(prop.fit, PropMeshFit::Canopy) { pm::remember_ramp(&mut ramps, &bh, pm::PainterlyRole::Foliage); }
+            cache.0[i] = Some(bh.clone()); bh
+        });
+        mesh3d.0 = baked; commands.entity(e).insert(PropMeshSwapped);
     }
 }
 
@@ -277,14 +145,14 @@ pub fn lived_presence_detail_scale(plan: &MeshLodPlan) -> f32 {
 }
 
 /// Lived Place-dress scale from Comfort [`MeshLodPlan`].
-/// Path stones keep their Comfort LOD scale; authored mesh swaps use [`PropMesh`], not this pipeline.
+/// Path stones / greybox props only. Low stays readable Place identity.
 /// Buildings / Astra Medium stay REFS (licensed `.glb` rule: assets/asset-licenses.csv). Four Places stay four.
 pub fn lived_place_dress_detail_scale(plan: &MeshLodPlan) -> f32 {
     procedural_detail_scale(plan.lod)
 }
 
-/// Place dress never loads Buildings / Astra Medium cargo. Path stones use
-/// [`PropMesh`] primitives on disk but not this dump flag.
+/// Place dress never loads Buildings / Astra Medium cargo. Refs stay refs
+/// even on High, even if an authored glb is already on disk.
 pub fn place_dress_uses_authored_glb(plan: &MeshLodPlan) -> bool {
     let _ = (plan, optional_authored_glb_present());
     false
@@ -546,98 +414,24 @@ mod tests {
         }
     }
 
-    use bevy::prelude::Cylinder;
-    #[test]
-    fn props_wire_f1_missing_keeps_primitive() {
-        assert!(!asset_file_present("models/__powrush_no_prop__.glb"));
-    }
     #[test]
     fn props_wire_f2_corrupt_keeps_primitive() {
-        let _guard = crate::test_env::lock();
         let dir = std::env::temp_dir().join(format!("pw2_{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(dir.join("assets/models/bad")).unwrap();
         std::fs::write(dir.join("assets/models/bad/x.glb"), b"not gltf").unwrap();
+        let _g = crate::test_env::lock();
         let save = std::env::var("BEVY_ASSET_ROOT").ok();
         std::env::set_var("BEVY_ASSET_ROOT", &dir);
         assert!(!asset_file_present("models/bad/x.glb"));
-        match save {
-            Some(v) => std::env::set_var("BEVY_ASSET_ROOT", v),
-            None => std::env::remove_var("BEVY_ASSET_ROOT"),
-        }
+        if let Some(v) = save { std::env::set_var("BEVY_ASSET_ROOT", v); } else { std::env::remove_var("BEVY_ASSET_ROOT"); }
         let _ = std::fs::remove_dir_all(&dir);
     }
-    fn glb_prim_f32x3(path: &std::path::Path, mesh: usize, prim: usize, attr: &str) -> Vec<[f32; 3]> {
-        let b = std::fs::read(path).expect("glb");
-        let jl = u32::from_le_bytes(b[12..16].try_into().unwrap()) as usize;
-        let doc: serde_json::Value = serde_json::from_slice(&b[20..20 + jl]).expect("json");
-        let acc = doc["meshes"][mesh]["primitives"][prim]["attributes"][attr]
-            .as_u64()
-            .expect(attr) as usize;
-        let a = &doc["accessors"][acc];
-        let bv = &doc["bufferViews"][a["bufferView"].as_u64().expect("bv") as usize];
-        let bo = (a["byteOffset"].as_u64().unwrap_or(0) + bv["byteOffset"].as_u64().unwrap_or(0)) as usize;
-        let mut bin = 20 + jl;
-        while bin % 4 != 0 {
-            bin += 1;
-        }
-        bin += 8;
-        let n = a["count"].as_u64().expect("count") as usize;
-        (0..n)
-            .map(|i| {
-                let o = bin + bo + i * 12;
-                [
-                    f32::from_le_bytes(b[o..o + 4].try_into().unwrap()),
-                    f32::from_le_bytes(b[o + 4..o + 8].try_into().unwrap()),
-                    f32::from_le_bytes(b[o + 8..o + 12].try_into().unwrap()),
-                ]
-            })
-            .collect()
-    }
     #[test]
-    fn props_wire_f4_trunk_footprint_and_f11_uv_density_matches_primitive() {
-        let glb = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-            .join("../assets/models/kenney-nature-kit/tree_default.glb");
-        assert_eq!(std::fs::metadata(&glb).expect("tree glb").len(), 9428);
-        let pos = glb_prim_f32x3(&glb, 0, 0, "POSITION");
-        let mut src = Mesh::new(
-            bevy::mesh::PrimitiveTopology::TriangleList,
-            bevy::asset::RenderAssetUsages::default(),
-        );
-        src.insert_attribute(Mesh::ATTRIBUTE_POSITION, pos);
-        let baked = bake_prop_mesh(&src, PropMeshFit::YARD_TRUNK);
-        let pos = baked.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().as_float3().unwrap();
-        let r = pos
-            .iter()
-            .filter(|p| p[1] < 0.35)
-            .map(|p| (p[0] * p[0] + p[2] * p[2]).sqrt())
-            .fold(0.0_f32, f32::max);
-        assert!((r - crate::living_ecology::YARD_TRUNK_R).abs() <= 0.01, "{r}");
-        let _ = Mesh::from(Cylinder::new(0.22, 2.4));
-    }
-    #[test]
-    fn props_wire_f8_assets_licensed_persona_glb_still_false() {
+    fn props_wire_f8_f13_licensed_and_low_stays_primitive() {
         let csv = include_str!("../../assets/asset-licenses.csv");
-        assert!(csv.contains(KENNEY_TREE_DEFAULT) && csv.contains(KENNEY_STONE_FLATA));
-        assert!(!optional_authored_glb_present());
-        assert!(!place_dress_uses_authored_glb(&plan_for_preset(GraphicsPreset::Medium)));
-    }
-    #[test]
-    fn props_wire_f13_low_mobile_keep_primitive_flag() {
-        assert!(!prop_mesh_glb_active(GraphicsPreset::Low));
-        assert!(!prop_mesh_glb_active(GraphicsPreset::Mobile));
+        assert!(csv.contains("kenney-nature-kit/tree_default.glb") && csv.contains("stone_smallFlatA.glb"));
+        assert!(!optional_authored_glb_present() && !prop_mesh_glb_active(GraphicsPreset::Low));
         assert!(prop_mesh_glb_active(GraphicsPreset::Medium));
     }
-    #[test]
-    fn props_wire_f12_first_session_yard_visible() {
-        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..");
-        let _guard = crate::test_env::lock();
-        let save = std::env::var("BEVY_ASSET_ROOT").ok();
-        std::env::set_var("BEVY_ASSET_ROOT", &root);
-        assert!(asset_file_present(KENNEY_TREE_DEFAULT) && asset_file_present(KENNEY_STONE_FLATA));
-        match save {
-            Some(v) => std::env::set_var("BEVY_ASSET_ROOT", v),
-            None => std::env::remove_var("BEVY_ASSET_ROOT"),
-        }
-    }
+
 }

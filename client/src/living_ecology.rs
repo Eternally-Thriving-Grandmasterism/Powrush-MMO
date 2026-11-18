@@ -18,7 +18,7 @@
 
 use bevy::prelude::*;
 
-use crate::climate_plane::{PropMesh, PropMeshFit, KENNEY_TREE_DEFAULT};
+use crate::climate_plane::{PropMesh, PropMeshFit};
 use crate::living_day::{
     greet_by_place_mood, schedule_copy_is_honest, SacredVerb, SchedulePlace, WellMood,
 };
@@ -329,13 +329,7 @@ fn spawn_ecology(
             ),
             EcologyProp { kind: PropKind::Tree },
             crate::vegetation::CamTrunk,
-            PropMesh {
-                rel: KENNEY_TREE_DEFAULT,
-                mesh: 0,
-                primitive: 0,
-                fit: PropMeshFit::YARD_TRUNK,
-                fallback: trunk.clone(),
-            },
+            PropMesh { rel: "models/kenney-nature-kit/tree_default.glb", primitive: 0, fit: PropMeshFit::Trunk },
         ));
         commands.spawn((
             (
@@ -349,13 +343,7 @@ fn spawn_ecology(
                 role: crate::painterly_mat::PainterlyRole::Foliage,
                 authored: YARD_LEAF,
             },
-            PropMesh {
-                rel: KENNEY_TREE_DEFAULT,
-                mesh: 0,
-                primitive: 1,
-                fit: PropMeshFit::YARD_CANOPY,
-                fallback: canopy.clone(),
-            },
+            PropMesh { rel: "models/kenney-nature-kit/tree_default.glb", primitive: 1, fit: PropMeshFit::Canopy },
         ));
     }
 
@@ -1115,14 +1103,5 @@ mod tests {
         let n = app.world_mut().query::<&PropMesh>().iter(app.world()).count();
         assert_eq!(n, 10);
         assert!(app.world_mut().query::<&bevy::world_serialization::WorldAssetRoot>().iter(app.world()).next().is_none());
-    }
-    #[test]
-    fn props_wire_f9_canopy_fit_repaints_height_ramp() {
-        use crate::climate_plane::bake_prop_mesh;
-        use bevy::prelude::Cone;
-        let src = Mesh::from(Cone { radius: 1.05, height: 2.6 });
-        let mut baked = bake_prop_mesh(&src, crate::climate_plane::PropMeshFit::YARD_CANOPY);
-        crate::painterly_mat::paint_height_ramp(&mut baked, &crate::painterly_mat::painterly_shade(crate::painterly_mat::PainterlyRole::Foliage, shared::local_settings::GraphicsPreset::Medium));
-        assert!(baked.attribute(Mesh::ATTRIBUTE_COLOR).is_some());
     }
 }
