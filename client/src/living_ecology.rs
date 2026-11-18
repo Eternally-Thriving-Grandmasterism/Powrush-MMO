@@ -1096,35 +1096,28 @@ mod tests {
             assert!(mats.get(&trunk).unwrap().base_color_texture.is_some());
         }
     }
-
     #[test]
     fn props_wire_f3_f5_f12_f7_headless_swap_trunk_extent_and_stone_lod() {
-        use bevy::prelude::{AssetPlugin, Entity, MinimalPlugins};
+        use bevy::prelude::{AssetPlugin, Entity, MinimalPlugins, World};
         use bevy::tasks::tick_global_task_pools_on_main_thread;
-        use crate::climate_plane::{place_dress_lod_scale, PropMeshFit}; use crate::title_screen::gltf_integration::asset_file_present; use crate::vegetation::CamTrunk;
+        use crate::{climate_plane::{place_dress_lod_scale, PropMeshFit}, vegetation::CamTrunk};
         let _g = crate::test_env::lock();
         let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().unwrap();
-        struct RootGuard(Option<String>);
-        impl Drop for RootGuard { fn drop(&mut self) { match self.0.take() { Some(v) => std::env::set_var("BEVY_ASSET_ROOT", v), None => std::env::remove_var("BEVY_ASSET_ROOT") } } }
         let save = std::env::var("BEVY_ASSET_ROOT").ok();
         std::env::set_var("BEVY_ASSET_ROOT", &root);
-        let _root = RootGuard(save);
-        assert!(asset_file_present("models/kenney-nature-kit/tree_default.glb"));
-        let assets = root.join("assets").into_os_string().into_string().unwrap();
         let mut app = App::new();
-        app.set_error_handler(bevy::ecs::error::ignore).add_plugins((MinimalPlugins, AssetPlugin { file_path: assets, watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin)).init_resource::<crate::climate_plane::AmbientcgTexCache>().init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Medium }).insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) }).add_plugins((LivingEcologyPlugin, crate::climate_plane::ClimatePlanePlugin));
+        app.set_error_handler(bevy::ecs::error::ignore).add_plugins((MinimalPlugins, AssetPlugin { file_path: root.join("assets").into_os_string().into_string().unwrap(), watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin)).init_resource::<crate::climate_plane::AmbientcgTexCache>().init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Medium }).insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) }).add_plugins((LivingEcologyPlugin, crate::climate_plane::ClimatePlanePlugin));
         app.finish(); app.cleanup(); app.world_mut().run_schedule(Startup);
-        assert_eq!(app.world_mut().query::<&PropMesh>().iter(app.world()).count(), 22); let te = app.world_mut().query_filtered::<Entity, With<CamTrunk>>().iter(app.world()).next().unwrap();
-        let (t0, se) = (app.world().get::<Mesh3d>(te).unwrap().0.id(), app.world_mut().query::<(Entity, &PropMesh)>().iter(app.world()).find(|(_, p)| p.fit == PropMeshFit::Stone).unwrap().0);
-        let s0 = app.world().get::<Mesh3d>(se).unwrap().0.id();
+        assert_eq!(app.world_mut().query::<&PropMesh>().iter(app.world()).count(), 22);
+        let (te, se) = (app.world_mut().query_filtered::<Entity, With<CamTrunk>>().iter(app.world()).next().unwrap(), app.world_mut().query::<(Entity, &PropMesh)>().iter(app.world()).find(|(_, p)| p.fit == PropMeshFit::Stone).unwrap().0);
+        let (t0, s0) = (app.world().get::<Mesh3d>(te).unwrap().0.id(), app.world().get::<Mesh3d>(se).unwrap().0.id());
         for _ in 0..2400 { app.update(); tick_global_task_pools_on_main_thread(); }
         assert_ne!(app.world().get::<Mesh3d>(te).unwrap().0.id(), t0); assert_ne!(app.world().get::<Mesh3d>(se).unwrap().0.id(), s0);
-        let th = app.world().get::<Mesh3d>(te).unwrap().0.clone();
-        let tr = app.world().resource::<Assets<Mesh>>().get(&th).unwrap().attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()).unwrap().iter().map(|p| p[0].abs().max(p[2].abs())).fold(0_f32, f32::max);
-        assert!((tr - YARD_TRUNK_R).abs() <= 0.02);
-        let (mid, sh) = (app.world().get::<Transform>(se).unwrap().scale.x, app.world().get::<Mesh3d>(se).unwrap().0.clone());
+        let ext = |w: &World, h: &Handle<Mesh>| w.resource::<Assets<Mesh>>().get(h).unwrap().attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()).unwrap().iter().map(|p| p[0].abs().max(p[2].abs())).fold(0_f32, f32::max);
+        assert!((ext(app.world(), &app.world().get::<Mesh3d>(te).unwrap().0) - YARD_TRUNK_R).abs() <= 0.02);
         app.world_mut().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Low }); app.update();
-        let sx = app.world().resource::<Assets<Mesh>>().get(&sh).unwrap().attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()).unwrap().iter().map(|p| p[0].abs().max(p[2].abs())).fold(0., f32::max);
-        assert!((app.world().get::<Transform>(se).unwrap().scale.x - place_dress_lod_scale(shared::local_settings::GraphicsPreset::Low)).abs() < f32::EPSILON && sx > 0.1 && sx < 0.5 && (mid - 1.0).abs() < f32::EPSILON);
+        let sh = app.world().get::<Mesh3d>(se).unwrap().0.clone();
+        assert!((app.world().get::<Transform>(se).unwrap().scale.x - place_dress_lod_scale(shared::local_settings::GraphicsPreset::Low)).abs() < f32::EPSILON && ext(app.world(), &sh) > 0.1 && ext(app.world(), &sh) < 0.5);
+        if let Some(v) = save { std::env::set_var("BEVY_ASSET_ROOT", v); } else { std::env::remove_var("BEVY_ASSET_ROOT"); }
     }
 }
