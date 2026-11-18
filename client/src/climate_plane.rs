@@ -177,6 +177,7 @@ use crate::title_screen::{HouseLabel, LaunchDoor, TITLE_BORDER, TITLE_PLATE_BG, 
 /// CARD H-2026-09-16-PLACE-LOD — Comfort MeshLodPlan (PATHS-only compile).
 #[path = "gltf_integration.rs"]
 mod mesh_lod;
+pub(crate) use mesh_lod::{bake_prop_mesh, prop_mesh_glb_active, PropMesh, PropMeshFit, KENNEY_STONE_FLATA, KENNEY_TREE_DEFAULT};
 
 const NODE_ANCHORS: [Vec3; 3] = [
     Vec3::new(3.6, 0.55, 0.0),
@@ -1453,6 +1454,7 @@ pub struct ClimatePlanePlugin;
 impl Plugin for ClimatePlanePlugin {
     fn build(&self, app: &mut App) {
         configure_fog_write_sets(app);
+        mesh_lod::register_prop_mesh_swap(app);
         app.init_resource::<ClimatePlane>()
             .init_resource::<AmbientcgTexCache>()
             .init_resource::<WeatherBandCoupling>()
@@ -1532,6 +1534,7 @@ fn spawn_climate_place(
     }
 
     let stone_mesh = meshes.add(Cylinder::new(0.18, 0.08));
+    let stone_prim = stone_mesh.clone();
     // Same roughness family as ground — greybox yard stones, not a second biome.
     let stone_mat = materials.add(StandardMaterial {
         base_color: look.stone,
@@ -1553,6 +1556,13 @@ fn spawn_climate_place(
                 ),
                 ClimateStone,
                 PlaceLodMesh,
+                PropMesh {
+                    rel: KENNEY_STONE_FLATA,
+                    mesh: 0,
+                    primitive: 0,
+                    fit: PropMeshFit::PATH_STONE,
+                    fallback: stone_prim.clone(),
+                },
             ));
         }
     }
@@ -3542,6 +3552,15 @@ mod tests {
             assert_eq!(srgb3(look_for(Some(0)).node), srgb3(SANCTUARY_WELL_GOLD));
             assert_eq!(NODE_ANCHORS.len(), 3);
         }
+    }
+
+    #[test]
+    fn props_wire_f7_lod_scale_composes_on_stone_tf() {
+        let s = place_dress_lod_scale(GraphicsPreset::Low);
+        let tf = lod_stone_tf(1.0, 0.04, 2.0, s);
+        assert!((tf.scale - Vec3::splat(s)).length() < f32::EPSILON);
+        let stones = NODE_ANCHORS.len() * 4;
+        assert_eq!(stones, 12);
     }
 
     #[test]
