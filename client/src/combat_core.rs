@@ -1,6 +1,6 @@
 //! COMBAT-CORE-1 — offline PvE: `predator_present` gates the Heartwood Teeth run;
 //! Sanctuary practice goes through `fight_present`. Health is client-local.
-//! No PvP, no kill XP, no loot. Online stays grey.
+//! No PvP, no kill XP. Named finds are the loot. Online stays grey.
 
 use bevy::input::gamepad::GamepadRumbleRequest;
 use bevy::prelude::*;
@@ -586,13 +586,15 @@ pub fn combat_fire(
         let (hit, level) = land_hit_paid(&mut combat, &mut skills, reach, tier, row, finds.as_deref());
         crate::combat_text::hook_after_fire(&mut cmd, travel.current, pred_before, combat.predator_taken, hit, presence.position);
         play_hit(&mut cmd, assets.as_deref(), mute.as_deref(), hit); // COMBAT-FEEL-SFX-1: a landed hit only
-        let defeat = hit && combat.predator_taken >= HEALTH && clears_area(travel.current);
+        let down = hit && combat.predator_taken >= HEALTH;
+        let defeat = down && clears_area(travel.current);
         if let (true, Some(mut diff)) = (defeat, diff) {
             diff.record_clear(travel.current); // DIFFICULTY-TIERS-1: the predator defeat clears this area
         }
         if let (true, Some(f)) = (defeat, finds.as_mut()) {
             if f.drop_once(tier, combat.strikes, travel.current as u32) { save_finds(f); } // LOOT-DROPS-WIRE-1: saved when a find lands
         }
+        if let (true, false, Some(f)) = (down, clears_area(travel.current), finds.as_mut()) { if f.first_find(combat.strikes, travel.current as u32) { save_finds(f); } }
         let gained = skills.xp[COMBAT].saturating_sub(before);
         if let (Some(line), Some(epi)) = (fire_line(travel.current, &combat, hit, gained, level), epi.as_mut()) {
             let line = cue_line(tier, line, HEALTH.saturating_sub(combat.predator_taken), HEALTH);
@@ -2211,5 +2213,95 @@ mod tests {
             let hurt = |f| home_frame(predator_lunge, f, CombatState::default(), t).resource::<CombatState>().player_taken;
             assert_eq!([hurt(None), hurt(Some(storied.clone()))], [enemy_hit(t, HIT); 2], "{t:?} lunge ignores the slot");
         }
+    }
+    use bevy::ecs::system::RunSystemOnce;
+    use crate::loot_drops::{find_line, loot_hash, tests::in_user_dir, FINDS_SAVE, LOOT_BASE_CHANCE, LOOT_BPS}; use shared::temper::NAMED_FINDS;
+    fn fight_frame(place: PlaceId, taken: u32, finds: FoundFinds) -> World { // FIGHT-PROGRESS-1; home_frame stays byte-identical
+        let (mut w, mut lmb, [x, z]) = (World::new(), ButtonInput::<MouseButton>::default(), fight_home(place));
+        lmb.press(FIRE);
+        w.insert_resource(Time::<()>::default()); w.insert_resource(lmb); w.insert_resource(LaunchDoor::InYard);
+        w.insert_resource(HexTravelState { current: place }); w.insert_resource(SoftPresence { position: Vec3::new(x, STAND_HEIGHT, z), ..default() });
+        w.insert_resource(CombatState { predator_taken: taken, ..default() }); w.insert_resource(SkillXp::default()); w.insert_resource(FirstHarvestEpiphany::default());
+        w.insert_resource(AreaDifficulty::default()); w.insert_resource(finds); w.spawn((Window { focused: true, ..default() }, PrimaryWindow));
+        w.run_system_once(combat_fire).unwrap(); w
+    }
+    fn refire(w: &mut World, taken: u32) {
+        w.resource_mut::<CombatState>().predator_taken = taken;
+        let mut lmb = ButtonInput::<MouseButton>::default(); lmb.press(FIRE); w.insert_resource(lmb);
+        w.run_system_once(combat_fire).unwrap();
+    }
+    #[test]
+    fn fp1_first_sanctuary_win_drops_one_find() {
+        in_user_dir("fp1", |dir| {
+            let w = fight_frame(PlaceId::Sanctuary, HEALTH - HIT, FoundFinds::default());
+            assert_eq!(w.resource::<CombatState>().predator_taken, HEALTH);
+            assert_eq!(w.resource::<SkillXp>().xp[COMBAT], XP_PER_LANDED_HIT);
+            assert_eq!(w.resource::<FirstHarvestEpiphany>().pulse_line, "Heartwood Prowler is down");
+            let f = w.resource::<FoundFinds>().clone();
+            assert_eq!(f.names.len(), 1);
+            let named = NAMED_FINDS.iter().find(|n| n.name == f.names[0]).expect("named");
+            assert_eq!(f.pending.as_deref(), Some(find_line(named).as_str()));
+            assert_eq!(FoundFinds::decode(Some(&std::fs::read_to_string(dir.join(FINDS_SAVE)).unwrap())).names, f.names);
+        });
+    }
+    #[test]
+    fn fp2_once_per_save_no_farm() {
+        in_user_dir("fp2", |dir| {
+            let mut w = fight_frame(PlaceId::Sanctuary, HEALTH - HIT, FoundFinds::default());
+            let (names, bytes) = (w.resource::<FoundFinds>().names.clone(), std::fs::read(dir.join(FINDS_SAVE)).unwrap());
+            w.resource_mut::<FoundFinds>().pending = None; refire(&mut w, HEALTH - HIT);
+            let after = w.resource::<FoundFinds>().clone();
+            assert!(after.names == names && after.pending.is_none() && std::fs::read(dir.join(FINDS_SAVE)).unwrap() == bytes);
+            let owned = FoundFinds { names: vec![NAMED_FINDS[0].name], ..FoundFinds::default() };
+            assert_eq!(fight_frame(PlaceId::Sanctuary, HEALTH - HIT, owned.clone()).resource::<FoundFinds>().clone(), owned);
+            w.resource_mut::<Time>().advance_by(std::time::Duration::from_secs_f32(PREDATOR_RESPAWN_SECS)); w.run_system_once(predator_respawn).unwrap();
+            assert_eq!(w.resource::<CombatState>().predator_taken, 0);
+            refire(&mut w, HEALTH - HIT); assert_eq!(w.resource::<FoundFinds>().names, names);
+        });
+    }
+    #[test]
+    fn fp3_find_persists_and_a_later_win_adds_nothing() {
+        in_user_dir("fp3", |dir| {
+            let names = fight_frame(PlaceId::Sanctuary, HEALTH - HIT, FoundFinds::default()).resource::<FoundFinds>().names.clone();
+            assert_eq!(names.len(), 1);
+            let mut fresh = World::new(); fresh.insert_resource(FoundFinds::default()); fresh.run_system_once(load_finds).unwrap();
+            assert_eq!(fresh.resource::<FoundFinds>().names, names);
+            assert_eq!(fight_frame(PlaceId::Sanctuary, HEALTH - HIT, fresh.resource::<FoundFinds>().clone()).resource::<FoundFinds>().names, names);
+            let (live, bak) = (dir.join(FINDS_SAVE), dir.join(format!("{FINDS_SAVE}.bak")));
+            std::fs::copy(&live, &bak).unwrap(); std::fs::write(&live, b"{{{").unwrap();
+            fresh.run_system_once(load_finds).unwrap();
+            assert_eq!(fresh.resource::<FoundFinds>().names, names);
+        });
+    }
+    #[test]
+    fn fp4_find_line_shows_and_equips() {
+        in_user_dir("fp4", |_| {
+            let mut w = fight_frame(PlaceId::Sanctuary, HEALTH - HIT, FoundFinds::default());
+            w.insert_resource(CalmQueue::default()); w.resource_mut::<FirstHarvestEpiphany>().pulse_until = 0.0;
+            let line = w.resource::<FoundFinds>().pending.clone().unwrap();
+            w.run_system_once(show_find).unwrap();
+            assert_eq!(w.resource::<FirstHarvestEpiphany>().pulse_line, line);
+            assert!(w.resource_mut::<FoundFinds>().cycle_equipped());
+            let f = w.resource::<FoundFinds>();
+            assert!(f.equipped == Some(f.names[0]) && f.encode().contains("equipped"));
+            let (mut c, mut s, bonus) = (CombatState::default(), SkillXp::default(), equipped_strike_bonus(Some(f)));
+            land_hit_paid(&mut c, &mut s, true, DifficultyTier::Sheltered, None, Some(f));
+            assert!(c.predator_taken == HIT + bonus && (1..=3).contains(&bonus));
+        });
+    }
+    #[test]
+    fn fp5_heartwood_miss_and_sanctuary_skips_clear() {
+        in_user_dir("fp5", |_| {
+            let h = loot_hash(1, PlaceId::Heartwood as u32, 0);
+            let bar = (crate::difficulty::drop_chance(DifficultyTier::Sheltered, LOOT_BASE_CHANCE) * LOOT_BPS as f32) as u32;
+            assert!((h % LOOT_BPS) >= bar);
+            let wood = fight_frame(PlaceId::Heartwood, HEALTH - HIT, FoundFinds::default());
+            let missed = wood.resource::<FoundFinds>().clone();
+            assert!(missed.names.is_empty() && missed.pending.is_none());
+            assert_eq!(wood.resource::<AreaDifficulty>().clears, [0, 1, 0]);
+            let yard = fight_frame(PlaceId::Sanctuary, HEALTH - HIT, FoundFinds::default());
+            assert_eq!(yard.resource::<AreaDifficulty>().clears, [0; 3]);
+            assert_eq!(yard.resource::<FoundFinds>().names.len(), 1);
+        });
     }
 }
