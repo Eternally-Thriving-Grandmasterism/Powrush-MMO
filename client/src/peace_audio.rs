@@ -600,7 +600,7 @@ mod tests {
 
     #[test]
     fn sfx_wire_gain_pins_ui() {
-        assert!(UI_CLICK_GAIN > 0.0 && UI_CLICK_GAIN <= crate::combat_core::HIT_GAIN && -4.6 + 20.0 * UI_CLICK_GAIN.log10() <= -27.7);
+        assert!(UI_CLICK_GAIN > 0.0 && UI_CLICK_GAIN <= crate::combat_core::HIT_GAIN && -4.6 + 20.0 * UI_CLICK_GAIN.log10() <= -27.7 && crate::wood_expedition::WOOD_CHOP_GAIN > 0.0 && -1.6 + 20.0 * crate::wood_expedition::WOOD_CHOP_GAIN.log10() <= -27.7);
         let prod = include_str!("peace_audio.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
         assert!(include_str!("../../assets/asset-licenses.csv").contains("ui_click.ogg") && prod.contains("sync_well_sting") && !prod.contains("WOOD_CHOP"));
     }

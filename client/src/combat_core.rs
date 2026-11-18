@@ -2116,8 +2116,12 @@ mod tests {
     /// COMBAT-FEEL-SFX-1 (d) — a miss, mute or zero gain gives no hit sound.
     #[test]
     fn miss_or_mute_gives_no_hit_sound() {
-        let (full, muted, z) = (crate::local_settings::MasterMuteGain { gain: 1.0, muted: false }, crate::local_settings::MasterMuteGain { gain: 1.0, muted: true }, crate::local_settings::MasterMuteGain { gain: 0.0, muted: false });
-        assert_eq!((hit_volume(false, Some(&full)), hit_volume(false, None), hit_volume(true, Some(&muted)), hit_volume(true, Some(&z)), find_volume(Some(&muted))), (None, None, None, None, None));
+        let (full, muted) = (crate::local_settings::MasterMuteGain { gain: 1.0, muted: false }, crate::local_settings::MasterMuteGain { gain: 1.0, muted: true });
+        assert_eq!(hit_volume(false, Some(&full)), None);
+        assert_eq!(hit_volume(false, None), None);
+        assert_eq!(hit_volume(true, Some(&muted)), None);
+        assert_eq!(hit_volume(true, Some(&crate::local_settings::MasterMuteGain { gain: 0.0, muted: false })), None);
+        assert_eq!(find_volume(Some(&muted)), None);
     }
 
     fn sfx_find_app(pending: &str) -> App {
