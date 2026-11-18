@@ -184,9 +184,13 @@ pub fn bevy_asset_base() -> std::path::PathBuf {
 
 pub fn asset_file_present(rel: &str) -> bool {
     use std::io::Read;
-    let ok = |p: &std::path::Path| std::fs::File::open(p).ok().is_some_and(|mut f| { let mut h = [0u8; 12]; f.read_exact(&mut h).is_ok() && !h.starts_with(b"version https://git-lfs.github.com/spec/v1") && h[..4] == *b"glTF" });
-    let primary = bevy_asset_base().join("assets").join(rel);
-    ok(&primary) || (std::env::var("BEVY_ASSET_ROOT").is_err() && std::env::var("CARGO_MANIFEST_DIR").is_ok_and(|m| ok(&std::path::PathBuf::from(m).join("../assets").join(rel))))
+    let path = bevy_asset_base().join("assets").join(rel);
+    let Ok(mut file) = std::fs::File::open(&path) else { return false; };
+    let mut head = [0u8; 12];
+    if file.read_exact(&mut head).is_err() || head.starts_with(b"version https://git-lfs.github.com/spec/v1") {
+        return false;
+    }
+    head[..4] == *b"glTF"
 }
 
 pub fn practice_traveler_capsule(mesh: Handle<Mesh>, mat: Handle<StandardMaterial>, pos: Vec3) -> (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform) {
