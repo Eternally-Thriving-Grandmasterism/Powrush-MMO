@@ -62,7 +62,7 @@ fn bake_prop_mesh(src: &Mesh, fit: PropMeshFit, tree_sxz: f32, tree_sy: f32) -> 
     match fit {
         PropMeshFit::Stone => { let (s, t) = PROP_STONE_XF; for p in pos.iter_mut() { *p = [p[0] * s.x + t.x, p[1] * s.y + t.y, p[2] * s.z + t.z]; } span = pos.iter().map(|p| (p[0] * p[0] + p[2] * p[2]).sqrt()).fold(0., f32::max).max(1e-4); ul = s; }
         PropMeshFit::Trunk => { sxz = PROP_TRUNK_R / r0; sy = PROP_TRUNK_HEIGHT / (y1 - y0).max(1e-4); for &i in &drawn { let p = &mut pos[i]; p[0] *= sxz; p[2] *= sxz; p[1] = (p[1] - y0) * sy; } span = PROP_TRUNK_R; }
-        PropMeshFit::Canopy => { sxz = tree_sxz; sy = tree_sy; for &i in &drawn { let p = &mut pos[i]; p[0] *= sxz; p[2] *= sxz; p[1] *= sy; } span = drawn.iter().map(|&i| (pos[i][0] * pos[i][0] + pos[i][2] * pos[i][2]).sqrt()).fold(0., f32::max).max(1e-4); }
+        PropMeshFit::Canopy => { sxz = tree_sxz; sy = 2.6 / (y1 - y0).max(1e-4); let (mut cx, mut cz, n) = (0_f32, 0_f32, drawn.len().max(1) as f32); for &i in &drawn { cx += pos[i][0]; cz += pos[i][2]; } cx /= n; cz /= n; for &i in &drawn { let p = &mut pos[i]; p[0] = (p[0] - cx) * sxz; p[2] = (p[2] - cz) * sxz; p[1] = (p[1] - y0) * sy; } span = drawn.iter().map(|&i| (pos[i][0] * pos[i][0] + pos[i][2] * pos[i][2]).sqrt()).fold(0., f32::max).max(1e-4); }
     }
     if let Some(VertexAttributeValues::Float32x2(uv)) = out.attribute_mut(Mesh::ATTRIBUTE_UV_0) { let d = (ul.max_element().max(sxz).max(sy) * span / 4.).max(1e-4); for p in uv.iter_mut() { p[0] /= d; p[1] /= d; } }
     if matches!(fit, PropMeshFit::Trunk) { let _ = out.generate_tangents(); }
@@ -71,11 +71,11 @@ fn bake_prop_mesh(src: &Mesh, fit: PropMeshFit, tree_sxz: f32, tree_sy: f32) -> 
 pub(crate) fn swap_prop_meshes(
     feel: Option<Res<crate::local_settings::LocalMeshLodFeel>>, server: Option<Res<AssetServer>>, mut meshes: ResMut<Assets<Mesh>>,
     mut cache: ResMut<PropMeshBakeCache>, mut ramps: Option<ResMut<pm::PainterlyRampMeshes>>,
-    mut q: Query<(Entity, &mut Mesh3d, &PropMesh), Without<PropMeshSwapped>>, mut commands: Commands,
+    mut q: Query<(Entity, &mut Mesh3d, &PropMesh, &mut Transform), Without<PropMeshSwapped>>, mut commands: Commands,
 ) {
     let (Some(feel), Some(server)) = (feel, server) else { return };
     let active = prop_mesh_glb_active(feel.preset);
-    for (e, mut mesh3d, prop) in &mut q {
+    for (e, mut mesh3d, prop, mut tf) in &mut q {
         if !active || !asset_file_present(prop.rel) { commands.entity(e).insert(PropMeshSwapped); continue; }
         let h = server.load(GltfAssetLabel::Primitive { mesh: 0, primitive: prop.primitive }.from_asset(prop.rel));
         if matches!(server.get_load_state(h.id()), Some(LoadState::Failed(_))) { commands.entity(e).insert(PropMeshSwapped); continue; }
@@ -89,7 +89,7 @@ pub(crate) fn swap_prop_meshes(
             let bh = meshes.add(m); if matches!(prop.fit, PropMeshFit::Canopy) { pm::remember_ramp(&mut ramps, &bh, pm::PainterlyRole::Foliage); }
             cache.baked[i] = Some(bh.clone()); bh
         });
-        mesh3d.0 = baked; commands.entity(e).insert(PropMeshSwapped);
+        mesh3d.0 = baked; if matches!(prop.fit, PropMeshFit::Canopy) { tf.translation.y += PROP_TRUNK_HEIGHT - 1.35; } commands.entity(e).insert(PropMeshSwapped);
     }
 }
 

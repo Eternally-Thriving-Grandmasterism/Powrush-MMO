@@ -1121,10 +1121,10 @@ mod tests {
             match m.indices() { Some(Indices::U16(ix)) => ix.iter().for_each(|&u| dot(u as usize)), Some(Indices::U32(ix)) => ix.iter().for_each(|&u| dot(u as usize)), None => (0..p.len()).for_each(dot) };
             (y0, y1, r)
         };
-        let (th, ch, se, sh) = { let w = app.world_mut(); let mut q = w.query::<(Entity, &PropMesh, &Mesh3d)>(); let t = q.iter(w).find(|(_, p, _)| p.fit == PropMeshFit::Trunk).unwrap(); let c = q.iter(w).find(|(_, p, _)| p.fit == PropMeshFit::Canopy).unwrap(); let s = q.iter(w).find(|(_, p, _)| p.fit == PropMeshFit::Stone).unwrap(); (t.2.0.clone(), c.2.0.clone(), s.0, s.2.0.clone()) };
+        let (th, ch, sh, tt, ct, se) = { let w = app.world_mut(); let mut q = w.query::<(Entity, &PropMesh, &Mesh3d, &Transform)>(); let t = q.iter(w).find(|(_, p, _, _)| p.fit == PropMeshFit::Trunk).unwrap(); let c = q.iter(w).find(|(_, p, _, _)| p.fit == PropMeshFit::Canopy).unwrap(); let s = q.iter(w).find(|(_, p, _, _)| p.fit == PropMeshFit::Stone).unwrap(); (t.2.0.clone(), c.2.0.clone(), s.2.0.clone(), t.3.translation, c.3.translation, s.0) };
         let ma = app.world().resource::<Assets<Mesh>>();
         let (ty0, ty1, txz) = drawn(ma.get(&th).unwrap()); let (cy0, _, cxz) = drawn(ma.get(&ch).unwrap()); let (_, _, sxz) = drawn(ma.get(&sh).unwrap());
-        assert!((txz - YARD_TRUNK_R).abs() <= 0.01 && ty0.abs() <= 0.02 && cy0 + 0.02 >= ty1 && cxz > 0.35 && ma.get(&ch).unwrap().attribute(Mesh::ATTRIBUTE_COLOR).is_some());
+        assert!((txz - YARD_TRUNK_R).abs() <= 0.01 && ty0.abs() <= 0.02 && (ct.y + cy0 - tt.y - ty1).abs() <= 0.05 && (ct.x - tt.x).abs() <= 0.02 && (ct.z - tt.z).abs() <= 0.02 && cxz > 0.35 && ma.get(&ch).unwrap().attribute(Mesh::ATTRIBUTE_COLOR).is_some());
         app.world_mut().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Low }); app.update();
         assert!((app.world().get::<Transform>(se).unwrap().scale.x - place_dress_lod_scale(shared::local_settings::GraphicsPreset::Low)).abs() < f32::EPSILON && sxz > 0.1 && sxz < 0.5);
     }
