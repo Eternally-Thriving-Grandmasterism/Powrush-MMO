@@ -75,6 +75,12 @@ impl FoundFinds {
         if self.names.contains(&f.name) { return false; }
         self.names.push(f.name); self.pending = Some(find_line(f)); true
     }
+    /// FIGHT-PROGRESS-1 — one sure named find while this save owns none. Role None; the 8/4/2 roll is unchanged.
+    pub fn first_find(&mut self, strikes: u32, place: u32) -> bool {
+        if !self.names.is_empty() || self.pending.is_some() { return false; }
+        let Some(f) = roll_named_find(DifficultyTier::Sheltered, LOOT_BASE_CHANCE, None, 0, loot_hash(loot_hash(strikes, place, 0), place, 1)) else { return false };
+        self.names.push(f.name); self.pending = Some(find_line(f)); true
+    }
     pub fn encode(&self) -> String {
         let names = serde_json::to_string(&self.names).unwrap_or_default();
         match self.equipped_find() {
@@ -332,5 +338,21 @@ pub(crate) mod tests {
             assert_eq!(a.drop_once(DifficultyTier::Sworn, s, 1), b.drop_once(DifficultyTier::Sworn, s, 1));
             assert_eq!((a.names, a.pending, a.equipped), (b.names, b.pending, Some(NAMED_FINDS[4].name)));
         }
+    }
+    /// FP6 — first_find lands on every sweep seed at Sanctuary, and never while owned or waiting.
+    #[test]
+    fn fp6_first_find_sure_once_on_the_sweep() {
+        let place = shared::hex_travel::PlaceId::Sanctuary as u32;
+        sweep(|_, seed| {
+            let mut f = FoundFinds::default();
+            assert!(f.first_find(seed, place));
+            let named = NAMED_FINDS.iter().find(|n| n.name == f.names[0]).unwrap();
+            assert_eq!((f.names.len(), f.pending.as_deref()), (1, Some(find_line(named).as_str())));
+            assert!(!f.first_find(seed, place) && f.names.len() == 1 && f.pending.is_some());
+            let mut owned = FoundFinds { names: vec![NAMED_FINDS[0].name], pending: None, equipped: None };
+            assert!(!owned.first_find(seed, place) && owned.names.len() == 1 && owned.pending.is_none());
+            let mut wait = FoundFinds { pending: Some("x".into()), ..FoundFinds::default() };
+            assert!(!wait.first_find(seed, place) && wait.names.is_empty() && wait.pending.as_deref() == Some("x"));
+        });
     }
 }
