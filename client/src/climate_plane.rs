@@ -650,7 +650,7 @@ pub fn place_dress_lod_scale(preset: GraphicsPreset) -> f32 {
     mesh_lod::lived_place_dress_detail_scale(&mesh_lod::plan_for_preset(preset))
 }
 
-/// Buildings / Astra Medium stay refs — Place dress never dumps a `.glb`.
+/// Buildings / Astra Medium stay refs — Place path-stone dress never dumps a `.glb` (yard PropMesh glTF swap is separate).
 pub fn place_dress_dumps_glb(preset: GraphicsPreset) -> bool {
     mesh_lod::place_dress_uses_authored_glb(&mesh_lod::plan_for_preset(preset))
 }

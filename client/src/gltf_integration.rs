@@ -89,7 +89,7 @@ pub(crate) fn swap_prop_meshes(
             let bh = meshes.add(m); if matches!(prop.fit, PropMeshFit::Canopy) { pm::remember_ramp(&mut ramps, &bh, pm::PainterlyRole::Foliage); }
             cache.baked[i] = Some(bh.clone()); bh
         });
-        mesh3d.0 = baked; if matches!(prop.fit, PropMeshFit::Canopy) { tf.translation.y += PROP_TRUNK_HEIGHT - 1.35; } commands.entity(e).insert(PropMeshSwapped);
+        mesh3d.0 = baked; match prop.fit { PropMeshFit::Trunk => tf.translation.y = 0., PropMeshFit::Canopy => tf.translation.y = PROP_TRUNK_HEIGHT, _ => {} } commands.entity(e).insert(PropMeshSwapped);
     }
 }
 
@@ -464,7 +464,7 @@ mod tests {
         use bevy::{asset::AssetPlugin, gltf::GltfPlugin, image::ImagePlugin, mesh::MeshPlugin, prelude::*, tasks::tick_global_task_pools_on_main_thread, world_serialization::WorldSerializationPlugin};
         let _g = crate::test_env::lock(); let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().unwrap(); let mut app = App::new(); app.add_plugins((MinimalPlugins, AssetPlugin { file_path: root.join("assets").into_os_string().into_string().unwrap(), watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, ImagePlugin::default(), MeshPlugin, GltfPlugin::default(), WorldSerializationPlugin)).init_asset::<Image>().init_asset::<Mesh>().init_resource::<Assets<StandardMaterial>>().init_resource::<PropMeshBakeCache>().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: GraphicsPreset::Medium }).add_systems(Update, swap_prop_meshes); app.finish(); let tree = "models/kenney-nature-kit/tree_default.glb"; let h = app.world_mut().resource_mut::<Assets<Mesh>>().add(Cuboid::new(0.2, 2., 0.2)); let mat = app.world_mut().resource_mut::<Assets<StandardMaterial>>().add(StandardMaterial::default()); let (cm, _, ct) = practice_traveler_capsule(h.clone(), mat.clone(), Vec3::ZERO); let ce = app.world_mut().spawn((cm, ct, PropMesh { rel: tree, primitive: 1, fit: PropMeshFit::Canopy })).id(); crate::test_env::with_bevy_asset_root(&root, || { app.update(); tick_global_task_pools_on_main_thread(); }); assert!(app.world().get::<PropMeshSwapped>(ce).is_none()); let (tm, _, tt) = practice_traveler_capsule(h, mat, Vec3::ZERO); let te = app.world_mut().spawn((tm, tt, PropMesh { rel: tree, primitive: 0, fit: PropMeshFit::Trunk })).id();
         for _ in 0..2400 { crate::test_env::with_bevy_asset_root(&root, || { app.update(); tick_global_task_pools_on_main_thread(); }); if app.world().get::<PropMeshSwapped>(te).is_some() && app.world().get::<PropMeshSwapped>(ce).is_some() { break; } }
-        assert!(app.world().get::<PropMeshSwapped>(te).is_some() && app.world().get::<PropMeshSwapped>(ce).is_some());
+        assert!(app.world().get::<PropMeshSwapped>(te).is_some() && app.world().get::<PropMeshSwapped>(ce).is_some()); let ma = app.world().resource::<Assets<Mesh>>(); let tt = app.world().get::<Transform>(te).unwrap().translation; let ct = app.world().get::<Transform>(ce).unwrap().translation; let (ty0, ty1, _) = prop_ix_bounds(ma.get(&app.world().get::<Mesh3d>(te).unwrap().0).unwrap()); let (cy0, _, _) = prop_ix_bounds(ma.get(&app.world().get::<Mesh3d>(ce).unwrap().0).unwrap()); assert!((tt.y + ty0).abs() <= 0.02 && (ct.y + cy0 - (tt.y + ty1)).abs() <= 0.05);
     }
     #[test]
     fn props_wire_f1_missing_asset_keeps_primitive() {
