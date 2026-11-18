@@ -1395,46 +1395,60 @@ mod tests {
     #[test]
     fn loop_teach_lt1_gather_cue() {
         use bevy::ecs::system::RunSystemOnce;
-        let _l = crate::test_env::lock();
-        let (dir, _) = hour_card_end_scratch("lt1");
+        let _lock = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("lt1");
         let mut app = loop_teach_app();
         let body = card_line(GuidanceObjective::OpenInventory.prompt());
-        assert_eq!(paint_loop(&mut app, GuidanceObjective::OpenInventory, WoodView { unit: 0, standing: true }), format!("{body}\n{LOOP_GATHER_CUE}"));
-        app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Heartwood;
-        for (o, w) in [(GuidanceObjective::OpenInventory, WoodView { unit: 0, standing: true }), (GuidanceObjective::OpenInventory, WoodView { unit: 0, standing: false }), (GuidanceObjective::MoveAround, WoodView { unit: 0, standing: true })] {
-            assert!(!paint_loop(&mut app, o, w).contains(LOOP_GATHER_CUE));
+        const RIPE: WoodView = WoodView { unit: 0, standing: true };
+        assert_eq!(paint_loop(&mut app, GuidanceObjective::OpenInventory, RIPE), format!("{body}\n{LOOP_GATHER_CUE}"));
+        let place = |a: &mut App, p: PlaceId| a.world_mut().resource_mut::<HexTravelState>().current = p;
+        let miss = |a: &mut App, o: GuidanceObjective, w: WoodView| !paint_loop(a, o, w).contains(LOOP_GATHER_CUE);
+        for p in [PlaceId::Heartwood, PlaceId::Depths] {
+            place(&mut app, p);
+            assert!(miss(&mut app, GuidanceObjective::OpenInventory, RIPE));
         }
+        place(&mut app, PlaceId::Sanctuary);
+        assert!(miss(&mut app, GuidanceObjective::OpenInventory, WoodView { unit: 0, standing: false }));
+        assert!(miss(&mut app, GuidanceObjective::MoveAround, RIPE));
         app.world_mut().resource_mut::<FirstSessionGuidance>().dismiss();
         app.world_mut().run_system_once(update_guidance_text).unwrap();
         assert!(!guidance_card_section(&mut app).1.contains(LOOP_GATHER_CUE));
         app.insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(2) });
-        assert!(!paint_loop(&mut app, GuidanceObjective::OpenInventory, WoodView { unit: 0, standing: true }).contains(LOOP_GATHER_CUE));
-        let _ = std::fs::remove_dir_all(&dir);
+        assert!(miss(&mut app, GuidanceObjective::OpenInventory, RIPE));
+        let _dir = std::fs::remove_dir_all(&dir);
     }
 
     /// LT3 — refine cue never promises a refused Q.
     #[test]
     fn loop_teach_lt3_refine_honesty() {
-        let _l = crate::test_env::lock();
-        let (dir, _) = hour_card_end_scratch("lt3");
+        let _lock = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("lt3");
         let g = FirstSessionGuidance { objective: GuidanceObjective::PlantFabricator, ..Default::default() };
         const W: WoodView = WoodView { unit: 1, standing: false };
-        let (hour, fac, _) = refine_gate();
-        let f = FactoryYard { factory: fac };
-        for (h, steps) in [(HourSacred::default(), 3), (hour.clone(), 0), (hour, 2)] {
+        let (hour, fac, fab) = refine_gate();
+        let ready_f = FactoryYard { factory: fac };
+        let idle = |steps: usize| {
             let mut x = shared::fabricator::Fabricator::default();
             for _ in 0..steps { let _ = x.craft_next(); }
-            assert_ne!(loop_cue(&g, Some(&W), Some(&FabricatorYard { fab: x, bench_glow: 0.0 }), Some(&f), Some(&h), Some(PlaceId::Sanctuary), None), Some(LOOP_REFINE_CUE));
-        }
-        let _ = std::fs::remove_dir_all(&dir);
+            FabricatorYard { fab: x, bench_glow: 0.0 }
+        };
+        let no = |h: &HourSacred, y: &FabricatorYard, f: &FactoryYard| {
+            assert_ne!(loop_cue(&g, Some(&W), Some(y), Some(f), Some(h), Some(PlaceId::Sanctuary), None), Some(LOOP_REFINE_CUE))
+        };
+        for (h, steps) in [(HourSacred::default(), 3), (hour.clone(), 0), (hour.clone(), 2)] { no(&h, &idle(steps), &ready_f); }
+        no(&hour, &idle(3), &FactoryYard { factory: shared::vertical_factory::VerticalFactory::default() });
+        let mut stocked = fab.clone();
+        stocked.crate_stock = 1;
+        no(&hour, &FabricatorYard { fab: stocked, bench_glow: 0.0 }, &ready_f);
+        let _dir = std::fs::remove_dir_all(&dir);
     }
 
     /// LT4 — signpost replaces the whole card.
     #[test]
     fn loop_teach_lt4_signpost_precedence() {
         use bevy::ecs::system::RunSystemOnce;
-        let _l = crate::test_env::lock();
-        let (dir, _) = hour_card_end_scratch("lt4");
+        let _lock = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("lt4");
         let mut app = loop_teach_app();
         app.insert_resource(LaunchDoor::InYard).insert_resource(SoftPresence::default()).insert_resource(NearbyMercyNode::default());
         app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::OpenInventory;
@@ -1446,7 +1460,7 @@ mod tests {
         *app.world_mut().resource_mut::<Signpost>() = Signpost { seen: true, until: None };
         app.world_mut().run_system_once(update_guidance_text).unwrap();
         assert!(guidance_card_section(&mut app).1.contains(LOOP_GATHER_CUE));
-        let _ = std::fs::remove_dir_all(&dir);
+        let _dir = std::fs::remove_dir_all(&dir);
     }
 
     /// LT5 — cue stamp redraws after real ticks; quiet paths skip Text writes.
@@ -1489,7 +1503,11 @@ mod tests {
         let mut g = app.world_mut().resource_mut::<FirstSessionGuidance>();
         (g.objective, g.house_live, g.harvests_completed) = (GuidanceObjective::OpenInventory, true, 1);
         let t = paint_loop(&mut app, GuidanceObjective::OpenInventory, WoodView { unit: 0, standing: true });
-        assert!(t.contains(LOOP_GATHER_CUE) && t.contains("Human"));
+        let body = card_line(GuidanceObjective::OpenInventory.prompt());
+        let door = door_people_lines();
+        assert_eq!(t, format!("{body}\n{door}\n{LOOP_GATHER_CUE}"));
+        let (i, j, k) = (t.find(&body).unwrap(), t.find(&door).unwrap(), t.find(LOOP_GATHER_CUE).unwrap());
+        assert!(i < j && j < k);
         app.world_mut().resource_mut::<NearbyMercyNode>().in_range = true;
         app.world_mut().run_system_once(update_guidance_visibility).unwrap();
         assert_eq!(guidance_strip_visibility(&mut app), Visibility::Hidden);
