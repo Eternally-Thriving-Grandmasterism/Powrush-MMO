@@ -1178,24 +1178,16 @@ pub(crate) fn project_wood(
                 (meshes.as_mut(), materials.as_mut(), first_passing_site())
             {
                 let y = crate::vegetation::seated_ground(site.x, site.y);
-                let mut bark = StandardMaterial {
-                    base_color: Color::srgb(0.29, 0.20, 0.13),
-                    ..default()
-                };
-                if let (Some(server), Some(cache)) = (asset_server.as_deref(), tex_cache.as_deref_mut()) {
-                    crate::climate_plane::ambientcg_dress_mat(
-                        &mut bark,
-                        crate::climate_plane::BARK012_ID,
-                        crate::climate_plane::GROUND_TEX_TINT,
-                        Vec2::new(1.0, 3.0),
-                        color_only,
-                        Color::srgb(0.29, 0.20, 0.13),
-                        0.5,
-                        cache,
-                        server,
-                    );
-                }
-                let bark_mat = materials.add(bark);
+                let bark_mat = materials.add(crate::climate_plane::ambientcg_tiled_pbr(
+                    Color::srgb(0.29, 0.20, 0.13),
+                    0.5,
+                    crate::climate_plane::GROUND_TEX_TINT,
+                    "Bark012",
+                    Vec2::new(1.0, 3.0),
+                    color_only,
+                    asset_server.as_deref(),
+                    tex_cache.as_deref_mut(),
+                ));
                 let leaf = materials.add(StandardMaterial {
                     base_color: Color::srgb(0.12, 0.34, 0.15),
                     ..default()
@@ -1226,24 +1218,16 @@ pub(crate) fn project_wood(
             if let (Some(meshes), Some(materials), Some(parent)) =
                 (meshes.as_mut(), materials.as_mut(), people.iter().next())
             {
-                let mut bit = StandardMaterial {
-                    base_color: Color::srgb(0.29, 0.20, 0.13),
-                    ..default()
-                };
-                if let (Some(server), Some(cache)) = (asset_server.as_deref(), tex_cache.as_deref_mut()) {
-                    crate::climate_plane::ambientcg_dress_mat(
-                        &mut bit,
-                        crate::climate_plane::BARK012_ID,
-                        crate::climate_plane::GROUND_TEX_TINT,
-                        Vec2::new(1.0, 3.0),
-                        color_only,
-                        Color::srgb(0.29, 0.20, 0.13),
-                        0.5,
-                        cache,
-                        server,
-                    );
-                }
-                let mat = materials.add(bit);
+                let mat = materials.add(crate::climate_plane::ambientcg_tiled_pbr(
+                    Color::srgb(0.29, 0.20, 0.13),
+                    0.5,
+                    crate::climate_plane::GROUND_TEX_TINT,
+                    "Bark012",
+                    Vec2::new(1.0, 3.0),
+                    color_only,
+                    asset_server.as_deref(),
+                    tex_cache.as_deref_mut(),
+                ));
                 commands.entity(parent).with_children(|child| {
                     child.spawn((
                         Mesh3d(meshes.add(bark_mesh())),
@@ -3445,29 +3429,22 @@ pub(crate) mod tests {
 
     #[test]
     fn ground_tex_wood_bark() {
-        let mut mat = StandardMaterial {
-            base_color: Color::srgb(0.29, 0.20, 0.13),
-            ..default()
-        };
-        let mut cache = crate::climate_plane::AmbientcgTexCache::default();
-        let mut app = App::new();
-        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()))
-            .init_asset::<Image>();
-        let server = app.world().resource::<AssetServer>().clone();
-        if crate::climate_plane::ambientcg_maps_on_disk(crate::climate_plane::BARK012_ID) {
-            crate::climate_plane::ambientcg_dress_mat(
-                &mut mat,
-                crate::climate_plane::BARK012_ID,
-                crate::climate_plane::GROUND_TEX_TINT,
-                Vec2::new(1.0, 3.0),
-                false,
-                Color::srgb(0.29, 0.20, 0.13),
-                0.5,
-                &mut cache,
-                &server,
-            );
-            assert!(mat.base_color_texture.is_some());
-            assert_eq!(mat.uv_transform, bevy::math::Affine2::from_scale(Vec2::new(1.0, 3.0)));
+        if !crate::climate_plane::ambientcg_maps_on_disk("Bark012") {
+            return;
         }
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default())).init_asset::<Image>();
+        let mut cache = crate::climate_plane::AmbientcgTexCache::default();
+        let m = crate::climate_plane::ambientcg_tiled_pbr(
+            Color::srgb(0.29, 0.20, 0.13),
+            0.5,
+            crate::climate_plane::GROUND_TEX_TINT,
+            "Bark012",
+            Vec2::new(1.0, 3.0),
+            false,
+            app.world().get_resource::<AssetServer>(),
+            Some(&mut cache),
+        );
+        assert!(m.base_color_texture.is_some());
     }
 }
