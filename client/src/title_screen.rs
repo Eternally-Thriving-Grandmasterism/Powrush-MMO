@@ -3454,16 +3454,15 @@ fn on_off(v: bool) -> &'static str {
 
 fn refresh_combat_text_settings_labels(
     label: Res<HouseLabel>, settings: Res<LocalSettingsState>,
-    mut floating: Query<(&mut Text, &mut TextFont), With<SettingsCombatFloatingLabel>>,
-    mut log: Query<(&mut Text, &mut TextFont), (With<SettingsCombatLogLabel>, Without<SettingsCombatFloatingLabel>)>,
-    mut custom: Query<(&mut Visibility, &mut Text), (With<SettingsCombatCustomLabel>, Without<SettingsCombatFloatingLabel>, Without<SettingsCombatLogLabel>)>,
+    mut floating: Query<&mut Text, With<SettingsCombatFloatingLabel>>,
+    mut log: Query<&mut Text, (With<SettingsCombatLogLabel>, Without<SettingsCombatFloatingLabel>)>,
+    mut custom: Query<&mut Visibility, (With<SettingsCombatCustomLabel>, Without<SettingsCombatFloatingLabel>, Without<SettingsCombatLogLabel>)>,
 ) {
     if !label.settings_open { return; }
-    let (s, font) = (&settings.inner, (15.0 * settings.inner.text_scale).clamp(11.0, 22.0));
-    for (mut t, mut f) in &mut floating { set_btn_section_text(&mut t, &format!("{} · {}", PLACEHOLDER_FLOATING_TOGGLE, on_off(s.combat_floating_on))); set_btn_section_font(&mut f, font); }
-    for (mut t, mut f) in &mut log { set_btn_section_text(&mut t, &format!("{} · {}", PLACEHOLDER_LOG_TOGGLE, on_off(s.combat_log_on))); set_btn_section_font(&mut f, font); }
-    let show = combat_text_starter_preset_index(s).is_none();
-    for (mut vis, mut t) in &mut custom { *vis = if show { Visibility::Visible } else { Visibility::Hidden }; set_btn_section_text(&mut t, PLACEHOLDER_COMBAT_CUSTOM); }
+    let s = &settings.inner;
+    for mut t in &mut floating { set_btn_section_text(&mut t, &format!("{} · {}", PLACEHOLDER_FLOATING_TOGGLE, on_off(s.combat_floating_on))); }
+    for mut t in &mut log { set_btn_section_text(&mut t, &format!("{} · {}", PLACEHOLDER_LOG_TOGGLE, on_off(s.combat_log_on))); }
+    for mut vis in &mut custom { *vis = if combat_text_starter_preset_index(s).is_none() { Visibility::Visible } else { Visibility::Hidden }; }
 }
 
 pub fn look_btn_label(s: &LocalSettings) -> String {
@@ -7955,59 +7954,54 @@ mod tests {
         assert!(PLACEHOLDER_FLOATING_TOGGLE.len() + PLACEHOLDER_LOG_TOGGLE.len() + 10 <= 51);
         for label in COMBAT_PRESET_LABELS { assert!(label.len() <= 9, "{label}"); }
         assert!(!include_str!("combat_text.rs").split("#[cfg(test)]\nmod tests {").next().unwrap().contains("\"[[\"") && !include_str!("title_screen.rs").split("#[cfg(test)]\nmod tests {").next().unwrap().contains("\"[[\""));
-        let mut stub = App::new();
-        stub.add_plugins(MinimalPlugins).add_systems(Startup, spawn_settings_stub);
-        stub.update();
-        let w = stub.world_mut();
-        let mut hud = w.query::<(Entity, &PauseTabPanel)>();
-        let mut stack = hud.iter(w).filter(|(_, p)| p.0 == PauseTab::Hud).map(|(e, _)| e).collect::<Vec<_>>();
-        let mut lines = Vec::new();
-        while let Some(e) = stack.pop() {
-            if let Some(t) = w.get::<Text>(e) { lines.push(t.as_str().to_string()); }
-            if let Some(k) = w.get::<Children>(e) { for c in k.iter() { stack.push(c); } }
-        }
-        assert!(!lines.is_empty() && lines.iter().all(|l| !l.contains("[[")));
         let mut label = rite_label(HouseName::default(), false);
         label.settings_open = true;
         let mut app = App::new();
         app.add_plugins(MinimalPlugins).insert_resource(LocalSettingsState { inner: LocalSettings::default(), dirty: false }).insert_resource(label).add_message::<HudLayoutCommand>()
             .add_systems(Startup, spawn_settings_stub).add_systems(Update, (super::combat_text_settings_clicks, super::refresh_combat_text_settings_labels).chain());
         app.update();
+        let w = app.world_mut();
+        let hud_root = w.query::<(Entity, &PauseTabPanel)>().iter(w).find(|(_, p)| p.0 == PauseTab::Hud).map(|(e, _)| e).unwrap();
+        let mut walk = vec![hud_root];
+        let mut hud_lines = Vec::new();
+        while let Some(e) = walk.pop() {
+            if let Some(t) = w.get::<Text>(e) { hud_lines.push(t.as_str().to_string()); }
+            if let Some(k) = w.get::<Children>(e) { for c in k.iter() { walk.push(c); } }
+        }
+        assert!(!hud_lines.is_empty() && hud_lines.iter().all(|l| !l.contains("[[")));
+        let px0 = (combat_chip_px::<SettingsCombatFloatingLabel>(w), combat_chip_px::<SettingsCombatLogLabel>(w));
+        app.world_mut().resource_mut::<LocalSettingsState>().inner.text_scale = shared::local_settings::TEXT_SCALE_MAX;
         app.update();
-        assert_eq!(combat_chip_label_text::<SettingsCombatFloatingLabel>(&mut app), "Floating numbers · on");
-        assert_eq!(combat_chip_label_text::<SettingsCombatLogLabel>(&mut app), "Combat log · off");
-        assert!(!combat_custom_label_shown(&mut app));
-        let log_btn = { let mut q = app.world_mut().query_filtered::<Entity, With<SettingsCombatLogBtn>>(); q.iter(app.world()).next().unwrap() };
+        let w = app.world_mut();
+        assert_eq!(px0, (combat_chip_px::<SettingsCombatFloatingLabel>(w), combat_chip_px::<SettingsCombatLogLabel>(w)));
+        assert_eq!(combat_chip_txt::<SettingsCombatFloatingLabel>(app.world_mut()), "Floating numbers · on");
+        assert_eq!(combat_chip_txt::<SettingsCombatLogLabel>(app.world_mut()), "Combat log · off");
+        assert!(!combat_custom_on(app.world_mut()));
+        let log_btn = app.world_mut().query_filtered::<Entity, With<SettingsCombatLogBtn>>().iter(app.world()).next().unwrap();
         *app.world_mut().get_mut::<Interaction>(log_btn).unwrap() = Interaction::Pressed;
         app.update();
-        assert_eq!(combat_chip_label_text::<SettingsCombatLogLabel>(&mut app), "Combat log · on");
-        let float_btn = { let mut q = app.world_mut().query_filtered::<Entity, With<SettingsCombatFloatingBtn>>(); q.iter(app.world()).next().unwrap() };
+        assert_eq!(combat_chip_txt::<SettingsCombatLogLabel>(app.world_mut()), "Combat log · on");
+        let float_btn = app.world_mut().query_filtered::<Entity, With<SettingsCombatFloatingBtn>>().iter(app.world()).next().unwrap();
         *app.world_mut().get_mut::<Interaction>(float_btn).unwrap() = Interaction::Pressed;
         app.update();
-        assert_eq!(combat_chip_label_text::<SettingsCombatFloatingLabel>(&mut app), "Floating numbers · off");
-        assert!(combat_custom_label_shown(&mut app));
-        let p1 = { let mut q = app.world_mut().query_filtered::<(Entity, &SettingsCombatPresetBtn), With<SettingsCombatPresetBtn>>(); q.iter(app.world()).find(|(_, b)| b.0 == 1).unwrap().0 };
+        assert_eq!(combat_chip_txt::<SettingsCombatFloatingLabel>(app.world_mut()), "Floating numbers · off");
+        assert!(combat_custom_on(app.world_mut()));
+        let p1 = app.world_mut().query_filtered::<(Entity, &SettingsCombatPresetBtn), With<SettingsCombatPresetBtn>>().iter(app.world()).find(|(_, b)| b.0 == 1).unwrap().0;
         *app.world_mut().get_mut::<Interaction>(p1).unwrap() = Interaction::Pressed;
         app.update();
-        assert!(!combat_custom_label_shown(&mut app));
+        assert!(!combat_custom_on(app.world_mut()));
         *app.world_mut().get_mut::<Interaction>(float_btn).unwrap() = Interaction::Pressed;
         app.update();
-        assert!(combat_custom_label_shown(&mut app));
-        let p0 = { let mut q = app.world_mut().query_filtered::<(Entity, &SettingsCombatPresetBtn), With<SettingsCombatPresetBtn>>(); q.iter(app.world()).find(|(_, b)| b.0 == 0).unwrap().0 };
+        assert!(combat_custom_on(app.world_mut()));
+        let p0 = app.world_mut().query_filtered::<(Entity, &SettingsCombatPresetBtn), With<SettingsCombatPresetBtn>>().iter(app.world()).find(|(_, b)| b.0 == 0).unwrap().0;
         *app.world_mut().get_mut::<Interaction>(p0).unwrap() = Interaction::Pressed;
         app.update();
-        assert!(!combat_custom_label_shown(&mut app));
+        assert!(!combat_custom_on(app.world_mut()));
     }
 
-    fn combat_chip_label_text<M: Component>(app: &mut App) -> String {
-        let world = app.world_mut();
-        world.query_filtered::<&Text, With<M>>().iter(world).next().unwrap().as_str().into()
-    }
-
-    fn combat_custom_label_shown(app: &mut App) -> bool {
-        let world = app.world_mut();
-        matches!(world.query_filtered::<&Visibility, With<SettingsCombatCustomLabel>>().iter(world).next(), Some(Visibility::Visible))
-    }
+    fn combat_chip_txt<M: Component>(w: &mut World) -> String { w.query_filtered::<&Text, With<M>>().iter(w).next().unwrap().as_str().into() }
+    fn combat_chip_px<M: Component>(w: &mut World) -> f32 { match w.query_filtered::<&TextFont, With<M>>().iter(w).next().unwrap().font_size { FontSize::Px(px) => px, o => panic!("{o:?}") } }
+    fn combat_custom_on(w: &mut World) -> bool { matches!(w.query_filtered::<&Visibility, With<SettingsCombatCustomLabel>>().iter(w).next(), Some(Visibility::Visible)) }
 
     /// CARD CAM-MOUSELOOK-1B — fourteen Comfort rows fit 1280×720 at max text scale.
     #[test]
