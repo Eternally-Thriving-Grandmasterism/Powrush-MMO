@@ -156,8 +156,18 @@ pub fn practice_traveler_capsule(mesh: Handle<Mesh>, mat: Handle<StandardMateria
 /// does: `BEVY_ASSET_ROOT`, else `CARGO_MANIFEST_DIR`, else the
 /// executable directory, then `assets/`. Pack path is private pin :28 only.
 pub fn optional_ual1_standard_glb_present() -> bool {
-    bevy_asset_base()
-        .join("assets/private/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb")
+    let base = if let Ok(root) = std::env::var("BEVY_ASSET_ROOT") {
+        std::path::PathBuf::from(root)
+    } else if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
+        std::path::PathBuf::from(manifest)
+    } else {
+        std::env::current_exe()
+            .ok()
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+            .unwrap_or_else(|| std::path::PathBuf::from("."))
+    };
+    base.join("assets")
+        .join("private/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb")
         .is_file()
 }
 
