@@ -62,7 +62,7 @@ fn bake_prop_mesh(src: &Mesh, fit: PropMeshFit, tree_sxz: f32, tree_sy: f32) -> 
     match fit {
         PropMeshFit::Stone => { let (s, t) = PROP_STONE_XF; for p in pos.iter_mut() { *p = [p[0] * s.x + t.x, p[1] * s.y + t.y, p[2] * s.z + t.z]; } span = pos.iter().map(|p| (p[0] * p[0] + p[2] * p[2]).sqrt()).fold(0., f32::max).max(1e-4); ul = s; }
         PropMeshFit::Trunk => { sxz = PROP_TRUNK_R / r0; sy = PROP_TRUNK_HEIGHT / (y1 - y0).max(1e-4); for &i in &drawn { let p = &mut pos[i]; p[0] *= sxz; p[2] *= sxz; p[1] = (p[1] - y0) * sy; } span = PROP_TRUNK_R; }
-        PropMeshFit::Canopy => { sxz = if tree_sxz > 0. { tree_sxz } else { PROP_TRUNK_R / r0 }; sy = if tree_sy > 0. { tree_sy } else { PROP_TRUNK_HEIGHT / y0.max(1e-4) }; for &i in &drawn { let p = &mut pos[i]; p[0] *= sxz; p[2] *= sxz; p[1] *= sy; } span = drawn.iter().map(|&i| (pos[i][0] * pos[i][0] + pos[i][2] * pos[i][2]).sqrt()).fold(0., f32::max).max(1e-4); }
+        PropMeshFit::Canopy => { sxz = tree_sxz; sy = tree_sy; for &i in &drawn { let p = &mut pos[i]; p[0] *= sxz; p[2] *= sxz; p[1] *= sy; } span = drawn.iter().map(|&i| (pos[i][0] * pos[i][0] + pos[i][2] * pos[i][2]).sqrt()).fold(0., f32::max).max(1e-4); }
     }
     if let Some(VertexAttributeValues::Float32x2(uv)) = out.attribute_mut(Mesh::ATTRIBUTE_UV_0) { let d = (ul.max_element().max(sxz).max(sy) * span / 4.).max(1e-4); for p in uv.iter_mut() { p[0] /= d; p[1] /= d; } }
     if matches!(fit, PropMeshFit::Trunk) { let _ = out.generate_tangents(); }
@@ -80,6 +80,7 @@ pub(crate) fn swap_prop_meshes(
         let h = server.load(GltfAssetLabel::Primitive { mesh: 0, primitive: prop.primitive }.from_asset(prop.rel));
         if matches!(server.get_load_state(h.id()), Some(LoadState::Failed(_))) { commands.entity(e).insert(PropMeshSwapped); continue; }
         let Some(src) = meshes.get(&h).cloned() else { continue };
+        if matches!(prop.fit, PropMeshFit::Canopy) && cache.tree_sxz <= 0. { continue; }
         let i = prop.fit as usize;
         let baked = cache.baked[i].clone().unwrap_or_else(|| {
             let (mut m, sxz, sy) = bake_prop_mesh(&src, prop.fit, cache.tree_sxz, cache.tree_sy);
@@ -265,8 +266,6 @@ pub fn race_lobby_closed() -> bool {
 mod tests {
     use super::*;
     use shared::local_settings::LocalSettings;
-    fn prop_mesh_drawn_y_min_max(mesh: &Mesh) -> (f32, f32) { let (a, b, _) = prop_ix_bounds(mesh); (a, b) }
-    fn prop_mesh_drawn_xz_extent(mesh: &Mesh) -> f32 { prop_ix_bounds(mesh).2 }
 
     #[test]
     fn lod_selection_by_graphics_preset() {
@@ -442,7 +441,8 @@ mod tests {
         let mut head = [0u8; 12]; let mut f = std::fs::File::open(&path).unwrap();
         assert!(std::io::Read::read_exact(&mut f, &mut head).is_err() || head[..4] != *b"glTF");
         let _ = std::fs::remove_dir_all(&dir);
-    }    #[test]
+    }
+    #[test]
     fn props_wire_f8_f13_licensed_and_low_stays_primitive() {
         let csv = include_str!("../../assets/asset-licenses.csv");
         assert!(csv.contains("kenney-nature-kit/tree_default.glb") && csv.contains("stone_smallFlatA.glb"));
@@ -458,7 +458,13 @@ mod tests {
         let (VertexAttributeValues::Float32x3(p), VertexAttributeValues::Float32x2(uv)) = (b.attribute(Mesh::ATTRIBUTE_POSITION).unwrap(), b.attribute(Mesh::ATTRIBUTE_UV_0).unwrap()) else { panic!() };
         let span = p.iter().map(|v| (v[0] * v[0] + v[2] * v[2]).sqrt()).fold(0_f32, f32::max); let du = (uv[0][0] - uv[1][0]).abs(); let s = PROP_STONE_XF.0.max_element();
         assert!((span * du - 4.0 / s).abs() < 0.02);
-    }    #[test]
+    }
+    #[test]
+    fn props_wire_f4_canopy_waits_for_trunk_tree_scale() {
+        use bevy::{asset::AssetPlugin, gltf::GltfPlugin, image::ImagePlugin, mesh::MeshPlugin, prelude::*, tasks::tick_global_task_pools_on_main_thread, world_serialization::WorldSerializationPlugin};
+        let _g = crate::test_env::lock(); let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().unwrap(); let save = std::env::var("BEVY_ASSET_ROOT").ok(); std::env::set_var("BEVY_ASSET_ROOT", &root); let mut app = App::new(); app.add_plugins((MinimalPlugins, AssetPlugin { file_path: root.join("assets").into_os_string().into_string().unwrap(), watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, ImagePlugin::default(), MeshPlugin, GltfPlugin::default(), WorldSerializationPlugin)).init_asset::<Image>().init_asset::<Mesh>().init_resource::<Assets<StandardMaterial>>().init_resource::<PropMeshBakeCache>().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: GraphicsPreset::Medium }).add_systems(Update, swap_prop_meshes); app.finish(); let tree = "models/kenney-nature-kit/tree_default.glb"; let h = app.world_mut().resource_mut::<Assets<Mesh>>().add(Cuboid::new(0.2, 2., 0.2)); let mat = app.world_mut().resource_mut::<Assets<StandardMaterial>>().add(StandardMaterial::default()); let (cm, _, ct) = practice_traveler_capsule(h.clone(), mat.clone(), Vec3::ZERO); let ce = app.world_mut().spawn((cm, ct, PropMesh { rel: tree, primitive: 1, fit: PropMeshFit::Canopy })).id(); app.update(); tick_global_task_pools_on_main_thread(); assert!(app.world().get::<PropMeshSwapped>(ce).is_none()); let (tm, _, tt) = practice_traveler_capsule(h, mat, Vec3::ZERO); let te = app.world_mut().spawn((tm, tt, PropMesh { rel: tree, primitive: 0, fit: PropMeshFit::Trunk })).id(); for _ in 0..2400 { app.update(); tick_global_task_pools_on_main_thread(); } assert!(app.world().get::<PropMeshSwapped>(te).is_some() && app.world().get::<PropMeshSwapped>(ce).is_some()); if let Some(v) = save { std::env::set_var("BEVY_ASSET_ROOT", v); } else { std::env::remove_var("BEVY_ASSET_ROOT"); }
+    }
+    #[test]
     fn props_wire_f1_missing_asset_keeps_primitive() {
         use bevy::{mesh::MeshPlugin, prelude::*};
         let _g = crate::test_env::lock(); let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().unwrap();
