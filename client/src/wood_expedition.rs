@@ -1181,7 +1181,6 @@ pub(crate) fn project_wood(
                 let bark_mat = materials.add(crate::climate_plane::ambientcg_tiled_pbr(
                     Color::srgb(0.29, 0.20, 0.13),
                     0.5,
-                    crate::climate_plane::GROUND_TEX_TINT,
                     "Bark012",
                     Vec2::new(1.0, 3.0),
                     color_only,
@@ -1221,7 +1220,6 @@ pub(crate) fn project_wood(
                 let mat = materials.add(crate::climate_plane::ambientcg_tiled_pbr(
                     Color::srgb(0.29, 0.20, 0.13),
                     0.5,
-                    crate::climate_plane::GROUND_TEX_TINT,
                     "Bark012",
                     Vec2::new(1.0, 3.0),
                     color_only,
@@ -3438,7 +3436,6 @@ pub(crate) mod tests {
         let m = crate::climate_plane::ambientcg_tiled_pbr(
             Color::srgb(0.29, 0.20, 0.13),
             0.5,
-            crate::climate_plane::GROUND_TEX_TINT,
             "Bark012",
             Vec2::new(1.0, 3.0),
             false,

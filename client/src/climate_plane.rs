@@ -299,10 +299,7 @@ pub(crate) const GROUND_TEX_TINT: Color = Color::srgb(0.98, 0.98, 0.97);
 const GROUND_UV_TILE: f32 = 14.0;
 
 fn ground_assets_dir() -> PathBuf {
-    if let Ok(root) = std::env::var("BEVY_ASSET_ROOT") {
-        return PathBuf::from(root);
-    }
-    PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap_or_else(|_| ".".into())).join("../assets")
+    bevy::asset::io::file::FileAssetReader::get_base_path().join("assets")
 }
 pub(crate) fn ambientcg_maps_on_disk(id: &str) -> bool {
     let root = ground_assets_dir().join(format!("textures/ambientcg/{id}"));
@@ -313,15 +310,7 @@ pub(crate) fn ambientcg_maps_on_disk(id: &str) -> bool {
 pub(crate) struct AmbientcgTexCache(std::collections::HashMap<&'static str, (Handle<Image>, Handle<Image>, Handle<Image>)>);
 
 fn ambientcg_repeat_descriptor() -> ImageSamplerDescriptor {
-    ImageSamplerDescriptor {
-        address_mode_u: ImageAddressMode::Repeat,
-        address_mode_v: ImageAddressMode::Repeat,
-        address_mode_w: ImageAddressMode::Repeat,
-        mag_filter: ImageFilterMode::Linear,
-        min_filter: ImageFilterMode::Linear,
-        mipmap_filter: ImageFilterMode::Linear,
-        ..Default::default()
-    }
+    ImageSamplerDescriptor { address_mode_u: ImageAddressMode::Repeat, address_mode_v: ImageAddressMode::Repeat, address_mode_w: ImageAddressMode::Repeat, mag_filter: ImageFilterMode::Linear, min_filter: ImageFilterMode::Linear, mipmap_filter: ImageFilterMode::Linear, ..Default::default() }
 }
 
 fn ambientcg_load(server: &AssetServer, id: &str, leaf: &str, srgb: bool) -> Handle<Image> {
@@ -339,7 +328,6 @@ fn ambientcg_load(server: &AssetServer, id: &str, leaf: &str, srgb: bool) -> Han
 pub(crate) fn ambientcg_tiled_pbr(
     flat: Color,
     rough: f32,
-    tint: Color,
     id: &'static str,
     uv: Vec2,
     color_only: bool,
@@ -366,7 +354,7 @@ pub(crate) fn ambientcg_tiled_pbr(
         )
     });
     let mut mat = StandardMaterial {
-        base_color: tint,
+        base_color: GROUND_TEX_TINT,
         base_color_texture: Some(tex.0.clone()),
         metallic: 0.0,
         perceptual_roughness: 1.0,
@@ -386,7 +374,6 @@ struct ClimateLook {
     name: &'static str,
     ground: Color,
     ground_tex: Option<GroundSet>,
-    ground_tint: Color,
     sky: Color,
     fog: Color,
     ambient: Color,
@@ -410,7 +397,6 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             name: "Verdant Heartwood",
             ground: Color::srgb(0.20, 0.15, 0.07),
             ground_tex: Some(GroundSet::Ground037),
-            ground_tint: GROUND_TEX_TINT,
             sky: HEARTWOOD_WOOD_SKY,
             fog: HEARTWOOD_WOOD_FOG,
             ambient: Color::srgb(0.62, 0.58, 0.42),
@@ -436,7 +422,6 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             },
             ground: Color::srgb(0.12, 0.12, 0.15),
             ground_tex: None,
-            ground_tint: GROUND_TEX_TINT,
             sky: THRESHOLD_PIPE_SKY,
             fog: THRESHOLD_PIPE_FOG,
             ambient: Color::srgb(0.45, 0.48, 0.58),
@@ -458,7 +443,6 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             name: "Abyssal Depths",
             ground: Color::srgb(0.04, 0.08, 0.09),
             ground_tex: Some(GroundSet::Rock050),
-            ground_tint: GROUND_TEX_TINT,
             sky: DEPTHS_WET_SKY,
             fog: DEPTHS_WET_FOG,
             ambient: Color::srgb(0.18, 0.42, 0.38),
@@ -478,7 +462,6 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
             name: "Sanctuary Prime",
             ground: SANCTUARY_VALLEY_EARTH,
             ground_tex: Some(GroundSet::PavingStones070),
-            ground_tint: GROUND_TEX_TINT,
             sky: SANCTUARY_VALLEY_SKY,
             fog: SANCTUARY_VALLEY_FOG,
             ambient: SANCTUARY_VALLEY_AMBIENT,
@@ -1918,7 +1901,6 @@ fn apply_climate_look(
                 Some(set) => ambientcg_tiled_pbr(
                     look.ground,
                     look.roughness,
-                    look.ground_tint,
                     set.id(),
                     Vec2::splat(GROUND_UV_TILE),
                     color_only,
@@ -5950,7 +5932,6 @@ mod tests {
         Some(ambientcg_tiled_pbr(
             Color::BLACK,
             0.5,
-            GROUND_TEX_TINT,
             id,
             uv,
             color_only,
@@ -5997,11 +5978,12 @@ mod tests {
                 assert!(mat.normal_map_texture.is_none());
             }
             9 => {
+                let repo_assets = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("../assets");
                 let mut total = 0usize;
                 for id in ["PavingStones070", "Rock022", "Bark012"] {
                     let mut set = 0usize;
                     for leaf in ["color.png", "normal_gl.png", "roughness.png"] {
-                        let n = std::fs::read(ground_assets_dir().join(format!("textures/ambientcg/{id}/{leaf}"))).unwrap().len();
+                        let n = std::fs::read(repo_assets.join(format!("textures/ambientcg/{id}/{leaf}"))).unwrap().len();
                         assert!(n <= 700_000);
                         set += n;
                         total += n;
@@ -6009,13 +5991,23 @@ mod tests {
                     assert!(set <= 1_500_000);
                 }
                 assert!(total <= 7_000_000);
-                let root = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("..");
-                assert!(std::process::Command::new("bash")
-                    .arg(root.join("scripts/check_asset_licenses.sh"))
-                    .current_dir(&root)
-                    .status()
-                    .unwrap()
-                    .success());
+                let root = repo_assets.parent().unwrap().to_path_buf();
+                assert!(std::process::Command::new("bash").arg(root.join("scripts/check_asset_licenses.sh")).current_dir(&root).status().unwrap().success());
+                let prev = std::env::var("BEVY_ASSET_ROOT").ok();
+                let pack = crate::stone_ground::tests::scratch("ground-tex-b1-pack");
+                let rel = "textures/ambientcg/PavingStones070";
+                for leaf in ["color.png", "normal_gl.png", "roughness.png"] {
+                    let dst = pack.join("assets").join(rel).join(leaf);
+                    std::fs::create_dir_all(dst.parent().unwrap()).unwrap();
+                    std::fs::copy(repo_assets.join(rel).join(leaf), dst).unwrap();
+                }
+                std::env::set_var("BEVY_ASSET_ROOT", &pack);
+                assert!(ambientcg_maps_on_disk("PavingStones070"));
+                let bare = crate::stone_ground::tests::scratch("ground-tex-b1-empty");
+                std::env::set_var("BEVY_ASSET_ROOT", &bare);
+                assert!(!ambientcg_maps_on_disk("PavingStones070"));
+                assert_eq!(ambientcg_tiled_pbr(Color::WHITE, 0.5, "PavingStones070", Vec2::ONE, false, None, None).base_color, Color::WHITE);
+                if let Some(v) = prev { std::env::set_var("BEVY_ASSET_ROOT", v); } else { std::env::remove_var("BEVY_ASSET_ROOT"); }
             }
             10 => {
                 let dir = crate::stone_ground::tests::scratch("ground-tex-f10");

@@ -188,8 +188,7 @@ pub struct LivingEcologyPlugin;
 
 impl Plugin for LivingEcologyPlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<Image>()
-            .init_resource::<EcologyState>()
+        app.init_resource::<EcologyState>()
             .init_resource::<BiomeFeel>()
             .init_resource::<PersistentWeb>()
             .init_resource::<crate::climate_plane::AmbientcgTexCache>()
@@ -309,7 +308,6 @@ fn spawn_ecology(
     let wood = materials.add(crate::climate_plane::ambientcg_tiled_pbr(
         Color::srgb(0.28, 0.18, 0.10),
         0.9,
-        crate::climate_plane::GROUND_TEX_TINT,
         "Bark012",
         Vec2::new(1.0, 3.0),
         color_only,
@@ -353,7 +351,6 @@ fn spawn_ecology(
     let stone = materials.add(crate::climate_plane::ambientcg_tiled_pbr(
         Color::srgb(0.32, 0.30, 0.28),
         0.95,
-        crate::climate_plane::GROUND_TEX_TINT,
         "Rock022",
         Vec2::ONE,
         color_only,
