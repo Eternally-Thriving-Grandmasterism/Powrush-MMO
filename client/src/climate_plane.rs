@@ -3550,11 +3550,9 @@ mod tests {
 
     #[test]
     fn props_wire_climate_path_stones_tag_prop_mesh() {
-        let mut app = climate_startup_app();
-        app.finish(); app.cleanup(); app.world_mut().run_schedule(Startup);
+        let mut app = climate_startup_app(); app.finish(); app.cleanup(); app.world_mut().run_schedule(Startup);
         assert_eq!(app.world_mut().query_filtered::<&PropMesh, With<PlaceLodMesh>>().iter(app.world()).count(), 12);
     }
-
     #[test]
     fn comfort_place_lod_does_not_open_fifth_place_race_lobby_or_ultra() {
         assert_eq!(look_for(Some(0)).name, "Sanctuary Prime");

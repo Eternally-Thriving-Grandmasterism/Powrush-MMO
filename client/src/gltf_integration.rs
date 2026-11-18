@@ -416,22 +416,34 @@ mod tests {
 
     #[test]
     fn props_wire_f2_corrupt_keeps_primitive() {
-        let dir = std::env::temp_dir().join(format!("pw2_{}", std::process::id()));
-        std::fs::create_dir_all(dir.join("assets/models/bad")).unwrap();
-        std::fs::write(dir.join("assets/models/bad/x.glb"), b"not gltf").unwrap();
-        let _g = crate::test_env::lock();
-        let save = std::env::var("BEVY_ASSET_ROOT").ok();
-        std::env::set_var("BEVY_ASSET_ROOT", &dir);
-        assert!(!asset_file_present("models/bad/x.glb"));
-        if let Some(v) = save { std::env::set_var("BEVY_ASSET_ROOT", v); } else { std::env::remove_var("BEVY_ASSET_ROOT"); }
-        let _ = std::fs::remove_dir_all(&dir);
-    }
-    #[test]
+        let dir = std::env::temp_dir().join(format!("pw2_{}", std::process::id())); let _g = crate::test_env::lock();
+        std::fs::create_dir_all(dir.join("assets/models/bad")).unwrap(); std::fs::write(dir.join("assets/models/bad/x.glb"), b"not gltf").unwrap();
+        let save = std::env::var("BEVY_ASSET_ROOT").ok(); std::env::set_var("BEVY_ASSET_ROOT", &dir); assert!(!asset_file_present("models/bad/x.glb"));
+        if let Some(v) = save { std::env::set_var("BEVY_ASSET_ROOT", v); } else { std::env::remove_var("BEVY_ASSET_ROOT"); } let _ = std::fs::remove_dir_all(&dir);
+    }    #[test]
     fn props_wire_f8_f13_licensed_and_low_stays_primitive() {
         let csv = include_str!("../../assets/asset-licenses.csv");
         assert!(csv.contains("kenney-nature-kit/tree_default.glb") && csv.contains("stone_smallFlatA.glb"));
         assert!(!optional_authored_glb_present() && !prop_mesh_glb_active(GraphicsPreset::Low));
         assert!(prop_mesh_glb_active(GraphicsPreset::Medium));
     }
-
+    #[test]
+    fn props_wire_f11_uv_density_matches_primitive() {
+        use bevy::{asset::RenderAssetUsages, mesh::{PrimitiveTopology, VertexAttributeValues}};
+        let mut m = Mesh::new(PrimitiveTopology::TriangleList, RenderAssetUsages::default());
+        m.insert_attribute(Mesh::ATTRIBUTE_POSITION, vec![[2., 0., 0.], [0., 0., 0.]]); m.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![[1., 0.], [0., 0.]]);
+        let b = super::bake_prop_mesh(&m, PropMeshFit::Stone);
+        let (VertexAttributeValues::Float32x3(p), VertexAttributeValues::Float32x2(uv)) = (b.attribute(Mesh::ATTRIBUTE_POSITION).unwrap(), b.attribute(Mesh::ATTRIBUTE_UV_0).unwrap()) else { panic!() };
+        let span = p.iter().map(|v| (v[0] * v[0] + v[2] * v[2]).sqrt()).fold(0_f32, f32::max); let du = (uv[0][0] - uv[1][0]).abs(); let s = PropMeshFit::Stone.xf().0.max_element();
+        assert!((span * du - 4.0 / s).abs() < 0.02);
+    }    #[test]
+    fn props_wire_f1_missing_asset_keeps_primitive() {
+        use bevy::{mesh::MeshPlugin, prelude::*};
+        let _g = crate::test_env::lock(); let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().unwrap();
+        let save = std::env::var("BEVY_ASSET_ROOT").ok(); std::env::set_var("BEVY_ASSET_ROOT", &root);
+        let mut app = App::new(); app.add_plugins((MinimalPlugins, AssetPlugin { file_path: root.join("assets").into_os_string().into_string().unwrap(), ..AssetPlugin::default() }, MeshPlugin)).insert_resource(crate::local_settings::LocalMeshLodFeel { preset: GraphicsPreset::Medium }).init_resource::<Assets<Mesh>>().init_resource::<Assets<StandardMaterial>>().init_resource::<PropMeshBakeCache>().add_systems(Update, swap_prop_meshes);
+        let h = app.world_mut().resource_mut::<Assets<Mesh>>().add(Cuboid::default()); let mat = app.world_mut().resource_mut::<Assets<StandardMaterial>>().add(StandardMaterial::default());
+        let (m3d, _, tf) = practice_traveler_capsule(h.clone(), mat, Vec3::ZERO); let e = app.world_mut().spawn((m3d, tf, PropMesh { rel: "models/__none__.glb", primitive: 0, fit: PropMeshFit::Stone })).id(); app.update();
+        assert!(app.world().get::<PropMeshSwapped>(e).is_some() && app.world().get::<Mesh3d>(e).unwrap().0.id() == h.id()); if let Some(v) = save { std::env::set_var("BEVY_ASSET_ROOT", v); } else { std::env::remove_var("BEVY_ASSET_ROOT"); }
+    }
 }
