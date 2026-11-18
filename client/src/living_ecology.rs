@@ -1114,36 +1114,20 @@ mod tests {
         assert_eq!((before.iter().filter(|(_, f, _)| *f == PropMeshFit::Stone).count(), before.iter().filter(|(_, f, _)| *f == PropMeshFit::Trunk).count()), (12, 5));
         for _ in 0..2400 { app.update(); tick_global_task_pools_on_main_thread(); }
         assert!(before.iter().all(|(e, _, h0)| app.world().get::<Mesh3d>(*e).is_some_and(|m| m.0.id() != *h0) && !matches!(app.world().get::<Visibility>(*e), Some(Visibility::Hidden))));
-        use crate::climate_plane::{prop_mesh_drawn_xz_extent, prop_mesh_drawn_y_min_max};
-        let (th, ch, se, sh) = { let w = app.world_mut(); let mut q = w.query::<(Entity, &PropMesh, &Mesh3d)>(); let t = q.iter(w).find(|(_, p, _)| p.fit == PropMeshFit::Trunk).unwrap(); let c = q.iter(w).find(|(_, p, _)| p.fit == PropMeshFit::Canopy).unwrap(); let s = q.iter(w).find(|(_, p, _)| p.fit == PropMeshFit::Stone).unwrap(); (t.2.0.clone(), c.2.0.clone(), s.0, s.2.0.clone()) };
-        let (tmin, tmax, trunk_xz, canopy_color, stone_xz, canopy_seat, cmin) = {
-            let meshes = app.world().resource::<Assets<Mesh>>();
-            let tm = meshes.get(&th).unwrap();
-            let cm = meshes.get(&ch).unwrap();
-            let sm = meshes.get(&sh).unwrap();
-            let (tmin, tmax) = prop_mesh_drawn_y_min_max(tm);
-            let (cmin, cmax) = prop_mesh_drawn_y_min_max(cm);
-            let _ = cmax;
-            let canopy_seat = cmin + 0.02 >= tmax;
-            (
-                tmin,
-                tmax,
-                prop_mesh_drawn_xz_extent(tm),
-                cm.attribute(Mesh::ATTRIBUTE_COLOR).is_some(),
-                prop_mesh_drawn_xz_extent(sm),
-                canopy_seat,
-                cmin,
-            )
+        use bevy::mesh::Indices;
+        let drawn = |m: &Mesh| {
+            let p = m.attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()).unwrap();
+            let (mut y0, mut y1, mut r) = (f32::MAX, f32::MIN, 0_f32);
+            let mut dot = |i: usize| { let q = p[i]; y0 = y0.min(q[1]); y1 = y1.max(q[1]); r = r.max((q[0] * q[0] + q[2] * q[2]).sqrt()); };
+            match m.indices() { Some(Indices::U16(ix)) => ix.iter().for_each(|&u| dot(u as usize)), Some(Indices::U32(ix)) => ix.iter().for_each(|&u| dot(u as usize)), None => (0..p.len()).for_each(dot) };
+            (y0, y1, r)
         };
-        assert!((trunk_xz - YARD_TRUNK_R).abs() <= 0.01);
-        assert!(tmin.abs() <= 0.02, "trunk ground contact (drawn min y), got {tmin}");
-        assert!(canopy_seat, "canopy seat (drawn): canopy min {cmin} trunk max {tmax}");
-        assert!(canopy_color);
-        app.world_mut().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Low });
-        app.update();
-        assert!((app.world().get::<Transform>(se).unwrap().scale.x - place_dress_lod_scale(shared::local_settings::GraphicsPreset::Low)).abs() < f32::EPSILON
-            && stone_xz > 0.1
-            && stone_xz < 0.5);
+        let (th, ch, se, sh) = { let w = app.world_mut(); let mut q = w.query::<(Entity, &PropMesh, &Mesh3d)>(); let t = q.iter(w).find(|(_, p, _)| p.fit == PropMeshFit::Trunk).unwrap(); let c = q.iter(w).find(|(_, p, _)| p.fit == PropMeshFit::Canopy).unwrap(); let s = q.iter(w).find(|(_, p, _)| p.fit == PropMeshFit::Stone).unwrap(); (t.2.0.clone(), c.2.0.clone(), s.0, s.2.0.clone()) };
+        let ma = app.world().resource::<Assets<Mesh>>();
+        let (ty0, ty1, txz) = drawn(ma.get(&th).unwrap()); let (cy0, _, _) = drawn(ma.get(&ch).unwrap()); let (_, _, sxz) = drawn(ma.get(&sh).unwrap());
+        assert!((txz - YARD_TRUNK_R).abs() <= 0.01 && ty0.abs() <= 0.02 && cy0 + 0.02 >= ty1 && ma.get(&ch).unwrap().attribute(Mesh::ATTRIBUTE_COLOR).is_some());
+        app.world_mut().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Low }); app.update();
+        assert!((app.world().get::<Transform>(se).unwrap().scale.x - place_dress_lod_scale(shared::local_settings::GraphicsPreset::Low)).abs() < f32::EPSILON && sxz > 0.1 && sxz < 0.5);
         if let Some(v) = save { std::env::set_var("BEVY_ASSET_ROOT", v); } else { std::env::remove_var("BEVY_ASSET_ROOT"); }
     }
 }

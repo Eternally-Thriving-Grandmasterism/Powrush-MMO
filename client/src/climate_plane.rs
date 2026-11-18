@@ -177,9 +177,7 @@ use crate::title_screen::{HouseLabel, LaunchDoor, TITLE_BORDER, TITLE_PLATE_BG, 
 /// CARD H-2026-09-16-PLACE-LOD — Comfort MeshLodPlan (PATHS-only compile).
 #[path = "gltf_integration.rs"]
 mod mesh_lod;
-pub(crate) use mesh_lod::{
-    prop_mesh_drawn_xz_extent, prop_mesh_drawn_y_min_max, PropMesh, PropMeshFit,
-};
+pub(crate) use mesh_lod::{PropMesh, PropMeshFit};
 
 const NODE_ANCHORS: [Vec3; 3] = [
     Vec3::new(3.6, 0.55, 0.0),
@@ -652,7 +650,7 @@ pub fn place_dress_lod_scale(preset: GraphicsPreset) -> f32 {
     mesh_lod::lived_place_dress_detail_scale(&mesh_lod::plan_for_preset(preset))
 }
 
-/// PropMesh primitive swap is not Place dress — climate_plane never dumps a `.glb` for path stones.
+/// Buildings / Astra Medium stay refs — Place dress never dumps a `.glb`.
 pub fn place_dress_dumps_glb(preset: GraphicsPreset) -> bool {
     mesh_lod::place_dress_uses_authored_glb(&mesh_lod::plan_for_preset(preset))
 }

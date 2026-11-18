@@ -33,162 +33,40 @@ pub use shared::local_settings::MeshLod;
 use crate::painterly_mat as pm;
 #[derive(Component, Clone, Copy)] pub struct PropMesh { pub rel: &'static str, pub primitive: usize, pub fit: PropMeshFit }
 #[derive(Component)] pub(crate) struct PropMeshSwapped;
-#[repr(usize)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum PropMeshFit {
-    Trunk,
-    Canopy,
-    Stone,
-}
+#[repr(usize)] #[derive(Clone, Copy, PartialEq, Eq)] pub enum PropMeshFit { Trunk, Canopy, Stone }
 const PROP_STONE_XF: (Vec3, Vec3) = (Vec3::new(0.726, 1.23, 0.837), Vec3::new(0., -0.04, 0.));
 const PROP_TRUNK_R: f32 = 0.22;
 const PROP_TRUNK_HEIGHT: f32 = 2.4;
-impl PropMeshFit {
-    fn stone_xf(self) -> (Vec3, Vec3) {
-        debug_assert_eq!(self, PropMeshFit::Stone);
-        PROP_STONE_XF
-    }
-}
-#[derive(Resource, Default)]
-pub(crate) struct PropMeshBakeCache {
-    pub baked: [Option<Handle<Mesh>>; 3],
-    pub tree_sxz: f32,
-    pub tree_sy: f32,
-}
+#[derive(Resource, Default)] pub(crate) struct PropMeshBakeCache { pub baked: [Option<Handle<Mesh>>; 3], pub tree_sxz: f32, pub tree_sy: f32 }
 pub fn prop_mesh_glb_active(p: GraphicsPreset) -> bool { !matches!(p, GraphicsPreset::Mobile | GraphicsPreset::Low) }
 
-fn drawn_vertex_indices(mesh: &Mesh) -> Vec<usize> {
-    let Some(pos) = mesh.attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()) else {
-        return Vec::new();
-    };
-  let len = pos.len();
-    let Some(indices) = mesh.indices() else {
-        return (0..len).collect();
-    };
-    let mut used = std::collections::HashSet::new();
-    match indices {
-        Indices::U16(v) => v.iter().for_each(|&i| {
-            let i = i as usize;
-            if i < len {
-                used.insert(i);
-            }
-        }),
-        Indices::U32(v) => v.iter().for_each(|&i| {
-            let i = i as usize;
-            if i < len {
-                used.insert(i);
-            }
-        }),
-    }
-    used.into_iter().collect()
+fn prop_ix_bounds(src: &Mesh) -> (f32, f32, f32) {
+    let Some(pos) = src.attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()) else { return (0., 0., 1e-4) };
+    let (mut y0, mut y1, mut r, len) = (f32::MAX, f32::MIN, 0_f32, pos.len());
+    let mut dot = |i: usize| { let p = pos[i]; y0 = y0.min(p[1]); y1 = y1.max(p[1]); r = r.max((p[0] * p[0] + p[2] * p[2]).sqrt()); };
+    match src.indices() { Some(Indices::U16(ix)) => ix.iter().for_each(|&i| { if (i as usize) < len { dot(i as usize); } }), Some(Indices::U32(ix)) => ix.iter().for_each(|&i| { if (i as usize) < len { dot(i as usize); } }), None => (0..len).for_each(dot) }
+    if y0 > y1 { (0., 0., 1e-4) } else { (y0, y1, r.max(1e-4)) }
 }
-
-fn drawn_y_min_max_xz_span(mesh: &Mesh) -> (f32, f32, f32) {
-    let Some(pos) = mesh.attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()) else {
-        return (0., 0., 1e-4);
-    };
-    let idx = drawn_vertex_indices(mesh);
-    let mut ymin = f32::MAX;
-    let mut ymax = f32::MIN;
-    let mut span = 1e-4_f32;
-    for &i in &idx {
-        let p = pos[i];
-        ymin = ymin.min(p[1]);
-        ymax = ymax.max(p[1]);
-        span = span.max((p[0] * p[0] + p[2] * p[2]).sqrt());
-    }
-    if idx.is_empty() {
-        (0., 0., 1e-4)
-    } else {
-        (ymin, ymax, span)
-    }
+fn prop_ix_unique(src: &Mesh) -> Vec<usize> {
+    let Some(pos) = src.attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()) else { return Vec::new() };
+    let len = pos.len();
+    let mut v: Vec<usize> = match src.indices() { Some(Indices::U16(ix)) => ix.iter().filter_map(|&i| ((i as usize) < len).then_some(i as usize)).collect(), Some(Indices::U32(ix)) => ix.iter().filter_map(|&i| ((i as usize) < len).then_some(i as usize)).collect(), None => (0..len).collect() };
+    v.sort_unstable(); v.dedup(); v
 }
-
-/// Drawn-index bounds for prop mesh fixtures (F4 headless).
-pub(crate) fn prop_mesh_drawn_y_min_max(mesh: &Mesh) -> (f32, f32) {
-    let (ymin, ymax, _) = drawn_y_min_max_xz_span(mesh);
-    (ymin, ymax)
-}
-
-/// Max xz extent over drawn vertices only (F4 radius).
-pub(crate) fn prop_mesh_drawn_xz_extent(mesh: &Mesh) -> f32 {
-    drawn_y_min_max_xz_span(mesh).2
-}
-
-fn rescale_prop_uvs(out: &mut Mesh, scale: f32, span: f32) {
-    if let Some(VertexAttributeValues::Float32x2(uv)) = out.attribute_mut(Mesh::ATTRIBUTE_UV_0) {
-        let d = (scale * span / 4.0).max(1e-4);
-        for p in uv.iter_mut() {
-            p[0] /= d;
-            p[1] /= d;
-        }
-    }
-}
-
 fn bake_prop_mesh(src: &Mesh, fit: PropMeshFit, tree_sxz: f32, tree_sy: f32) -> (Mesh, f32, f32) {
     let mut out = src.clone();
-    let mut span = 1e-4_f32;
-    let mut sxz_out = 1_f32;
-    let mut sy_out = 1_f32;
-    let Some(VertexAttributeValues::Float32x3(pos)) = out.attribute_mut(Mesh::ATTRIBUTE_POSITION) else {
-        return (out, sxz_out, sy_out);
-    };
-    let drawn = drawn_vertex_indices(src);
+    let Some(VertexAttributeValues::Float32x3(pos)) = out.attribute_mut(Mesh::ATTRIBUTE_POSITION) else { return (out, 1., 1.) };
+    let (y0, y1, r0) = prop_ix_bounds(src);
+    let drawn = prop_ix_unique(src);
+    let (mut ul, mut span, mut sxz, mut sy) = (PROP_STONE_XF.0, 1e-4_f32, 1_f32, 1_f32);
     match fit {
-        PropMeshFit::Stone => {
-            let (s, t) = fit.stone_xf();
-            for p in pos.iter_mut() {
-                *p = [p[0] * s.x + t.x, p[1] * s.y + t.y, p[2] * s.z + t.z];
-            }
-            span = pos
-                .iter()
-                .map(|p| (p[0] * p[0] + p[2] * p[2]).sqrt())
-                .fold(0., f32::max)
-                .max(1e-4);
-            sxz_out = s.max_element();
-        }
-        PropMeshFit::Trunk => {
-            let (ymin, ymax, r) = drawn_y_min_max_xz_span(src);
-            let h = (ymax - ymin).max(1e-4);
-            sxz_out = PROP_TRUNK_R / r.max(1e-4);
-            sy_out = PROP_TRUNK_HEIGHT / h;
-            for &i in &drawn {
-                let p = &mut pos[i];
-                p[0] *= sxz_out;
-                p[2] *= sxz_out;
-                p[1] = (p[1] - ymin) * sy_out;
-            }
-            span = PROP_TRUNK_R;
-        }
-        PropMeshFit::Canopy => {
-            let sxz = if tree_sxz > 0. { tree_sxz } else {
-                let (_, _, r) = drawn_y_min_max_xz_span(src);
-                PROP_TRUNK_R / r.max(1e-4)
-            };
-            let sy = if tree_sy > 0. { tree_sy } else {
-                let (ymin, _, _) = drawn_y_min_max_xz_span(src);
-                PROP_TRUNK_HEIGHT / ymin.max(1e-4)
-            };
-            sxz_out = sxz;
-            sy_out = sy;
-            for &i in &drawn {
-                let p = &mut pos[i];
-                p[0] *= sxz;
-                p[2] *= sxz;
-                p[1] *= sy;
-            }
-            span = drawn
-                .iter()
-                .map(|&i| (pos[i][0] * pos[i][0] + pos[i][2] * pos[i][2]).sqrt())
-                .fold(0., f32::max)
-                .max(1e-4);
-        }
+        PropMeshFit::Stone => { let (s, t) = PROP_STONE_XF; for p in pos.iter_mut() { *p = [p[0] * s.x + t.x, p[1] * s.y + t.y, p[2] * s.z + t.z]; } span = pos.iter().map(|p| (p[0] * p[0] + p[2] * p[2]).sqrt()).fold(0., f32::max).max(1e-4); ul = s; }
+        PropMeshFit::Trunk => { sxz = PROP_TRUNK_R / r0; sy = PROP_TRUNK_HEIGHT / (y1 - y0).max(1e-4); for &i in &drawn { let p = &mut pos[i]; p[0] *= sxz; p[2] *= sxz; p[1] = (p[1] - y0) * sy; } span = PROP_TRUNK_R; }
+        PropMeshFit::Canopy => { sxz = if tree_sxz > 0. { tree_sxz } else { PROP_TRUNK_R / r0 }; sy = if tree_sy > 0. { tree_sy } else { PROP_TRUNK_HEIGHT / y0.max(1e-4) }; for &i in &drawn { let p = &mut pos[i]; p[0] *= sxz; p[2] *= sxz; p[1] *= sy; } span = drawn.iter().map(|&i| (pos[i][0] * pos[i][0] + pos[i][2] * pos[i][2]).sqrt()).fold(0., f32::max).max(1e-4); }
     }
-    rescale_prop_uvs(&mut out, sxz_out.max(sy_out), span);
-    if matches!(fit, PropMeshFit::Trunk) {
-        let _ = out.generate_tangents();
-    }
-    (out, sxz_out, sy_out)
+    if let Some(VertexAttributeValues::Float32x2(uv)) = out.attribute_mut(Mesh::ATTRIBUTE_UV_0) { let d = (ul.max_element().max(sxz).max(sy) * span / 4.).max(1e-4); for p in uv.iter_mut() { p[0] /= d; p[1] /= d; } }
+    if matches!(fit, PropMeshFit::Trunk) { let _ = out.generate_tangents(); }
+    (out, sxz, sy)
 }
 pub(crate) fn swap_prop_meshes(
     feel: Option<Res<crate::local_settings::LocalMeshLodFeel>>, server: Option<Res<AssetServer>>, mut meshes: ResMut<Assets<Mesh>>,
@@ -205,19 +83,10 @@ pub(crate) fn swap_prop_meshes(
         let i = prop.fit as usize;
         let baked = cache.baked[i].clone().unwrap_or_else(|| {
             let (mut m, sxz, sy) = bake_prop_mesh(&src, prop.fit, cache.tree_sxz, cache.tree_sy);
-            if matches!(prop.fit, PropMeshFit::Trunk) {
-                cache.tree_sxz = sxz;
-                cache.tree_sy = sy;
-            }
-            if matches!(prop.fit, PropMeshFit::Canopy) {
-                pm::paint_height_ramp(&mut m, &pm::painterly_shade(pm::PainterlyRole::Foliage, feel.preset));
-            }
-            let bh = meshes.add(m);
-            if matches!(prop.fit, PropMeshFit::Canopy) {
-                pm::remember_ramp(&mut ramps, &bh, pm::PainterlyRole::Foliage);
-            }
-            cache.baked[i] = Some(bh.clone());
-            bh
+            if matches!(prop.fit, PropMeshFit::Trunk) { cache.tree_sxz = sxz; cache.tree_sy = sy; }
+            if matches!(prop.fit, PropMeshFit::Canopy) { pm::paint_height_ramp(&mut m, &pm::painterly_shade(pm::PainterlyRole::Foliage, feel.preset)); }
+            let bh = meshes.add(m); if matches!(prop.fit, PropMeshFit::Canopy) { pm::remember_ramp(&mut ramps, &bh, pm::PainterlyRole::Foliage); }
+            cache.baked[i] = Some(bh.clone()); bh
         });
         mesh3d.0 = baked; commands.entity(e).insert(PropMeshSwapped);
     }
@@ -299,9 +168,9 @@ pub fn lived_place_dress_detail_scale(plan: &MeshLodPlan) -> f32 {
     procedural_detail_scale(plan.lod)
 }
 
-/// Path stones and yard props may load a `GltfAssetLabel::Primitive` mesh through
-/// the PropMesh swap only — that is **not** the climate_plane Place-dress pipeline.
-/// Buildings / Astra Medium stay refs. This helper stays false on every tier.
+/// Place dress never loads Buildings / Astra Medium cargo. Refs stay refs
+/// even on High, even if an authored glb is already on disk.
+/// PropMesh primitive swap is not this Place-dress pipeline.
 pub fn place_dress_uses_authored_glb(plan: &MeshLodPlan) -> bool {
     let _ = (plan, optional_authored_glb_present());
     false
@@ -396,6 +265,8 @@ pub fn race_lobby_closed() -> bool {
 mod tests {
     use super::*;
     use shared::local_settings::LocalSettings;
+    fn prop_mesh_drawn_y_min_max(mesh: &Mesh) -> (f32, f32) { let (a, b, _) = prop_ix_bounds(mesh); (a, b) }
+    fn prop_mesh_drawn_xz_extent(mesh: &Mesh) -> f32 { prop_ix_bounds(mesh).2 }
 
     #[test]
     fn lod_selection_by_graphics_preset() {
@@ -585,7 +456,7 @@ mod tests {
         m.insert_attribute(Mesh::ATTRIBUTE_POSITION, vec![[2., 0., 0.], [0., 0., 0.]]); m.insert_attribute(Mesh::ATTRIBUTE_UV_0, vec![[1., 0.], [0., 0.]]);
         let (b, _, _) = super::bake_prop_mesh(&m, PropMeshFit::Stone, 0., 0.);
         let (VertexAttributeValues::Float32x3(p), VertexAttributeValues::Float32x2(uv)) = (b.attribute(Mesh::ATTRIBUTE_POSITION).unwrap(), b.attribute(Mesh::ATTRIBUTE_UV_0).unwrap()) else { panic!() };
-        let span = p.iter().map(|v| (v[0] * v[0] + v[2] * v[2]).sqrt()).fold(0_f32, f32::max); let du = (uv[0][0] - uv[1][0]).abs(); let s = PropMeshFit::Stone.stone_xf().0.max_element();
+        let span = p.iter().map(|v| (v[0] * v[0] + v[2] * v[2]).sqrt()).fold(0_f32, f32::max); let du = (uv[0][0] - uv[1][0]).abs(); let s = PROP_STONE_XF.0.max_element();
         assert!((span * du - 4.0 / s).abs() < 0.02);
     }    #[test]
     fn props_wire_f1_missing_asset_keeps_primitive() {
