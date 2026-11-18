@@ -1101,8 +1101,12 @@ mod tests {
         use bevy::prelude::{AssetPlugin, Entity, MinimalPlugins, World};
         use bevy::tasks::tick_global_task_pools_on_main_thread;
         use crate::climate_plane::{place_dress_lod_scale, PropMeshFit};
+        let _g = crate::test_env::lock();
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().unwrap();
+        let save = std::env::var("BEVY_ASSET_ROOT").ok();
+        std::env::set_var("BEVY_ASSET_ROOT", &root);
         let mut app = App::new();
-        app.set_error_handler(bevy::ecs::error::ignore).add_plugins((MinimalPlugins, AssetPlugin { watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin)).init_resource::<crate::climate_plane::AmbientcgTexCache>().init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Medium }).insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) }).add_plugins((LivingEcologyPlugin, crate::climate_plane::ClimatePlanePlugin));
+        app.set_error_handler(bevy::ecs::error::ignore).add_plugins((MinimalPlugins, AssetPlugin { file_path: root.join("assets").into_os_string().into_string().unwrap(), watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin)).init_resource::<crate::climate_plane::AmbientcgTexCache>().init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Medium }).insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) }).add_plugins((LivingEcologyPlugin, crate::climate_plane::ClimatePlanePlugin));
         app.finish(); app.cleanup(); app.world_mut().run_schedule(Startup);
         assert_eq!(app.world_mut().query::<&PropMesh>().iter(app.world()).count(), 22);
         let snap = |w: &mut World| { let mut v: Vec<_> = w.query::<(Entity, &PropMesh, &Mesh3d)>().iter(w).filter(|(_, p, _)| matches!(p.fit, PropMeshFit::Trunk | PropMeshFit::Stone)).map(|(e, p, m)| (e, p.fit, m.0.id())).collect(); v.sort_by_key(|a| a.0); v };
@@ -1115,5 +1119,6 @@ mod tests {
         assert!((ext(app.world(), &th) - YARD_TRUNK_R).abs() <= 0.01 && app.world().resource::<Assets<Mesh>>().get(&ch).unwrap().attribute(Mesh::ATTRIBUTE_COLOR).is_some());
         app.world_mut().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Low }); app.update();
         assert!((app.world().get::<Transform>(se).unwrap().scale.x - place_dress_lod_scale(shared::local_settings::GraphicsPreset::Low)).abs() < f32::EPSILON && ext(app.world(), &sh) > 0.1 && ext(app.world(), &sh) < 0.5);
+        if let Some(v) = save { std::env::set_var("BEVY_ASSET_ROOT", v); } else { std::env::remove_var("BEVY_ASSET_ROOT"); }
     }
 }
