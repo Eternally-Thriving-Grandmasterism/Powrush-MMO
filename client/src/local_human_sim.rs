@@ -137,7 +137,7 @@ fn dress_walk(
     mut commands: Commands,
     pending: Query<(Entity, &TravelerDress), Without<TravelerWalkReady>>,
     gltfs: Option<Res<Assets<Gltf>>>,
-    mut graphs: Option<ResMut<Assets<AnimationGraph>>>,
+    graphs: Option<ResMut<Assets<AnimationGraph>>>,
     children: Query<&Children>,
     mut players: Query<(Entity, &mut AnimationPlayer), Without<AnimationGraphHandle>>,
 ) {
@@ -336,7 +336,7 @@ mod tests {
         let pack = std::env::temp_dir().join(format!("pp_{}", std::process::id()));
         std::fs::create_dir_all(pack.join("assets/models/quaternius-modular-men")).unwrap();
         std::fs::copy(dev_root().join("assets").join(glb("Mira")), pack.join("assets/models/quaternius-modular-men/mira-traveler.glb")).unwrap();
-        with_root(&pack, || {
+        scene("pack", &pack, |_| {
             assert!(asset_file_present(glb("Mira")) && !asset_file_present(glb("Ko")));
         });
         let _ = std::fs::remove_dir_all(pack);
