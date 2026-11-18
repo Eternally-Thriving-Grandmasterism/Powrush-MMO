@@ -63,8 +63,7 @@ pub struct LocalHumanSimPlugin;
 
 impl Plugin for LocalHumanSimPlugin {
     fn build(&self, app: &mut App) {
-        app.init_asset::<Gltf>()
-            .init_resource::<LocalHumanSim>()
+        app.init_resource::<LocalHumanSim>()
             .add_systems(Startup, seed_travelers)
             .add_systems(Update, (walk_wells, share_inhale, write_practice_peer))
             .add_systems(Update, (attach_traveler_scene, dress_walk).chain());
@@ -225,8 +224,8 @@ mod tests {
     use bevy::render::settings::WgpuSettings;
     use bevy::tasks::tick_global_task_pools_on_main_thread;
     use std::{path::PathBuf, sync::Mutex};
-
     static LOCK: Mutex<()> = Mutex::new(());
+    const ROSTER: [&str; 3] = ["Mira", "Ko", "Ren"];
     fn dev_root() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
     }
@@ -240,28 +239,25 @@ mod tests {
         }
         out
     }
+    fn headless_defaults() -> App {
+        let mut a = App::new();
+        a.add_plugins(DefaultPlugins.set(WindowPlugin { primary_window: None, exit_condition: bevy::window::ExitCondition::DontExit, ..default() }).set(bevy::render::RenderPlugin { render_creation: WgpuSettings { backends: None, ..default() }.into(), ..default() }).disable::<bevy::audio::AudioPlugin>().disable::<bevy::winit::WinitPlugin>())
+            .insert_resource(SoftPresence::default())
+            .insert_resource(FlowWeather::default())
+            .add_plugins(LocalHumanSimPlugin);
+        a.finish();
+        a.cleanup();
+        a
+    }
     fn mk() -> App {
         let mut a = App::new();
-        a.add_plugins((
-            MinimalPlugins,
-            AssetPlugin {
-                watch_for_changes_override: Some(false),
-                use_asset_processor_override: Some(false),
-                ..default()
-            },
-            bevy::scene::ScenePlugin,
-            bevy::image::ImagePlugin::default(),
-            bevy::mesh::MeshPlugin,
-            bevy::animation::AnimationPlugin,
-            bevy::gltf::GltfPlugin::default(),
-            bevy::world_serialization::WorldSerializationPlugin,
-        ))
-        .set_error_handler(bevy::ecs::error::ignore)
-        .init_asset::<Mesh>()
-        .init_asset::<StandardMaterial>()
-        .insert_resource(SoftPresence::default())
-        .insert_resource(FlowWeather::default())
-        .add_plugins(LocalHumanSimPlugin);
+        a.add_plugins((MinimalPlugins, AssetPlugin { watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..default() }, bevy::scene::ScenePlugin, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::animation::AnimationPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin))
+            .set_error_handler(bevy::ecs::error::ignore)
+            .init_asset::<Mesh>()
+            .init_asset::<StandardMaterial>()
+            .insert_resource(SoftPresence::default())
+            .insert_resource(FlowWeather::default())
+            .add_plugins(LocalHumanSimPlugin);
         a.finish();
         a.cleanup();
         a
@@ -274,33 +270,7 @@ mod tests {
     #[test]
     fn char_model_boot_default_plugins_no_duplicate_panic() {
         let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        with_root(&dev_root(), || {
-            let mut app = App::new();
-            app.add_plugins(
-                DefaultPlugins
-                    .set(WindowPlugin {
-                        primary_window: None,
-                        exit_condition: bevy::window::ExitCondition::DontExit,
-                        ..default()
-                    })
-                    .set(bevy::render::RenderPlugin {
-                        render_creation: WgpuSettings {
-                            backends: None,
-                            ..default()
-                        }
-                        .into(),
-                        ..default()
-                    })
-                    .disable::<bevy::audio::AudioPlugin>()
-                    .disable::<bevy::winit::WinitPlugin>(),
-            )
-            .insert_resource(SoftPresence::default())
-            .insert_resource(FlowWeather::default())
-            .add_plugins(LocalHumanSimPlugin);
-            app.finish();
-            app.cleanup();
-            app.world_mut().run_schedule(Startup);
-        });
+        with_root(&dev_root(), || headless_defaults().world_mut().run_schedule(Startup));
     }
 
     #[test]
@@ -313,27 +283,25 @@ mod tests {
             let mut app = mk();
             boot(&mut app);
             assert!(app.world_mut().query::<&TravelerDress>().iter(app.world()).next().is_none());
-            for n in ["Mira", "Ko", "Ren"] {
+            for n in ROSTER {
                 assert!(app.world_mut().query::<(&Name, Option<&Mesh3d>)>().iter(app.world()).any(|(name, m)| name.as_str() == n && m.is_some()));
             }
         });
         let _ = std::fs::remove_dir_all(&empty);
         with_root(&dev_root(), || {
             assert_eq!(gltf_integration::bevy_asset_base(), dev_root());
-            assert!(["Mira", "Ko", "Ren"].iter().all(|n| asset_file_present(glb(n))));
+            assert!(ROSTER.iter().all(|n| asset_file_present(glb(n))));
             let before = gltf_integration::optional_authored_glb_present();
+            let csv = include_str!("../../assets/asset-licenses.csv");
             let mut app = mk();
             boot(&mut app);
-            for n in ["Mira", "Ko", "Ren"] {
+            for n in ROSTER {
                 let _ = asset_file_present(glb(n));
-            }
-            assert_eq!(gltf_integration::optional_authored_glb_present(), before);
-            let csv = include_str!("../../assets/asset-licenses.csv");
-            for n in ["Mira", "Ko", "Ren"] {
                 assert!(csv.contains(&format!("assets/{}", glb(n))));
             }
+            assert_eq!(gltf_integration::optional_authored_glb_present(), before);
             assert!(app.world_mut().query::<&TravelerDress>().iter(app.world()).nth(2).is_some());
-            assert!(!app.world_mut().query::<(&Name, Option<&Mesh3d>)>().iter(app.world()).any(|(n, m)| ["Mira", "Ko", "Ren"].contains(&n.as_str()) && m.is_some()));
+            assert!(!app.world_mut().query::<(&Name, Option<&Mesh3d>)>().iter(app.world()).any(|(n, m)| ROSTER.contains(&n.as_str()) && m.is_some()));
         });
         let save = std::env::var("BEVY_ASSET_ROOT").ok();
         let pack = std::env::temp_dir().join(format!("pp_{}", std::process::id()));
@@ -359,11 +327,7 @@ mod tests {
                 app.update();
                 tick_global_task_pools_on_main_thread();
                 let s = app.world().resource::<AssetServer>();
-                if matches!(s.get_load_state(h.id()), Some(LoadState::Loaded))
-                    && matches!(s.get_recursive_dependency_load_state(h.id()), Some(RecursiveDependencyLoadState::Loaded))
-                {
-                    break;
-                }
+                if matches!(s.get_load_state(h.id()), Some(LoadState::Loaded)) && matches!(s.get_recursive_dependency_load_state(h.id()), Some(RecursiveDependencyLoadState::Loaded)) { break; }
             }
             assert!(app.world().resource::<Assets<Gltf>>().get(&h).unwrap().named_animations.contains_key(WALK));
             let mut gf = None;
