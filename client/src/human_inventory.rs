@@ -21,7 +21,7 @@ use crate::hex_travel::HexTravelState;
 use crate::human_soft_panels::HumanSoftPanels;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::LocalSettingsState;
-use crate::loot_drops::{find_line, FoundFinds};
+use crate::loot_drops::{find_line, save_finds, FoundFinds};
 use crate::title_screen::{HouseLabel, TITLE_TEXT_PRIMARY, TITLE_TEXT_SECONDARY};
 use crate::ui_kit;
 use crate::ui_above_world::{LivedUiPlate, LIVED_UI_Z_LEDGER};
@@ -103,6 +103,7 @@ impl Plugin for HumanInventoryPlugin {
                 (
                     toggle_satchel,
                     slot_select_when_open,
+                    equip_when_open.before(update_satchel),
                     notice_pickup,
                     feed_allocate_surplus,
                     update_watch_strip,
@@ -188,7 +189,7 @@ TextColor(TITLE_TEXT_PRIMARY),
             ));
             p.spawn((
                 (
-Text::new("I close · 1–3 highlight · R allocate surplus"),
+Text::new("I close · 1–3 highlight · R allocate surplus · 4: equip next find"),
 ui_kit::font(ui_kit::TYPE_HINT),
 TextColor(TITLE_TEXT_SECONDARY),
 ),
@@ -263,6 +264,20 @@ fn slot_select_when_open(
     } else if keyboard.just_pressed(KeyCode::Digit3) || keyboard.just_pressed(KeyCode::Digit3) {
         inv.selected = SatchelSlot::Joy;
     }
+}
+
+fn equip_when_open(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    panels: Res<HumanSoftPanels>,
+    allocate: Res<RbeAllocateChoice>,
+    label: Res<HouseLabel>,
+    inv: Res<HumanInventory>,
+    mut finds: ResMut<FoundFinds>,
+) {
+    if !keyboard.just_pressed(KeyCode::Digit4) || !inv.open || panels.realm_open || allocate.panel_open || label.settings_open {
+        return;
+    }
+    if finds.cycle_equipped() { save_finds(&finds); }
 }
 
 /// CARD FLESH-SATCHEL-LINE — the one pickup flash may name the Place stood in.
@@ -481,7 +496,13 @@ fn update_satchel(
     let find_rows: String = NAMED_FINDS
         .iter()
         .filter(|n| finds.as_ref().is_some_and(|f| f.names.contains(&n.name)))
-        .map(|n| format!("\n{}", find_line(n)))
+        .map(|n| {
+            let mut row = find_line(n);
+            if finds.as_ref().and_then(|f| f.equipped_find()).is_some_and(|e| e.name == n.name) {
+                row.push_str(" · Equipped");
+            }
+            format!("\n{row}")
+        })
         .collect();
     let find_block = if find_rows.is_empty() {
         find_rows
@@ -500,6 +521,8 @@ fn update_satchel(
 
 abundance is held, not hoarded
 
+{}
+
 {} [1] Vitality   {:.1}
 {} [2] Harmony    {:.1}
 {} [3] Joy        {:.1}
@@ -507,6 +530,7 @@ abundance is held, not hoarded
 Harvests {}{find_block}{crate_block}{temper_block}
 
 {}",
+        finds.as_ref().and_then(|f| f.equipped_find()).map(|f| format!("Gear: {}", f.name)).unwrap_or_else(|| "Gear: none equipped".into()),
         mark(SatchelSlot::Vitality),
         pool.vitality,
         mark(SatchelSlot::Harmony),
@@ -1000,29 +1024,42 @@ mod tests {
         assert!(block.is_empty());
     }
 
+    use crate::combat_core::{land_hit_paid, CombatState, HIT};
+    use crate::combat_text::{hook_player_strike, CombatTextQueue};
     use crate::difficulty::DifficultyTier::Sworn;
     use crate::loot_drops::tests::{in_user_dir, OLD_FINDS};
     use crate::loot_drops::{load_finds, loot_hash, roll_named_find, FINDS_SAVE, LOOT_BASE_CHANCE, LOOT_BPS};
+    use crate::skill_xp::SkillXp;
+    use shared::hex_travel::PlaceId;
 
+    fn two() -> FoundFinds { FoundFinds { names: vec![NAMED_FINDS[1].name, NAMED_FINDS[4].name], pending: None, equipped: None } }
+
+    fn dir_satchel(dir: &std::path::Path, old: Option<&[u8]>, finds: Option<FoundFinds>) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(HumanInventory { open: true, ..default() })
+            .insert_resource(SoftRbePool { vitality: 2.5, harmony: 1.5, joy: 0.5, harvests: 3, ..default() })
+            .insert_resource(LivedHourBind::default()).insert_resource(HouseLabel::default())
+            .init_resource::<ButtonInput<KeyCode>>().init_resource::<HumanSoftPanels>().init_resource::<RbeAllocateChoice>()
+            .add_systems(Startup, spawn_inventory_surfaces).add_systems(Update, (equip_when_open.before(update_satchel), update_satchel));
+        if let Some(bytes) = old { std::fs::write(dir.join(FINDS_SAVE), bytes).unwrap(); app.init_resource::<FoundFinds>().add_systems(Startup, load_finds); }
+        if let Some(f) = finds { app.insert_resource(f); } else { app.init_resource::<FoundFinds>(); }
+        app.update();
+        app
+    }
+
+      fn with_satchel(tag: &str, finds: Option<FoundFinds>, run: impl FnOnce(&mut App)) { in_user_dir(tag, |dir| run(&mut dir_satchel(dir, None, finds))); }
     /// H1: MinimalPlugins I satchel, open, in a temp user dir. `old` seeds the finds save and runs `load_finds`.
     fn open_satchel(tag: &str, old: Option<&[u8]>, finds: Option<FoundFinds>) -> App {
-        in_user_dir(tag, |dir| {
-            let mut app = App::new();
-            app.add_plugins(MinimalPlugins)
-                .insert_resource(HumanInventory { open: true, ..default() })
-                .insert_resource(SoftRbePool { vitality: 2.5, harmony: 1.5, joy: 0.5, harvests: 3, ..default() })
-                .insert_resource(LivedHourBind::default()).insert_resource(HouseLabel::default())
-                .add_systems(Startup, spawn_inventory_surfaces).add_systems(Update, update_satchel);
-            if let Some(bytes) = old {
-                std::fs::write(dir.join(FINDS_SAVE), bytes).unwrap();
-                app.init_resource::<FoundFinds>().add_systems(Startup, load_finds);
-            }
-            if let Some(f) = finds { app.insert_resource(f); }
-            app.update();
-            app
-        })
+        in_user_dir(tag, |dir| dir_satchel(dir, old, finds))
     }
     fn body(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<SatchelBody>>().single(app.world()).unwrap().as_str().into() }
+    fn tap4(app: &mut App) {
+        let mut kb = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        kb.release(KeyCode::Digit4); kb.press(KeyCode::Digit4);
+        drop(kb); app.update();
+        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear_just_pressed(KeyCode::Digit4);
+    }
     fn rows(body: &str) -> Vec<&'static str> { NAMED_FINDS.iter().filter(|n| body.contains(n.sentence)).map(|n| n.name).collect() }
     fn landed(s: u32) -> Option<FoundFinds> { let mut f = FoundFinds::default(); f.drop_once(Sworn, s, 1).then_some(f) }
     fn all() -> FoundFinds { FoundFinds { names: NAMED_FINDS.iter().map(|n| n.name).collect(), pending: None, equipped: None } }
@@ -1118,5 +1155,81 @@ mod tests {
         app.update();
         let tempered = body(&mut app);
         assert!(tempered.find("LaneCrate 2").unwrap() < tempered.find(&satchel_temper_display(&item)).unwrap(), "{tempered}");
+    }
+
+    #[test]
+    fn g1_digit4_equips_first_owned_and_saves() {
+        in_user_dir("g1", |dir| {
+            let mut app = dir_satchel(dir, None, Some(two()));
+            tap4(&mut app);
+            assert_eq!((app.world().resource::<FoundFinds>().equipped, std::fs::read_to_string(dir.join(FINDS_SAVE)).unwrap().contains("equipped")), (Some(NAMED_FINDS[1].name), true));
+        });
+    }
+    #[test]
+    fn g2_equipped_find_bonus_on_land_hit() {
+        let finds = FoundFinds { equipped: Some(NAMED_FINDS[1].name), ..two() };
+        let (mut c, mut s, b) = (CombatState::default(), SkillXp::default(), 0u32);
+        let (hit, _) = land_hit_paid(&mut c, &mut s, true, Sworn, None, Some(&finds));
+        let mut q = CombatTextQueue::default();
+        hook_player_strike(&mut q, PlaceId::Sanctuary, b, c.predator_taken, hit, Vec3::ZERO);
+        assert!((hit, c.predator_taken - b >= HIT + 1, c.predator_taken - b) == (true, true, q.events[0].amount));
+    }
+    #[test]
+    fn g3_one_press_one_equipped_row() {
+        with_satchel("g3", Some(two()), |app| {
+            let before = app.world().resource::<FoundFinds>().names.clone();
+            app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::Digit4);
+            app.update();
+            let eq = app.world().resource::<FoundFinds>().equipped;
+            assert_eq!((body(app).matches(" · Equipped").count(), &app.world().resource::<FoundFinds>().names), (1, &before));
+            app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear_just_pressed(KeyCode::Digit4);
+            app.update();
+            assert_eq!(app.world().resource::<FoundFinds>().equipped, eq);
+        });
+    }
+    #[test]
+    fn g4_cycle_two_finds_then_empty() {
+        with_satchel("g4", Some(two()), |app| {
+            tap4(app); tap4(app); tap4(app);
+            let f = app.world().resource::<FoundFinds>();
+            let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+            assert_eq!((f.equipped, f.encode().contains("equipped"), land_hit_paid(&mut c, &mut s, true, Sworn, None, Some(f)).0, c.predator_taken), (None, false, true, HIT));
+        });
+    }
+    #[test]
+    fn g5_load_finds_restores_equipped_fail_closed() {
+        in_user_dir("g5", |dir| {
+            tap4(&mut dir_satchel(dir, None, Some(two())));
+            let mut r = App::new(); r.add_plugins(MinimalPlugins).init_resource::<FoundFinds>().add_systems(Startup, load_finds); r.update();
+            assert_eq!(r.world().resource::<FoundFinds>().equipped, Some(NAMED_FINDS[1].name));
+        });
+        for json in [r#"{"schema":"powrush_finds_v1","names":["Steady Climate Pick"],"equipped":"Quiet Harmony Loom"}"#, r#"{"schema":"powrush_finds_v1","names":["Steady Climate Pick"],"equipped":"no such"}"#] {
+            assert!(FoundFinds::decode(Some(json)).equipped.is_none());
+        }
+    }
+    #[test]
+    fn g6_equip_gated_and_empty_owned_no_save() {
+        with_satchel("g6", Some(two()), |app| {
+            tap4(app);
+            let on = app.world().resource::<FoundFinds>().equipped;
+            app.world_mut().resource_mut::<HumanInventory>().open = false; tap4(app);
+            app.world_mut().resource_mut::<HumanInventory>().open = true;
+            app.world_mut().resource_mut::<HumanSoftPanels>().realm_open = true; tap4(app);
+            app.world_mut().resource_mut::<HumanSoftPanels>().realm_open = false;
+            app.world_mut().resource_mut::<RbeAllocateChoice>().panel_open = true; tap4(app);
+            app.world_mut().resource_mut::<RbeAllocateChoice>().panel_open = false;
+            app.world_mut().resource_mut::<HouseLabel>().settings_open = true; tap4(app);
+            assert_eq!(app.world().resource::<FoundFinds>().equipped, on);
+        });
+        in_user_dir("g6e", |dir| { tap4(&mut dir_satchel(dir, None, Some(FoundFinds::default()))); assert!(!dir.join(FINDS_SAVE).exists()); });
+    }
+    #[test]
+    fn g7_no_double_bracket_on_i() {
+        with_satchel("g7", Some(all()), |app| { tap4(app); assert!(!body(app).contains("[[")); });
+    }
+    #[test]
+    fn g8_fresh_profile_gear_line_and_hint() {
+        let mut app = open_satchel("g8", None, None);
+        assert!(body(&mut app).contains("Gear: none equipped") && { let w = app.world_mut(); w.query::<&Text>().iter(w).any(|t| t.contains("4: equip next find")) });
     }
 }

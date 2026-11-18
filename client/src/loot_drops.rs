@@ -56,6 +56,17 @@ impl FoundFinds {
         let name = self.equipped?;
         NAMED_FINDS.iter().find(|f| f.name == name && self.names.contains(&f.name))
     }
+    /// GEAR-EQUIP-1 — next owned find in table order, then empty; false when nothing is owned.
+    pub fn cycle_equipped(&mut self) -> bool {
+        let owned: Vec<&'static str> = NAMED_FINDS.iter().map(|f| f.name).filter(|n| self.names.contains(n)).collect();
+        if owned.is_empty() { return false; }
+        let step = self.equipped.and_then(|eq| owned.iter().position(|&n| n == eq).map(|i| i + 1));
+        match step {
+            None => self.equip_named(owned[0]),
+            Some(i) if i < owned.len() => self.equip_named(owned[i]),
+            Some(_) => { self.clear_equipped(); true }
+        }
+    }
     /// One roll per defeat, role None. An owned pick is silent and a waiting line is never replaced. True when a new find lands.
     pub fn drop_once(&mut self, tier: DifficultyTier, strikes: u32, place: u32) -> bool {
         if self.pending.is_some() { return false; }
@@ -294,8 +305,17 @@ pub(crate) mod tests {
         });
     }
 
+    /// G4 — `cycle_equipped` walks table order then clears; empty owns are a no-op.
+    #[test]
+    fn g4_cycle_equipped_unit_order_then_clear() {
+        let mut f = two();
+        assert!(f.cycle_equipped() && f.equipped == Some(NAMED_FINDS[1].name));
+        assert!(f.cycle_equipped() && f.equipped == Some(NAMED_FINDS[4].name));
+        assert!(f.cycle_equipped() && f.equipped.is_none() && !f.encode().contains("equipped"));
+        assert!(!FoundFinds::default().cycle_equipped());
+    }
+
     /// GS3 — one slot: a second owned equip replaces the first, an unowned or unknown name is a no-op, and clear empties it.
-    /// `drop_once` rolls the same with or without a slot and never moves it.
     #[test]
     fn gs3_one_slot_replaces_and_clears() {
         let mut f = two();
