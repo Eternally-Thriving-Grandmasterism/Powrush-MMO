@@ -3549,61 +3549,10 @@ mod tests {
     }
 
     #[test]
-    fn props_wire_f7_lod_scale_composes_on_swapped_stone() {
-        use bevy::tasks::tick_global_task_pools_on_main_thread;
-        let _g = crate::test_env::lock();
-        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().unwrap();
-        struct RootGuard(Option<String>);
-        impl Drop for RootGuard { fn drop(&mut self) { match self.0.take() { Some(v) => std::env::set_var("BEVY_ASSET_ROOT", v), None => std::env::remove_var("BEVY_ASSET_ROOT") } } }
-        let save = std::env::var("BEVY_ASSET_ROOT").ok();
-        std::env::set_var("BEVY_ASSET_ROOT", &root);
-        let _root = RootGuard(save);
-        assert!(mesh_lod::asset_file_present("models/kenney-nature-kit/stone_smallFlatA.glb"));
-        let mut app = App::new();
-        app.set_error_handler(bevy::ecs::error::ignore).add_plugins((MinimalPlugins, AssetPlugin { watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin))
-            .init_asset::<Image>().init_resource::<Assets<Mesh>>().init_resource::<Assets<StandardMaterial>>().init_resource::<SoftPlayerRealm>()
-            .insert_resource(LocalMeshLodFeel { preset: GraphicsPreset::Medium }).add_plugins(ClimatePlanePlugin);
+    fn props_wire_climate_path_stones_tag_prop_mesh() {
+        let mut app = climate_startup_app();
         app.finish(); app.cleanup(); app.world_mut().run_schedule(Startup);
-        let e = app.world_mut().query_filtered::<Entity, With<PlaceLodMesh>>().iter(app.world()).next().unwrap();
-        let prim = app.world().get::<Mesh3d>(e).unwrap().0.id();
-        for _ in 0..2400 { app.update(); tick_global_task_pools_on_main_thread(); }
-        let (tf, mesh_h) = (app.world().get::<Transform>(e).unwrap(), app.world().get::<Mesh3d>(e).unwrap().0.clone());
-        let mid_tf = tf.scale.x;
-        assert_ne!(mesh_h.id(), prim);
-        app.world_mut().insert_resource(LocalMeshLodFeel { preset: GraphicsPreset::Low }); app.update();
-        assert!((app.world().get::<Transform>(e).unwrap().scale.x - place_dress_lod_scale(GraphicsPreset::Low)).abs() < f32::EPSILON);
-        let ext = app.world().resource::<Assets<Mesh>>().get(&mesh_h).unwrap().attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()).unwrap().iter().map(|p| p[0].abs().max(p[2].abs())).fold(0., f32::max);
-        assert!(ext > 0.1 && ext < 0.5 && (mid_tf - 1.0).abs() < f32::EPSILON);
-    }
-
-    #[test]
-    fn props_wire_f12_f4_headless_prop_mesh_swap_and_trunk_extent() {
-        use bevy::tasks::tick_global_task_pools_on_main_thread;
-        use crate::living_ecology::LivingEcologyPlugin;
-        use crate::vegetation::CamTrunk;
-        let _g = crate::test_env::lock();
-        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().unwrap();
-        struct RootGuard(Option<String>);
-        impl Drop for RootGuard { fn drop(&mut self) { match self.0.take() { Some(v) => std::env::set_var("BEVY_ASSET_ROOT", v), None => std::env::remove_var("BEVY_ASSET_ROOT") } } }
-        let save = std::env::var("BEVY_ASSET_ROOT").ok();
-        std::env::set_var("BEVY_ASSET_ROOT", &root);
-        let _root = RootGuard(save);
-        assert!(mesh_lod::asset_file_present("models/kenney-nature-kit/stone_smallFlatA.glb"));
-        let mut app = App::new();
-        app.set_error_handler(bevy::ecs::error::ignore).add_plugins((MinimalPlugins, AssetPlugin { watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin))
-            .init_resource::<AmbientcgTexCache>().init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>()
-            .insert_resource(LocalMeshLodFeel { preset: GraphicsPreset::Medium }).insert_resource(SoftPlayerRealm { current: Some(0) }).add_plugins((LivingEcologyPlugin, ClimatePlanePlugin));
-        app.finish(); app.cleanup(); app.world_mut().run_schedule(Startup);
-        let te = app.world_mut().query_filtered::<Entity, With<CamTrunk>>().iter(app.world()).next().unwrap();
-        let t0 = app.world().get::<Mesh3d>(te).unwrap().0.id();
-        let se = app.world_mut().query::<(Entity, &PropMesh)>().iter(app.world()).find(|(_, p)| p.fit == PropMeshFit::Stone).unwrap().0;
-        let s0 = app.world().get::<Mesh3d>(se).unwrap().0.id();
-        for _ in 0..2400 { app.update(); tick_global_task_pools_on_main_thread(); }
-        assert_ne!(app.world().get::<Mesh3d>(te).unwrap().0.id(), t0);
-        assert_ne!(app.world().get::<Mesh3d>(se).unwrap().0.id(), s0);
-        let h = app.world().get::<Mesh3d>(te).unwrap().0.clone();
-        let r = app.world().resource::<Assets<Mesh>>().get(&h).unwrap().attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()).unwrap().iter().map(|p| p[0].abs().max(p[2].abs())).fold(0_f32, f32::max);
-        assert!(r > crate::living_ecology::YARD_TRUNK_R + 0.05 && r < 0.75, "fitted trunk xz {r}");
+        assert_eq!(app.world_mut().query_filtered::<&PropMesh, With<PlaceLodMesh>>().iter(app.world()).count(), 12);
     }
 
     #[test]

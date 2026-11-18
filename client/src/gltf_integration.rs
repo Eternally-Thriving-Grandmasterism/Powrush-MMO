@@ -34,7 +34,7 @@ use crate::painterly_mat as pm;
 #[derive(Component, Clone, Copy)] pub struct PropMesh { pub rel: &'static str, pub primitive: usize, pub fit: PropMeshFit }
 #[derive(Component)] pub(crate) struct PropMeshSwapped;
 #[repr(usize)] #[derive(Clone, Copy, PartialEq, Eq)] pub enum PropMeshFit { Trunk, Canopy, Stone }
-const PROP_XF: [(Vec3, Vec3); 3] = [(Vec3::new(1.5, 2.25, 1.5), Vec3::new(0., -1.2, 0.)), (Vec3::new(1.5, 2.25, 1.5), Vec3::new(0., -2.55, 0.)), (Vec3::new(0.726, 1.23, 0.837), Vec3::new(0., -0.04, 0.))];
+const PROP_XF: [(Vec3, Vec3); 3] = [(Vec3::new(0.5828, 0.8742, 0.5828), Vec3::new(0., -0.466, 0.)), (Vec3::new(0.5828, 0.8742, 0.5828), Vec3::new(0., -0.991, 0.)), (Vec3::new(0.726, 1.23, 0.837), Vec3::new(0., -0.04, 0.))];
 impl PropMeshFit { fn xf(self) -> (Vec3, Vec3) { PROP_XF[self as usize] } } #[derive(Resource, Default)] pub(crate) struct PropMeshBakeCache([Option<Handle<Mesh>>; 3]);
 pub fn prop_mesh_glb_active(p: GraphicsPreset) -> bool { !matches!(p, GraphicsPreset::Mobile | GraphicsPreset::Low) }
 fn bake_prop_mesh(src: &Mesh, fit: PropMeshFit) -> Mesh {
@@ -184,13 +184,9 @@ pub fn bevy_asset_base() -> std::path::PathBuf {
 
 pub fn asset_file_present(rel: &str) -> bool {
     use std::io::Read;
-    let path = bevy_asset_base().join("assets").join(rel);
-    let Ok(mut file) = std::fs::File::open(&path) else { return false; };
-    let mut head = [0u8; 12];
-    if file.read_exact(&mut head).is_err() || head.starts_with(b"version https://git-lfs.github.com/spec/v1") {
-        return false;
-    }
-    head[..4] == *b"glTF"
+    let ok = |p: &std::path::Path| std::fs::File::open(p).ok().is_some_and(|mut f| { let mut h = [0u8; 12]; f.read_exact(&mut h).is_ok() && !h.starts_with(b"version https://git-lfs.github.com/spec/v1") && h[..4] == *b"glTF" });
+    let primary = bevy_asset_base().join("assets").join(rel);
+    ok(&primary) || (std::env::var("BEVY_ASSET_ROOT").is_err() && std::env::var("CARGO_MANIFEST_DIR").is_ok_and(|m| ok(&std::path::PathBuf::from(m).join("../assets").join(rel))))
 }
 
 pub fn practice_traveler_capsule(mesh: Handle<Mesh>, mat: Handle<StandardMaterial>, pos: Vec3) -> (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform) {
