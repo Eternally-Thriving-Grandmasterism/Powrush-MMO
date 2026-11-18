@@ -132,17 +132,14 @@ pub fn optional_authored_glb_present_in(dir: &std::path::Path) -> bool {
     })
 }
 
+/// Bevy `FileAssetReader` root (`BEVY_ASSET_ROOT`, else `CARGO_MANIFEST_DIR`, else exe dir).
+pub fn bevy_asset_base() -> std::path::PathBuf {
+    bevy::asset::io::file::FileAssetReader::get_base_path()
+}
+
 pub fn asset_file_present(rel: &str) -> bool {
     use std::io::Read;
-    let base = if let Ok(root) = std::env::var("BEVY_ASSET_ROOT") {
-        std::path::PathBuf::from(root)
-    } else if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
-        let m = std::path::PathBuf::from(manifest);
-        if m.ends_with("client") { m.join("..") } else { m }
-    } else {
-        std::env::current_exe().ok().and_then(|p| p.parent().map(|d| d.to_path_buf())).unwrap_or_else(|| std::path::PathBuf::from("."))
-    };
-    let path = base.join("assets").join(rel);
+    let path = bevy_asset_base().join("assets").join(rel);
     let Ok(mut file) = std::fs::File::open(&path) else { return false; };
     let mut head = [0u8; 12];
     if file.read_exact(&mut head).is_err() || head.starts_with(b"version https://git-lfs.github.com/spec/v1") {
@@ -159,20 +156,9 @@ pub fn practice_traveler_capsule(mesh: Handle<Mesh>, mat: Handle<StandardMateria
 /// does: `BEVY_ASSET_ROOT`, else `CARGO_MANIFEST_DIR`, else the
 /// executable directory, then `assets/`. Pack path is private pin :28 only.
 pub fn optional_ual1_standard_glb_present() -> bool {
-    let base = if let Ok(root) = std::env::var("BEVY_ASSET_ROOT") {
-        std::path::PathBuf::from(root)
-    } else if let Ok(manifest) = std::env::var("CARGO_MANIFEST_DIR") {
-        std::path::PathBuf::from(manifest)
-    } else {
-        std::env::current_exe()
-            .ok()
-            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
-            .unwrap_or_else(|| std::path::PathBuf::from("."))
-    };
-    base.join("assets")
-        .join("private/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb")
+    bevy_asset_base()
+        .join("assets/private/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb")
         .is_file()
-        && asset_file_present("private/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb")
 }
 
 /// High PersonaCommit dress for lived presence — only when the plan asks
