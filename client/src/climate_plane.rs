@@ -155,9 +155,14 @@ use bevy::light::{
 use bevy::pbr::{
     DistanceFog, FogFalloff, ScreenSpaceAmbientOcclusion, ScreenSpaceAmbientOcclusionQualityLevel,
 };
+use bevy::image::{
+    ImageAddressMode, ImageFilterMode, ImageLoaderSettings, ImageSampler, ImageSamplerDescriptor,
+};
+use bevy::math::Affine2;
 use bevy::prelude::*;
+use std::path::{Path, PathBuf};
 
-use shared::local_settings::{GraphicsPreset, WeatherFidelity};
+use shared::local_settings::{GraphicsPreset, MeshLod, WeatherFidelity};
 
 use shared::hex_travel::PlaceId;
 
@@ -274,10 +279,104 @@ const DEPTHS_WET_FOG: Color = Color::srgba(0.04, 0.09, 0.11, 1.0);
 const DEPTHS_FOG_START: f32 = 2.5;
 const DEPTHS_FOG_END: f32 = 14.0;
 
+/// CARD GROUND-TEX-1 — ambientCG tiled PBR (CC0).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum GroundSet {
+    PavingStones070,
+    Ground037,
+    Rock050,
+}
+impl GroundSet {
+    pub(crate) const fn id(self) -> &'static str {
+        match self {
+            Self::PavingStones070 => "PavingStones070",
+            Self::Ground037 => "Ground037",
+            Self::Rock050 => "Rock050",
+        }
+    }
+}
+pub(crate) const GROUND_TEX_TINT: Color = Color::srgb(0.98, 0.98, 0.97);
+const GROUND_UV_TILE: f32 = 14.0;
+
+fn ground_assets_dir() -> PathBuf {
+    bevy::asset::io::file::FileAssetReader::get_base_path().join("assets")
+}
+pub(crate) fn ambientcg_maps_on_disk_in(assets_root: &Path, id: &str) -> bool {
+    let root = assets_root.join(format!("textures/ambientcg/{id}"));
+    ["color.png", "normal_gl.png", "roughness.png"].iter().all(|n| root.join(n).is_file())
+}
+pub(crate) fn ambientcg_maps_on_disk(id: &str) -> bool {
+    ambientcg_maps_on_disk_in(&ground_assets_dir(), id)
+}
+
+#[derive(Resource, Default)]
+pub(crate) struct AmbientcgTexCache(std::collections::HashMap<&'static str, (Handle<Image>, Handle<Image>, Handle<Image>)>);
+
+fn ambientcg_repeat_descriptor() -> ImageSamplerDescriptor {
+    ImageSamplerDescriptor { address_mode_u: ImageAddressMode::Repeat, address_mode_v: ImageAddressMode::Repeat, address_mode_w: ImageAddressMode::Repeat, mag_filter: ImageFilterMode::Linear, min_filter: ImageFilterMode::Linear, mipmap_filter: ImageFilterMode::Linear, ..Default::default() }
+}
+
+fn ambientcg_load(server: &AssetServer, id: &str, leaf: &str, srgb: bool) -> Handle<Image> {
+    let rep = ImageSampler::Descriptor(ambientcg_repeat_descriptor());
+    server
+        .load_builder()
+        .with_settings(move |s: &mut ImageLoaderSettings| {
+            s.is_srgb = srgb;
+            s.sampler = rep.clone();
+        })
+        .load(format!("textures/ambientcg/{id}/{leaf}"))
+}
+
+/// Repeat-sampler PBR; missing maps or asset IO leaves the flat colour path.
+pub(crate) fn ambientcg_tiled_pbr(
+    flat: Color,
+    rough: f32,
+    id: &'static str,
+    uv: Vec2,
+    color_only: bool,
+    server: Option<&AssetServer>,
+    cache: Option<&mut AmbientcgTexCache>,
+) -> StandardMaterial {
+    let flat_mat = || StandardMaterial {
+        base_color: flat,
+        perceptual_roughness: rough,
+        metallic: 0.0,
+        ..default()
+    };
+    let (Some(server), Some(cache)) = (server, cache) else {
+        return flat_mat();
+    };
+    if !ambientcg_maps_on_disk(id) {
+        return flat_mat();
+    }
+    let tex = cache.0.entry(id).or_insert_with(|| {
+        (
+            ambientcg_load(server, id, "color.png", true),
+            ambientcg_load(server, id, "normal_gl.png", false),
+            ambientcg_load(server, id, "roughness.png", false),
+        )
+    });
+    let mut mat = StandardMaterial {
+        base_color: GROUND_TEX_TINT,
+        base_color_texture: Some(tex.0.clone()),
+        metallic: 0.0,
+        perceptual_roughness: 1.0,
+        uv_transform: Affine2::from_scale(uv),
+        flip_normal_map_y: false,
+        ..default()
+    };
+    if !color_only {
+        mat.normal_map_texture = Some(tex.1.clone());
+        mat.metallic_roughness_texture = Some(tex.2.clone());
+    }
+    mat
+}
+
 #[derive(Clone, Copy)]
 struct ClimateLook {
     name: &'static str,
     ground: Color,
+    ground_tex: Option<GroundSet>,
     sky: Color,
     fog: Color,
     ambient: Color,
@@ -300,6 +399,7 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
         Some(2) => ClimateLook {
             name: "Verdant Heartwood",
             ground: Color::srgb(0.20, 0.15, 0.07),
+            ground_tex: Some(GroundSet::Ground037),
             sky: HEARTWOOD_WOOD_SKY,
             fog: HEARTWOOD_WOOD_FOG,
             ambient: Color::srgb(0.62, 0.58, 0.42),
@@ -324,6 +424,7 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
                 "Voidfarer Horizon"
             },
             ground: Color::srgb(0.12, 0.12, 0.15),
+            ground_tex: None,
             sky: THRESHOLD_PIPE_SKY,
             fog: THRESHOLD_PIPE_FOG,
             ambient: Color::srgb(0.45, 0.48, 0.58),
@@ -344,6 +445,7 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
         Some(3) => ClimateLook {
             name: "Abyssal Depths",
             ground: Color::srgb(0.04, 0.08, 0.09),
+            ground_tex: Some(GroundSet::Rock050),
             sky: DEPTHS_WET_SKY,
             fog: DEPTHS_WET_FOG,
             ambient: Color::srgb(0.18, 0.42, 0.38),
@@ -362,6 +464,7 @@ fn look_for(realm: Option<u8>) -> ClimateLook {
         _ => ClimateLook {
             name: "Sanctuary Prime",
             ground: SANCTUARY_VALLEY_EARTH,
+            ground_tex: Some(GroundSet::PavingStones070),
             sky: SANCTUARY_VALLEY_SKY,
             fog: SANCTUARY_VALLEY_FOG,
             ambient: SANCTUARY_VALLEY_AMBIENT,
@@ -1351,6 +1454,7 @@ impl Plugin for ClimatePlanePlugin {
     fn build(&self, app: &mut App) {
         configure_fog_write_sets(app);
         app.init_resource::<ClimatePlane>()
+            .init_resource::<AmbientcgTexCache>()
             .init_resource::<WeatherBandCoupling>()
             .insert_resource(ClearColor(look_for(Some(0)).sky))
             // 0.17→0.18: "AmbientLight split into a component and a resource".
@@ -1402,16 +1506,19 @@ fn spawn_climate_place(
     let plan = mesh_lod::plan_for_preset(preset);
     let scale = mesh_lod::lived_place_dress_detail_scale(&plan);
     let _no_dump = mesh_lod::place_dress_uses_authored_glb(&plan);
-    let ground = meshes.add(Plane3d::default().mesh().size(56.0, 56.0));
+    let mut ground_mesh: Mesh = Plane3d::default().mesh().size(56.0, 56.0).into();
+    let _ = ground_mesh.generate_tangents();
+    let ground = meshes.add(ground_mesh);
+    let ground_mat = StandardMaterial {
+        base_color: look.ground,
+        perceptual_roughness: SANCTUARY_YARD_ROUGHNESS,
+        metallic: 0.0,
+        ..default()
+    };
     let yard = commands.spawn((
         (
             Mesh3d(ground),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: look.ground,
-                perceptual_roughness: SANCTUARY_YARD_ROUGHNESS,
-                metallic: 0.0,
-                ..default()
-            })),
+            MeshMaterial3d(materials.add(ground_mat)),
             Transform::from_xyz(0.0, 0.0, 0.0),
         ),
         ClimateGround,
@@ -1745,6 +1852,8 @@ fn apply_climate_look(
     settings: Option<Res<LocalSettingsState>>,
     mut plane: ResMut<ClimatePlane>,
     mut clear: ResMut<ClearColor>,
+    asset_server: Option<Res<AssetServer>>,
+    mut tex_cache: Option<ResMut<AmbientcgTexCache>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     grounds: Query<&MeshMaterial3d<StandardMaterial>, (With<ClimateGround>, Without<StoneGroundTile>)>,
     mut stone_vis: Query<&mut Visibility, With<StoneGroundTile>>,
@@ -1788,11 +1897,27 @@ fn apply_climate_look(
     };
     clear.0 = sky_for(Some(id), preset);
 
+    let color_only = preset == GraphicsPreset::Mobile || preset.mesh_lod() == MeshLod::Low;
     for handle in &grounds {
         if let Some(mut mat) = materials.get_mut(handle) {
-            mat.base_color = look.ground;
-            mat.perceptual_roughness = look.roughness;
-            mat.metallic = 0.0;
+            let next = match look.ground_tex {
+                Some(set) => ambientcg_tiled_pbr(
+                    look.ground,
+                    look.roughness,
+                    set.id(),
+                    Vec2::splat(GROUND_UV_TILE),
+                    color_only,
+                    asset_server.as_deref(),
+                    tex_cache.as_deref_mut(),
+                ),
+                None => StandardMaterial {
+                    base_color: look.ground,
+                    perceptual_roughness: look.roughness,
+                    metallic: 0.0,
+                    ..default()
+                },
+            };
+            *mat = next;
         }
     }
     let has = !stone_vis.is_empty();
@@ -5797,6 +5922,149 @@ mod tests {
                 assert_eq!(shown, 36, "{preset:?} realm {realm} never hidden");
             }
         }
+    }
+
+    fn ground_tex_fixture_mat(id: &'static str, uv: Vec2, color_only: bool) -> Option<StandardMaterial> {
+        if !ambientcg_maps_on_disk(id) {
+            return None;
+        }
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<Image>();
+        let server = app.world().resource::<AssetServer>().clone();
+        let mut cache = AmbientcgTexCache::default();
+        Some(ambientcg_tiled_pbr(
+            Color::BLACK,
+            0.5,
+            id,
+            uv,
+            color_only,
+            Some(&server),
+            Some(&mut cache),
+        ))
+    }
+
+    fn ground_tex_fixture_check(tag: u8) {
+        match tag {
+            1 => {
+                for (realm, want) in [
+                    (None, SANCTUARY_VALLEY_EARTH),
+                    (Some(1), Color::srgb(0.12, 0.12, 0.15)),
+                    (Some(2), Color::srgb(0.20, 0.15, 0.07)),
+                    (Some(3), Color::srgb(0.04, 0.08, 0.09)),
+                    (Some(4), Color::srgb(0.12, 0.12, 0.15)),
+                ] {
+                    assert_eq!(look_for(realm).ground, want);
+                }
+            }
+            2 => {
+                assert_eq!(look_for(Some(0)).ground_tex, Some(GroundSet::PavingStones070));
+                assert_eq!(look_for(Some(3)).ground_tex, Some(GroundSet::Rock050));
+                assert!(look_for(Some(1)).ground_tex.is_none());
+            }
+            3 => {
+                let d = ambientcg_repeat_descriptor();
+                assert_eq!((d.address_mode_u, d.address_mode_v), (ImageAddressMode::Repeat, ImageAddressMode::Repeat));
+            }
+            4 => {
+                let Some(mat) = ground_tex_fixture_mat(GroundSet::PavingStones070.id(), Vec2::splat(GROUND_UV_TILE), false)
+                else {
+                    return;
+                };
+                assert_eq!(mat.uv_transform, Affine2::from_scale(Vec2::splat(GROUND_UV_TILE)));
+            }
+            5 => {
+                let mut mesh: Mesh = Plane3d::default().mesh().size(56.0, 56.0).into();
+                assert!(mesh.generate_tangents().is_ok());
+            }
+            6 => {
+                let Some(mat) = ground_tex_fixture_mat(GroundSet::PavingStones070.id(), Vec2::ONE, true) else { return };
+                assert!(mat.normal_map_texture.is_none());
+            }
+            9 => {
+                let repo_assets = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap()).join("../assets");
+                let mut total = 0usize;
+                for id in ["PavingStones070", "Rock022", "Bark012"] {
+                    let mut set = 0usize;
+                    for leaf in ["color.png", "normal_gl.png", "roughness.png"] {
+                        let n = std::fs::read(repo_assets.join(format!("textures/ambientcg/{id}/{leaf}"))).unwrap().len();
+                        assert!(n <= 700_000);
+                        set += n;
+                        total += n;
+                    }
+                    assert!(set <= 1_500_000);
+                }
+                assert!(total <= 7_000_000);
+                let root = repo_assets.parent().unwrap().to_path_buf();
+                assert!(std::process::Command::new("bash").arg(root.join("scripts/check_asset_licenses.sh")).current_dir(&root).status().unwrap().success());
+                let pack = crate::stone_ground::tests::scratch("ground-tex-b1-pack");
+                let rel = "textures/ambientcg/PavingStones070";
+                for leaf in ["color.png", "normal_gl.png", "roughness.png"] {
+                    let dst = pack.join("assets").join(rel).join(leaf);
+                    std::fs::create_dir_all(dst.parent().unwrap()).unwrap();
+                    std::fs::copy(repo_assets.join(rel).join(leaf), dst).unwrap();
+                }
+                assert!(ambientcg_maps_on_disk_in(&pack.join("assets"), "PavingStones070"));
+                let bare = crate::stone_ground::tests::scratch("ground-tex-b1-empty");
+                assert!(!ambientcg_maps_on_disk_in(&bare.join("assets"), "PavingStones070"));
+                assert_eq!(ambientcg_tiled_pbr(Color::WHITE, 0.5, "PavingStones070", Vec2::ONE, false, None, None).base_color, Color::WHITE);
+            }
+            10 => {
+                let dir = crate::stone_ground::tests::scratch("ground-tex-f10");
+                crate::stone_ground::tests::write_pack(&dir, &crate::stone_ground::tests::layout(), crate::stone_ground::tests::PNG_1X1);
+                let mut app = App::new();
+                app.add_plugins(bevy::MinimalPlugins)
+                    .init_resource::<Assets<Mesh>>()
+                    .init_resource::<Assets<StandardMaterial>>()
+                    .init_resource::<Assets<Image>>()
+                    .init_resource::<SoftPlayerRealm>()
+                    .insert_resource(StoneAssetDir(dir))
+                    .insert_resource(LocalMeshLodFeel { preset: GraphicsPreset::Medium })
+                    .add_plugins(ClimatePlanePlugin);
+                app.update();
+                let vis = app
+                    .world_mut()
+                    .query::<(&Name, &Visibility)>()
+                    .iter(app.world())
+                    .find(|(n, _)| n.as_str() == "ClimateGround")
+                    .unwrap()
+                    .1;
+                assert_eq!(*vis, Visibility::Hidden);
+            }
+            _ => {}
+        }
+    }
+
+    #[test]
+    fn ground_tex_look_colours_unchanged() {
+        ground_tex_fixture_check(1);
+    }
+    #[test]
+    fn ground_tex_realm_set_map() {
+        ground_tex_fixture_check(2);
+    }
+    #[test]
+    fn ground_tex_repeat_sampler() {
+        ground_tex_fixture_check(3);
+    }
+    #[test]
+    fn ground_tex_uv_tiling() {
+        ground_tex_fixture_check(4);
+    }
+    #[test]
+    fn ground_tex_tangents_present() {
+        ground_tex_fixture_check(5);
+    }
+    #[test]
+    fn ground_tex_low_colour_only() {
+        ground_tex_fixture_check(6);
+    }
+    #[test]
+    fn ground_tex_assets_licensed() {
+        ground_tex_fixture_check(9);
+    }
+    #[test]
+    fn ground_tex_stone_yard_unchanged() {
+        ground_tex_fixture_check(10);
     }
 }
 
