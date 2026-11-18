@@ -6,7 +6,7 @@ use crate::combat_core::{combat_fire, predator_present, respawn_step, set_pulse,
 use crate::combat_core::{LUNGE_TELL_DOTS, LUNGE_TELL_DOT_HEIGHT, LUNGE_TELL_DOT_RADIUS, LUNGE_TELL_LIFT};
 use crate::{first_harvest_epiphany::FirstHarvestEpiphany, hex_travel::HexTravelState};
 use crate::{human_presence::SoftPresence, title_screen::LaunchDoor};
-use crate::combat_core::{ground_shot_connects, hurt_edge, hurt_pulse, play_hurt, play_tell, tell_arm};
+use crate::combat_core::{ground_shot_connects, hurt_edge, hurt_pulse, play_hit, play_hurt, play_tell, tell_arm};
 use crate::difficulty::{cue_line, enemy_hit, hides_cues, AreaDifficulty, DifficultyTier};
 
 /// North of the Threshold shelf (0,6): clear of the node, lamp, pond, Wards, both enemies and the wake point.
@@ -141,6 +141,9 @@ fn droid_tick(
     let reach = gate && place.zip(at).is_some_and(|(pl, p)| droid_in_reach(pl, &state, p.x, p.z));
     let strike_b = state.taken;
     let line = strike_step(&mut state, &mut last, combat.strikes, gate, reach);
+    if line.as_ref().is_some_and(|l| !l.starts_with("Missed")) {
+        play_hit(&mut cmd, assets.as_deref(), mute.as_deref(), true);
+    }
     let strike_miss = line.as_ref().is_some_and(|l| l.starts_with("Missed"));
     let line = line.map(|l| cue_line(tier, l, HEALTH - state.taken, HEALTH));
     if let (Some(line), Some(epi)) = (line, epi.as_mut()) {
@@ -544,6 +547,32 @@ mod tests {
         let absent = run_droid_tick(None, 0.4, DROID_SHOT_SECS);
         assert_eq!((absent.resource::<CombatState>().player_taken, absent.resource::<CombatState>().hurt, absent.resource::<DroidState>().shot_timer), (0, 0, 0.0));
         assert!(absent.get_resource::<SoftPresence>().is_none());
+    }
+
+    #[test]
+    fn sfx_wire_droid_landed_hit_once() {
+        let n = shared::peace_audio::audio_output_safe() as usize;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()));
+        app.insert_resource(Time::<()>::default());
+        app.insert_resource(HexTravelState { current: PlaceId::Heartwood });
+        app.insert_resource(LaunchDoor::InYard);
+        app.insert_resource(SoftPresence { position: Vec3::new(DROID_HOME[0], 0.0, DROID_HOME[1]), grounded: true, ..Default::default() });
+        app.insert_resource(CombatState { strikes: 1, ..Default::default() });
+        app.insert_resource(DroidState::default());
+        app.insert_resource(FirstHarvestEpiphany::default());
+        app.insert_resource(crate::local_settings::MasterMuteGain { gain: 1.0, muted: false });
+        app.insert_resource(AreaDifficulty::default());
+        app.add_systems(Update, droid_tick);
+        app.update();
+        assert_eq!(app.world_mut().query::<&AudioPlayer>().iter(app.world_mut()).count(), n);
+    }
+
+    #[test]
+    fn sfx_wire_muted_or_zero_gain_silent_droid() {
+        let full = crate::local_settings::MasterMuteGain { gain: 1.0, muted: false };
+        assert_eq!(crate::combat_core::hit_volume(true, Some(&full)), Some(crate::combat_core::HIT_GAIN));
+        assert_eq!(crate::combat_core::hit_volume(true, Some(&crate::local_settings::MasterMuteGain { gain: 1.0, muted: true })), None);
     }
 
     #[test]
