@@ -864,17 +864,18 @@ pub fn signpost_step(sign: &mut Signpost, now: f64, can_arm: bool, arrived: bool
 }
 pub fn decode_seen(raw: Option<&str>) -> bool { raw.and_then(|s| serde_json::from_str::<bool>(s.trim()).ok()).unwrap_or(false) }
 fn load_signpost(mut sign: ResMut<Signpost>) { sign.seen = decode_seen(shared::user_persist::read_named(SIGNPOST_SAVE).ok().as_deref()); }
-/// GUIDE-FIGHT-1 — FreeExploration only, Sanctuary yard, no door line.
-/// Book-end dismiss does not block arming.
+/// CAST-FIX-1 — OpenInventory onward while the lived card is up, or FreeExploration.
+/// Sanctuary yard, no door line. Book-end dismiss does not block FreeExploration.
 fn signpost_can_arm(guidance: &FirstSessionGuidance, place: PlaceId, in_yard: bool) -> bool {
     place == PlaceId::Sanctuary
         && in_yard
-        && guidance.objective == GuidanceObjective::FreeExploration
         && door_line_on_card(guidance).is_none()
+        && ((!guidance.objective.is_first_minutes() && guidance.active && !guidance.dismissed)
+            || guidance.objective == GuidanceObjective::FreeExploration)
 }
 fn update_signpost(
     time: Res<Time>,
-    (door, travel, presence): (Option<Res<LaunchDoor>>, Option<Res<HexTravelState>>, Option<Res<SoftPresence>>),
+    (door, travel, presence, nearby): (Option<Res<LaunchDoor>>, Option<Res<HexTravelState>>, Option<Res<SoftPresence>>, Option<Res<NearbyMercyNode>>),
     guidance: Res<FirstSessionGuidance>,
     mut sign: ResMut<Signpost>,
 ) {
@@ -882,7 +883,7 @@ fn update_signpost(
     let in_yard = door.as_deref().copied() == Some(LaunchDoor::InYard);
     let (place, p) = (travel.current, presence.position);
     let mut next = sign.clone();
-    let save = signpost_step(&mut next, time.elapsed_secs_f64(), signpost_can_arm(&guidance, place, in_yard), place == PlaceId::Sanctuary && crate::combat_core::at_fight_home(place, p.x, p.z));
+    let save = signpost_step(&mut next, time.elapsed_secs_f64(), signpost_can_arm(&guidance, place, in_yard) && !nearby.as_ref().is_some_and(|n| n.in_range), place == PlaceId::Sanctuary && crate::combat_core::at_fight_home(place, p.x, p.z));
     if next != *sign { *sign = next; } // Clerk N1: write only on a real change, so the redraw gate stays quiet
     if save { let _ = shared::user_persist::write_named(SIGNPOST_SAVE, "true"); }
 }
@@ -1328,8 +1329,8 @@ mod tests {
     fn signpost_shows_once_after_first_minutes() {
         let first = FirstSessionGuidance { objective: GuidanceObjective::MoveAround, ..tended() };
         assert!(!signpost_can_arm(&first, PlaceId::Sanctuary, true), "yields to walk, glow and tend");
-        // GUIDE-FIGHT-1 retarget: OpenInventory no longer arms. FreeExploration does.
-        assert!(!signpost_can_arm(&tended(), PlaceId::Sanctuary, true), "OpenInventory does not arm");
+        // CAST-FIX-1: OpenInventory onward arms; FreeExploration keeps the GF1 step path.
+        assert!(signpost_can_arm(&tended(), PlaceId::Sanctuary, true), "OpenInventory onward arms");
         assert!(!signpost_can_arm(&tended(), PlaceId::Sanctuary, false) && !signpost_can_arm(&tended(), PlaceId::Heartwood, true));
         let free = FirstSessionGuidance { objective: GuidanceObjective::FreeExploration, ..tended() };
         let can = signpost_can_arm(&free, PlaceId::Sanctuary, true);
@@ -1339,6 +1340,78 @@ mod tests {
         assert!(!signpost_step(&mut s, 3.0, can, false) && !signpost_showing(&s), "never re-arms");
         assert!(SIGNPOST_LINE.len() < 48 && card_line(SIGNPOST_LINE).starts_with(SIGNPOST_LINE));
         assert!(crate::hud_presets::hud_contrast_ratio(TITLE_TEXT_PRIMARY, TITLE_PLATE_BG) >= 3.0, "PRIMARY on PLATE (PULSE slab)");
+    }
+
+    #[test]
+    fn cast_fix_signpost_arms_early_hour_one() {
+        let y = |g: &FirstSessionGuidance| signpost_can_arm(g, PlaceId::Sanctuary, true);
+        assert!(y(&tended()));
+        assert!(!y(&FirstSessionGuidance { objective: GuidanceObjective::MoveAround, ..tended() })
+            && !y(&FirstSessionGuidance { objective: GuidanceObjective::ApproachGlowingNode, ..tended() })
+            && !y(&FirstSessionGuidance { objective: GuidanceObjective::HarvestWithInteract, ..tended() }));
+        assert!(!signpost_can_arm(&tended(), PlaceId::Heartwood, true) && !signpost_can_arm(&tended(), PlaceId::Depths, true));
+        assert!(!signpost_can_arm(&tended(), PlaceId::Sanctuary, false));
+        assert!(!y(&FirstSessionGuidance { objective: GuidanceObjective::OpenInventory, house_live: true, harvests_completed: 1, ..Default::default() }));
+        assert!(!y(&FirstSessionGuidance { objective: GuidanceObjective::OpenInventory, dismissed: true, active: false, ..Default::default() }));
+        assert!(y(&FirstSessionGuidance { objective: GuidanceObjective::FreeExploration, dismissed: true, active: false, ..Default::default() }));
+    }
+
+    #[test]
+    fn cast_fix_signpost_visible_first_session() {
+        use bevy::ecs::system::RunSystemOnce;
+        let _user_dir = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("cf2");
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .init_resource::<FirstSessionGuidance>().init_resource::<Signpost>()
+            .insert_resource(LaunchDoor::InYard)
+            .insert_resource(HexTravelState { current: PlaceId::Sanctuary })
+            .insert_resource(SoftPresence::default()).insert_resource(NearbyMercyNode::default());
+        app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::OpenInventory;
+        let world = app.world_mut();
+        world.run_system_once(spawn_guidance_strip).unwrap();
+        world.run_system_once(update_signpost).unwrap();
+        world.run_system_once(update_guidance_text).unwrap();
+        world.run_system_once(update_guidance_visibility).unwrap();
+        assert_eq!(guidance_card_section(&mut app).1, card_line(SIGNPOST_LINE));
+        assert_eq!(guidance_strip_visibility(&mut app), Visibility::Visible);
+        let [fx, fz] = crate::combat_core::STAVEHOLD_FIGHT_HOME;
+        app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(fx, 0.0, fz);
+        app.world_mut().run_system_once(update_signpost).unwrap();
+        assert!(dir.join(SIGNPOST_SAVE).exists());
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn cast_fix_signpost_waits_off_glow() {
+        use bevy::ecs::system::RunSystemOnce;
+        let _user_dir = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("cf3");
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins)
+            .init_resource::<FirstSessionGuidance>()
+            .init_resource::<Signpost>()
+            .insert_resource(LaunchDoor::InYard)
+            .insert_resource(HexTravelState {
+                current: PlaceId::Sanctuary,
+            })
+            .insert_resource(SoftPresence::default())
+            .insert_resource(NearbyMercyNode {
+                in_range: true,
+                ..Default::default()
+            });
+        app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::OpenInventory;
+        app.world_mut().run_system_once(update_signpost).unwrap();
+        let sign = app.world().resource::<Signpost>();
+        assert!(sign.until.is_none() && !signpost_showing(sign));
+        assert!(!dir.join(SIGNPOST_SAVE).exists());
+        app.world_mut().resource_mut::<NearbyMercyNode>().in_range = false;
+        app.world_mut().run_system_once(update_signpost).unwrap();
+        let now = app.world().resource::<Time>().elapsed_secs_f64();
+        let sign = app.world().resource::<Signpost>();
+        assert!(signpost_showing(sign));
+        assert_eq!(sign.until, Some(now + SIGNPOST_SECS));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]
@@ -1367,24 +1440,28 @@ mod tests {
         assert!(!signpost_can_arm(&tended(), PlaceId::Heartwood, true) && !signpost_can_arm(&tended(), PlaceId::Depths, true));
     }
 
-    /// CARD GUIDE-FIGHT-1 — GF4. Not armable at OpenInventory. Armable at FreeExploration.
+    /// CARD GUIDE-FIGHT-1 / CAST-FIX-1 — GF4. OpenInventory onward and FreeExploration.
     #[test]
     fn guide_fight_gf4_not_open_inventory_yes_free_exploration() {
         let open = tended();
         let hour = FirstSessionGuidance { objective: GuidanceObjective::HourTwoHeld, ..tended() };
         let free = FirstSessionGuidance { objective: GuidanceObjective::FreeExploration, ..tended() };
-        let door = FirstSessionGuidance {
+        let free_dismissed = FirstSessionGuidance { objective: GuidanceObjective::FreeExploration, dismissed: true, active: false, ..Default::default() };
+        let door_open = FirstSessionGuidance { objective: GuidanceObjective::OpenInventory, house_live: true, harvests_completed: 1, ..Default::default() };
+        let door_free = FirstSessionGuidance {
             objective: GuidanceObjective::FreeExploration,
             house_live: true,
             harvests_completed: 1,
             ..Default::default()
         };
-        assert!(!signpost_can_arm(&open, PlaceId::Sanctuary, true), "not at OpenInventory");
-        assert!(!signpost_can_arm(&hour, PlaceId::Sanctuary, true), "not at Hour two");
-        assert!(signpost_can_arm(&free, PlaceId::Sanctuary, true), "arms at FreeExploration");
+        assert!(signpost_can_arm(&open, PlaceId::Sanctuary, true), "OpenInventory onward");
+        assert!(signpost_can_arm(&hour, PlaceId::Sanctuary, true), "past first minutes");
+        assert!(signpost_can_arm(&free, PlaceId::Sanctuary, true), "FreeExploration");
+        assert!(signpost_can_arm(&free_dismissed, PlaceId::Sanctuary, true), "dismissed FreeExploration");
         assert!(!signpost_can_arm(&free, PlaceId::Sanctuary, false));
         assert!(!signpost_can_arm(&free, PlaceId::Heartwood, true) && !signpost_can_arm(&free, PlaceId::Depths, true));
-        assert!(!signpost_can_arm(&door, PlaceId::Sanctuary, true), "a live door line blocks");
+        assert!(!signpost_can_arm(&door_open, PlaceId::Sanctuary, true), "OpenInventory door line blocks");
+        assert!(!signpost_can_arm(&door_free, PlaceId::Sanctuary, true), "FreeExploration door line blocks");
     }
 
     /// CARD GUIDE-FIGHT-1 — GF3. After the book-end dismiss the signpost can still arm and show, and H hides it.
