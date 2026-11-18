@@ -4,8 +4,10 @@
 //! One process. No cross-process exclusion.
 //! Final exit wait is a 250 ms design ceiling, not a measured guarantee.
 
+use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
 use bevy::mesh::{ConeAnchor, ConeMeshBuilder, CylinderAnchor, CylinderMeshBuilder};
 use bevy::prelude::*;
+use shared::peace_audio::audio_output_safe;
 use serde::{Deserialize, Serialize};
 use shared::heartwood_wards::{WARD_POST_CENTERS, WARD_USE_RADIUS};
 use shared::hex_travel::PlaceId;
@@ -1119,6 +1121,17 @@ pub(crate) fn claim_wood_press(
     claim.held = true;
     claim.prior = Some(prior);
 }
+pub const WOOD_CHOP_ASSET: &str = "audio/wood_chop.ogg";
+pub const WOOD_CHOP_GAIN: f32 = 0.04;
+pub(crate) fn wood_chop_volume(mute: Option<&crate::local_settings::MasterMuteGain>) -> Option<f32> {
+    let gain = mute.map_or(1.0, |m| if m.muted { 0.0 } else { m.gain }) * WOOD_CHOP_GAIN;
+    (gain > 0.0).then_some(gain)
+}
+pub(crate) fn play_wood_chop(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&crate::local_settings::MasterMuteGain>) {
+    if let (true, Some(gain), Some(assets)) = (audio_output_safe(), wood_chop_volume(mute), assets) {
+        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(WOOD_CHOP_ASSET)), PlaybackSettings::DESPAWN.with_volume(Volume::Linear(gain))));
+    }
+}
 pub(crate) fn admit_wood_press(
     claim: Res<WoodClaim>,
     mut hub: ResMut<WoodHub>,
@@ -1127,6 +1140,9 @@ pub(crate) fn admit_wood_press(
     realm: Option<Res<crate::living_practice_loop::SoftPlayerRealm>>,
     door: Option<Res<crate::title_screen::LaunchDoor>>,
     house: Option<Res<crate::title_screen::HouseLabel>>,
+    mut cmd: Commands,
+    assets: Option<Res<AssetServer>>,
+    mute: Option<Res<crate::local_settings::MasterMuteGain>>,
 ) {
     let Some(prior) = claim.prior.clone() else {
         return;
@@ -1139,7 +1155,9 @@ pub(crate) fn admit_wood_press(
     {
         return;
     }
-    let _ = hub.commit_at(&prior);
+    if hub.commit_at(&prior).is_ok() {
+        play_wood_chop(&mut cmd, assets.as_deref(), mute.as_deref());
+    }
 }
 pub(crate) fn project_wood(
     mut commands: Commands,
@@ -1147,12 +1165,21 @@ pub(crate) fn project_wood(
     mut view: ResMut<WoodView>,
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
     realm: Option<Res<crate::living_practice_loop::SoftPlayerRealm>>,
+    settings: Option<Res<crate::local_settings::LocalSettingsState>>,
+    asset_server: Option<Res<AssetServer>>,
+    mut tex_cache: Option<ResMut<crate::climate_plane::AmbientcgTexCache>>,
     mut meshes: Option<ResMut<Assets<Mesh>>>,
     mut materials: Option<ResMut<Assets<StandardMaterial>>>,
     people: Query<Entity, With<crate::human_presence::HumanPresence>>,
     trees: Query<Entity, With<OwnedTree>>,
     bark: Query<Entity, With<BarkBit>>,
 ) {
+    let preset = settings
+        .as_ref()
+        .map(|s| s.inner.graphics_preset)
+        .unwrap_or(shared::local_settings::GraphicsPreset::Medium);
+    let color_only = preset == shared::local_settings::GraphicsPreset::Mobile
+        || preset.mesh_lod() == shared::local_settings::MeshLod::Low;
     let doc = hub.view_doc();
     let unit = doc.as_ref().map(|doc| doc.unit).unwrap_or(0);
     let standing = doc
@@ -1169,10 +1196,15 @@ pub(crate) fn project_wood(
                 (meshes.as_mut(), materials.as_mut(), first_passing_site())
             {
                 let y = crate::vegetation::seated_ground(site.x, site.y);
-                let bark_mat = materials.add(StandardMaterial {
-                    base_color: Color::srgb(0.29, 0.20, 0.13),
-                    ..default()
-                });
+                let bark_mat = materials.add(crate::climate_plane::ambientcg_tiled_pbr(
+                    Color::srgb(0.29, 0.20, 0.13),
+                    0.5,
+                    "Bark012",
+                    Vec2::new(1.0, 3.0),
+                    color_only,
+                    asset_server.as_deref(),
+                    tex_cache.as_deref_mut(),
+                ));
                 let leaf = materials.add(StandardMaterial {
                     base_color: Color::srgb(0.12, 0.34, 0.15),
                     ..default()
@@ -1203,10 +1235,15 @@ pub(crate) fn project_wood(
             if let (Some(meshes), Some(materials), Some(parent)) =
                 (meshes.as_mut(), materials.as_mut(), people.iter().next())
             {
-                let mat = materials.add(StandardMaterial {
-                    base_color: Color::srgb(0.29, 0.20, 0.13),
-                    ..default()
-                });
+                let mat = materials.add(crate::climate_plane::ambientcg_tiled_pbr(
+                    Color::srgb(0.29, 0.20, 0.13),
+                    0.5,
+                    "Bark012",
+                    Vec2::new(1.0, 3.0),
+                    color_only,
+                    asset_server.as_deref(),
+                    tex_cache.as_deref_mut(),
+                ));
                 commands.entity(parent).with_children(|child| {
                     child.spawn((
                         Mesh3d(meshes.add(bark_mesh())),
@@ -3391,6 +3428,38 @@ pub(crate) mod tests {
         }
     }
 
+    #[test]
+    fn sfx_wire_muted_or_zero_gain_silent_wood() {
+        let full = crate::local_settings::MasterMuteGain { gain: 1.0, muted: false };
+        assert_eq!(super::wood_chop_volume(Some(&full)), Some(super::WOOD_CHOP_GAIN));
+        assert_eq!(super::wood_chop_volume(Some(&crate::local_settings::MasterMuteGain { gain: 1.0, muted: true })), None);
+        assert_eq!(super::wood_chop_volume(Some(&crate::local_settings::MasterMuteGain { gain: 0.0, muted: false })), None);
+    }
+
+    #[test]
+    fn sfx_wire_wood_commit_one_chop_no_sting() {
+        let n = audio_output_safe() as usize;
+        let mut app = schedule_app(open_hub());
+        app.add_plugins(bevy::asset::AssetPlugin::default()).insert_resource(crate::local_settings::MasterMuteGain { gain: 1.0, muted: false });
+        let h0 = app.world().resource::<crate::harvest_feel::SoftRbePool>().harvests;
+        app.update();
+        press(&mut app);
+        app.update();
+        app.world_mut().resource_mut::<crate::input::PlayerInput>().interact = false;
+        app.update();
+        assert_eq!((app.world_mut().query::<&AudioPlayer>().iter(app.world_mut()).count(), app.world().resource::<crate::harvest_feel::SoftRbePool>().harvests), (n, h0));
+        let mut bad = schedule_app(open_hub());
+        bad.add_plugins(bevy::asset::AssetPlugin::default()).insert_resource(crate::local_settings::MasterMuteGain { gain: 1.0, muted: false });
+        bad.update();
+        bad.world_mut().resource_mut::<WoodHub>().shutdown();
+        press(&mut bad);
+        bad.update();
+        assert_eq!(bad.world_mut().query::<&AudioPlayer>().iter(bad.world_mut()).count(), 0);
+    }
+
+    #[test]
+    fn sfx_wire_gain_pins_wood() { assert!(super::WOOD_CHOP_GAIN > 0.0); }
+
     /// WU10 (H3) — the harvested bytes plus an unknown key stay inert from live or bak, and nothing publishes.
     #[test]
     fn wu10_extra_field_wood_json_stays_inert() {
@@ -3404,5 +3473,25 @@ pub(crate) mod tests {
             hub.shutdown();
             assert!(fake.publishes().is_empty());
         }
+    }
+
+    #[test]
+    fn ground_tex_wood_bark() {
+        if !crate::climate_plane::ambientcg_maps_on_disk("Bark012") {
+            return;
+        }
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default())).init_asset::<Image>();
+        let mut cache = crate::climate_plane::AmbientcgTexCache::default();
+        let m = crate::climate_plane::ambientcg_tiled_pbr(
+            Color::srgb(0.29, 0.20, 0.13),
+            0.5,
+            "Bark012",
+            Vec2::new(1.0, 3.0),
+            false,
+            app.world().get_resource::<AssetServer>(),
+            Some(&mut cache),
+        );
+        assert!(m.base_color_texture.is_some());
     }
 }
