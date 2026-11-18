@@ -1,5 +1,6 @@
-//! COMBAT-CORE-1 — offline PvE: one predator in the Heartwood Teeth band.
-//! Health is client-local. No PvP, no kill XP, no loot. Online stays grey.
+//! COMBAT-CORE-1 — offline PvE: `predator_present` gates the Heartwood Teeth run;
+//! Sanctuary practice goes through `fight_present`. Health is client-local.
+//! No PvP, no kill XP, no loot. Online stays grey.
 
 use bevy::input::gamepad::GamepadRumbleRequest;
 use bevy::prelude::*;
@@ -245,7 +246,7 @@ pub fn strike_pressed(fire: bool, slot: Option<u32>, gate: bool) -> bool {
     fire || (slot_strikes(slot) && gate)
 }
 
-/// The predator lives only in Heartwood. Never Sanctuary, never Depths.
+/// Heartwood-run gate only; Sanctuary practice uses `fight_present`, not this.
 pub fn predator_present(place: PlaceId) -> bool {
     place == PlaceId::Heartwood
 }
