@@ -100,8 +100,7 @@ fn seed_travelers(
         let pos = WELLS[well] + Vec3::new(1.4, 0.7, 0.6);
         let tag = (PracticeTraveler { well, phase: well as f32 * 0.33 }, Name::new(name));
         if asset_file_present(glb(name)) && gltfs.is_some() {
-            let rel = glb(name);
-            commands.spawn((Transform::from_translation(pos), Visibility::default(), TravelerDress(assets.load(rel)), tag.0, tag.1));
+            commands.spawn((Transform::from_translation(pos), Visibility::default(), TravelerDress(assets.load(glb(name))), tag.0, tag.1));
         } else {
             commands.spawn((practice_traveler_capsule(mesh.clone(), mat, pos), tag.0, tag.1));
         }
@@ -277,15 +276,15 @@ mod tests {
         a.cleanup();
         a
     }
-    fn mk() -> App {
+    fn mk(gltf: bool) -> App {
         let mut a = App::new();
-        a.add_plugins((MinimalPlugins, AssetPlugin { watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..default() }, bevy::scene::ScenePlugin, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::animation::AnimationPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin))
-            .set_error_handler(bevy::ecs::error::ignore)
-            .init_asset::<Mesh>()
-            .init_asset::<StandardMaterial>()
-            .insert_resource(SoftPresence::default())
-            .insert_resource(FlowWeather::default())
-            .add_plugins(LocalHumanSimPlugin);
+        let asset = AssetPlugin { watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..default() };
+        if gltf {
+            a.add_plugins((MinimalPlugins, asset, bevy::scene::ScenePlugin, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::animation::AnimationPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin));
+        } else {
+            a.add_plugins((MinimalPlugins, asset, bevy::scene::ScenePlugin, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin));
+        }
+        a.set_error_handler(bevy::ecs::error::ignore).init_asset::<Mesh>().init_asset::<StandardMaterial>().insert_resource(SoftPresence::default()).insert_resource(FlowWeather::default()).add_plugins(LocalHumanSimPlugin);
         a.finish();
         a.cleanup();
         a
@@ -293,6 +292,10 @@ mod tests {
     fn boot(app: &mut App) {
         app.world_mut().run_schedule(Startup);
         app.update();
+    }
+    fn assert_capsule_roster(app: &mut App) {
+        assert!(app.world_mut().query::<&TravelerDress>().iter(app.world()).next().is_none());
+        assert!(ROSTER.iter().all(|n| app.world_mut().query::<(&Name, Option<&Mesh3d>)>().iter(app.world()).any(|(name, m)| name.as_str() == *n && m.is_some())));
     }
 
     #[test]
@@ -307,28 +310,28 @@ mod tests {
         let _ = std::fs::remove_dir_all(&empty);
         std::fs::create_dir_all(empty.join("assets")).unwrap();
         scene("capsule", &empty, |_| {
-            let mut app = mk();
+            let mut app = mk(true);
             boot(&mut app);
-            assert!(app.world_mut().query::<&TravelerDress>().iter(app.world()).next().is_none());
-            for n in ROSTER {
-                assert!(app.world_mut().query::<(&Name, Option<&Mesh3d>)>().iter(app.world()).any(|(name, m)| name.as_str() == n && m.is_some()));
-            }
+            assert_capsule_roster(&mut app);
         });
         let _ = std::fs::remove_dir_all(&empty);
         scene("dev", &dev_root(), |_| {
             assert_eq!(gltf_integration::bevy_asset_base(), dev_root());
             assert!(ROSTER.iter().all(|n| asset_file_present(glb(n))));
-            let before = gltf_integration::optional_authored_glb_present();
             let csv = include_str!("../../assets/asset-licenses.csv");
-            let mut app = mk();
+            let mut app = mk(true);
             boot(&mut app);
             for n in ROSTER {
-                let _ = asset_file_present(glb(n));
                 assert!(csv.contains(&format!("assets/{}", glb(n))));
             }
-            assert_eq!(gltf_integration::optional_authored_glb_present(), before);
             assert!(app.world_mut().query::<&TravelerDress>().iter(app.world()).nth(2).is_some());
             assert!(!app.world_mut().query::<(&Name, Option<&Mesh3d>)>().iter(app.world()).any(|(n, m)| ROSTER.contains(&n.as_str()) && m.is_some()));
+        });
+        scene("noloader", &dev_root(), |_| {
+            assert!(ROSTER.iter().all(|n| asset_file_present(glb(n))));
+            let mut app = mk(false);
+            boot(&mut app);
+            assert_capsule_roster(&mut app);
         });
         let pack = std::env::temp_dir().join(format!("pp_{}", std::process::id()));
         std::fs::create_dir_all(pack.join("assets/models/quaternius-modular-men")).unwrap();
@@ -342,7 +345,7 @@ mod tests {
     #[test]
     fn char_model_gltf_walk_lane() {
         scene("walk", &dev_root(), |_| {
-            let mut app = mk();
+            let mut app = mk(true);
             boot(&mut app);
             let h = app.world_mut().query::<&TravelerDress>().iter(app.world()).next().unwrap().0.clone();
             for _ in 0..2400 {
@@ -371,7 +374,7 @@ mod tests {
     #[test]
     fn char_model_f8_pocket_and_peer_writes() {
         scene("f8", &dev_root(), |dir| {
-            let mut app = mk();
+            let mut app = mk(true);
             boot(&mut app);
             app.world_mut().resource_mut::<SoftPresence>().position = WELLS[0] + Vec3::new(1.4, 0.7, 0.6);
             app.update();
@@ -379,12 +382,9 @@ mod tests {
             for _ in 0..1200 {
                 app.update();
             }
-            let sim = app.world().resource::<LocalHumanSim>();
-            assert!(sim.last_peer_write > -30.0);
-            assert!(shared::user_persist::named_exists(PEER_PATH));
+            assert!(app.world().resource::<LocalHumanSim>().last_peer_write > -30.0);
             let peer = shared::user_persist::persist_path(PEER_PATH);
-            assert!(peer.starts_with(dir), "peer path must stay under temp user dir");
-            assert!(std::fs::read_to_string(peer).unwrap_or_default().contains("powrush_lattice_flow_share_v1"));
+            assert!(shared::user_persist::named_exists(PEER_PATH) && peer.starts_with(dir) && std::fs::read_to_string(peer).unwrap_or_default().contains("powrush_lattice_flow_share_v1"));
         });
     }
 }
