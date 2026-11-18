@@ -160,7 +160,7 @@ use bevy::image::{
 };
 use bevy::math::Affine2;
 use bevy::prelude::*;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use shared::local_settings::{GraphicsPreset, MeshLod, WeatherFidelity};
 
@@ -301,9 +301,12 @@ const GROUND_UV_TILE: f32 = 14.0;
 fn ground_assets_dir() -> PathBuf {
     bevy::asset::io::file::FileAssetReader::get_base_path().join("assets")
 }
-pub(crate) fn ambientcg_maps_on_disk(id: &str) -> bool {
-    let root = ground_assets_dir().join(format!("textures/ambientcg/{id}"));
+pub(crate) fn ambientcg_maps_on_disk_in(assets_root: &Path, id: &str) -> bool {
+    let root = assets_root.join(format!("textures/ambientcg/{id}"));
     ["color.png", "normal_gl.png", "roughness.png"].iter().all(|n| root.join(n).is_file())
+}
+pub(crate) fn ambientcg_maps_on_disk(id: &str) -> bool {
+    ambientcg_maps_on_disk_in(&ground_assets_dir(), id)
 }
 
 #[derive(Resource, Default)]
@@ -5993,7 +5996,6 @@ mod tests {
                 assert!(total <= 7_000_000);
                 let root = repo_assets.parent().unwrap().to_path_buf();
                 assert!(std::process::Command::new("bash").arg(root.join("scripts/check_asset_licenses.sh")).current_dir(&root).status().unwrap().success());
-                let prev = std::env::var("BEVY_ASSET_ROOT").ok();
                 let pack = crate::stone_ground::tests::scratch("ground-tex-b1-pack");
                 let rel = "textures/ambientcg/PavingStones070";
                 for leaf in ["color.png", "normal_gl.png", "roughness.png"] {
@@ -6001,13 +6003,10 @@ mod tests {
                     std::fs::create_dir_all(dst.parent().unwrap()).unwrap();
                     std::fs::copy(repo_assets.join(rel).join(leaf), dst).unwrap();
                 }
-                std::env::set_var("BEVY_ASSET_ROOT", &pack);
-                assert!(ambientcg_maps_on_disk("PavingStones070"));
+                assert!(ambientcg_maps_on_disk_in(&pack.join("assets"), "PavingStones070"));
                 let bare = crate::stone_ground::tests::scratch("ground-tex-b1-empty");
-                std::env::set_var("BEVY_ASSET_ROOT", &bare);
-                assert!(!ambientcg_maps_on_disk("PavingStones070"));
+                assert!(!ambientcg_maps_on_disk_in(&bare.join("assets"), "PavingStones070"));
                 assert_eq!(ambientcg_tiled_pbr(Color::WHITE, 0.5, "PavingStones070", Vec2::ONE, false, None, None).base_color, Color::WHITE);
-                if let Some(v) = prev { std::env::set_var("BEVY_ASSET_ROOT", v); } else { std::env::remove_var("BEVY_ASSET_ROOT"); }
             }
             10 => {
                 let dir = crate::stone_ground::tests::scratch("ground-tex-f10");
