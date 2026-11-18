@@ -26,6 +26,7 @@
 //!
 //! Contact: info@Rathor.ai
 
+use bevy::prelude::{Handle, Mesh, Mesh3d, MeshMaterial3d, StandardMaterial, Transform, Vec3};
 use shared::local_settings::GraphicsPreset;
 pub use shared::local_settings::MeshLod;
 
@@ -131,6 +132,25 @@ pub fn optional_authored_glb_present_in(dir: &std::path::Path) -> bool {
     })
 }
 
+/// Bevy `FileAssetReader` root (`BEVY_ASSET_ROOT`, else `CARGO_MANIFEST_DIR`, else exe dir).
+pub fn bevy_asset_base() -> std::path::PathBuf {
+    bevy::asset::io::file::FileAssetReader::get_base_path()
+}
+
+pub fn asset_file_present(rel: &str) -> bool {
+    use std::io::Read;
+    let path = bevy_asset_base().join("assets").join(rel);
+    let Ok(mut file) = std::fs::File::open(&path) else { return false; };
+    let mut head = [0u8; 12];
+    if file.read_exact(&mut head).is_err() || head.starts_with(b"version https://git-lfs.github.com/spec/v1") {
+        return false;
+    }
+    head[..4] == *b"glTF"
+}
+
+pub fn practice_traveler_capsule(mesh: Handle<Mesh>, mat: Handle<StandardMaterial>, pos: Vec3) -> (Mesh3d, MeshMaterial3d<StandardMaterial>, Transform) {
+    (Mesh3d(mesh), MeshMaterial3d(mat), Transform::from_translation(pos))
+}
 /// Presence of the UAL1 Standard body under the AssetServer root
 /// (`assets/`), resolved the same way Bevy's default `FileAssetReader`
 /// does: `BEVY_ASSET_ROOT`, else `CARGO_MANIFEST_DIR`, else the
