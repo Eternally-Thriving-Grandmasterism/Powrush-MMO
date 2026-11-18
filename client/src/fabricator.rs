@@ -759,6 +759,36 @@ mod tests {
         peace.world_mut().resource_mut::<WoodHub>().shutdown();
     }
 
+    /// LT2 — refine cue on card, real Q, then cue clears.
+    #[test]
+    fn loop_teach_lt2_refine_cue_real_q() {
+        use crate::first_session_guidance::{card_line, spawn_guidance_strip, update_guidance_text, FirstSessionGuidance, FirstSessionGuidanceText, GuidanceObjective, LOOP_REFINE_CUE, Signpost};
+        use crate::wood_expedition::WoodView;
+        use bevy::ecs::system::RunSystemOnce;
+        crate::loot_drops::tests::in_user_dir("lt2", |dir| {
+            let (hub, _) = carried_hub();
+            let (mut app, _) = q_app(true, 3, hub);
+            app.init_resource::<FirstSessionGuidance>().init_resource::<Signpost>().init_resource::<WoodView>()
+                .insert_resource(HexTravelState { current: PlaceId::Sanctuary });
+            app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::PlantFabricator;
+            app.world_mut().run_system_once(spawn_guidance_strip).unwrap();
+            *app.world_mut().resource_mut::<WoodView>() = WoodView { unit: 1, standing: false };
+            app.world_mut().run_system_once(update_guidance_text).unwrap();
+            let goal = card_line(GuidanceObjective::PlantFabricator.prompt());
+            let card = |a: &mut App| a.world_mut().query_filtered::<&bevy::prelude::Text, With<FirstSessionGuidanceText>>().single(a.world()).unwrap().as_str().to_string();
+            assert!(card(&mut app).contains(LOOP_REFINE_CUE));
+            press_q(&mut app);
+            *app.world_mut().resource_mut::<WoodView>() = WoodView { unit: 0, standing: false };
+            assert_eq!((crate_stock(&app.world().resource::<FabricatorYard>().fab), app.world().resource::<WoodHub>().memory_unit()), (1, Some(0)));
+            app.world_mut().run_system_once(update_guidance_text).unwrap();
+            assert_eq!(card(&mut app), goal);
+            press_q(&mut app);
+            assert_eq!(crate_stock(&app.world().resource::<FabricatorYard>().fab), 1);
+            app.world_mut().resource_mut::<WoodHub>().shutdown();
+            assert!(dir.starts_with(std::env::temp_dir()));
+        });
+    }
+
     /// WU5 — the first civic LaneCrate still runs on Q with wood carried, still writes tons, and leaves the wood.
     #[test]
     fn wu5_first_lane_crate_keeps_on_lane_and_leaves_wood() {
