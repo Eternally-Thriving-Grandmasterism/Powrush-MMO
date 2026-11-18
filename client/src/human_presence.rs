@@ -1769,29 +1769,6 @@ fn setup_ual1_animation_graph(
 }
 
 /// Attach the graph to the scene's AnimationPlayer once WorldAssetRoot has spawned it.
-pub(crate) fn attach_authored_gltf_loop(
-    commands: &mut Commands,
-    graph: Handle<AnimationGraph>,
-    node: AnimationNodeIndex,
-    root: Entity,
-    children: &Query<&Children>,
-    players: &mut Query<(Entity, &mut AnimationPlayer), Without<AnimationGraphHandle>>,
-) {
-    for desc in children.iter_descendants(root) {
-        let Ok((entity, mut player)) = players.get_mut(desc) else {
-            continue;
-        };
-        let mut transitions = AnimationTransitions::new();
-        transitions
-            .play(&mut player, node, Duration::ZERO)
-            .repeat();
-        commands
-            .entity(entity)
-            .insert(AnimationGraphHandle(graph.clone()))
-            .insert(transitions);
-    }
-}
-
 fn attach_ual1_animation_player(
     mut commands: Commands,
     anim: Option<Res<Ual1Anim>>,
@@ -1803,14 +1780,19 @@ fn attach_ual1_animation_player(
         return;
     };
     for root in &roots {
-        attach_authored_gltf_loop(
-            &mut commands,
-            anim.graph.clone(),
-            anim.nodes[Ual1Clip::IdleLoop as usize],
-            root,
-            &children,
-            &mut players,
-        );
+        for desc in children.iter_descendants(root) {
+            let Ok((entity, mut player)) = players.get_mut(desc) else {
+                continue;
+            };
+            let mut transitions = AnimationTransitions::new();
+            transitions
+                .play(&mut player, anim.nodes[Ual1Clip::IdleLoop as usize], Duration::ZERO)
+                .repeat();
+            commands
+                .entity(entity)
+                .insert(AnimationGraphHandle(anim.graph.clone()))
+                .insert(transitions);
+        }
     }
 }
 
