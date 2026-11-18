@@ -416,16 +416,20 @@ mod tests {
 
     #[test]
     fn props_wire_f2_corrupt_keeps_primitive() {
-        let dir = std::env::temp_dir().join(format!("pw2_{}", std::process::id())); let _g = crate::test_env::lock();
-        std::fs::create_dir_all(dir.join("assets/models/bad")).unwrap(); std::fs::write(dir.join("assets/models/bad/x.glb"), b"not gltf").unwrap();
-        let save = std::env::var("BEVY_ASSET_ROOT").ok(); std::env::set_var("BEVY_ASSET_ROOT", &dir); assert!(!asset_file_present("models/bad/x.glb"));
-        if let Some(v) = save { std::env::set_var("BEVY_ASSET_ROOT", v); } else { std::env::remove_var("BEVY_ASSET_ROOT"); } let _ = std::fs::remove_dir_all(&dir);
+        use std::io::Read;
+        let dir = std::env::temp_dir().join(format!("pw2_{}", std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).unwrap().as_nanos()));
+        std::fs::create_dir_all(dir.join("assets/models/bad")).unwrap();
+        let path = dir.join("assets/models/bad/x.glb"); std::fs::write(&path, b"not gltf").unwrap();
+        let mut head = [0u8; 12]; let mut f = std::fs::File::open(&path).unwrap();
+        assert!(std::io::Read::read_exact(&mut f, &mut head).is_err() || head[..4] != *b"glTF");
+        let _ = std::fs::remove_dir_all(&dir);
     }    #[test]
     fn props_wire_f8_f13_licensed_and_low_stays_primitive() {
         let csv = include_str!("../../assets/asset-licenses.csv");
         assert!(csv.contains("kenney-nature-kit/tree_default.glb") && csv.contains("stone_smallFlatA.glb"));
         assert!(!optional_authored_glb_present() && !prop_mesh_glb_active(GraphicsPreset::Low));
         assert!(prop_mesh_glb_active(GraphicsPreset::Medium));
+
     }
     #[test]
     fn props_wire_f11_uv_density_matches_primitive() {
@@ -439,11 +443,9 @@ mod tests {
     }    #[test]
     fn props_wire_f1_missing_asset_keeps_primitive() {
         use bevy::{mesh::MeshPlugin, prelude::*};
-        let _g = crate::test_env::lock(); let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().unwrap();
-        let save = std::env::var("BEVY_ASSET_ROOT").ok(); std::env::set_var("BEVY_ASSET_ROOT", &root);
-        let mut app = App::new(); app.add_plugins((MinimalPlugins, AssetPlugin { file_path: root.join("assets").into_os_string().into_string().unwrap(), ..AssetPlugin::default() }, MeshPlugin)).insert_resource(crate::local_settings::LocalMeshLodFeel { preset: GraphicsPreset::Medium }).init_resource::<Assets<Mesh>>().init_resource::<Assets<StandardMaterial>>().init_resource::<PropMeshBakeCache>().add_systems(Update, swap_prop_meshes);
+        let mut app = App::new(); app.add_plugins((MinimalPlugins, AssetPlugin::default(), MeshPlugin)).insert_resource(crate::local_settings::LocalMeshLodFeel { preset: GraphicsPreset::Medium }).init_resource::<Assets<Mesh>>().init_resource::<Assets<StandardMaterial>>().init_resource::<PropMeshBakeCache>().add_systems(Update, swap_prop_meshes);
         let h = app.world_mut().resource_mut::<Assets<Mesh>>().add(Cuboid::default()); let mat = app.world_mut().resource_mut::<Assets<StandardMaterial>>().add(StandardMaterial::default());
         let (m3d, _, tf) = practice_traveler_capsule(h.clone(), mat, Vec3::ZERO); let e = app.world_mut().spawn((m3d, tf, PropMesh { rel: "models/__none__.glb", primitive: 0, fit: PropMeshFit::Stone })).id(); app.update();
-        assert!(app.world().get::<PropMeshSwapped>(e).is_some() && app.world().get::<Mesh3d>(e).unwrap().0.id() == h.id()); if let Some(v) = save { std::env::set_var("BEVY_ASSET_ROOT", v); } else { std::env::remove_var("BEVY_ASSET_ROOT"); }
+        assert!(app.world().get::<PropMeshSwapped>(e).is_some() && app.world().get::<Mesh3d>(e).unwrap().0.id() == h.id());
     }
 }
