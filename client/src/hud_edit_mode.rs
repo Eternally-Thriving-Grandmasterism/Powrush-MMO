@@ -557,6 +557,7 @@ fn spawn_frame(
             ),
 GlobalZIndex(FRAME_Z),
             HudEditFrame { id: anchor.id },
+            crate::peace_audio::NoUiClick,
         ))
         .with_children(|frame| {
             frame.spawn((
@@ -1957,6 +1958,12 @@ mod tests {
             .just_pressed(BUILD_WHEEL));
         let crossed: Option<crate::hour_sacred::HousePeople> = None;
         assert!(crossed.is_none());
+    }
+
+    #[test]
+    fn sfx_wire_hud_edit_frame_silent() {
+        let prod = include_str!("hud_edit_mode.rs").split("\n#[cfg(test)]\nmod tests").next().unwrap();
+        assert!(prod.contains("NoUiClick") && prod.contains("HudEditFrame"));
     }
 
     #[test]

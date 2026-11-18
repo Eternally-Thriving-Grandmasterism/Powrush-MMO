@@ -194,6 +194,7 @@ fn spawn_overlay_btn<B: Component>(
             BackgroundColor(bg),
         ),
         marker,
+        crate::peace_audio::NoUiClick,
     ))
     .with_children(|b| {
         b.spawn((
