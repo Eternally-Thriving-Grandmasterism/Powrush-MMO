@@ -7950,6 +7950,7 @@ mod tests {
 
     #[test]
     fn combat_text_copy_f2_f3_f4_f6_hud_fixtures() {
+        let _scratch = NameRiteUserDir::new("combat-text-copy");
         assert!(PLACEHOLDER_COMBAT_TEXT_SECTION.len() <= 56 && PLACEHOLDER_COMBAT_CUSTOM.len() <= 56);
         assert!(PLACEHOLDER_FLOATING_TOGGLE.len() + PLACEHOLDER_LOG_TOGGLE.len() + 10 <= 51);
         for label in COMBAT_PRESET_LABELS { assert!(label.len() <= 9, "{label}"); }
