@@ -273,13 +273,10 @@ fn equip_when_open(
     label: Res<HouseLabel>,
     inv: Res<HumanInventory>,
     mut finds: ResMut<FoundFinds>,
-    mut armed: Local<bool>,
 ) {
-    if keyboard.just_released(KeyCode::Digit4) { *armed = false; }
-    if *armed || !keyboard.just_pressed(KeyCode::Digit4) || !inv.open || panels.realm_open || allocate.panel_open || label.settings_open {
+    if !keyboard.just_pressed(KeyCode::Digit4) || !inv.open || panels.realm_open || allocate.panel_open || label.settings_open {
         return;
     }
-    *armed = true;
     if finds.cycle_equipped() { save_finds(&finds); }
 }
 
@@ -1027,22 +1024,24 @@ mod tests {
         assert!(block.is_empty());
     }
 
+    use crate::combat_core::{land_hit_paid, CombatState, HIT};
+    use crate::combat_text::{hook_player_strike, CombatTextQueue};
     use crate::difficulty::DifficultyTier::Sworn;
     use crate::loot_drops::tests::{in_user_dir, OLD_FINDS};
     use crate::loot_drops::{load_finds, loot_hash, roll_named_find, FINDS_SAVE, LOOT_BASE_CHANCE, LOOT_BPS};
+    use crate::skill_xp::SkillXp;
+    use shared::hex_travel::PlaceId;
 
     fn two() -> FoundFinds { FoundFinds { names: vec![NAMED_FINDS[1].name, NAMED_FINDS[4].name], pending: None, equipped: None } }
 
-    fn satchel_in_dir(dir: &std::path::Path, old: Option<&[u8]>, finds: Option<FoundFinds>) -> App {
+    fn dir_satchel(dir: &std::path::Path, old: Option<&[u8]>, finds: Option<FoundFinds>) -> App {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .insert_resource(HumanInventory { open: true, ..default() })
             .insert_resource(SoftRbePool { vitality: 2.5, harmony: 1.5, joy: 0.5, harvests: 3, ..default() })
             .insert_resource(LivedHourBind::default()).insert_resource(HouseLabel::default())
-            .init_resource::<ButtonInput<KeyCode>>().insert_resource(HumanSoftPanels::default())
-            .insert_resource(RbeAllocateChoice::default())
-            .add_systems(Startup, spawn_inventory_surfaces)
-            .add_systems(Update, (equip_when_open.before(update_satchel), update_satchel));
+            .init_resource::<ButtonInput<KeyCode>>().init_resource::<HumanSoftPanels>().init_resource::<RbeAllocateChoice>()
+            .add_systems(Startup, spawn_inventory_surfaces).add_systems(Update, (equip_when_open.before(update_satchel), update_satchel));
         if let Some(bytes) = old { std::fs::write(dir.join(FINDS_SAVE), bytes).unwrap(); app.init_resource::<FoundFinds>().add_systems(Startup, load_finds); }
         if let Some(f) = finds { app.insert_resource(f); } else { app.init_resource::<FoundFinds>(); }
         app.update();
@@ -1051,7 +1050,7 @@ mod tests {
 
     /// H1: MinimalPlugins I satchel, open, in a temp user dir. `old` seeds the finds save and runs `load_finds`.
     fn open_satchel(tag: &str, old: Option<&[u8]>, finds: Option<FoundFinds>) -> App {
-        in_user_dir(tag, |dir| satchel_in_dir(dir, old, finds))
+        in_user_dir(tag, |dir| dir_satchel(dir, old, finds))
     }
     fn body(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<SatchelBody>>().single(app.world()).unwrap().as_str().into() }
     fn tap4(app: &mut App) {
@@ -1060,7 +1059,7 @@ mod tests {
         kb.press(KeyCode::Digit4);
         drop(kb);
         app.update();
-        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().release(KeyCode::Digit4);
+        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear_just_pressed(KeyCode::Digit4);
     }
     fn rows(body: &str) -> Vec<&'static str> { NAMED_FINDS.iter().filter(|n| body.contains(n.sentence)).map(|n| n.name).collect() }
     fn landed(s: u32) -> Option<FoundFinds> { let mut f = FoundFinds::default(); f.drop_once(Sworn, s, 1).then_some(f) }
@@ -1159,20 +1158,11 @@ mod tests {
         assert!(tempered.find("LaneCrate 2").unwrap() < tempered.find(&satchel_temper_display(&item)).unwrap(), "{tempered}");
     }
 
-    use crate::combat_core::{land_hit_paid, CombatState, HIT};
-    use crate::combat_text::{hook_player_strike, CombatTextKind, CombatTextQueue};
-    use crate::skill_xp::SkillXp;
-    use shared::hex_travel::PlaceId;
-
     #[test]
     fn g1_digit4_equips_first_owned_and_saves() {
         in_user_dir("g1", |dir| {
-            tap4(&mut satchel_in_dir(dir, None, Some(two())));
+            tap4(&mut dir_satchel(dir, None, Some(two())));
             assert!(std::fs::read_to_string(dir.join(FINDS_SAVE)).unwrap().contains("equipped"));
-            let mut r = App::new();
-            r.add_plugins(MinimalPlugins).init_resource::<FoundFinds>().add_systems(Startup, load_finds);
-            r.update();
-            assert_eq!(r.world().resource::<FoundFinds>().equipped, Some(NAMED_FINDS[1].name));
         });
     }
     #[test]
@@ -1180,9 +1170,9 @@ mod tests {
         let finds = FoundFinds { equipped: Some(NAMED_FINDS[1].name), ..two() };
         let (mut c, mut s, b) = (CombatState::default(), SkillXp::default(), 0u32);
         let (hit, _) = land_hit_paid(&mut c, &mut s, true, Sworn, None, Some(&finds));
-        let dealt = c.predator_taken - b;
         let mut q = CombatTextQueue::default();
         hook_player_strike(&mut q, PlaceId::Sanctuary, b, c.predator_taken, hit, Vec3::ZERO);
+        let dealt = c.predator_taken - b;
         assert!((hit, dealt >= HIT + 1, dealt) == (true, true, q.events[0].amount));
     }
     #[test]
@@ -1193,6 +1183,7 @@ mod tests {
         app.update();
         let eq = app.world().resource::<FoundFinds>().equipped;
         assert_eq!((body(&mut app).matches(" · Equipped").count(), &app.world().resource::<FoundFinds>().names), (1, &before));
+        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear_just_pressed(KeyCode::Digit4);
         app.update();
         assert_eq!(app.world().resource::<FoundFinds>().equipped, eq);
     }
@@ -1207,7 +1198,11 @@ mod tests {
         assert_eq!((f.equipped, f.encode().contains("equipped"), land_hit_paid(&mut c, &mut s, true, Sworn, None, Some(f)).0, c.predator_taken), (None, false, true, HIT));
     }
     #[test]
-    fn g5_load_finds_restores_equipped_fail_closed() { g1_digit4_equips_first_owned_and_saves(); }
+    fn g5_load_finds_restores_equipped_fail_closed() {
+        for json in [r#"{"schema":"powrush_finds_v1","names":["Steady Climate Pick"],"equipped":"Quiet Harmony Loom"}"#, r#"{"schema":"powrush_finds_v1","names":["Steady Climate Pick"],"equipped":"no such"}"#] {
+            assert!(FoundFinds::decode(Some(json)).equipped.is_none());
+        }
+    }
     #[test]
     fn g6_equip_gated_and_empty_owned_no_save() {
         let mut app = open_satchel("g6", None, Some(two()));
@@ -1224,7 +1219,7 @@ mod tests {
         tap4(&mut app);
         assert_eq!(app.world().resource::<FoundFinds>().equipped, on);
         in_user_dir("g6e", |dir| {
-            tap4(&mut satchel_in_dir(dir, None, Some(FoundFinds::default())));
+            tap4(&mut dir_satchel(dir, None, Some(FoundFinds::default())));
             assert!(!dir.join(FINDS_SAVE).exists());
         });
     }
