@@ -100,6 +100,9 @@ use bevy::prelude::*;
 
 use crate::embassy::EmbassyYard;
 use crate::fabricator::FabricatorYard;
+use crate::living_practice_loop::SoftPlayerRealm;
+use crate::vertical_factory::FactoryYard;
+use crate::wood_expedition::{wood_live, WoodView};
 use crate::hex_travel::{apply_people_landing, decline_people_door_land, HexTravelState};
 use crate::hour_sacred::{
     confirm_gate_seal, doors_are_unsealed, god_plane_doors_ignited, offer_house_peoples,
@@ -808,7 +811,7 @@ impl Plugin for FirstSessionGuidancePlugin {
     }
 }
 
-fn spawn_guidance_strip(mut commands: Commands) {
+pub(crate) fn spawn_guidance_strip(mut commands: Commands) {
     commands
         .spawn((
             (
@@ -842,10 +845,13 @@ TextColor(TITLE_TEXT_PRIMARY),
         });
 }
 
-fn card_line(prompt: &str) -> String {
+pub(crate) fn card_line(prompt: &str) -> String {
     format!("{prompt}  · H hides")
 }
 
+/// LOOP-TEACH-1 — gather and refine first-use cues (appended after the door line).
+pub const LOOP_GATHER_CUE: &str = "Your tree is ready · chop it for wood";
+pub const LOOP_REFINE_CUE: &str = "Wood in hand · press Q to refine it";
 /// COMBAT-SIGNPOST-1 — one line, once ever, pointing past the gate to the Sanctuary practice fight.
 pub const SIGNPOST_LINE: &str = "Past the Stavehold gate · a practice fight";
 pub const SIGNPOST_SECS: f64 = 45.0; // council default, from arming; Sherif may veto
@@ -991,6 +997,16 @@ fn lived_card_line(guidance: &FirstSessionGuidance, place: Option<&str>) -> Stri
     lived_card_line_for(guidance, place, false, 0)
 }
 
+pub(crate) fn loop_cue(g: &FirstSessionGuidance, w: Option<&WoodView>, y: Option<&FabricatorYard>, f: Option<&FactoryYard>, h: Option<&HourSacred>, place: Option<PlaceId>, realm: Option<u8>) -> Option<&'static str> {
+    if g.dismissed || !g.active || g.objective.is_first_minutes() || !wood_live(place, realm) { return None; }
+    let w = w?;
+    if w.standing && w.unit == 0 { return Some(LOOP_GATHER_CUE); }
+    if w.unit == 0 { return None; }
+    let (y, f, h) = (y?, f?, h?);
+    let fab = &y.fab;
+    (fab.crate_stock == 0 && h.hex() != HexFlag::Peace && h.charter_skin_live() && h.complete && f.factory.tutorial_complete() && fab.planted && fab.pack.repair && fab.pack.logi && fab.pack.unlocked()).then_some(LOOP_REFINE_CUE)
+}
+
 fn lived_card_line_for(
     guidance: &FirstSessionGuidance,
     place: Option<&str>,
@@ -1072,12 +1088,18 @@ pub fn guidance_card_font_px(text_scale: f32) -> f32 {
     (17.0 * text_scale).clamp(11.0, 22.0)
 }
 
-fn update_guidance_text(
+pub(crate) fn update_guidance_text(
     guidance: Res<FirstSessionGuidance>,
     travel: Option<Res<HexTravelState>>,
     presence: Option<Res<SoftPresence>>,
     settings: Option<Res<LocalSettingsState>>,
+    wood: Option<Res<WoodView>>,
+    yard: Option<Res<FabricatorYard>>,
+    factory: Option<Res<FactoryYard>>,
+    hour: Option<Res<HourSacred>>,
+    realm: Option<Res<SoftPlayerRealm>>,
     mut last_place: Local<Option<&'static str>>,
+    mut last_loop: Local<Option<Option<&'static str>>>,
     mut query: Query<(&mut Text, &mut TextFont), With<FirstSessionGuidanceText>>,
     sign: Option<Res<Signpost>>,
     nodes: Query<&Transform, With<MercyHarvestNode>>,
@@ -1101,25 +1123,37 @@ fn update_guidance_text(
     let mercy_now = mercy_card_stamp(presence.as_deref(), &nodes);
     let (out_of_reach, actual_nodes, _) = mercy_now;
     let mercy_changed = *last_mercy != Some(mercy_now);
+    let travel_place = travel.as_ref().map(|t| t.current);
+    let realm_id = realm.as_ref().map(|r| r.current).unwrap_or(None);
+    let cue = loop_cue(&guidance, wood.as_deref(), yard.as_deref(), factory.as_deref(), hour.as_deref(), travel_place, realm_id);
+    let loop_changed = *last_loop != Some(cue);
     // Record on every path, including the quiet return, the signpost
     // override, and dismissal. The next range check compares this tuple.
     *last_mercy = Some(mercy_now);
+    *last_loop = Some(cue);
     if !guidance.is_changed()
         && !place_changed
         && !settings_changed
         && !font_differs
         && !sign_changed
         && !mercy_changed
+        && !loop_changed
     {
         return;
     }
     *last_place = place;
     let showing = sign.as_deref().is_some_and(signpost_showing);
-    let prompt = if showing {
+    let mut prompt = if showing {
         card_line(SIGNPOST_LINE)
     } else {
         lived_card_line_for(&guidance, place, out_of_reach, actual_nodes)
     };
+    if !showing {
+        if let Some(cue) = cue {
+            if !prompt.is_empty() { prompt.push('\n'); }
+            prompt.push_str(cue);
+        }
+    }
     for (mut text, mut font) in &mut query {
         match font.font_size {
             FontSize::Px(current) if (current - card_px / 1.2).abs() <= 0.01 => {}
@@ -1323,6 +1357,160 @@ mod tests {
 
     fn tended() -> FirstSessionGuidance {
         FirstSessionGuidance { objective: GuidanceObjective::OpenInventory, ..Default::default() }
+    }
+
+    fn loop_teach_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).init_resource::<FirstSessionGuidance>().init_resource::<Signpost>().init_resource::<WoodView>()
+            .insert_resource(HexTravelState { current: PlaceId::Sanctuary });
+        app
+    }
+
+    fn refine_gate() -> (HourSacred, shared::vertical_factory::VerticalFactory, shared::fabricator::Fabricator) {
+        use crate::hour_sacred::{try_mark_hour_two_held, try_plant_house, try_ridge_tab};
+        let mut hour = HourSacred::default();
+        let mut fac = shared::vertical_factory::VerticalFactory::default();
+        assert!(try_ridge_tab(&mut hour, true) && try_plant_house(&mut hour, &mut fac) && try_mark_hour_two_held(&mut hour, true, true));
+        while !fac.tutorial_complete() && fac.advance() != "unfounded" {}
+        let mut fab = shared::fabricator::Fabricator::default();
+        for _ in 0..3 { let _ = fab.craft_next(); }
+        (hour, fac, fab)
+    }
+
+    fn tick2(app: &mut App) { app.update(); app.update(); }
+
+    fn paint_loop(app: &mut App, obj: GuidanceObjective, wood: WoodView) -> String {
+        use bevy::ecs::system::RunSystemOnce;
+        {
+            let mut g = app.world_mut().resource_mut::<FirstSessionGuidance>();
+            (g.objective, g.active, g.dismissed) = (obj, true, false);
+        }
+        *app.world_mut().resource_mut::<WoodView>() = wood;
+        app.world_mut().run_system_once(spawn_guidance_strip).ok();
+        app.world_mut().run_system_once(update_guidance_text).unwrap();
+        guidance_card_section(app).1
+    }
+
+    /// LT1 — gather cue text + ruled absences.
+    #[test]
+    fn loop_teach_lt1_gather_cue() {
+        use bevy::ecs::system::RunSystemOnce;
+        let _lock = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("lt1");
+        let mut app = loop_teach_app();
+        let body = card_line(GuidanceObjective::OpenInventory.prompt());
+        const RIPE: WoodView = WoodView { unit: 0, standing: true };
+        assert_eq!(paint_loop(&mut app, GuidanceObjective::OpenInventory, RIPE), format!("{body}\n{LOOP_GATHER_CUE}"));
+        let place = |a: &mut App, p: PlaceId| a.world_mut().resource_mut::<HexTravelState>().current = p;
+        let miss = |a: &mut App, o: GuidanceObjective, w: WoodView| !paint_loop(a, o, w).contains(LOOP_GATHER_CUE);
+        for p in [PlaceId::Heartwood, PlaceId::Depths] {
+            place(&mut app, p);
+            assert!(miss(&mut app, GuidanceObjective::OpenInventory, RIPE));
+        }
+        place(&mut app, PlaceId::Sanctuary);
+        assert!(miss(&mut app, GuidanceObjective::OpenInventory, WoodView { unit: 0, standing: false }));
+        assert!(miss(&mut app, GuidanceObjective::MoveAround, RIPE));
+        app.world_mut().resource_mut::<FirstSessionGuidance>().dismiss();
+        app.world_mut().run_system_once(update_guidance_text).unwrap();
+        assert!(!guidance_card_section(&mut app).1.contains(LOOP_GATHER_CUE));
+        app.insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(2) });
+        assert!(miss(&mut app, GuidanceObjective::OpenInventory, RIPE));
+        let _dir = std::fs::remove_dir_all(&dir);
+    }
+
+    /// LT3 — refine cue never promises a refused Q.
+    #[test]
+    fn loop_teach_lt3_refine_honesty() {
+        let _lock = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("lt3");
+        let g = FirstSessionGuidance { objective: GuidanceObjective::PlantFabricator, ..Default::default() };
+        const W: WoodView = WoodView { unit: 1, standing: false };
+        let (hour, fac, fab) = refine_gate();
+        let ready_f = FactoryYard { factory: fac };
+        let idle = |steps: usize| {
+            let mut x = shared::fabricator::Fabricator::default();
+            for _ in 0..steps { let _ = x.craft_next(); }
+            FabricatorYard { fab: x, bench_glow: 0.0 }
+        };
+        let no = |h: &HourSacred, y: &FabricatorYard, f: &FactoryYard| {
+            assert_ne!(loop_cue(&g, Some(&W), Some(y), Some(f), Some(h), Some(PlaceId::Sanctuary), None), Some(LOOP_REFINE_CUE))
+        };
+        for (h, steps) in [(HourSacred::default(), 3), (hour.clone(), 0), (hour.clone(), 2)] { no(&h, &idle(steps), &ready_f); }
+        no(&hour, &idle(3), &FactoryYard { factory: shared::vertical_factory::VerticalFactory::default() });
+        let mut stocked = fab.clone();
+        stocked.crate_stock = 1;
+        no(&hour, &FabricatorYard { fab: stocked, bench_glow: 0.0 }, &ready_f);
+        let _dir = std::fs::remove_dir_all(&dir);
+    }
+
+    /// LT4 — signpost replaces the whole card.
+    #[test]
+    fn loop_teach_lt4_signpost_precedence() {
+        use bevy::ecs::system::RunSystemOnce;
+        let _lock = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("lt4");
+        let mut app = loop_teach_app();
+        app.insert_resource(LaunchDoor::InYard).insert_resource(SoftPresence::default()).insert_resource(NearbyMercyNode::default());
+        app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::OpenInventory;
+        *app.world_mut().resource_mut::<WoodView>() = WoodView { unit: 0, standing: true };
+        app.world_mut().run_system_once(spawn_guidance_strip).unwrap();
+        app.world_mut().run_system_once(update_signpost).unwrap();
+        app.world_mut().run_system_once(update_guidance_text).unwrap();
+        assert_eq!(guidance_card_section(&mut app).1, card_line(SIGNPOST_LINE));
+        *app.world_mut().resource_mut::<Signpost>() = Signpost { seen: true, until: None };
+        app.world_mut().run_system_once(update_guidance_text).unwrap();
+        assert!(guidance_card_section(&mut app).1.contains(LOOP_GATHER_CUE));
+        let _dir = std::fs::remove_dir_all(&dir);
+    }
+
+    /// LT5 — cue stamp redraws after real ticks; quiet paths skip Text writes.
+    #[test]
+    fn loop_teach_lt5_redraw_stamp() {
+        use bevy::ecs::system::RunSystemOnce;
+        #[derive(Resource, Default)] struct Lt5Writes(u32);
+        fn lt5_count(q: Query<(), (Changed<Text>, With<FirstSessionGuidanceText>)>, mut n: ResMut<Lt5Writes>) { n.0 += q.iter().count() as u32; }
+        let mut app = loop_teach_app();
+        app.init_resource::<Lt5Writes>().add_systems(Update, (update_guidance_text, lt5_count).chain());
+        app.world_mut().run_system_once(spawn_guidance_strip).unwrap();
+        let quiet = |a: &mut App| { a.world_mut().resource_mut::<Lt5Writes>().0 = 0; tick2(a); assert_eq!(a.world().resource::<Lt5Writes>().0, 0); };
+        let redraw = |a: &mut App| { a.world_mut().resource_mut::<Lt5Writes>().0 = 0; tick2(a); assert!(a.world().resource::<Lt5Writes>().0 > 0); };
+        app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::OpenInventory;
+        *app.world_mut().resource_mut::<WoodView>() = WoodView { unit: 0, standing: true };
+        redraw(&mut app);
+        assert!(guidance_card_section(&mut app).1.contains(LOOP_GATHER_CUE));
+        quiet(&mut app);
+        *app.world_mut().resource_mut::<WoodView>() = WoodView { unit: 1, standing: false };
+        redraw(&mut app);
+        quiet(&mut app);
+        let (hour, fac, fab) = refine_gate();
+        app.insert_resource(hour).insert_resource(FactoryYard { factory: fac }).insert_resource(FabricatorYard { fab, bench_glow: 0.0 });
+        app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::PlantFabricator;
+        app.world_mut().resource_mut::<HourSacred>().complete = false;
+        redraw(&mut app);
+        assert!(!guidance_card_section(&mut app).1.contains(LOOP_REFINE_CUE));
+        app.world_mut().resource_mut::<HourSacred>().complete = true;
+        redraw(&mut app);
+        assert!(guidance_card_section(&mut app).1.contains(LOOP_REFINE_CUE));
+        quiet(&mut app);
+    }
+
+    /// LT6 — door then cue; glow hide unchanged.
+    #[test]
+    fn loop_teach_lt6_door_and_glow() {
+        use bevy::ecs::system::RunSystemOnce;
+        let mut app = loop_teach_app();
+        app.insert_resource(LaunchDoor::InYard).insert_resource(NearbyMercyNode::default()).add_systems(Update, update_guidance_visibility);
+        let mut g = app.world_mut().resource_mut::<FirstSessionGuidance>();
+        (g.objective, g.house_live, g.harvests_completed) = (GuidanceObjective::OpenInventory, true, 1);
+        let t = paint_loop(&mut app, GuidanceObjective::OpenInventory, WoodView { unit: 0, standing: true });
+        let body = card_line(GuidanceObjective::OpenInventory.prompt());
+        let door = door_people_lines();
+        assert_eq!(t, format!("{body}\n{door}\n{LOOP_GATHER_CUE}"));
+        let (i, j, k) = (t.find(&body).unwrap(), t.find(&door).unwrap(), t.find(LOOP_GATHER_CUE).unwrap());
+        assert!(i < j && j < k);
+        app.world_mut().resource_mut::<NearbyMercyNode>().in_range = true;
+        app.world_mut().run_system_once(update_guidance_visibility).unwrap();
+        assert_eq!(guidance_strip_visibility(&mut app), Visibility::Hidden);
     }
 
     #[test]
