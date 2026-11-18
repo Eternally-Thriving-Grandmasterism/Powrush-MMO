@@ -84,6 +84,7 @@ fn seed_travelers(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<StandardMaterial>>,
     assets: Res<AssetServer>,
+    gltfs: Option<Res<Assets<Gltf>>>,
 ) {
     let mesh = meshes.add(Capsule3d::new(0.22, 0.95));
     for (name, color, well) in [
@@ -98,7 +99,7 @@ fn seed_travelers(
         });
         let pos = WELLS[well] + Vec3::new(1.4, 0.7, 0.6);
         let tag = (PracticeTraveler { well, phase: well as f32 * 0.33 }, Name::new(name));
-        if asset_file_present(glb(name)) {
+        if asset_file_present(glb(name)) && gltfs.is_some() {
             let rel = glb(name);
             commands.spawn((Transform::from_translation(pos), Visibility::default(), TravelerDress(assets.load(rel)), tag.0, tag.1));
         } else {
@@ -111,9 +112,10 @@ fn seed_travelers(
 fn attach_traveler_scene(
     mut commands: Commands,
     assets: Res<AssetServer>,
-    gltfs: Res<Assets<Gltf>>,
+    gltfs: Option<Res<Assets<Gltf>>>,
     q: Query<(Entity, &TravelerDress, &Name), Without<TravelerSceneSpawned>>,
 ) {
+    let Some(gltfs) = gltfs else { return };
     for (root, dress, name) in &q {
         if gltfs.get(&dress.0).is_none() || glb(name.as_str()).is_empty() {
             continue;
@@ -135,11 +137,12 @@ fn attach_traveler_scene(
 fn dress_walk(
     mut commands: Commands,
     pending: Query<(Entity, &TravelerDress), Without<TravelerWalkReady>>,
-    gltfs: Res<Assets<Gltf>>,
-    mut graphs: ResMut<Assets<AnimationGraph>>,
+    gltfs: Option<Res<Assets<Gltf>>>,
+    mut graphs: Option<ResMut<Assets<AnimationGraph>>>,
     children: Query<&Children>,
     mut players: Query<(Entity, &mut AnimationPlayer), Without<AnimationGraphHandle>>,
 ) {
+    let (Some(gltfs), Some(mut graphs)) = (gltfs, graphs) else { return };
     for (root, h) in &pending {
         let Some(g) = gltfs.get(&h.0) else { continue };
         let Some(w) = g.named_animations.get(WALK) else { continue };
@@ -223,7 +226,11 @@ mod tests {
     use bevy::asset::{LoadState, RecursiveDependencyLoadState};
     use bevy::render::settings::WgpuSettings;
     use bevy::tasks::tick_global_task_pools_on_main_thread;
-    use std::{path::PathBuf, sync::Mutex};
+    use std::{
+        panic::{catch_unwind, AssertUnwindSafe},
+        path::{Path, PathBuf},
+        sync::Mutex,
+    };
     static LOCK: Mutex<()> = Mutex::new(());
     const ROSTER: [&str; 3] = ["Mira", "Ko", "Ren"];
     fn dev_root() -> PathBuf {
@@ -232,12 +239,33 @@ mod tests {
     fn with_root<R>(root: &PathBuf, f: impl FnOnce() -> R) -> R {
         let save = std::env::var("BEVY_ASSET_ROOT").ok();
         std::env::set_var("BEVY_ASSET_ROOT", root);
-        let out = f();
+        let out = catch_unwind(AssertUnwindSafe(f));
         match save {
             Some(v) => std::env::set_var("BEVY_ASSET_ROOT", v),
             None => std::env::remove_var("BEVY_ASSET_ROOT"),
         }
-        out
+        out.unwrap_or_else(|e| std::panic::resume_unwind(e))
+    }
+    fn with_user_dir<R>(tag: &str, body: impl FnOnce(&Path) -> R) -> R {
+        let dir = std::env::temp_dir().join(format!("powrush-char-{tag}-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("powrush_seal.json"), b"{}").unwrap();
+        let _ud = crate::test_env::lock();
+        let env = shared::user_persist::USER_DIR_OVERRIDE_ENV;
+        let prev = std::env::var(env).ok();
+        std::env::set_var(env, &dir);
+        let out = catch_unwind(AssertUnwindSafe(|| body(&dir)));
+        match prev {
+            Some(v) => std::env::set_var(env, v),
+            None => std::env::remove_var(env),
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+        out.unwrap_or_else(|e| std::panic::resume_unwind(e))
+    }
+    fn scene<R>(tag: &str, root: &PathBuf, body: impl FnOnce(&Path) -> R) -> R {
+        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        with_user_dir(tag, |dir| with_root(root, || body(dir)))
     }
     fn headless_defaults() -> App {
         let mut a = App::new();
@@ -275,11 +303,10 @@ mod tests {
 
     #[test]
     fn char_model_bevy_asset_roots_and_spawn() {
-        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let empty = std::env::temp_dir().join(format!("pe_{}", std::process::id()));
         let _ = std::fs::remove_dir_all(&empty);
         std::fs::create_dir_all(empty.join("assets")).unwrap();
-        with_root(&empty, || {
+        scene("capsule", &empty, |_| {
             let mut app = mk();
             boot(&mut app);
             assert!(app.world_mut().query::<&TravelerDress>().iter(app.world()).next().is_none());
@@ -288,7 +315,7 @@ mod tests {
             }
         });
         let _ = std::fs::remove_dir_all(&empty);
-        with_root(&dev_root(), || {
+        scene("dev", &dev_root(), |_| {
             assert_eq!(gltf_integration::bevy_asset_base(), dev_root());
             assert!(ROSTER.iter().all(|n| asset_file_present(glb(n))));
             let before = gltf_integration::optional_authored_glb_present();
@@ -303,23 +330,18 @@ mod tests {
             assert!(app.world_mut().query::<&TravelerDress>().iter(app.world()).nth(2).is_some());
             assert!(!app.world_mut().query::<(&Name, Option<&Mesh3d>)>().iter(app.world()).any(|(n, m)| ROSTER.contains(&n.as_str()) && m.is_some()));
         });
-        let save = std::env::var("BEVY_ASSET_ROOT").ok();
         let pack = std::env::temp_dir().join(format!("pp_{}", std::process::id()));
         std::fs::create_dir_all(pack.join("assets/models/quaternius-modular-men")).unwrap();
         std::fs::copy(dev_root().join("assets").join(glb("Mira")), pack.join("assets/models/quaternius-modular-men/mira-traveler.glb")).unwrap();
-        std::env::set_var("BEVY_ASSET_ROOT", &pack);
-        assert!(asset_file_present(glb("Mira")) && !asset_file_present(glb("Ko")));
-        match save {
-            Some(v) => std::env::set_var("BEVY_ASSET_ROOT", v),
-            None => std::env::remove_var("BEVY_ASSET_ROOT"),
-        }
+        with_root(&pack, || {
+            assert!(asset_file_present(glb("Mira")) && !asset_file_present(glb("Ko")));
+        });
         let _ = std::fs::remove_dir_all(pack);
     }
 
     #[test]
     fn char_model_gltf_walk_lane() {
-        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        with_root(&dev_root(), || {
+        scene("walk", &dev_root(), |_| {
             let mut app = mk();
             boot(&mut app);
             let h = app.world_mut().query::<&TravelerDress>().iter(app.world()).next().unwrap().0.clone();
@@ -348,8 +370,7 @@ mod tests {
 
     #[test]
     fn char_model_f8_pocket_and_peer_writes() {
-        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        with_root(&dev_root(), || {
+        scene("f8", &dev_root(), |dir| {
             let mut app = mk();
             boot(&mut app);
             app.world_mut().resource_mut::<SoftPresence>().position = WELLS[0] + Vec3::new(1.4, 0.7, 0.6);
@@ -358,7 +379,12 @@ mod tests {
             for _ in 0..1200 {
                 app.update();
             }
-            assert!(app.world().resource::<LocalHumanSim>().last_peer_write > -30.0);
+            let sim = app.world().resource::<LocalHumanSim>();
+            assert!(sim.last_peer_write > -30.0);
+            assert!(shared::user_persist::named_exists(PEER_PATH));
+            let peer = shared::user_persist::persist_path(PEER_PATH);
+            assert!(peer.starts_with(dir), "peer path must stay under temp user dir");
+            assert!(std::fs::read_to_string(peer).unwrap_or_default().contains("powrush_lattice_flow_share_v1"));
         });
     }
 }
