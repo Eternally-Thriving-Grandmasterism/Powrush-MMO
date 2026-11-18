@@ -53,7 +53,7 @@ fn prop_ix_unique(src: &Mesh) -> Vec<usize> {
     let mut v: Vec<usize> = match src.indices() { Some(Indices::U16(ix)) => ix.iter().filter_map(|&i| ((i as usize) < len).then_some(i as usize)).collect(), Some(Indices::U32(ix)) => ix.iter().filter_map(|&i| ((i as usize) < len).then_some(i as usize)).collect(), None => (0..len).collect() };
     v.sort_unstable(); v.dedup(); v
 }
-fn bake_prop_mesh(src: &Mesh, fit: PropMeshFit, tree_sxz: f32, tree_sy: f32) -> (Mesh, f32, f32) {
+fn bake_prop_mesh(src: &Mesh, fit: PropMeshFit, tree_sxz: f32, _tree_sy: f32) -> (Mesh, f32, f32) {
     let mut out = src.clone();
     let Some(VertexAttributeValues::Float32x3(pos)) = out.attribute_mut(Mesh::ATTRIBUTE_POSITION) else { return (out, 1., 1.) };
     let (y0, y1, r0) = prop_ix_bounds(src);
