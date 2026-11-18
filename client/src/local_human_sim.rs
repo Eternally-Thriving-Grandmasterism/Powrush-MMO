@@ -222,6 +222,7 @@ mod tests {
     use super::*;
     use crate::title_screen::gltf_integration;
     use bevy::asset::{LoadState, RecursiveDependencyLoadState};
+    use bevy::render::settings::WgpuSettings;
     use bevy::tasks::tick_global_task_pools_on_main_thread;
     use std::{path::PathBuf, sync::Mutex};
 
@@ -279,6 +280,15 @@ mod tests {
                 DefaultPlugins
                     .set(WindowPlugin {
                         primary_window: None,
+                        exit_condition: bevy::window::ExitCondition::DontExit,
+                        ..default()
+                    })
+                    .set(bevy::render::RenderPlugin {
+                        render_creation: WgpuSettings {
+                            backends: None,
+                            ..default()
+                        }
+                        .into(),
                         ..default()
                     })
                     .disable::<bevy::audio::AudioPlugin>()
