@@ -145,6 +145,27 @@ pub(crate) mod test_env {
             });
         }
     }
+
+    pub(crate) static BEVY_ASSET_ROOT_ENV_LOCK: std::sync::Mutex<()> = std::sync::Mutex::new(());
+
+    /// Set `BEVY_ASSET_ROOT` for the closure only; restores on return or panic. Serialized across tests.
+    pub(crate) fn with_bevy_asset_root<R, F: FnOnce() -> R>(root: &std::path::Path, f: F) -> R {
+        use std::panic::{catch_unwind, AssertUnwindSafe};
+        let _hold = BEVY_ASSET_ROOT_ENV_LOCK
+            .lock()
+            .unwrap_or_else(|e| e.into_inner());
+        let save = std::env::var("BEVY_ASSET_ROOT").ok();
+        std::env::set_var("BEVY_ASSET_ROOT", root);
+        let out = catch_unwind(AssertUnwindSafe(f));
+        match save {
+            Some(v) => std::env::set_var("BEVY_ASSET_ROOT", v),
+            None => std::env::remove_var("BEVY_ASSET_ROOT"),
+        }
+        match out {
+            Ok(r) => r,
+            Err(e) => std::panic::resume_unwind(e),
+        }
+    }
 }
 
 pub use first_session_guidance::{FirstSessionGuidancePlugin, FirstSessionGuidance};

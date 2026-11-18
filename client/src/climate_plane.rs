@@ -177,6 +177,7 @@ use crate::title_screen::{HouseLabel, LaunchDoor, TITLE_BORDER, TITLE_PLATE_BG, 
 /// CARD H-2026-09-16-PLACE-LOD — Comfort MeshLodPlan (PATHS-only compile).
 #[path = "gltf_integration.rs"]
 mod mesh_lod;
+pub(crate) use mesh_lod::{PropMesh, PropMeshFit};
 
 const NODE_ANCHORS: [Vec3; 3] = [
     Vec3::new(3.6, 0.55, 0.0),
@@ -649,7 +650,7 @@ pub fn place_dress_lod_scale(preset: GraphicsPreset) -> f32 {
     mesh_lod::lived_place_dress_detail_scale(&mesh_lod::plan_for_preset(preset))
 }
 
-/// Buildings / Astra Medium stay refs — Place dress never dumps a `.glb`.
+/// Buildings / Astra Medium stay refs — Place path-stone dress never dumps a `.glb` (yard PropMesh glTF swap is separate).
 pub fn place_dress_dumps_glb(preset: GraphicsPreset) -> bool {
     mesh_lod::place_dress_uses_authored_glb(&mesh_lod::plan_for_preset(preset))
 }
@@ -1453,7 +1454,9 @@ pub struct ClimatePlanePlugin;
 impl Plugin for ClimatePlanePlugin {
     fn build(&self, app: &mut App) {
         configure_fog_write_sets(app);
-        app.init_resource::<ClimatePlane>()
+        app.init_resource::<mesh_lod::PropMeshBakeCache>()
+            .add_systems(Update, mesh_lod::swap_prop_meshes)
+            .init_resource::<ClimatePlane>()
             .init_resource::<AmbientcgTexCache>()
             .init_resource::<WeatherBandCoupling>()
             .insert_resource(ClearColor(look_for(Some(0)).sky))
@@ -1553,6 +1556,7 @@ fn spawn_climate_place(
                 ),
                 ClimateStone,
                 PlaceLodMesh,
+                PropMesh { rel: "models/kenney-nature-kit/stone_smallFlatA.glb", primitive: 0, fit: PropMeshFit::Stone },
             ));
         }
     }
@@ -3544,6 +3548,11 @@ mod tests {
         }
     }
 
+    #[test]
+    fn props_wire_climate_path_stones_tag_prop_mesh() {
+        let mut app = climate_startup_app(); app.finish(); app.cleanup(); app.world_mut().run_schedule(Startup);
+        assert_eq!(app.world_mut().query_filtered::<&PropMesh, With<PlaceLodMesh>>().iter(app.world()).count(), 12);
+    }
     #[test]
     fn comfort_place_lod_does_not_open_fifth_place_race_lobby_or_ultra() {
         assert_eq!(look_for(Some(0)).name, "Sanctuary Prime");
