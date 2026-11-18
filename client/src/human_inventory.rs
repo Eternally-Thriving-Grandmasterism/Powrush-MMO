@@ -1048,6 +1048,7 @@ mod tests {
         app
     }
 
+      fn with_satchel(tag: &str, finds: Option<FoundFinds>, run: impl FnOnce(&mut App)) { in_user_dir(tag, |dir| run(&mut dir_satchel(dir, None, finds))); }
     /// H1: MinimalPlugins I satchel, open, in a temp user dir. `old` seeds the finds save and runs `load_finds`.
     fn open_satchel(tag: &str, old: Option<&[u8]>, finds: Option<FoundFinds>) -> App {
         in_user_dir(tag, |dir| dir_satchel(dir, old, finds))
@@ -1055,10 +1056,8 @@ mod tests {
     fn body(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<SatchelBody>>().single(app.world()).unwrap().as_str().into() }
     fn tap4(app: &mut App) {
         let mut kb = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
-        kb.release(KeyCode::Digit4);
-        kb.press(KeyCode::Digit4);
-        drop(kb);
-        app.update();
+        kb.release(KeyCode::Digit4); kb.press(KeyCode::Digit4);
+        drop(kb); app.update();
         app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear_just_pressed(KeyCode::Digit4);
     }
     fn rows(body: &str) -> Vec<&'static str> { NAMED_FINDS.iter().filter(|n| body.contains(n.sentence)).map(|n| n.name).collect() }
@@ -1177,31 +1176,31 @@ mod tests {
     }
     #[test]
     fn g3_one_press_one_equipped_row() {
-        let mut app = open_satchel("g3", None, Some(two()));
-        let before = app.world().resource::<FoundFinds>().names.clone();
-        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::Digit4);
-        app.update();
-        let eq = app.world().resource::<FoundFinds>().equipped;
-        assert_eq!((body(&mut app).matches(" · Equipped").count(), &app.world().resource::<FoundFinds>().names), (1, &before));
-        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear_just_pressed(KeyCode::Digit4);
-        app.update();
-        assert_eq!(app.world().resource::<FoundFinds>().equipped, eq);
+        with_satchel("g3", Some(two()), |app| {
+            let before = app.world().resource::<FoundFinds>().names.clone();
+            app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::Digit4);
+            app.update();
+            let eq = app.world().resource::<FoundFinds>().equipped;
+            assert_eq!((body(app).matches(" · Equipped").count(), &app.world().resource::<FoundFinds>().names), (1, &before));
+            app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear_just_pressed(KeyCode::Digit4);
+            app.update();
+            assert_eq!(app.world().resource::<FoundFinds>().equipped, eq);
+        });
     }
     #[test]
     fn g4_cycle_two_finds_then_empty() {
-        let mut app = open_satchel("g4", None, Some(two()));
-        tap4(&mut app); tap4(&mut app); tap4(&mut app);
-        let f = app.world().resource::<FoundFinds>();
-        let (mut c, mut s) = (CombatState::default(), SkillXp::default());
-        assert_eq!((f.equipped, f.encode().contains("equipped"), land_hit_paid(&mut c, &mut s, true, Sworn, None, Some(f)).0, c.predator_taken), (None, false, true, HIT));
+        with_satchel("g4", Some(two()), |app| {
+            tap4(app); tap4(app); tap4(app);
+            let f = app.world().resource::<FoundFinds>();
+            let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+            assert_eq!((f.equipped, f.encode().contains("equipped"), land_hit_paid(&mut c, &mut s, true, Sworn, None, Some(f)).0, c.predator_taken), (None, false, true, HIT));
+        });
     }
     #[test]
     fn g5_load_finds_restores_equipped_fail_closed() {
         in_user_dir("g5", |dir| {
             tap4(&mut dir_satchel(dir, None, Some(two())));
-            let mut r = App::new();
-            r.add_plugins(MinimalPlugins).init_resource::<FoundFinds>().add_systems(Startup, load_finds);
-            r.update();
+            let mut r = App::new(); r.add_plugins(MinimalPlugins).init_resource::<FoundFinds>().add_systems(Startup, load_finds); r.update();
             assert_eq!(r.world().resource::<FoundFinds>().equipped, Some(NAMED_FINDS[1].name));
         });
         for json in [r#"{"schema":"powrush_finds_v1","names":["Steady Climate Pick"],"equipped":"Quiet Harmony Loom"}"#, r#"{"schema":"powrush_finds_v1","names":["Steady Climate Pick"],"equipped":"no such"}"#] {
@@ -1210,30 +1209,27 @@ mod tests {
     }
     #[test]
     fn g6_equip_gated_and_empty_owned_no_save() {
-        let mut app = open_satchel("g6", None, Some(two()));
-        tap4(&mut app);
-        let on = app.world().resource::<FoundFinds>().equipped;
-        app.world_mut().resource_mut::<HumanInventory>().open = false; tap4(&mut app);
-        app.world_mut().resource_mut::<HumanInventory>().open = true;
-        app.world_mut().resource_mut::<HumanSoftPanels>().realm_open = true; tap4(&mut app);
-        app.world_mut().resource_mut::<HumanSoftPanels>().realm_open = false;
-        app.world_mut().resource_mut::<RbeAllocateChoice>().panel_open = true; tap4(&mut app);
-        app.world_mut().resource_mut::<RbeAllocateChoice>().panel_open = false;
-        app.world_mut().resource_mut::<HouseLabel>().settings_open = true; tap4(&mut app);
-        assert_eq!(app.world().resource::<FoundFinds>().equipped, on);
+        with_satchel("g6", Some(two()), |app| {
+            tap4(app);
+            let on = app.world().resource::<FoundFinds>().equipped;
+            app.world_mut().resource_mut::<HumanInventory>().open = false; tap4(app);
+            app.world_mut().resource_mut::<HumanInventory>().open = true;
+            app.world_mut().resource_mut::<HumanSoftPanels>().realm_open = true; tap4(app);
+            app.world_mut().resource_mut::<HumanSoftPanels>().realm_open = false;
+            app.world_mut().resource_mut::<RbeAllocateChoice>().panel_open = true; tap4(app);
+            app.world_mut().resource_mut::<RbeAllocateChoice>().panel_open = false;
+            app.world_mut().resource_mut::<HouseLabel>().settings_open = true; tap4(app);
+            assert_eq!(app.world().resource::<FoundFinds>().equipped, on);
+        });
         in_user_dir("g6e", |dir| { tap4(&mut dir_satchel(dir, None, Some(FoundFinds::default()))); assert!(!dir.join(FINDS_SAVE).exists()); });
     }
     #[test]
     fn g7_no_double_bracket_on_i() {
-        let mut app = open_satchel("g7", None, Some(all()));
-        tap4(&mut app);
-        assert!(!body(&mut app).contains("[["));
+        with_satchel("g7", Some(all()), |app| { tap4(app); assert!(!body(app).contains("[[")); });
     }
     #[test]
     fn g8_fresh_profile_gear_line_and_hint() {
         let mut app = open_satchel("g8", None, None);
-        let w = app.world_mut();
-        let hint = w.query::<&Text>().iter(w).any(|t| t.contains("4: equip next find"));
-        assert!(body(&mut app).contains("Gear: none equipped") && hint);
+        assert!(body(&mut app).contains("Gear: none equipped") && { let w = app.world_mut(); w.query::<&Text>().iter(w).any(|t| t.contains("4: equip next find")) });
     }
 }
