@@ -172,6 +172,7 @@ use shared::local_settings::{
     COMFORT_GRAPHICS_BANNER_COPY,
 };
 use shared::local_settings::apply_combat_text_starter_preset;
+use shared::local_settings::combat_text_starter_preset_index;
 use crate::hud_presets::HudLayoutCommand;
 use crate::local_settings::hud_preset_id;
 #[cfg(test)]
@@ -1411,6 +1412,7 @@ impl Plugin for TitleScreenPlugin {
             )
             .add_systems(Update, refresh_title_menu_text_scale)
             .add_systems(Update, control_preset_clicks)
+            .add_systems(Update, refresh_combat_text_settings_labels.after(combat_text_settings_clicks))
             .add_systems(Update, combat_text_settings_clicks.before(crate::hud_presets::apply_hud_layout_commands))
             .add_message::<HudLayoutCommand>()
             .add_systems(Update, refresh_hud_layout_label)
@@ -1829,12 +1831,12 @@ const CONTROLS_SETTINGS_ROWS: u32 = 16;
 /// COMBAT-TEXT-1b — HUD tab rows including the compact combat-text block.
 const HUD_SETTINGS_ROWS: u32 = 6;
 
-// PLACEHOLDER COPY: council pick pending, Sherif may veto
-pub(crate) const PLACEHOLDER_COMBAT_TEXT_SECTION: &str = "[[COMBAT_TEXT_SECTION]]";
-pub(crate) const PLACEHOLDER_FLOATING_TOGGLE: &str = "[[FLOATING_TOGGLE]]";
-pub(crate) const PLACEHOLDER_LOG_TOGGLE: &str = "[[LOG_TOGGLE]]";
-pub(crate) const PLACEHOLDER_COMBAT_CUSTOM: &str = "[[CUSTOM]]";
-pub(crate) const COMBAT_PRESET_LABELS: [&str; 8] = ["[[PRESET_1]]", "[[PRESET_2]]", "[[PRESET_3]]", "[[PRESET_4]]", "[[PRESET_5]]", "[[PRESET_6]]", "[[PRESET_7]]", "[[PRESET_8]]"];
+// Council copy (COMBAT-TEXT-COPY-1)
+pub(crate) const PLACEHOLDER_COMBAT_TEXT_SECTION: &str = "Combat text";
+pub(crate) const PLACEHOLDER_FLOATING_TOGGLE: &str = "Floating numbers";
+pub(crate) const PLACEHOLDER_LOG_TOGGLE: &str = "Combat log";
+pub(crate) const PLACEHOLDER_COMBAT_CUSTOM: &str = "Custom";
+pub(crate) const COMBAT_PRESET_LABELS: [&str; 8] = ["Classic", "Full", "Minimal", "Compact", "Bold", "Log only", "Manager", "Misses"];
 /// One conflict can wrap to two lines ("share either Shift", "share
 /// Backspace"). The row is capped here so a file full of duplicates cannot
 /// grow the plate.
@@ -3448,6 +3450,20 @@ fn on_off(v: bool) -> &'static str {
     } else {
         "off"
     }
+}
+
+fn refresh_combat_text_settings_labels(
+    label: Res<HouseLabel>, settings: Res<LocalSettingsState>,
+    mut floating: Query<(&mut Text, &mut TextFont), With<SettingsCombatFloatingLabel>>,
+    mut log: Query<(&mut Text, &mut TextFont), (With<SettingsCombatLogLabel>, Without<SettingsCombatFloatingLabel>)>,
+    mut custom: Query<(&mut Visibility, &mut Text), (With<SettingsCombatCustomLabel>, Without<SettingsCombatFloatingLabel>, Without<SettingsCombatLogLabel>)>,
+) {
+    if !label.settings_open { return; }
+    let (s, font) = (&settings.inner, (15.0 * settings.inner.text_scale).clamp(11.0, 22.0));
+    for (mut t, mut f) in &mut floating { set_btn_section_text(&mut t, &format!("{} · {}", PLACEHOLDER_FLOATING_TOGGLE, on_off(s.combat_floating_on))); set_btn_section_font(&mut f, font); }
+    for (mut t, mut f) in &mut log { set_btn_section_text(&mut t, &format!("{} · {}", PLACEHOLDER_LOG_TOGGLE, on_off(s.combat_log_on))); set_btn_section_font(&mut f, font); }
+    let show = combat_text_starter_preset_index(s).is_none();
+    for (mut vis, mut t) in &mut custom { *vis = if show { Visibility::Visible } else { Visibility::Hidden }; set_btn_section_text(&mut t, PLACEHOLDER_COMBAT_CUSTOM); }
 }
 
 pub fn look_btn_label(s: &LocalSettings) -> String {
@@ -7931,6 +7947,66 @@ mod tests {
         assert!(bottom <= 720.0, "HUD plate ends at {bottom}, past 720");
         assert_eq!(HUD_SETTINGS_ROWS, 6);
         assert!(hud_pause_plate_height_px(1.0) < height);
+    }
+
+    #[test]
+    fn combat_text_copy_f2_f3_f4_f6_hud_fixtures() {
+        assert!(PLACEHOLDER_COMBAT_TEXT_SECTION.len() <= 56 && PLACEHOLDER_COMBAT_CUSTOM.len() <= 56);
+        assert!(PLACEHOLDER_FLOATING_TOGGLE.len() + PLACEHOLDER_LOG_TOGGLE.len() + 10 <= 51);
+        for label in COMBAT_PRESET_LABELS { assert!(label.len() <= 9, "{label}"); }
+        assert!(!include_str!("combat_text.rs").split("#[cfg(test)]\nmod tests {").next().unwrap().contains("\"[[\"") && !include_str!("title_screen.rs").split("#[cfg(test)]\nmod tests {").next().unwrap().contains("\"[[\""));
+        let mut stub = App::new();
+        stub.add_plugins(MinimalPlugins).add_systems(Startup, spawn_settings_stub);
+        stub.update();
+        let w = stub.world_mut();
+        let mut hud = w.query::<(Entity, &PauseTabPanel)>();
+        let mut stack = hud.iter(w).filter(|(_, p)| p.0 == PauseTab::Hud).map(|(e, _)| e).collect::<Vec<_>>();
+        let mut lines = Vec::new();
+        while let Some(e) = stack.pop() {
+            if let Some(t) = w.get::<Text>(e) { lines.push(t.as_str().to_string()); }
+            if let Some(k) = w.get::<Children>(e) { for c in k.iter() { stack.push(c); } }
+        }
+        assert!(!lines.is_empty() && lines.iter().all(|l| !l.contains("[[")));
+        let mut label = rite_label(HouseName::default(), false);
+        label.settings_open = true;
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).insert_resource(LocalSettingsState { inner: LocalSettings::default(), dirty: false }).insert_resource(label).add_message::<HudLayoutCommand>()
+            .add_systems(Startup, spawn_settings_stub).add_systems(Update, (super::combat_text_settings_clicks, super::refresh_combat_text_settings_labels).chain());
+        app.update();
+        app.update();
+        assert_eq!(combat_chip_label_text::<SettingsCombatFloatingLabel>(&mut app), "Floating numbers · on");
+        assert_eq!(combat_chip_label_text::<SettingsCombatLogLabel>(&mut app), "Combat log · off");
+        assert!(!combat_custom_label_shown(&mut app));
+        let log_btn = { let mut q = app.world_mut().query_filtered::<Entity, With<SettingsCombatLogBtn>>(); q.iter(app.world()).next().unwrap() };
+        *app.world_mut().get_mut::<Interaction>(log_btn).unwrap() = Interaction::Pressed;
+        app.update();
+        assert_eq!(combat_chip_label_text::<SettingsCombatLogLabel>(&mut app), "Combat log · on");
+        let float_btn = { let mut q = app.world_mut().query_filtered::<Entity, With<SettingsCombatFloatingBtn>>(); q.iter(app.world()).next().unwrap() };
+        *app.world_mut().get_mut::<Interaction>(float_btn).unwrap() = Interaction::Pressed;
+        app.update();
+        assert_eq!(combat_chip_label_text::<SettingsCombatFloatingLabel>(&mut app), "Floating numbers · off");
+        assert!(combat_custom_label_shown(&mut app));
+        let p1 = { let mut q = app.world_mut().query_filtered::<(Entity, &SettingsCombatPresetBtn), With<SettingsCombatPresetBtn>>(); q.iter(app.world()).find(|(_, b)| b.0 == 1).unwrap().0 };
+        *app.world_mut().get_mut::<Interaction>(p1).unwrap() = Interaction::Pressed;
+        app.update();
+        assert!(!combat_custom_label_shown(&mut app));
+        *app.world_mut().get_mut::<Interaction>(float_btn).unwrap() = Interaction::Pressed;
+        app.update();
+        assert!(combat_custom_label_shown(&mut app));
+        let p0 = { let mut q = app.world_mut().query_filtered::<(Entity, &SettingsCombatPresetBtn), With<SettingsCombatPresetBtn>>(); q.iter(app.world()).find(|(_, b)| b.0 == 0).unwrap().0 };
+        *app.world_mut().get_mut::<Interaction>(p0).unwrap() = Interaction::Pressed;
+        app.update();
+        assert!(!combat_custom_label_shown(&mut app));
+    }
+
+    fn combat_chip_label_text<M: Component>(app: &mut App) -> String {
+        let world = app.world_mut();
+        world.query_filtered::<&Text, With<M>>().iter(world).next().unwrap().as_str().into()
+    }
+
+    fn combat_custom_label_shown(app: &mut App) -> bool {
+        let world = app.world_mut();
+        matches!(world.query_filtered::<&Visibility, With<SettingsCombatCustomLabel>>().iter(world).next(), Some(Visibility::Visible))
     }
 
     /// CARD CAM-MOUSELOOK-1B — fourteen Comfort rows fit 1280×720 at max text scale.

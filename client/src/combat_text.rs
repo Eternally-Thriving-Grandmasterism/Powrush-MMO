@@ -9,10 +9,10 @@ use crate::human_presence::SoftPresence;
 use crate::local_settings::LocalSettingsState;
 use crate::ui_above_world::LivedUiCamera;
 
-// PLACEHOLDER COPY: council pick pending, Sherif may veto
-pub const PLACEHOLDER_MISSED_FLOAT: &str = "[[MISSED_FLOAT]]"; pub const PLACEHOLDER_MISSED_LOG: &str = "[[MISSED_LOG]]";
-pub const PLACEHOLDER_DEALT_FLOAT: &str = "[[DEALT_FLOAT]]"; pub const PLACEHOLDER_TAKEN_FLOAT: &str = "[[TAKEN_FLOAT]]";
-pub const PLACEHOLDER_TIP_FLOAT: &str = "[[COMBAT_TIP_FLOAT]]"; pub const PLACEHOLDER_TIP_LOG: &str = "[[COMBAT_TIP_LOG]]";
+// Council copy (COMBAT-TEXT-COPY-1)
+pub const PLACEHOLDER_MISSED_FLOAT: &str = "Miss"; pub const PLACEHOLDER_MISSED_LOG: &str = "Miss";
+pub const PLACEHOLDER_DEALT_FLOAT: &str = "Hit"; pub const PLACEHOLDER_TAKEN_FLOAT: &str = "Took";
+pub const PLACEHOLDER_TIP_FLOAT: &str = "Jump to dodge"; pub const PLACEHOLDER_TIP_LOG: &str = "Watch for the tell, then jump to dodge.";
 
 /// Clerk/council pin (COMBAT-TEXT-1b), not a live source constant before this card.
 pub const COMBAT_TEXT_HIVE_R_OF_HEIGHT: f32 = 0.22;
@@ -321,5 +321,43 @@ mod tests {
         assert!(a.visible && a.rows == b);
         a.rows.push("y".into());
         assert_ne!(a.rows, b);
+    }
+
+    #[test]
+    fn combat_text_copy_f1_line_for_no_placeholders() {
+        let names = [PREDATOR_NAME, DROID_NAME];
+        for log in [false, true] {
+            for name in names {
+                for (kind, amount) in [
+                    (CombatTextKind::Dealt, 7u32),
+                    (CombatTextKind::Taken, 3),
+                    (CombatTextKind::Missed, 0),
+                    (CombatTextKind::EnemyMissed, 0),
+                    (CombatTextKind::Tip, 0),
+                ] {
+                    let ev = CombatTextEvent { kind, amount, at: Vec3::ZERO, name };
+                    let line = line_for(&ev, log);
+                    assert!(!line.contains("[[") && !line.contains("]]"), "{line}");
+                    if matches!(kind, CombatTextKind::Dealt | CombatTextKind::Missed | CombatTextKind::EnemyMissed)
+                        || (matches!(kind, CombatTextKind::Tip) && !log)
+                    {
+                        assert!(line.contains(name), "{line}");
+                    }
+                    if matches!(kind, CombatTextKind::Dealt | CombatTextKind::Taken) {
+                        assert!(line.contains(&amount.to_string()), "{line}");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn combat_text_copy_f4_combat_word_budgets() {
+        for w in [PLACEHOLDER_DEALT_FLOAT, PLACEHOLDER_TAKEN_FLOAT, PLACEHOLDER_MISSED_FLOAT, PLACEHOLDER_MISSED_LOG] {
+            assert!(w.len() <= 8, "{w}");
+        }
+        let name_len = PREDATOR_NAME.len().max(DROID_NAME.len());
+        assert!(PLACEHOLDER_TIP_FLOAT.len() + 1 + name_len <= 40);
+        assert!(PLACEHOLDER_TIP_LOG.len() <= 40);
     }
 }
