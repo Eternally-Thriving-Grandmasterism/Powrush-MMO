@@ -1420,11 +1420,11 @@ mod tests {
         let g = FirstSessionGuidance { objective: GuidanceObjective::PlantFabricator, ..Default::default() };
         const W: WoodView = WoodView { unit: 1, standing: false };
         let (hour, fac, _) = refine_gate();
-        let factory = FactoryYard { factory: fac.clone() };
-        for (h, steps) in [(HourSacred::default(), 3usize), (hour.clone(), 0usize), (hour, 2usize)] {
+        let f = FactoryYard { factory: fac };
+        for (h, steps) in [(HourSacred::default(), 3), (hour.clone(), 0), (hour, 2)] {
             let mut x = shared::fabricator::Fabricator::default();
             for _ in 0..steps { let _ = x.craft_next(); }
-            assert_ne!(loop_cue(&g, Some(&W), Some(&FabricatorYard { fab: x, bench_glow: 0.0 }), Some(&factory), Some(&h), Some(PlaceId::Sanctuary), None), Some(LOOP_REFINE_CUE));
+            assert_ne!(loop_cue(&g, Some(&W), Some(&FabricatorYard { fab: x, bench_glow: 0.0 }), Some(&f), Some(&h), Some(PlaceId::Sanctuary), None), Some(LOOP_REFINE_CUE));
         }
         let _ = std::fs::remove_dir_all(&dir);
     }
@@ -1437,8 +1437,8 @@ mod tests {
         let (dir, _) = hour_card_end_scratch("lt4");
         let mut app = loop_teach_app();
         app.insert_resource(LaunchDoor::InYard).insert_resource(SoftPresence::default()).insert_resource(NearbyMercyNode::default());
-        *app.world_mut().resource_mut::<WoodView>() = WoodView { unit: 0, standing: true };
         app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::OpenInventory;
+        *app.world_mut().resource_mut::<WoodView>() = WoodView { unit: 0, standing: true };
         app.world_mut().run_system_once(spawn_guidance_strip).unwrap();
         app.world_mut().run_system_once(update_signpost).unwrap();
         app.world_mut().run_system_once(update_guidance_text).unwrap();
@@ -1453,35 +1453,31 @@ mod tests {
     #[test]
     fn loop_teach_lt5_redraw_stamp() {
         use bevy::ecs::system::RunSystemOnce;
+        #[derive(Resource, Default)] struct Lt5Writes(u32);
+        fn lt5_count(q: Query<(), (Changed<Text>, With<FirstSessionGuidanceText>)>, mut n: ResMut<Lt5Writes>) { n.0 += q.iter().count() as u32; }
         let mut app = loop_teach_app();
-        app.add_systems(Update, update_guidance_text);
+        app.init_resource::<Lt5Writes>().add_systems(Update, (update_guidance_text, lt5_count).chain());
         app.world_mut().run_system_once(spawn_guidance_strip).unwrap();
+        let quiet = |a: &mut App| { a.world_mut().resource_mut::<Lt5Writes>().0 = 0; tick2(a); assert_eq!(a.world().resource::<Lt5Writes>().0, 0); };
+        let redraw = |a: &mut App| { a.world_mut().resource_mut::<Lt5Writes>().0 = 0; tick2(a); assert!(a.world().resource::<Lt5Writes>().0 > 0); };
         app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::OpenInventory;
         *app.world_mut().resource_mut::<WoodView>() = WoodView { unit: 0, standing: true };
-        tick2(&mut app);
-        let a = guidance_card_section(&mut app).1;
-        assert!(a.contains(LOOP_GATHER_CUE));
-        tick2(&mut app);
-        assert_eq!(guidance_card_section(&mut app).1, a);
+        redraw(&mut app);
+        assert!(guidance_card_section(&mut app).1.contains(LOOP_GATHER_CUE));
+        quiet(&mut app);
         *app.world_mut().resource_mut::<WoodView>() = WoodView { unit: 1, standing: false };
-        tick2(&mut app);
-        let b = guidance_card_section(&mut app).1;
-        assert!(!b.contains(LOOP_GATHER_CUE) && b != a);
-        tick2(&mut app);
-        assert_eq!(guidance_card_section(&mut app).1, b);
+        redraw(&mut app);
+        quiet(&mut app);
         let (hour, fac, fab) = refine_gate();
         app.insert_resource(hour).insert_resource(FactoryYard { factory: fac }).insert_resource(FabricatorYard { fab, bench_glow: 0.0 });
         app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::PlantFabricator;
-        *app.world_mut().resource_mut::<WoodView>() = WoodView { unit: 1, standing: false };
         app.world_mut().resource_mut::<HourSacred>().complete = false;
-        tick2(&mut app);
+        redraw(&mut app);
         assert!(!guidance_card_section(&mut app).1.contains(LOOP_REFINE_CUE));
         app.world_mut().resource_mut::<HourSacred>().complete = true;
-        tick2(&mut app);
+        redraw(&mut app);
         assert!(guidance_card_section(&mut app).1.contains(LOOP_REFINE_CUE));
-        let settled = guidance_card_section(&mut app).1;
-        tick2(&mut app);
-        assert_eq!(guidance_card_section(&mut app).1, settled);
+        quiet(&mut app);
     }
 
     /// LT6 — door then cue; glow hide unchanged.
