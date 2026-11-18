@@ -191,6 +191,7 @@ impl Plugin for LivingEcologyPlugin {
         app.init_resource::<EcologyState>()
             .init_resource::<BiomeFeel>()
             .init_resource::<PersistentWeb>()
+            .init_resource::<crate::climate_plane::AmbientcgTexCache>()
             .add_systems(Startup, spawn_ecology)
             .add_systems(
                 Update,
@@ -246,11 +247,15 @@ fn spawn_ecology(
     travel: Option<Res<crate::hex_travel::HexTravelState>>,
     settings: Option<Res<crate::local_settings::LocalSettingsState>>,
     mut ramps: Option<ResMut<crate::painterly_mat::PainterlyRampMeshes>>,
+    asset_server: Option<Res<AssetServer>>,
+    mut tex_cache: Option<ResMut<crate::climate_plane::AmbientcgTexCache>>,
 ) {
     let preset = settings
         .as_ref()
         .map(|s| s.inner.graphics_preset)
         .unwrap_or(shared::local_settings::GraphicsPreset::Medium);
+    let color_only = preset == shared::local_settings::GraphicsPreset::Mobile
+        || preset.mesh_lod() == shared::local_settings::MeshLod::Low;
     // CARD VP-MAT-1 — trunk wood stays the earth hue. Canopy walks toward
     // lively valley green with the cheap height ramp.
     const YARD_LEAF: [f32; 3] = [0.10, 0.32, 0.16];
@@ -300,11 +305,15 @@ fn spawn_ecology(
         &canopy,
         crate::painterly_mat::PainterlyRole::Foliage,
     );
-    let wood = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.28, 0.18, 0.10),
-        perceptual_roughness: 0.9,
-        ..default()
-    });
+    let wood = materials.add(crate::climate_plane::ambientcg_tiled_pbr(
+        Color::srgb(0.28, 0.18, 0.10),
+        0.9,
+        "Bark012",
+        Vec2::new(1.0, 3.0),
+        color_only,
+        asset_server.as_deref(),
+        tex_cache.as_deref_mut(),
+    ));
     let leaf = painted.add(crate::painterly_mat::painterly_material(
         crate::painterly_mat::PainterlyRole::Foliage,
         YARD_LEAF,
@@ -337,12 +346,17 @@ fn spawn_ecology(
 
     let mut rock_mesh = Mesh::from(Sphere::new(YARD_ROCK_MESH_R));
     jitter(&mut rock_mesh, 2, YARD_ROCK_JITTER);
+    let _ = rock_mesh.generate_tangents();
     let rock = meshes.add(rock_mesh);
-    let stone = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.32, 0.30, 0.28),
-        perceptual_roughness: 0.95,
-        ..default()
-    });
+    let stone = materials.add(crate::climate_plane::ambientcg_tiled_pbr(
+        Color::srgb(0.32, 0.30, 0.28),
+        0.95,
+        "Rock022",
+        Vec2::ONE,
+        color_only,
+        asset_server.as_deref(),
+        tex_cache.as_deref_mut(),
+    ));
     for pos in YARD_ROCK_SPOTS {
         commands.spawn((
             (
@@ -612,6 +626,8 @@ mod tests {
     fn ecology_build() -> App {
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .init_resource::<crate::climate_plane::AmbientcgTexCache>()
+            .init_asset::<Image>()
             .init_asset::<Mesh>()
             .init_asset::<StandardMaterial>()
             .init_asset::<crate::painterly_shader::PainterlyMaterial>()
@@ -764,6 +780,8 @@ mod tests {
 
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .init_resource::<crate::climate_plane::AmbientcgTexCache>()
+            .init_asset::<Image>()
             .init_asset::<Mesh>()
             .init_asset::<StandardMaterial>()
             .init_asset::<crate::painterly_shader::PainterlyMaterial>()
@@ -1057,5 +1075,22 @@ mod tests {
         web.thread_strength = 0.05;
         web.apply_decay_on_return();
         assert!(web.thread_strength >= 0.05);
+    }
+
+    #[test]
+    fn ground_tex_rock_bark_ecology() {
+        let mut app = ecology_build();
+        let mut q = app.world_mut().query::<(&EcologyProp, &MeshMaterial3d<StandardMaterial>)>();
+        let (rock, trunk) = (
+            q.iter(app.world()).find(|(p, _)| p.kind == PropKind::Stone).unwrap().1.0.clone(),
+            q.iter(app.world()).find(|(p, _)| p.kind == PropKind::Tree).unwrap().1.0.clone(),
+        );
+        let mats = app.world().resource::<Assets<StandardMaterial>>();
+        if crate::climate_plane::ambientcg_maps_on_disk("Rock022") {
+            assert!(mats.get(&rock).unwrap().base_color_texture.is_some());
+        }
+        if crate::climate_plane::ambientcg_maps_on_disk("Bark012") {
+            assert!(mats.get(&trunk).unwrap().base_color_texture.is_some());
+        }
     }
 }
