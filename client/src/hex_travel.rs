@@ -710,6 +710,7 @@ fn places_plate_clicks(
                         if let Some(yard) = yard.as_mut() {
                             let mut file = loaded.clone();
                             if deliver_haul(from, &mut file, &mut yard.fab) {
+                                yard.fab.last_line = crate::fabricator::HAUL_DELIVERED_CUE.into();
                                 let _ = write_hex_named(&file);
                                 loaded = file;
                             }
@@ -2352,5 +2353,95 @@ mod tests {
             }
             let _ = std::fs::remove_dir_all(&dir);
         }
+    }
+
+    fn hd_vis(app: &mut App, id: &'static str) -> Visibility { let mut q = app.world_mut().query::<(&crate::hud_anchor_registry::HudSlab, &Visibility)>(); *q.iter(app.world()).find(|(s, _)| s.0 == id).expect(id).1 }
+    fn hd_text(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<crate::fabricator::FabSlabText>>().single(app.world()).unwrap().as_str().to_string() }
+    fn hd_seed(app: &mut App, preset: crate::hud_presets::HudPresetId) {
+        use crate::fabricator::{spawn_fab_slab, FabricatorPlugin}; use crate::hour_sacred::{try_plant_house, try_ridge_tab}; use crate::vertical_factory::FactoryYard; use bevy::ecs::system::RunSystemOnce; use shared::vertical_factory::VerticalFactory;
+        let (mut hour, mut factory) = (HourSacred::default(), VerticalFactory::default());
+        assert!(try_ridge_tab(&mut hour, true) && try_plant_house(&mut hour, &mut factory));
+        while !factory.tutorial_complete() && factory.advance() != "unfounded" {}
+        assert!(hour.charter_skin_live() && factory.tutorial_complete());
+        (hour.complete, hour.hour_three_complete) = (true, true);
+        let stock = app.world().resource::<FabricatorYard>().fab.crate_stock;
+        app.insert_resource(hour).insert_resource(FactoryYard { factory });
+        app.world_mut().resource_mut::<FabricatorYard>().fab = Fabricator { planted: true, pack: shared::fabricator::ProofPack { repair: true, logi: true }, last_line: "LaneCrate ran — the lane holds a crate".into(), crate_stock: stock, ..Fabricator::default() };
+        app.init_resource::<crate::thriving_moments::ThrivingMoments>().add_plugins((FabricatorPlugin, crate::vertical_factory::VerticalFactoryPlugin, crate::hud_presets::HudLayoutPlugin)).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(preset) });
+        app.world_mut().run_system_once(spawn_fab_slab).unwrap();
+        app.world_mut().spawn((Node::default(), Visibility::Visible, crate::hud_anchor_registry::HudSlab(crate::hud_anchor_registry::ID_FACTORY)));
+        app.update();
+    }
+    fn hd_land(app: &mut App, room: PlacesRoom) -> String { leave_to(app, room); app.update(); hd_text(app) }
+    fn hd_ok(app: &mut App, place: PlaceId) {
+        use crate::fabricator::{HAUL_DELIVERED_CUE, LOOP_HAUL_CUE, LOOP_HAUL_LATER_CUE};
+        let text = hd_text(app);
+        assert_eq!((app.world().resource::<HexTravelState>().current, app.world().resource::<FabricatorYard>().fab.crate_stock, read_hex_named(place).map(|f| f.climate.tons_moved), app.world().resource::<HouseLabel>().settings_open, app.world().resource::<PlacesPlate>().open), (place, 0, Some(1), false, false));
+        let fab_v = hd_vis(app, crate::hud_anchor_registry::ID_FAB);
+        let factory_v = hd_vis(app, crate::hud_anchor_registry::ID_FACTORY);
+        assert_eq!((fab_v, factory_v, text.as_str()), (Visibility::Visible, Visibility::Hidden, HAUL_DELIVERED_CUE));
+        assert!(!text.contains("the lane holds a crate") && !text.contains(LOOP_HAUL_CUE) && !text.contains(LOOP_HAUL_LATER_CUE) && !text.contains('\n') && shared::fabricator::manufacture_copy_is_honest(&text));
+    }
+    #[test]
+    fn haul_delivered_hd1_classic_and_hd2_minimal() {
+        use crate::fabricator::LOOP_HAUL_CUE;
+        let before = format!("Sanctuary · LaneCrate ran — the lane holds a crate · {LOOP_HAUL_CUE}");
+        for (tag, preset, room, place) in [("hd1", crate::hud_presets::HudPresetId::Classic, PlacesRoom::Heartwood, PlaceId::Heartwood), ("hd2", crate::hud_presets::HudPresetId::Minimal, PlacesRoom::Depths, PlaceId::Depths)] {
+            let (mut app, _hold, dir) = haul_app(tag, PlaceId::Sanctuary, Some(1));
+            hd_seed(&mut app, preset); assert_eq!(hd_text(&mut app), before); hd_land(&mut app, room); hd_ok(&mut app, place);
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
+    /// HD3 — crates left compose the haul cue; none leaves the bare line; bench Q clears it. Red on main.
+    #[test]
+    fn haul_delivered_hd3_lifetime() {
+        use crate::fabricator::{HAUL_DELIVERED_CUE, LOOP_HAUL_CUE, LOOP_HAUL_LATER_CUE};
+        let (mut app, _hold, dir) = haul_app("hd3a", PlaceId::Sanctuary, Some(2));
+        hd_seed(&mut app, crate::hud_presets::HudPresetId::Classic);
+        assert_eq!(hd_land(&mut app, PlacesRoom::Heartwood), HAUL_DELIVERED_CUE);
+        let back = hd_land(&mut app, PlacesRoom::Sanctuary);
+        let want = format!("{HAUL_DELIVERED_CUE} · {LOOP_HAUL_CUE}");
+        assert_eq!((back.clone(), back.matches(HAUL_DELIVERED_CUE).count(), back.matches(LOOP_HAUL_CUE).count(), back.contains(LOOP_HAUL_LATER_CUE)), (want, 1, 1, false));
+        let _ = std::fs::remove_dir_all(&dir);
+        let (mut app, _hold, dir) = haul_app("hd3b", PlaceId::Sanctuary, Some(1));
+        hd_seed(&mut app, crate::hud_presets::HudPresetId::Classic); hd_land(&mut app, PlacesRoom::Heartwood);
+        let home = hd_land(&mut app, PlacesRoom::Sanctuary);
+        assert_eq!(home, HAUL_DELIVERED_CUE);
+        tap_key(&mut app, KeyCode::KeyQ, Key::Character("Q".into()));
+        let cleared = hd_text(&mut app);
+        assert!(cleared.contains("Proof Pack") && !cleared.contains(HAUL_DELIVERED_CUE) && !home.contains('·'));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+    /// HD4 — same place, the walk home, and stock 0 write no delivered line. Pause restores; Management hides Fab.
+    #[test]
+    fn haul_delivered_hd4_guards() {
+        use crate::fabricator::HAUL_DELIVERED_CUE;
+        for (tag, at, room) in [("hd4s", PlaceId::Sanctuary, PlacesRoom::Sanctuary), ("hd4d", PlaceId::Depths, PlacesRoom::Sanctuary)] {
+            let (mut app, _hold, dir) = haul_app(tag, at, Some(1)); hd_seed(&mut app, crate::hud_presets::HudPresetId::Classic);
+            let before = app.world().resource::<FabricatorYard>().fab.last_line.clone(); leave_to(&mut app, room); app.update();
+            assert_eq!(app.world().resource::<FabricatorYard>().fab.last_line, before); assert!(!hd_text(&mut app).contains(HAUL_DELIVERED_CUE));
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+        let (mut app, _hold, dir) = haul_app("hd40", PlaceId::Sanctuary, Some(0)); hd_seed(&mut app, crate::hud_presets::HudPresetId::Classic);
+        let before = app.world().resource::<FabricatorYard>().fab.last_line.clone(); leave_to(&mut app, PlacesRoom::Heartwood); app.update();
+        assert_eq!(app.world().resource::<FabricatorYard>().fab.last_line, before);
+        let text = hd_text(&mut app); assert!(!text.contains(HAUL_DELIVERED_CUE));
+        app.world_mut().resource_mut::<HouseLabel>().settings_open = true; app.update();
+        assert_eq!(hd_vis(&mut app, crate::hud_anchor_registry::ID_FAB), Visibility::Hidden);
+        app.world_mut().resource_mut::<HouseLabel>().settings_open = false; app.update();
+        let restored = hd_vis(&mut app, crate::hud_anchor_registry::ID_FAB); assert_eq!((restored, hd_text(&mut app)), (Visibility::Visible, text));
+        app.world_mut().resource_mut::<LivedHourBind>().hour.allocation.flow = 1; app.world_mut().resource_mut::<crate::hud_presets::ActiveHudPreset>().id = Some(crate::hud_presets::HudPresetId::Management); app.update();
+        assert_eq!(hd_vis(&mut app, crate::hud_anchor_registry::ID_FAB), Visibility::Hidden);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+    /// Quiet path — two ticks after landing write no FabSlabText.
+    #[test]
+    fn haul_delivered_quiet_after_land() {
+        #[derive(Resource)] struct SlabWrites(u32);
+        fn count(q: Query<(), (Changed<Text>, With<crate::fabricator::FabSlabText>)>, mut n: ResMut<SlabWrites>) { n.0 += q.iter().count() as u32; }
+        let (mut app, _hold, dir) = haul_app("hdq", PlaceId::Sanctuary, Some(1)); hd_seed(&mut app, crate::hud_presets::HudPresetId::Classic);
+        app.insert_resource(SlabWrites(0)).add_systems(PostUpdate, count);
+        leave_to(&mut app, PlacesRoom::Heartwood); app.update(); app.world_mut().resource_mut::<SlabWrites>().0 = 0; app.update(); app.update();
+        assert_eq!(app.world().resource::<SlabWrites>().0, 0); let _ = std::fs::remove_dir_all(&dir);
     }
 }
