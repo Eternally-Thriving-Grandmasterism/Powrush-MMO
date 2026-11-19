@@ -368,4 +368,36 @@ mod tests {
         for _ in 0..1000 { idle.gain_metres(WALK, 0.0 * walk_factor(DifficultyTier::Unbroken)); }
         assert_eq!(idle.xp[WALK], 0, "0 m on Unbroken pays 0");
     }
+
+    fn tick(app: &mut App, dt: f32) { app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(dt))); app.update(); }
+    fn root_vis(app: &mut App) -> (String, Visibility) {
+        let text = app.world_mut().query_filtered::<&Text, With<crate::first_harvest_epiphany::HarvestPulseText>>().single(app.world()).unwrap().as_str().to_string();
+        (text, *app.world_mut().query_filtered::<&Visibility, With<crate::first_harvest_epiphany::HarvestPulseRoot>>().single(app.world()).unwrap())
+    }
+    #[test]
+    fn nr2_gather_walk_and_sprint_levels_stay_hidden() {
+        crate::loot_drops::tests::in_user_dir("nr2", |_| {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default(), crate::input::InputPlugin, crate::first_session_guidance::FirstSessionGuidancePlugin, crate::first_harvest_epiphany::FirstHarvestEpiphanyPlugin, crate::hud_presets::HudLayoutPlugin, crate::ui_font::UiFontPlugin, SkillXpPlugin)).insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::ZERO)).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(crate::hud_presets::HudPresetId::Classic) }).insert_resource(crate::title_screen::LaunchDoor::InYard).insert_resource(crate::title_screen::HouseLabel::default()).insert_resource(crate::hex_travel::PlacesPlate::default()).insert_resource(crate::hex_travel::HexTravelState { current: shared::hex_travel::PlaceId::Sanctuary }).insert_resource(ButtonInput::<KeyCode>::default()).insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).insert_resource(crate::human_presence::SoftPresence { position: Vec3::ZERO, grounded: true, ..default() }).init_resource::<crate::hour_sacred::HourSacred>().init_resource::<crate::thriving_moments::ThrivingMoments>().init_resource::<crate::abundance_journey_echo::AbundanceJourneyEcho>().init_resource::<crate::mercy_harvest_nodes::NearbyMercyNode>().init_resource::<crate::harvest_feel::SoftRbePool>().init_resource::<crate::world_answer::WorldAnswer>().add_message::<bevy::input::keyboard::KeyboardInput>().add_message::<bevy::input::mouse::MouseButtonInput>().add_message::<bevy::input::touch::TouchInput>().add_message::<bevy::input::gamepad::GamepadRumbleRequest>();
+            app.world_mut().resource_mut::<bevy::time::Time<bevy::time::Virtual>>().set_max_delta(std::time::Duration::from_secs(5));
+            let below = xp_for_level(2) - combat_xp(DifficultyTier::Sheltered, XP_PER_GATHER);
+            app.world_mut().resource_mut::<SkillXp>().xp[GATHER] = below;
+            app.world_mut().resource_mut::<crate::first_harvest_epiphany::FirstHarvestEpiphany>().harvests_this_session = 1;
+            tick(&mut app, 0.0);
+            tick(&mut app, 0.0);
+            assert_eq!(root_vis(&mut app), (level_up_line(GATHER, 2), Visibility::Hidden));
+            app.world_mut().resource_mut::<SkillXp>().xp[WALK] = xp_for_level(2) - 1;
+            app.world_mut().resource_mut::<crate::human_presence::SoftPresence>().position.x = 1.0;
+            tick(&mut app, 1.0);
+            tick(&mut app, 0.0);
+            assert_eq!(root_vis(&mut app), (level_up_line(WALK, 2), Visibility::Hidden));
+            app.world_mut().resource_mut::<SkillXp>().xp[SPRINT] = xp_for_level(2) - 1;
+            app.insert_resource(crate::living_body::LivingBody::default());
+            app.world_mut().resource_mut::<crate::human_presence::SoftPresence>().position.x = 2.0;
+            { let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>(); keys.press(KeyCode::KeyW); keys.press(KeyCode::ShiftLeft); }
+            tick(&mut app, 1.0);
+            tick(&mut app, 0.0);
+            assert_eq!(root_vis(&mut app), (level_up_line(SPRINT, 2), Visibility::Hidden));
+        });
+    }
 }
