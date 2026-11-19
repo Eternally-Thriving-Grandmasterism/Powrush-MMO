@@ -586,4 +586,62 @@ mod tests {
         hook_droid_strike(&mut q, before, state.taken, false, Vec3::ZERO);
         assert_eq!(q.events[0].amount, state.taken.saturating_sub(before));
     }
+
+    fn thread(app: &mut App) { fn set(app: &mut App, label: impl bevy::ecs::schedule::ScheduleLabel) { app.edit_schedule(label, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); }); } set(app, Startup); set(app, First); set(app, PreUpdate); set(app, Update); set(app, PostUpdate); set(app, Last); }
+    fn tick(app: &mut App, dt: f32) { app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(dt))); app.update(); }
+    fn rings<C: Component>(app: &mut App) -> Vec<Visibility> { app.world_mut().query_filtered::<&Visibility, With<C>>().iter(app.world()).copied().collect() }
+    fn pulse_of(app: &mut App) -> (String, Visibility) {
+        let text = app.world_mut().query_filtered::<&Text, With<crate::first_harvest_epiphany::HarvestPulseText>>().single(app.world()).unwrap().as_str().to_string();
+        (text, *app.world_mut().query_filtered::<&Visibility, With<crate::first_harvest_epiphany::HarvestPulseRoot>>().single(app.world()).unwrap())
+    }
+    fn yard<R>(tag: &str, preset: crate::hud_presets::HudPresetId, tier: DifficultyTier, body: impl FnOnce(&mut App) -> R) -> R {
+        crate::loot_drops::tests::in_user_dir(tag, |_| {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default(), crate::input::InputPlugin, crate::first_session_guidance::FirstSessionGuidancePlugin, crate::first_harvest_epiphany::FirstHarvestEpiphanyPlugin, crate::hud_presets::HudLayoutPlugin, crate::ui_font::UiFontPlugin, crate::combat_core::CombatCorePlugin, DroidPlugin)).init_asset::<Mesh>().init_asset::<StandardMaterial>().insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::ZERO)).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(preset) }).insert_resource(LaunchDoor::InYard).insert_resource(crate::title_screen::HouseLabel::default()).insert_resource(crate::hex_travel::PlacesPlate::default()).insert_resource(crate::first_harvest_epiphany::CalmQueue::default()).insert_resource(HexTravelState { current: PlaceId::Heartwood }).insert_resource(ButtonInput::<KeyCode>::default()).insert_resource(SoftPresence { position: Vec3::new(DROID_HOME[0], 0.9, DROID_HOME[1]), grounded: true, ..default() }).insert_resource(AreaDifficulty { default: tier, ..Default::default() }).insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).init_resource::<crate::hour_sacred::HourSacred>().init_resource::<crate::thriving_moments::ThrivingMoments>().init_resource::<crate::abundance_journey_echo::AbundanceJourneyEcho>().init_resource::<crate::mercy_harvest_nodes::NearbyMercyNode>().init_resource::<crate::harvest_feel::SoftRbePool>().init_resource::<crate::world_answer::WorldAnswer>().add_message::<bevy::input::keyboard::KeyboardInput>().add_message::<bevy::input::mouse::MouseButtonInput>().add_message::<bevy::input::touch::TouchInput>().add_message::<bevy::input::gamepad::GamepadRumbleRequest>();
+            thread(&mut app);
+            app.world_mut().resource_mut::<bevy::time::Time<bevy::time::Virtual>>().set_max_delta(std::time::Duration::from_secs(5));
+            app.world_mut().spawn((Window { focused: true, ..default() }, bevy::window::PrimaryWindow));
+            app.update();
+            body(&mut app)
+        })
+    }
+    fn open_droid(app: &mut App) -> (String, Vec<Visibility>, String, Visibility) {
+        app.insert_resource(DroidState { shot_timer: DROID_SHOT_SECS - DROID_SHOT_TELL_SECS - 0.02, ..default() });
+        tick(app, 0.04);
+        let wrote = app.world().resource::<FirstHarvestEpiphany>().pulse_line.clone();
+        let dots = rings::<DroidTell>(app);
+        tick(app, 0.0);
+        let (text, vis) = pulse_of(app);
+        (wrote, dots, text, vis)
+    }
+    fn shown_droid(tag: &str, preset: crate::hud_presets::HudPresetId, tier: DifficultyTier) {
+        yard(tag, preset, tier, |app| {
+            let (wrote, dots, text, vis) = open_droid(app);
+            assert_eq!((wrote.as_str(), text.as_str(), vis, app.world().resource::<CombatState>().player_taken), (DROID_TELL_TEXT, DROID_TELL_TEXT, Visibility::Visible, 0), "{tag}");
+            assert!(dots.iter().all(|d| *d == Visibility::Hidden) && !dots.is_empty(), "{tag}");
+        });
+    }
+    #[test]
+    fn tv2_sworn_droid_tell_visible_ring_hidden() { for (tag, tier) in [("tv2s", DifficultyTier::Sworn), ("tv2u", DifficultyTier::Unbroken)] { shown_droid(tag, crate::hud_presets::HudPresetId::Classic, tier); } }
+    #[test]
+    fn tv3_minimal_droid_tell_visible() { shown_droid("tv3d", crate::hud_presets::HudPresetId::Minimal, DifficultyTier::Sworn); }
+    #[test]
+    fn tv5_sheltered_and_steady_write_no_droid_tell() {
+        for (tag, tier) in [("tv5ds", DifficultyTier::Sheltered), ("tv5dy", DifficultyTier::Steady)] {
+            yard(tag, crate::hud_presets::HudPresetId::Classic, tier, |app| {
+                let (wrote, dots, _, _) = open_droid(app);
+                assert!(wrote.is_empty() && dots.iter().all(|d| *d == Visibility::Visible) && !dots.is_empty(), "{tag} {wrote}");
+            });
+        }
+    }
+    #[test]
+    fn ex1_droid_tell_hides_after_shot_tell() {
+        yard("ex1d", crate::hud_presets::HudPresetId::Classic, DifficultyTier::Sworn, |app| {
+            let (_, _, text, vis) = open_droid(app);
+            assert_eq!((text.as_str(), vis), (DROID_TELL_TEXT, Visibility::Visible));
+            app.world_mut().resource_mut::<SoftPresence>().grounded = false;
+            tick(app, DROID_SHOT_TELL_SECS + 0.05);
+            assert_eq!((pulse_of(app).1, app.world().resource::<FirstHarvestEpiphany>().pulse_line.as_str()), (Visibility::Hidden, DROID_TELL_TEXT));
+        });
+    }
 }

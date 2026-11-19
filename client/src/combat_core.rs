@@ -2339,12 +2339,12 @@ mod tests {
     fn flv4_management_find_line_visible() { visible("flv4", HudPresetId::Management, PlaceId::Sanctuary, yard_find(PlaceId::Sanctuary)); }
     #[test]
     fn flv5_non_find_pulses_stay_hidden() {
-        let lines = [level_up_line(COMBAT, 2), tend_harmony_pulse_line("Sanctuary ember", 0.4), LUNGE_TELL_TEXT.to_string()];
+        let rows = [(level_up_line(COMBAT, 2), Visibility::Visible), (tend_harmony_pulse_line("Sanctuary ember", 0.4), Visibility::Hidden), (LUNGE_TELL_TEXT.to_string(), Visibility::Visible)];
         flv("flv5", HudPresetId::Classic, PlaceId::Sanctuary, FoundFinds::default(), |app, _| {
-            for line in lines {
+            for (line, want) in rows {
                 { let mut epi = app.world_mut().resource_mut::<FirstHarvestEpiphany>(); (epi.pulse_line, epi.pulse_until) = (line.clone(), CUE_SECS); }
                 app.update();
-                assert_eq!((pulse_of(app).1, app.world().resource::<FirstHarvestEpiphany>().pulse_line.as_str()), (Visibility::Hidden, line.as_str()), "{line}");
+                assert_eq!((pulse_of(app).1, app.world().resource::<FirstHarvestEpiphany>().pulse_line.as_str()), (want, line.as_str()), "{line}");
             }
         });
     }
@@ -2392,5 +2392,44 @@ mod tests {
             assert!(guide != expected && !guide.contains(expected), "{guide}");
             assert_eq!(pulse_of(app), (expected.to_string(), Visibility::Visible));
         });
+    }
+
+    fn thread(app: &mut App) { fn set(app: &mut App, label: impl bevy::ecs::schedule::ScheduleLabel) { app.edit_schedule(label, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); }); } set(app, Startup); set(app, First); set(app, PreUpdate); set(app, Update); set(app, PostUpdate); set(app, Last); }
+    fn tick(app: &mut App, dt: f32) { app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(dt))); app.update(); }
+    fn rings<C: Component>(app: &mut App) -> Vec<Visibility> { app.world_mut().query_filtered::<&Visibility, With<C>>().iter(app.world()).copied().collect() }
+    fn yard<R>(tag: &str, preset: HudPresetId, place: PlaceId, tier: DifficultyTier, at: [f32; 2], body: impl FnOnce(&mut App) -> R) -> R {
+        in_user_dir(tag, |_| { let mut app = App::new(); app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default(), crate::input::InputPlugin, crate::first_session_guidance::FirstSessionGuidancePlugin, crate::first_harvest_epiphany::FirstHarvestEpiphanyPlugin, HudLayoutPlugin, crate::ui_font::UiFontPlugin, CombatCorePlugin)).init_asset::<Mesh>().init_asset::<StandardMaterial>().insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::ZERO)).insert_resource(ActiveHudPreset { id: Some(preset) }).insert_resource(LaunchDoor::InYard).insert_resource(HouseLabel::default()).insert_resource(PlacesPlate::default()).insert_resource(CalmQueue::default()).insert_resource(HexTravelState { current: place }).insert_resource(ButtonInput::<KeyCode>::default()).insert_resource(SoftPresence { position: Vec3::new(at[0], 0.9, at[1]), grounded: true, ..default() }).insert_resource(AreaDifficulty { default: tier, ..Default::default() }).init_resource::<SkillXp>().insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).init_resource::<crate::hour_sacred::HourSacred>().init_resource::<crate::thriving_moments::ThrivingMoments>().init_resource::<crate::abundance_journey_echo::AbundanceJourneyEcho>().init_resource::<crate::mercy_harvest_nodes::NearbyMercyNode>().init_resource::<crate::harvest_feel::SoftRbePool>().init_resource::<crate::world_answer::WorldAnswer>().add_message::<bevy::input::keyboard::KeyboardInput>().add_message::<bevy::input::mouse::MouseButtonInput>().add_message::<bevy::input::touch::TouchInput>().add_message::<GamepadRumbleRequest>(); thread(&mut app); app.world_mut().resource_mut::<bevy::time::Time<bevy::time::Virtual>>().set_max_delta(std::time::Duration::from_secs(5)); app.world_mut().spawn((Window { focused: true, ..default() }, PrimaryWindow)); app.update(); body(&mut app) })
+    }
+    fn open_lunge(app: &mut App) -> (String, Vec<Visibility>, String, Visibility) { tick(app, LUNGE_SECS - LUNGE_TELL_SECS + 0.02); let wrote = app.world().resource::<FirstHarvestEpiphany>().pulse_line.clone(); let dots = rings::<LungeTell>(app); tick(app, 0.0); let (text, vis) = pulse_of(app); (wrote, dots, text, vis) }
+    fn shown_lunge(tag: &str, preset: HudPresetId, tier: DifficultyTier) { yard(tag, preset, PlaceId::Heartwood, tier, PREDATOR_HOME, |app| { let (wrote, dots, text, vis) = open_lunge(app); assert_eq!((wrote.as_str(), text.as_str(), vis, app.world().resource::<CombatState>().player_taken), (LUNGE_TELL_TEXT, LUNGE_TELL_TEXT, Visibility::Visible, 0), "{tag}"); assert!(!dots.is_empty() && dots.iter().all(|d| *d == Visibility::Hidden), "{tag}"); }); }
+    #[test]
+    fn tv1_sworn_lunge_tell_visible_ring_hidden() { for (tag, tier) in [("tv1s", DifficultyTier::Sworn), ("tv1u", DifficultyTier::Unbroken)] { shown_lunge(tag, HudPresetId::Classic, tier); } }
+    #[test]
+    fn tv3_minimal_lunge_tell_visible() { shown_lunge("tv3l", HudPresetId::Minimal, DifficultyTier::Sworn); }
+    #[test]
+    fn tv4_management_lunge_tell_visible() { shown_lunge("tv4", HudPresetId::Management, DifficultyTier::Sworn); }
+    #[test]
+    fn tv5_sheltered_and_steady_write_no_lunge_tell() { for (tag, tier) in [("tv5s", DifficultyTier::Sheltered), ("tv5y", DifficultyTier::Steady)] { yard(tag, HudPresetId::Classic, PlaceId::Heartwood, tier, PREDATOR_HOME, |app| { let (wrote, dots, _, _) = open_lunge(app); assert!(wrote.is_empty() && !dots.is_empty() && dots.iter().all(|d| *d == Visibility::Visible), "{tag} {wrote}"); }); } }
+    fn cross(app: &mut App, taken: u32) { app.world_mut().resource_mut::<SkillXp>().xp[COMBAT] = crate::skill_xp::xp_for_level(2) - XP_PER_LANDED_HIT; app.world_mut().resource_mut::<CombatState>().predator_taken = taken; app.world_mut().resource_mut::<StrikeBuffer>().fire = true; tick(app, 0.0); tick(app, 0.0); }
+    #[test]
+    fn lv2_combat_level_and_joined_kill_visible() {
+        yard("lv2a", HudPresetId::Classic, PlaceId::Sanctuary, DifficultyTier::Sheltered, STAVEHOLD_FIGHT_HOME, |app| { cross(app, 0); assert_eq!(pulse_of(app), (level_up_line(COMBAT, 2), Visibility::Visible)); assert!(app.world().resource::<CombatState>().predator_taken < HEALTH); });
+        yard("lv2b", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, PREDATOR_HOME, |app| { cross(app, HEALTH - HIT); let want = { let combat = app.world().resource::<CombatState>(); assert!(combat.predator_taken >= HEALTH); fire_line(PlaceId::Heartwood, combat, true, XP_PER_LANDED_HIT, Some(2)).unwrap() }; assert!(want.ends_with(&level_up_line(COMBAT, 2))); assert_eq!(pulse_of(app), (want, Visibility::Visible)); });
+    }
+    #[test]
+    fn lv3_combat_level_visible_on_the_next_frame() { yard("lv3", HudPresetId::Classic, PlaceId::Sanctuary, DifficultyTier::Sheltered, STAVEHOLD_FIGHT_HOME, |app| { let find = crate::loot_drops::find_line(&shared::temper::NAMED_FINDS[0]); { let mut epi = app.world_mut().resource_mut::<FirstHarvestEpiphany>(); (epi.pulse_line, epi.pulse_until) = (find.clone(), CUE_SECS); } tick(app, 0.0); tick(app, 0.0); assert_eq!(pulse_of(app), (find, Visibility::Visible)); cross(app, 0); assert_eq!(pulse_of(app), (level_up_line(COMBAT, 2), Visibility::Visible)); }); }
+    #[test]
+    fn nr1_tend_charter_fire_and_wake_stay_hidden() { yard("nr1", HudPresetId::Classic, PlaceId::Sanctuary, DifficultyTier::Sheltered, STAVEHOLD_FIGHT_HOME, |app| { let lines = [crate::first_harvest_epiphany::tend_pulse_at_place("Sanctuary ember", 0.4, Some("Sanctuary")), "Not your charter / Peace visitor".into(), fire_cue(PlaceId::Heartwood, &CombatState { predator_taken: HIT, ..default() }, true, XP_PER_LANDED_HIT).unwrap(), wake_cue_at(PlaceId::Heartwood), wake_cue_at(PlaceId::Sanctuary)]; for line in lines { { let mut epi = app.world_mut().resource_mut::<FirstHarvestEpiphany>(); (epi.pulse_line, epi.pulse_until) = (line.clone(), CUE_SECS); } tick(app, 0.0); assert_eq!((pulse_of(app).1, app.world().resource::<FirstHarvestEpiphany>().pulse_line.as_str()), (Visibility::Hidden, line.as_str()), "{line}"); } }); }
+    #[test]
+    fn ex1_lunge_tell_and_combat_level_hide_after_cue() {
+        yard("ex1t", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sworn, PREDATOR_HOME, |app| { let (_, _, text, vis) = open_lunge(app); assert_eq!((text.as_str(), vis), (LUNGE_TELL_TEXT, Visibility::Visible)); app.world_mut().resource_mut::<SoftPresence>().grounded = false; tick(app, LUNGE_TELL_SECS + 0.05); assert_eq!((pulse_of(app).1, app.world().resource::<FirstHarvestEpiphany>().pulse_line.as_str()), (Visibility::Hidden, LUNGE_TELL_TEXT)); });
+        yard("ex1l", HudPresetId::Classic, PlaceId::Sanctuary, DifficultyTier::Sheltered, STAVEHOLD_FIGHT_HOME, |app| { cross(app, 0); assert_eq!(pulse_of(app).1, Visibility::Visible); app.world_mut().resource_mut::<SoftPresence>().grounded = false; tick(app, CUE_SECS as f32 + 0.05); assert_eq!((pulse_of(app).1, app.world().resource::<FirstHarvestEpiphany>().pulse_line.as_str()), (Visibility::Hidden, level_up_line(COMBAT, 2).as_str())); });
+    }
+    #[test]
+    fn r5_pause_or_places_hides_tell_and_level() { for (tag, pause, places) in [("r5p", true, false), ("r5d", false, true)] { yard(tag, HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sworn, PREDATOR_HOME, |app| { let (_, _, text, vis) = open_lunge(app); assert_eq!((text.as_str(), vis), (LUNGE_TELL_TEXT, Visibility::Visible)); app.world_mut().resource_mut::<HouseLabel>().settings_open = pause; app.world_mut().resource_mut::<PlacesPlate>().open = places; tick(app, 0.0); assert_eq!(pulse_of(app).1, Visibility::Hidden, "{tag}"); { let mut epi = app.world_mut().resource_mut::<FirstHarvestEpiphany>(); (epi.pulse_line, epi.pulse_until) = (level_up_line(COMBAT, 2), CUE_SECS); } tick(app, 0.0); assert_eq!(pulse_of(app).1, Visibility::Hidden, "{tag} level"); }); } }
+    #[test]
+    fn r2_tell_leaves_other_top_toast_occupants_hidden() {
+        let ids = [ID_PICKUP, ID_THRIVING, ID_SOVEREIGN, ID_WHISPER, ID_WELCOME];
+        yard("r2", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sworn, PREDATOR_HOME, |app| { let spawned: Vec<_> = ids.into_iter().map(|id| (id, app.world_mut().spawn((Node::default(), Visibility::Visible, HudSlab(id))).id())).collect(); let (_, _, text, vis) = open_lunge(app); assert_eq!((text.as_str(), vis), (LUNGE_TELL_TEXT, Visibility::Visible)); for (id, entity) in spawned { assert_eq!(*app.world().get::<Visibility>(entity).unwrap(), Visibility::Hidden, "{id}"); } let yielded = &app.world().resource::<HudYielded>().0; assert!(ids.into_iter().all(|id| yielded.contains(&id)) && !yielded.contains(&ID_PULSE)); });
     }
 }
