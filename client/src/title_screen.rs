@@ -1543,7 +1543,7 @@ GlobalZIndex(LIVED_UI_Z_TITLE),
             .with_children(|p| {
                 p.spawn((
 Text::new("POWRUSH"),
-ui_kit::font(ui_kit::TYPE_DISPLAY),
+ui_kit::display_font(ui_kit::TYPE_DISPLAY),
 TextColor(TITLE_TEXT_PRIMARY),
 ));
                 p.spawn((
@@ -2118,7 +2118,7 @@ GlobalZIndex(140),
             .with_children(|p| {
                 p.spawn((
 Text::new("Name your House"),
-TextFont { font_size: FontSize::Px(18.0 / 1.2), ..default() },
+ui_kit::display_font(18.0),
 TextColor(TITLE_TEXT_PRIMARY),
 ));
                 p.spawn((
@@ -2178,7 +2178,7 @@ GlobalZIndex(141),
             .with_children(|p| {
                 p.spawn((
 Text::new("House seals · heritage"),
-TextFont { font_size: FontSize::Px(18.0 / 1.2), ..default() },
+ui_kit::display_font(18.0),
 TextColor(TITLE_TEXT_PRIMARY),
 ));
                 p.spawn((
@@ -2324,7 +2324,7 @@ GlobalZIndex(142),
             .with_children(|p| {
                 p.spawn((
 Text::new("Persona creator · optional"),
-TextFont { font_size: FontSize::Px(18.0 / 1.2), ..default() },
+ui_kit::display_font(18.0),
 TextColor(TITLE_TEXT_PRIMARY),
 ));
                 p.spawn((
@@ -10593,5 +10593,75 @@ mod tests {
         assert!(TITLE_SAFE_INSET <= top && bottom <= 720.0 - TITLE_SAFE_INSET, "plate {top}..{bottom}");
         let inside = bottom - TITLE_PLATE_PAD - TITLE_PLATE_BORDER;
         assert!(last <= inside + 0.5, "banner ends at {last}, past the plate's content edge {inside}");
+    }
+
+    fn fd_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).add_systems(Startup, (
+            spawn_title_screen, spawn_name_house_panel, spawn_house_dress_panel, spawn_persona_creator_panel,
+            spawn_settings_stub, crate::first_session_guidance::spawn_guidance_strip, crate::fabricator::spawn_fab_slab,
+        )).update();
+        app
+    }
+
+    fn fd_rows(app: &mut App) -> Vec<(String, FontSource, FontSize)> {
+        app.world_mut().query::<(&Text, &TextFont)>().iter(app.world()).map(|(t, f)| (t.0.clone(), f.font.clone(), f.font_size)).collect()
+    }
+
+    #[test]
+    fn font_display_fd4_s1_s4_sizes_unchanged() {
+        let mut app = fd_app();
+        let rows = fd_rows(&mut app);
+        let px = |s: &str| rows.iter().find(|(t, _, _)| t == s).unwrap_or_else(|| panic!("{s}")).2;
+        assert_eq!(px("POWRUSH"), FontSize::Px(ui_kit::TYPE_DISPLAY / 1.2));
+        for s in ["Name your House", "House seals · heritage", "Persona creator · optional"] {
+            assert_eq!(px(s), FontSize::Px(18.0 / 1.2), "{s}");
+        }
+    }
+
+    #[test]
+    fn font_display_fd5_title_pause_guide_fab_stay_on_the_default_face() {
+        let mut app = fd_app();
+        let def = TextFont::default().font;
+        let rows = fd_rows(&mut app);
+        let world = app.world_mut();
+        let plate = world.query_filtered::<Entity, With<TitlePlate>>().single(world).unwrap();
+        let mut stack = vec![plate];
+        let mut under = Vec::new();
+        while let Some(e) = stack.pop() {
+            if let Some(children) = world.get::<Children>(e) { stack.extend(children.to_vec()); }
+            if e != plate { under.push(e); }
+        }
+        for e in under {
+            if let Some((text, font)) = world.get::<Text>(e).zip(world.get::<TextFont>(e)) {
+                if text.0 != "POWRUSH" { assert_eq!(font.font, def, "title {}", text.0); }
+            }
+        }
+        let cue = world.query_filtered::<&TextFont, With<PauseCueText>>().single(world).unwrap();
+        assert_eq!(cue.font, def, "pause cue");
+        for tab in PauseTab::ALL {
+            assert!(rows.iter().any(|(t, font, _)| t == tab.label() && font == &def), "{}", tab.label());
+        }
+        assert_eq!(world.query_filtered::<&TextFont, With<crate::first_session_guidance::FirstSessionGuidanceText>>().single(world).unwrap().font, def);
+        assert_eq!(world.query_filtered::<&TextFont, With<crate::fabricator::FabSlabText>>().single(world).unwrap().font, def);
+    }
+
+    #[test]
+    fn font_display_fd2_powrush_wordmark_uses_display_face() {
+        let mut app = fd_app();
+        let (want, def) = (FontSource::from(crate::ui_font::DISPLAY_FONT), TextFont::default().font);
+        let row = fd_rows(&mut app).into_iter().find(|(t, _, _)| t == "POWRUSH").expect("POWRUSH");
+        assert!(row.1 != def && row.1 == want);
+    }
+
+    #[test]
+    fn font_display_fd3_s2_s4_headers_use_display_face() {
+        let mut app = fd_app();
+        let (want, def) = (FontSource::from(crate::ui_font::DISPLAY_FONT), TextFont::default().font);
+        let rows = fd_rows(&mut app);
+        for s in ["Name your House", "House seals · heritage", "Persona creator · optional"] {
+            let row = rows.iter().find(|(t, _, _)| t == s).unwrap_or_else(|| panic!("{s}"));
+            assert!(row.1 != def && row.1 == want, "{s}");
+        }
     }
 }

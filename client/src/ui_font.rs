@@ -11,10 +11,15 @@
 //! folder being present. No new graphics menu. No layout change.
 //! Contact: info@Rathor.ai
 
+use bevy::asset::uuid_handle;
 use bevy::prelude::*;
 
 /// Fira Sans Regular, embedded. Same file as `client/assets/fonts/FiraSans-Regular.ttf`.
 pub const UI_FONT_REGULAR: &[u8] = include_bytes!("../assets/fonts/FiraSans-Regular.ttf");
+/// Cinzel Regular, embedded. Same file as `client/assets/fonts/Cinzel-Regular.ttf`.
+pub const UI_FONT_DISPLAY: &[u8] = include_bytes!("../assets/fonts/Cinzel-Regular.ttf");
+/// Display-face handle. The asset server does not own it.
+pub const DISPLAY_FONT: Handle<Font> = uuid_handle!("c088f941-79b3-4d83-98b0-712eb3ddb11a");
 
 /// Replaces Bevy's default font asset (the handle every `TextStyle::default()` uses).
 pub struct UiFontPlugin;
@@ -40,6 +45,8 @@ fn install_default_ui_font(fonts: Option<ResMut<Assets<Font>>>) {
     fonts
         .insert(AssetId::<Font>::default(), font)
         .expect("ui_font");
+    let display = Font::from_bytes(UI_FONT_DISPLAY.to_vec());
+    fonts.insert(DISPLAY_FONT.id(), display).expect("ui_font_display");
 }
 
 #[cfg(test)]
@@ -156,5 +163,46 @@ mod tests {
         let ofl = include_str!("../assets/fonts/OFL.txt");
         assert!(ofl.contains("SIL Open Font License, Version 1.1"));
         assert!(ofl.contains("Mozilla Foundation"));
+    }
+
+    #[test]
+    fn font_display_fd1_face_installs_and_bare_app_runs() {
+        let mut bare = App::new();
+        bare.add_plugins((MinimalPlugins, UiFontPlugin));
+        bare.update();
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<Font>().add_plugins(UiFontPlugin);
+        app.update();
+        let fonts = app.world().resource::<Assets<Font>>();
+        assert!(fonts.get(DISPLAY_FONT.id()).is_some() && fonts.get(AssetId::<Font>::default()).is_some());
+    }
+
+    #[test]
+    fn font_display_fd6_glyphs_and_sha256() {
+        let mut chars = String::from("POWRUSHName your HouseHouse seals · heritagePersona creator · optional·—–0123456789");
+        chars.push_str(shared::hex_travel::PLACES_TITLE);
+        chars.push_str(crate::licences_screen::LICENCES_TITLE);
+        chars.extend('A'..='Z');
+        chars.extend('a'..='z');
+        for ch in chars.chars() { assert!(has_glyph(UI_FONT_DISPLAY, ch), "{ch:?}"); }
+        assert!(!has_glyph(UI_FONT_DISPLAY, '○'), "helper must report a missing symbol");
+        let mut child = std::process::Command::new("sha256sum").stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).spawn().unwrap();
+        std::io::Write::write_all(&mut child.stdin.take().unwrap(), UI_FONT_DISPLAY).unwrap();
+        let out = String::from_utf8(child.wait_with_output().unwrap().stdout).unwrap();
+        assert!(out.starts_with("af0031129f27dc752e8629a80b793d27abea94027faa27cc660c3fc33f607a1f"));
+    }
+
+    #[test]
+    fn font_display_fd7_cinzel_notice_matches_template() {
+        let ofl = include_str!("../assets/fonts/Cinzel-OFL.txt");
+        assert!(ofl.contains("SIL Open Font License, Version 1.1") && ofl.contains("The Cinzel Project Authors"));
+        let notices = crate::licences_screen::NOTICES;
+        let hbs = include_str!("../../tools/notices/about.hbs");
+        let head = "Cinzel Regular, Cinzel-Regular.ttf (embedded in the game program as the display face for plate headers)";
+        let at = notices.rfind(head).expect("heading");
+        let rule = notices[..at].rfind(&"=".repeat(80)).expect("rule");
+        let block = &notices[rule..];
+        assert!(block.contains("https://github.com/NDISCOVER/Cinzel") && block.contains("8271e162") && hbs.contains(block));
+        assert_eq!(crate::licences_screen::split_notices(notices).into_iter().filter(|s| s.starts_with("Cinzel Regular,")).count(), 1);
     }
 }

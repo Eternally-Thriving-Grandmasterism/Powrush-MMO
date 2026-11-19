@@ -172,7 +172,7 @@ fn spawn_licences(commands: &mut Commands, screen: &LicencesScreen, page: usize)
     let scroll = Node { flex_grow: 1.0, flex_basis: Val::Px(0.0), min_height: Val::Px(0.0), flex_direction: FlexDirection::Column, overflow: Overflow::scroll_y(), ..default() };
     commands.spawn((full, BackgroundColor(TITLE_DIM_BG), FocusPolicy::Block, GlobalZIndex(LIVED_UI_Z_PAUSE + 2), LicencesRoot, LivedUiPlate)).with_children(|root| {
         root.spawn((plate, ui_kit::plate())).with_children(|p| {
-            p.spawn(words(LICENCES_TITLE, TITLE_PX, TITLE_TEXT_PRIMARY));
+            p.spawn((Text::new(LICENCES_TITLE), ui_kit::display_font(TITLE_PX), TextColor(TITLE_TEXT_PRIMARY)));
             p.spawn(words(LICENCES_INTRO, INTRO_PX, TITLE_TEXT_SECONDARY));
             p.spawn(Node { column_gap: Val::Px(ui_kit::SPACE_M), align_items: AlignItems::Center, ..default() }).with_children(|row| {
                 spawn_btn(row, "LB · Prev", NavBtn::Prev, Val::Auto);
@@ -335,5 +335,24 @@ mod tests {
         let prod = src.split("\n#[cfg(test)]\nmod tests {").next().unwrap();
         assert!(prod.len() < src.len() && !prod.contains(concat!("Color::", "srgb")));
         assert!(prod.contains("GlobalZIndex(LIVED_UI_Z_PAUSE + 2)"));
+    }
+
+    #[test]
+    fn font_display_fd5_licences_intro_nav_body_stay_default_face() {
+        let mut app = h1(LaunchDoor::Title);
+        press_entry(&mut app);
+        let def = TextFont::default().font;
+        let rows: Vec<_> = app.world_mut().query::<(&Text, &TextFont)>().iter(app.world()).map(|(t, f)| (t.0.clone(), f.font.clone())).collect();
+        for (text, font) in &rows { if text != LICENCES_TITLE { assert_eq!(font, &def, "{text}"); } }
+        assert!(rows.iter().any(|(t, _)| t == LICENCES_INTRO || t == LICENCES_BACK_HINT));
+    }
+
+    #[test]
+    fn font_display_fd3_licences_title_uses_display_face() {
+        let mut app = h1(LaunchDoor::Title);
+        press_entry(&mut app);
+        let (want, def) = (FontSource::from(crate::ui_font::DISPLAY_FONT), TextFont::default().font);
+        let hit = app.world_mut().query::<(&Text, &TextFont)>().iter(app.world()).any(|(t, f)| t.0 == LICENCES_TITLE && f.font == want && f.font != def);
+        assert!(hit, "licences title");
     }
 }

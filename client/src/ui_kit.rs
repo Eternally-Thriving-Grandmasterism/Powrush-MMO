@@ -5,6 +5,7 @@
 //! Sizes are logical px. `TextFont` stores `logical / 1.2`, so Bevy's default
 //! line box equals the logical size, which the 720p plate budgets rely on.
 //! The face stays the embedded Fira Sans Regular (`ui_font`).
+//! Plate headers use [`display_font`] (embedded Cinzel).
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;
@@ -87,6 +88,11 @@ pub fn font(logical_px: f32) -> TextFont {
         font_size: FontSize::Px(logical_px / 1.2),
         ..default()
     }
+}
+
+/// Plate headers. Size law is [`font`]; the handle is the embedded display face.
+pub fn display_font(logical_px: f32) -> TextFont {
+    TextFont { font: crate::ui_font::DISPLAY_FONT.into(), ..font(logical_px) }
 }
 
 /// Opaque plate fill and gold frame (Title contrast law), beside the plate's own `Node`.
@@ -209,6 +215,16 @@ mod tests {
                 }
             }
             assert_eq!(colour_literals(site), 0, "{head}: colour literal");
+        }
+    }
+
+    #[test]
+    fn font_display_helper_extends_font_size_law() {
+        for px in [TYPE_DISPLAY, 18.0, 20.0] {
+            let face = display_font(px);
+            assert_eq!(face.font_size, font(px).font_size);
+            assert_eq!(face.font, crate::ui_font::DISPLAY_FONT.into());
+            assert_ne!(face.font, font(px).font);
         }
     }
 }
