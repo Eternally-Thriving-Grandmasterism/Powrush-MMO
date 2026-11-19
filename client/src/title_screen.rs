@@ -1537,6 +1537,7 @@ GlobalZIndex(LIVED_UI_Z_TITLE),
                         ..default()
                     },
                     ui_kit::plate(),
+                    crate::ui_frame::plate_frame(),
                 ),
                 TitlePlate,
             ))
@@ -10663,5 +10664,35 @@ mod tests {
             let row = rows.iter().find(|(t, _, _)| t == s).unwrap_or_else(|| panic!("{s}"));
             assert!(row.1 != def && row.1 == want, "{s}");
         }
+    }
+    #[test]
+    fn frame_nineslice_fn3_fn5_fn6_fn8_title() {
+        for assets in [false, true] {
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins); if assets { app.add_plugins(bevy::asset::AssetPlugin::default()).init_asset::<Image>(); }
+            app.add_systems(Startup, spawn_title_screen).update();
+            if assets { assert!(app.world().resource::<Assets<Image>>().get(crate::ui_frame::FRAME_IMAGE.id()).is_none()); }
+            let world = app.world_mut();
+            let plate = world.query_filtered::<Entity, With<TitlePlate>>().single(world).unwrap();
+            let image = world.get::<ImageNode>(plate).expect("FN3");
+            assert_eq!((image.image.id(), image.visual_box), (crate::ui_frame::FRAME_IMAGE.id(), VisualBox::PaddingBox));
+            assert_eq!(image.image_mode, NodeImageMode::Sliced(crate::ui_frame::frame_slicer()));
+            assert_eq!(world.get::<Node>(plate).unwrap().clone(), Node { width: Val::Percent(100.0), max_width: Val::Px(TITLE_PLATE_MAX_WIDTH), max_height: Val::Percent(100.0), padding: UiRect::all(Val::Px(TITLE_PLATE_PAD)), flex_direction: FlexDirection::Column, row_gap: Val::Px(TITLE_PLATE_ROW_GAP), border: UiRect::all(Val::Px(TITLE_PLATE_BORDER)), align_items: AlignItems::Stretch, ..default() });
+            let (border, bg) = world.query_filtered::<(&BorderColor, &BackgroundColor), With<TitlePlate>>().single(world).unwrap();
+            assert_eq!((*border, bg.0), (BorderColor::all(TITLE_BORDER), TITLE_PLATE_BG));
+            let word = world.query::<(&Text, &TextFont, &TextLayout, &Node, Option<&ImageNode>)>().iter(world).find(|(t, ..)| t.0 == "POWRUSH").unwrap();
+            let (face, plain) = (ui_kit::display_font(ui_kit::TYPE_DISPLAY), TextLayout::default());
+            assert_eq!((word.1.font.clone(), word.1.font_size, word.2.justify, word.2.linebreak, word.3.clone(), word.4.is_none()), (face.font, face.font_size, plain.justify, plain.linebreak, Node::default(), true));
+            assert_eq!(world.query::<&ImageNode>().iter(world).count(), 1);
+        }
+    }
+    #[test]
+    fn frame_nineslice_fn4_title_family_plates() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).add_systems(Startup, (spawn_settings_stub, spawn_name_house_panel, spawn_house_dress_panel, spawn_persona_creator_panel));
+        app.world_mut().run_schedule(Startup);
+        let world = app.world_mut();
+        assert_eq!(world.query::<&ImageNode>().iter(world).count(), 0);
+        assert_eq!(world.query_filtered::<Entity, Or<(With<SettingsStubRoot>, With<NameHouseRoot>, With<HouseDressRoot>, With<PersonaCreatorRoot>)>>().iter(world).count(), 4);
     }
 }

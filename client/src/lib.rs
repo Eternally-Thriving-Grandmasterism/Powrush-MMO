@@ -99,6 +99,7 @@ pub mod mercy_transporters;
 pub mod steam_abundance_mirror;
 pub mod ui_font;
 pub mod ui_kit;
+pub mod ui_frame;
 pub mod launch_menu;
 pub mod loading_lines;
 pub mod loading_screen;
@@ -191,6 +192,7 @@ impl PowrushClientBundle {
 impl Plugin for PowrushClientBundle {
     fn build(&self, app: &mut App) {
         app.add_plugins(ui_font::UiFontPlugin);
+        app.add_plugins(ui_frame::UiFramePlugin);
         app.add_plugins(hour_sacred::HourSacredPlugin);
         app.add_plugins(ui_above_world::UiAboveWorldPlugin);
         app.add_plugins(title_screen::TitleScreenPlugin);
