@@ -126,6 +126,9 @@ use crate::title_screen::LaunchDoor;
 use shared::ledger_bind::ContractState;
 use shared::persona::{house_dress_token, is_peace_default_dress, HOUSE_PEOPLE_TINT};
 use shared::space_law::HexFlag;
+use shared::hex_travel::places_eligible;
+use crate::difficulty::{slot, AreaDifficulty};
+use crate::loot_drops::FoundFinds;
 
 /// CARD L1 SANCTUARY-WANT — first minutes: one People name.
 /// Cite ART_BIBLE: Human | warm grey-gold | Sanctuary — cite only, no pack import.
@@ -1088,6 +1091,27 @@ pub fn guidance_card_font_px(text_scale: f32) -> f32 {
     (17.0 * text_scale).clamp(11.0, 22.0)
 }
 
+/// HEARTWOOD-CALL-1. Interim copy; Sherif may veto. The route is in the line because pause hides the strip.
+pub const HEARTWOOD_CALL: &str = "Heartwood calls · open the book, then Places, then Heartwood";
+
+/// Book home, Sanctuary, one find owned, Heartwood still uncleared, and the signpost is down.
+pub(crate) fn heartwood_call(
+    g: &FirstSessionGuidance,
+    hour: Option<&HourSacred>,
+    travel: Option<&HexTravelState>,
+    finds: Option<&FoundFinds>,
+    diff: Option<&AreaDifficulty>,
+    sign: Option<&Signpost>,
+) -> bool {
+    !g.dismissed
+        && matches!(g.objective, GuidanceObjective::HourThreeHeld | GuidanceObjective::FreeExploration)
+        && !sign.is_some_and(signpost_showing)
+        && hour.is_some_and(|h| places_eligible(h.complete, h.hour_three_complete))
+        && travel.is_some_and(|t| t.current == PlaceId::Sanctuary)
+        && finds.is_some_and(|f| !f.names.is_empty() && f.pending.is_none())
+        && diff.is_some_and(|d| d.clears[slot(PlaceId::Heartwood)] == 0)
+}
+
 pub(crate) fn update_guidance_text(
     guidance: Res<FirstSessionGuidance>,
     travel: Option<Res<HexTravelState>>,
@@ -1097,6 +1121,7 @@ pub(crate) fn update_guidance_text(
     yard: Option<Res<FabricatorYard>>,
     factory: Option<Res<FactoryYard>>,
     hour: Option<Res<HourSacred>>,
+    call: (Option<Res<FoundFinds>>, Option<Res<AreaDifficulty>>),
     realm: Option<Res<SoftPlayerRealm>>,
     mut last_place: Local<Option<&'static str>>,
     mut last_loop: Local<Option<Option<&'static str>>>,
@@ -1125,7 +1150,8 @@ pub(crate) fn update_guidance_text(
     let mercy_changed = *last_mercy != Some(mercy_now);
     let travel_place = travel.as_ref().map(|t| t.current);
     let realm_id = realm.as_ref().map(|r| r.current).unwrap_or(None);
-    let cue = loop_cue(&guidance, wood.as_deref(), yard.as_deref(), factory.as_deref(), hour.as_deref(), travel_place, realm_id);
+    let gathered = loop_cue(&guidance, wood.as_deref(), yard.as_deref(), factory.as_deref(), hour.as_deref(), travel_place, realm_id);
+    let cue = gathered.or(heartwood_call(&guidance, hour.as_deref(), travel.as_deref(), call.0.as_deref(), call.1.as_deref(), sign.as_deref()).then_some(HEARTWOOD_CALL));
     let loop_changed = *last_loop != Some(cue);
     // Record on every path, including the quiet return, the signpost
     // override, and dismissal. The next range check compares this tuple.
@@ -4130,5 +4156,171 @@ mod tests {
         guide(&mut app).advance_if_ready();
         assert_eq!(guide(&mut app).objective, GuidanceObjective::OpenInventory);
         assert_eq!(paint_guidance(&mut app), satchel);
+    }
+
+    const HEARTWOOD_FIND: &str = "Yard-Worn Tend Hook";
+
+    fn heartwood_call_app(preset: crate::hud_presets::HudPresetId, objective: GuidanceObjective, free_since: f32) -> App {
+        use crate::hud_presets::{ActiveHudPreset, HudLayoutPlugin};
+        use bevy::time::TimeUpdateStrategy;
+        use std::time::Duration;
+        let mut hour = HourSacred::default();
+        (hour.complete, hour.hour_three_complete) = (true, true);
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(TimeUpdateStrategy::ManualDuration(Duration::from_millis(1)))
+            .insert_resource(ButtonInput::<KeyCode>::default())
+            .insert_resource(LaunchDoor::InYard)
+            .insert_resource(HexTravelState { current: PlaceId::Sanctuary })
+            .insert_resource(SoftPresence::default())
+            .insert_resource(hour)
+            .insert_resource(FoundFinds { names: vec![HEARTWOOD_FIND], pending: None, equipped: None })
+            .init_resource::<AreaDifficulty>()
+            .insert_resource(ActiveHudPreset { id: Some(preset) })
+            .add_plugins((FirstSessionGuidancePlugin, HudLayoutPlugin));
+        {
+            let mut guidance = app.world_mut().resource_mut::<FirstSessionGuidance>();
+            (guidance.objective, guidance.free_since, guidance.active, guidance.dismissed) = (objective, free_since, true, false);
+        }
+        app
+    }
+
+    fn heartwood_rearm(app: &mut App) {
+        {
+            let mut guidance = app.world_mut().resource_mut::<FirstSessionGuidance>();
+            (guidance.objective, guidance.active, guidance.dismissed, guidance.free_since) = (GuidanceObjective::HourThreeHeld, true, false, 0.0);
+        }
+        {
+            let mut hour = app.world_mut().resource_mut::<HourSacred>();
+            (hour.complete, hour.hour_three_complete) = (true, true);
+        }
+        app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Sanctuary;
+        *app.world_mut().resource_mut::<FoundFinds>() = FoundFinds { names: vec![HEARTWOOD_FIND], pending: None, equipped: None };
+        *app.world_mut().resource_mut::<AreaDifficulty>() = AreaDifficulty::default();
+        *app.world_mut().resource_mut::<Signpost>() = Signpost { seen: true, until: None };
+        app.update();
+    }
+
+    fn heartwood_text(app: &mut App) -> String { guidance_card_section(app).1 }
+
+    #[test]
+    fn heartwood_call_hc1_shows_on_the_strip() {
+        use crate::hud_presets::HudPresetId;
+        let _lock = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("hc1");
+        std::fs::write(dir.join(SIGNPOST_SAVE), "true").unwrap();
+        for preset in [HudPresetId::Classic, HudPresetId::Minimal, HudPresetId::Management] {
+            for (objective, since) in [(GuidanceObjective::HourThreeHeld, 0.0), (GuidanceObjective::FreeExploration, 7.0)] {
+                let mut app = heartwood_call_app(preset, objective.clone(), since);
+                app.update();
+                assert_eq!(app.world().resource::<FirstSessionGuidance>().objective, objective, "{preset:?}");
+                assert_eq!(heartwood_text(&mut app), format!("{}\n{HEARTWOOD_CALL}", card_line(objective.prompt())));
+                assert_ne!(guidance_strip_visibility(&mut app), Visibility::Hidden, "{preset:?} {objective:?}");
+            }
+        }
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn heartwood_call_hc2_negatives() {
+        use crate::hud_presets::HudPresetId;
+        let _lock = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("hc2");
+        std::fs::write(dir.join(SIGNPOST_SAVE), "true").unwrap();
+        let mut app = heartwood_call_app(HudPresetId::Classic, GuidanceObjective::HourThreeHeld, 0.0);
+        heartwood_rearm(&mut app);
+        assert!(heartwood_text(&mut app).contains(HEARTWOOD_CALL));
+        let breaks: &[fn(&mut App)] = &[
+            |a| { a.world_mut().resource_mut::<FoundFinds>().names.clear(); },
+            |a| { a.world_mut().resource_mut::<FoundFinds>().pending = Some("waiting".into()); },
+            |a| { a.world_mut().resource_mut::<AreaDifficulty>().record_clear(PlaceId::Heartwood); },
+            |a| { a.world_mut().resource_mut::<HourSacred>().hour_three_complete = false; },
+            |a| { a.world_mut().resource_mut::<HourSacred>().complete = false; },
+            |a| { a.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Heartwood; },
+            |a| { a.world_mut().resource_mut::<FirstSessionGuidance>().dismiss(); },
+        ];
+        for break_one in breaks {
+            heartwood_rearm(&mut app);
+            break_one(&mut app);
+            app.update();
+            let text = heartwood_text(&mut app);
+            assert!(!text.contains(HEARTWOOD_CALL), "{text}");
+        }
+        heartwood_rearm(&mut app);
+        *app.world_mut().resource_mut::<Signpost>() = Signpost { seen: false, until: Some(10_000.0) };
+        app.update();
+        assert_eq!(heartwood_text(&mut app), card_line(SIGNPOST_LINE));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn heartwood_call_hc3_redraws_when_finds_or_clears_change() {
+        use crate::hud_presets::HudPresetId;
+        let _lock = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("hc3");
+        std::fs::write(dir.join(SIGNPOST_SAVE), "true").unwrap();
+        let mut app = heartwood_call_app(HudPresetId::Classic, GuidanceObjective::HourThreeHeld, 0.0);
+        app.world_mut().resource_mut::<FoundFinds>().names.clear();
+        app.update();
+        assert!(!heartwood_text(&mut app).contains(HEARTWOOD_CALL));
+        app.world_mut().resource_mut::<FoundFinds>().names.push(HEARTWOOD_FIND);
+        app.update();
+        assert_eq!(heartwood_text(&mut app).rsplit('\n').next(), Some(HEARTWOOD_CALL));
+        app.world_mut().resource_mut::<AreaDifficulty>().record_clear(PlaceId::Heartwood);
+        app.update();
+        assert!(!heartwood_text(&mut app).contains(HEARTWOOD_CALL));
+        assert_ne!(app.world().resource::<AreaDifficulty>().clears[slot(PlaceId::Heartwood)], 0);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn heartwood_call_hc4_loop_cue_wins() {
+        use crate::hud_presets::HudPresetId;
+        let _lock = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("hc4");
+        std::fs::write(dir.join(SIGNPOST_SAVE), "true").unwrap();
+        let mut app = heartwood_call_app(HudPresetId::Classic, GuidanceObjective::HourThreeHeld, 0.0);
+        app.insert_resource(WoodView { unit: 0, standing: true });
+        app.update();
+        let eligible = {
+            let world = app.world();
+            heartwood_call(world.resource(), Some(world.resource()), Some(world.resource()), Some(world.resource()), Some(world.resource()), Some(world.resource()))
+        };
+        let text = heartwood_text(&mut app);
+        assert!(eligible);
+        assert!(text.contains(LOOP_GATHER_CUE) && !text.contains(HEARTWOOD_CALL));
+        assert!(text.split('\n').count() <= 2, "{text}");
+        *app.world_mut().resource_mut::<Signpost>() = Signpost { seen: false, until: Some(10_000.0) };
+        app.update();
+        assert_eq!(heartwood_text(&mut app), card_line(SIGNPOST_LINE));
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn heartwood_call_hc5_free_exploration_still_dismisses() {
+        let _lock = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("hc5");
+        let mut app = hour_card_end_app(8.0);
+        app.update();
+        let guidance = app.world().resource::<FirstSessionGuidance>();
+        assert!(guidance.dismissed && !guidance.active && guidance.objective == GuidanceObjective::FreeExploration);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn heartwood_call_hc6_leaves_the_pulse_alone() {
+        use crate::hud_presets::HudPresetId;
+        let _lock = crate::test_env::lock();
+        let (dir, _restore) = hour_card_end_scratch("hc6");
+        std::fs::write(dir.join(SIGNPOST_SAVE), "true").unwrap();
+        let mut app = heartwood_call_app(HudPresetId::Classic, GuidanceObjective::HourThreeHeld, 0.0);
+        let mut epiphany = FirstHarvestEpiphany::default();
+        (epiphany.pulse_line, epiphany.pulse_until) = ("kept-line".into(), 4.2);
+        app.insert_resource(epiphany);
+        app.update();
+        assert!(heartwood_text(&mut app).ends_with(HEARTWOOD_CALL));
+        let epiphany = app.world().resource::<FirstHarvestEpiphany>();
+        assert_eq!((epiphany.pulse_line.as_str(), epiphany.pulse_until), ("kept-line", 4.2));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
