@@ -73,7 +73,7 @@ impl Plugin for FabricatorPlugin {
     }
 }
 
-fn spawn_fab_slab(mut commands: Commands) {
+pub(crate) fn spawn_fab_slab(mut commands: Commands) {
     commands
         .spawn((
             (
@@ -171,11 +171,14 @@ fn fabricator_line_may_name_place(line: &str) -> bool {
         || line.contains("Q plant a fabricator")
 }
 
+/// Crate delivered. No place name and no ton count.
+pub const HAUL_DELIVERED_CUE: &str = "haul delivered";
 fn fabricator_action_line(line: &str) -> bool {
     line.contains("Fabricator live")
         || line.contains("MendSpool ran")
         || line.contains("LaneCrate ran")
         || line.starts_with("Proof Pack")
+        || line == HAUL_DELIVERED_CUE
 }
 
 /// Steady plate, or the short civic sentence after plant / MendSpool / LaneCrate / Proof Pack.
@@ -1208,5 +1211,16 @@ mod tests {
             assert_eq!(text, format!("{bare} · {LOOP_HAUL_CUE}"));
             assert!(!text.contains(LOOP_HAUL_LATER_CUE));
         });
+    }
+
+    /// HD5 — delivered cue takes no place prefix; None stays the legacy slab; a stocked spool names Press 1.
+    #[test]
+    fn haul_delivered_hd5_bare_line() {
+        let mut fab = Fabricator { planted: true, last_line: HAUL_DELIVERED_CUE.into(), ..Fabricator::default() };
+        assert!(!fabricator_line_may_name_place(HAUL_DELIVERED_CUE));
+        assert_eq!(fabricator_slab_at_place(&fab, Some("Heartwood")), HAUL_DELIVERED_CUE);
+        assert_eq!(fabricator_slab_at_place(&fab, None), fab.slab_line());
+        fab.spool_stock = 1;
+        assert_eq!(fabricator_slab_at_place(&fab, Some("Heartwood")), format!("{HAUL_DELIVERED_CUE} · Press {}", PeaceKey::Digit1.display_label()));
     }
 }
