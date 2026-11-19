@@ -98,7 +98,7 @@ pub(crate) fn swap_prop_meshes(
             let h2 = server.load(GltfAssetLabel::Primitive { mesh: 0, primitive: prop.primitive + 1 }.from_asset(prop.rel));
             if matches!(server.get_load_state(h2.id()), Some(LoadState::Failed(_))) { commands.entity(e).insert(PropMeshSwapped); continue; }
             let Some(extra) = meshes.get(&h2).cloned() else { continue };
-            let mut merged = src; merged.merge(&extra).expect("log prims"); merged
+            let mut merged = src; if merged.merge(&extra).is_err() { commands.entity(e).insert(PropMeshSwapped); continue; } merged
         };
         if matches!(prop.fit, PropMeshFit::Canopy) && cache.tree_sxz <= 0. { continue; }
         let i = prop.fit as usize;
