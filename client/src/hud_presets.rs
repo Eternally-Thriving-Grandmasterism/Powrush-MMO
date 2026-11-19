@@ -1242,6 +1242,10 @@ pub(crate) fn lived_hud_clean_joiner_suppressed(id: &str) -> bool {
     LIVED_HUD_CLEAN_SUPPRESSED.contains(&id)
 }
 
+pub(crate) fn pulse_passes_clean_hide(pulse_line: &str) -> bool {
+    shared::temper::NAMED_FINDS.iter().any(|f| crate::loot_drops::find_line(f) == pulse_line)
+}
+
 pub fn lived_classic_coded_joiner_overlap(
     left_id: &str,
     right_id: &str,
@@ -1941,6 +1945,7 @@ fn apply_active_preset(
     places: Option<Res<PlacesPlate>>,
     house: Option<Res<HouseLabel>>,
     persona: Option<Res<PersonaCreatorState>>,
+    epi: Option<Res<crate::first_harvest_epiphany::FirstHarvestEpiphany>>,
 ) {
     if active.id.is_none() && !yielded.0.is_empty() { yielded.0.clear(); } // CL-Y1: the no-preset exit leaves no stale yield
     let Some(id) = active.id else {
@@ -2047,7 +2052,11 @@ fn apply_active_preset(
             }
         }
         if clean {
+            let pass = epi.as_deref().is_some_and(|e| pulse_passes_clean_hide(&e.pulse_line));
             for item in &live {
+                if item.id == ID_PULSE && pass {
+                    continue;
+                }
                 if lived_hud_clean_joiner_suppressed(item.id) {
                     hide.insert(item.entity);
                 }
@@ -4331,6 +4340,12 @@ child_style.clone(),
         ]);
         assert_eq!(vis_of(&app, &spawned, ID_WELL), Visibility::Hidden);
         assert_eq!(vis_of(&app, &spawned, ID_CLIMATE_STATE), Visibility::Hidden);
+    }
+
+    /// FLV9 — clean list stays main's 15, Pulse first. HBR8 still owns the full order.
+    #[test]
+    fn flv9_clean_list_stays_15_and_starts_with_pulse() {
+        assert_eq!((LIVED_HUD_CLEAN_SUPPRESSED.len(), LIVED_HUD_CLEAN_SUPPRESSED[0]), (15, ID_PULSE));
     }
 
     /// HBR8 — clean list is main's list minus ID_FAB, same order, 15 entries.
