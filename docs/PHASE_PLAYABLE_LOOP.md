@@ -11,7 +11,7 @@ One cold stranger. Same binary. Same card. No second HUD. No server.
    Voice: *extract left it tired* / *flow restored the well* (see Phase Q face).
 2. **House** — after allocate, Tab the ridge · Q plant a House stake.  
    See `docs/HOUR_TWO.md` · `docs/HOUR_TWO_PLAYTEST.md`.
-3. **Book** — Hour two held → Q fabricator (MendSpool + LaneCrate → Proof Pack) → Embassy seat → *Hour three held · the book is yours*.  
+3. **Book** — Q after House arrival (MendSpool + LaneCrate → Proof Pack) → Embassy seat → *Hour three held · the book is yours*.  
    See `docs/HOUR_THREE.md` · `docs/HOUR_THREE_PLAYTEST.md`.
 4. **Climate answers** — same well slab; optional *the well is tired* / *the yard is circulating*.  
    See `docs/PHASE_Q.md` · `docs/PHASE_R.md` · R+ feel in CHANGELOG 23.2.38.
