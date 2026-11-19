@@ -37,7 +37,7 @@
 //! remembered). Four rooms only: Sanctuary / Heartwood / Threshold-near /
 //! Depths. Threshold-near is Heartwood plus shelf reach, not a fifth PlaceId.
 //! Civic memory at the door, not a map and not loot. Pause row stays
-//! book-gated. No teleport list-row. Online grey. Bevy pin 0.14.
+//! book-gated. No teleport list-row. Online grey. Bevy pin 0.20.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;

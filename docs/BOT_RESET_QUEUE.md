@@ -14,7 +14,7 @@ Online grey. Peak memory: walked · tended · week was the bill · yard remember
 - `#571` TODO-SYNC-570 · `#572` ONLINE_LADDER · `#573` R2 JUNCTION · `#574` PRE_RELEASE_LAW · `#575` CAMERA-READ-LAW.
 - Default NetMode Offline. `title_online_enabled` false. `opens_listen_socket` false.
 - Method B shared gate exists. Client Method B slab JUNCTION.
-- Bevy pin 0.14. MESH / steamworks / `server/` / Title Online / App ID HOLD.
+- Bevy pin 0.20. MESH / steamworks / `server/` / Title Online / App ID HOLD.
 
 ## Cook first (docs, then one client)
 
