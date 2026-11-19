@@ -228,22 +228,13 @@ mod tests {
     use std::{
         panic::{catch_unwind, AssertUnwindSafe},
         path::{Path, PathBuf},
-        sync::Mutex,
     };
-    static LOCK: Mutex<()> = Mutex::new(());
     const ROSTER: [&str; 3] = ["Mira", "Ko", "Ren"];
     fn dev_root() -> PathBuf {
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..")
     }
     fn with_root<R>(root: &PathBuf, f: impl FnOnce() -> R) -> R {
-        let save = std::env::var("BEVY_ASSET_ROOT").ok();
-        std::env::set_var("BEVY_ASSET_ROOT", root);
-        let out = catch_unwind(AssertUnwindSafe(f));
-        match save {
-            Some(v) => std::env::set_var("BEVY_ASSET_ROOT", v),
-            None => std::env::remove_var("BEVY_ASSET_ROOT"),
-        }
-        out.unwrap_or_else(|e| std::panic::resume_unwind(e))
+        crate::test_env::with_bevy_asset_root(root, f)
     }
     fn with_user_dir<R>(tag: &str, body: impl FnOnce(&Path) -> R) -> R {
         let dir = std::env::temp_dir().join(format!("powrush-char-{tag}-{}", std::process::id()));
@@ -263,7 +254,6 @@ mod tests {
         out.unwrap_or_else(|e| std::panic::resume_unwind(e))
     }
     fn scene<R>(tag: &str, root: &PathBuf, body: impl FnOnce(&Path) -> R) -> R {
-        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
         with_user_dir(tag, |dir| with_root(root, || body(dir)))
     }
     fn headless_defaults() -> App {
@@ -300,7 +290,6 @@ mod tests {
 
     #[test]
     fn char_model_boot_default_plugins_no_duplicate_panic() {
-        let _g = LOCK.lock().unwrap_or_else(|e| e.into_inner());
         with_root(&dev_root(), || headless_defaults().world_mut().run_schedule(Startup));
     }
 

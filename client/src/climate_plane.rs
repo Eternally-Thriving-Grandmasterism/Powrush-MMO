@@ -5934,6 +5934,7 @@ mod tests {
     }
 
     fn ground_tex_fixture_mat(id: &'static str, uv: Vec2, color_only: bool) -> Option<StandardMaterial> {
+        let _hold = crate::test_env::BEVY_ASSET_ROOT_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         if !ambientcg_maps_on_disk(id) {
             return None;
         }
@@ -6074,6 +6075,11 @@ mod tests {
     #[test]
     fn ground_tex_stone_yard_unchanged() {
         ground_tex_fixture_check(10);
+    }
+    #[test]
+    fn bevy_asset_root_set_var_only_in_test_env() {
+        fn walk(dir: &std::path::Path, needle: &str) { for ent in std::fs::read_dir(dir).unwrap().map(Result::unwrap) { let path = ent.path(); if path.is_dir() { walk(&path, needle); continue; } if path.extension().is_none_or(|ext| ext != "rs") { continue; } let text = std::fs::read_to_string(&path).unwrap(); let hits = text.matches(needle).count(); assert_eq!(hits, usize::from(path.ends_with("src/lib.rs")) * 2, "{}", path.display()); if hits > 0 { let (before, after) = text.split_once("mod test_env").unwrap(); assert!(!before.contains(needle) && after.split_once("pub use ").unwrap().0.matches(needle).count() == hits); } } }
+        walk(&std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src"), &format!("set_var({}BEVY_ASSET_ROOT", '"'));
     }
 }
 
