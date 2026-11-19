@@ -33,11 +33,11 @@ pub use shared::local_settings::MeshLod;
 use crate::painterly_mat as pm;
 #[derive(Component, Clone, Copy)] pub struct PropMesh { pub rel: &'static str, pub primitive: usize, pub fit: PropMeshFit }
 #[derive(Component)] pub(crate) struct PropMeshSwapped;
-#[repr(usize)] #[derive(Clone, Copy, PartialEq, Eq)] pub enum PropMeshFit { Trunk, Canopy, Stone }
+#[repr(usize)] #[derive(Clone, Copy, PartialEq, Eq)] pub enum PropMeshFit { Trunk, Canopy, Stone, Log, Rib, Post }
 const PROP_STONE_XF: (Vec3, Vec3) = (Vec3::new(0.726, 1.23, 0.837), Vec3::new(0., -0.04, 0.));
 const PROP_TRUNK_R: f32 = 0.22;
 const PROP_TRUNK_HEIGHT: f32 = 2.4;
-#[derive(Resource, Default)] pub(crate) struct PropMeshBakeCache { pub baked: [Option<Handle<Mesh>>; 3], pub tree_sxz: f32, pub tree_sy: f32 }
+#[derive(Resource, Default)] pub(crate) struct PropMeshBakeCache { pub baked: [Option<Handle<Mesh>>; 6], pub tree_sxz: f32, pub tree_sy: f32 }
 pub fn prop_mesh_glb_active(p: GraphicsPreset) -> bool { !matches!(p, GraphicsPreset::Mobile | GraphicsPreset::Low) }
 
 fn prop_ix_bounds(src: &Mesh) -> (f32, f32, f32) {
@@ -53,7 +53,19 @@ fn prop_ix_unique(src: &Mesh) -> Vec<usize> {
     let mut v: Vec<usize> = match src.indices() { Some(Indices::U16(ix)) => ix.iter().filter_map(|&i| ((i as usize) < len).then_some(i as usize)).collect(), Some(Indices::U32(ix)) => ix.iter().filter_map(|&i| ((i as usize) < len).then_some(i as usize)).collect(), None => (0..len).collect() };
     v.sort_unstable(); v.dedup(); v
 }
+fn bake_dress(src: &Mesh, fit: PropMeshFit) -> Mesh {
+    let Some(pos) = src.attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()) else { return src.clone() };
+    let ix = prop_ix_unique(src);
+    if ix.is_empty() { return src.clone() }
+    let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]);
+    for &i in &ix { for k in 0..3 { lo[k] = lo[k].min(pos[i][k]); hi[k] = hi[k].max(pos[i][k]); } }
+    let (c, e) = (Vec3::new(lo[0] + hi[0], lo[1] + hi[1], lo[2] + hi[2]) * 0.5, Vec3::new(hi[0] - lo[0], hi[1] - lo[1], hi[2] - lo[2]).max(Vec3::splat(1e-4)));
+    let (wh, rot, org) = match fit { PropMeshFit::Log => (Vec3::new(2.64, 0.64, 0.64), bevy::prelude::Quat::from_rotation_z(-std::f32::consts::FRAC_PI_2), Vec3::ZERO), PropMeshFit::Rib => (Vec3::new(0.16, 3.0, 0.16), bevy::prelude::Quat::from_rotation_x(std::f32::consts::FRAC_PI_2), Vec3::ZERO), PropMeshFit::Post => (Vec3::new(0.28, 1.4, 0.28), bevy::prelude::Quat::IDENTITY, Vec3::new(0.0, -0.25, 0.0)), _ => return src.clone() };
+    let s = wh / e;
+    src.clone().transformed_by(Transform { translation: org - rot * (s * c), rotation: rot, scale: s })
+}
 fn bake_prop_mesh(src: &Mesh, fit: PropMeshFit, tree_sxz: f32, _tree_sy: f32) -> (Mesh, f32, f32) {
+    if matches!(fit, PropMeshFit::Log | PropMeshFit::Rib | PropMeshFit::Post) { return (bake_dress(src, fit), 1., 1.); }
     let mut out = src.clone();
     let Some(VertexAttributeValues::Float32x3(pos)) = out.attribute_mut(Mesh::ATTRIBUTE_POSITION) else { return (out, 1., 1.) };
     let (y0, y1, r0) = prop_ix_bounds(src);
@@ -63,6 +75,7 @@ fn bake_prop_mesh(src: &Mesh, fit: PropMeshFit, tree_sxz: f32, _tree_sy: f32) ->
         PropMeshFit::Stone => { let (s, t) = PROP_STONE_XF; for p in pos.iter_mut() { *p = [p[0] * s.x + t.x, p[1] * s.y + t.y, p[2] * s.z + t.z]; } span = pos.iter().map(|p| (p[0] * p[0] + p[2] * p[2]).sqrt()).fold(0., f32::max).max(1e-4); ul = s; }
         PropMeshFit::Trunk => { sxz = PROP_TRUNK_R / r0; sy = PROP_TRUNK_HEIGHT / (y1 - y0).max(1e-4); for &i in &drawn { let p = &mut pos[i]; p[0] *= sxz; p[2] *= sxz; p[1] = (p[1] - y0) * sy; } span = PROP_TRUNK_R; }
         PropMeshFit::Canopy => { sxz = tree_sxz; sy = 2.6 / (y1 - y0).max(1e-4); let (mut cx, mut cz, n) = (0_f32, 0_f32, drawn.len().max(1) as f32); for &i in &drawn { cx += pos[i][0]; cz += pos[i][2]; } cx /= n; cz /= n; for &i in &drawn { let p = &mut pos[i]; p[0] = (p[0] - cx) * sxz; p[2] = (p[2] - cz) * sxz; p[1] = (p[1] - y0) * sy; } span = drawn.iter().map(|&i| (pos[i][0] * pos[i][0] + pos[i][2] * pos[i][2]).sqrt()).fold(0., f32::max).max(1e-4); }
+        _ => {}
     }
     if let Some(VertexAttributeValues::Float32x2(uv)) = out.attribute_mut(Mesh::ATTRIBUTE_UV_0) { let d = (ul.max_element().max(sxz).max(sy) * span / 4.).max(1e-4); for p in uv.iter_mut() { p[0] /= d; p[1] /= d; } }
     if matches!(fit, PropMeshFit::Trunk) { let _ = out.generate_tangents(); }
@@ -77,9 +90,16 @@ pub(crate) fn swap_prop_meshes(
     let active = prop_mesh_glb_active(feel.preset);
     for (e, mut mesh3d, prop, mut tf) in &mut q {
         if !active || !asset_file_present(prop.rel) { commands.entity(e).insert(PropMeshSwapped); continue; }
+        if let Some(b) = cache.baked[prop.fit as usize].clone() { mesh3d.0 = b; match prop.fit { PropMeshFit::Trunk => tf.translation.y = 0., PropMeshFit::Canopy => tf.translation.y = PROP_TRUNK_HEIGHT, _ => {} } commands.entity(e).insert(PropMeshSwapped); continue; }
         let h = server.load(GltfAssetLabel::Primitive { mesh: 0, primitive: prop.primitive }.from_asset(prop.rel));
         if matches!(server.get_load_state(h.id()), Some(LoadState::Failed(_))) { commands.entity(e).insert(PropMeshSwapped); continue; }
         let Some(src) = meshes.get(&h).cloned() else { continue };
+        let src = if !matches!(prop.fit, PropMeshFit::Log) { src } else {
+            let h2 = server.load(GltfAssetLabel::Primitive { mesh: 0, primitive: prop.primitive + 1 }.from_asset(prop.rel));
+            if matches!(server.get_load_state(h2.id()), Some(LoadState::Failed(_))) { commands.entity(e).insert(PropMeshSwapped); continue; }
+            let Some(extra) = meshes.get(&h2).cloned() else { continue };
+            let mut merged = src; if merged.merge(&extra).is_err() { commands.entity(e).insert(PropMeshSwapped); continue; } merged
+        };
         if matches!(prop.fit, PropMeshFit::Canopy) && cache.tree_sxz <= 0. { continue; }
         let i = prop.fit as usize;
         let baked = cache.baked[i].clone().unwrap_or_else(|| {
@@ -475,5 +495,29 @@ mod tests {
         let (m3d, _, tf) = practice_traveler_capsule(h.clone(), mat, Vec3::ZERO); let e = app.world_mut().spawn((m3d, tf, PropMesh { rel: "models/__none__.glb", primitive: 0, fit: PropMeshFit::Stone })).id();
         crate::test_env::with_bevy_asset_root(&root, || app.update());
         assert!(app.world().get::<PropMeshSwapped>(e).is_some() && app.world().get::<Mesh3d>(e).unwrap().0.id() == h.id());
+    }
+    impl super::PropMesh {
+        #[allow(dead_code)]
+        pub(crate) fn props_wire_authored_glb_present() -> bool { super::optional_authored_glb_present() }
+    }
+    #[test]
+    fn props_wire_1b_bake_normals_follow_rotation() {
+        let src = Mesh::from(bevy::prelude::Cuboid::new(0.16, 1.0, 0.16)).translated_by(Vec3::Y * 0.5);
+        let uv0 = match src.attribute(Mesh::ATTRIBUTE_UV_0) { Some(VertexAttributeValues::Float32x2(uv)) => uv.clone(), _ => panic!("uv") };
+        let n0 = src.attribute(Mesh::ATTRIBUTE_NORMAL).and_then(|a| a.as_float3()).unwrap().to_vec();
+        let (rib, _, _) = super::bake_prop_mesh(&src, PropMeshFit::Rib, 0., 0.);
+        let (post, _, _) = super::bake_prop_mesh(&src, PropMeshFit::Post, 0., 0.);
+        let span = |m: &Mesh| { let p = m.attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()).unwrap(); let (mut lo, mut hi) = ([f32::MAX; 3], [f32::MIN; 3]); for v in p { for k in 0..3 { lo[k] = lo[k].min(v[k]); hi[k] = hi[k].max(v[k]); } } (lo, hi) };
+        let near = |got: f32, want: f32| (got - want).abs() < 1e-3;
+        let (lo, hi) = span(&rib);
+        assert!(near(lo[0], -0.08) && near(hi[0], 0.08) && near(lo[1], -0.08) && near(hi[1], 0.08) && near(lo[2], -1.5) && near(hi[2], 1.5), "{lo:?} {hi:?}");
+        let rn = rib.attribute(Mesh::ATTRIBUTE_NORMAL).and_then(|a| a.as_float3()).unwrap();
+        for (i, n) in n0.iter().enumerate() { if n[1].abs() > 0.99 { assert!(Vec3::from_array(rn[i]).dot(Vec3::new(0., 0., n[1].signum())) > 0.99, "{:?}", rn[i]); } }
+        let (lo, hi) = span(&post);
+        assert!(near(lo[0], -0.14) && near(hi[0], 0.14) && near(lo[1], -0.95) && near(hi[1], 0.45) && near(lo[2], -0.14) && near(hi[2], 0.14), "{lo:?} {hi:?}");
+        let pn = post.attribute(Mesh::ATTRIBUTE_NORMAL).and_then(|a| a.as_float3()).unwrap();
+        for (i, n) in n0.iter().enumerate() { if n[1].abs() > 0.99 { assert!(Vec3::from_array(pn[i]).dot(Vec3::new(0., n[1].signum(), 0.)) > 0.99, "{:?}", pn[i]); } }
+        let same = |m: &Mesh| match m.attribute(Mesh::ATTRIBUTE_UV_0) { Some(VertexAttributeValues::Float32x2(uv)) => uv.iter().zip(uv0.iter()).all(|(a, b)| (a[0] - b[0]).abs() < 1e-6 && (a[1] - b[1]).abs() < 1e-6), _ => false };
+        assert!(same(&rib) && same(&post));
     }
 }
