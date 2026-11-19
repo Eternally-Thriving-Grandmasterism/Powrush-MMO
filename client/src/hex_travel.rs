@@ -795,7 +795,11 @@ fn difficulty_row(
         if plate.open { diff.cycle_at_door(place, f) } else if let Some(&lower) = TIERS.get((diff.tier(place) as usize).wrapping_sub(1)) { let _ = diff.pick(place, lower, false, f); }
     }
     root.iter_mut().for_each(|mut v| { v.set_if_neq(if live { Visibility::Visible } else { Visibility::Hidden }); });
-    let line = row_line(if plate.open { diff.shown(place) } else { diff.tier(place) }, plate.open);
+    let tier = if plate.open { diff.shown(place) } else { diff.tier(place) };
+    let line = match diff.marks()[crate::difficulty::slot(place)] {
+        Some(mark) => format!("{}\n{}", row_line(tier, plate.open), mark.line()),
+        None => row_line(tier, plate.open),
+    };
     for e in btn.iter().flat_map(|c| c.iter()) {
         if let Ok(mut t) = text.get_mut(e) { if t.0 != line { t.0 = line.clone(); } }
     }
@@ -2443,5 +2447,104 @@ mod tests {
         app.insert_resource(SlabWrites(0)).add_systems(PostUpdate, count);
         leave_to(&mut app, PlacesRoom::Heartwood); app.update(); app.world_mut().resource_mut::<SlabWrites>().0 = 0; app.update(); app.update();
         assert_eq!(app.world().resource::<SlabWrites>().0, 0); let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn mark_label() -> HouseLabel {
+        let mut house = shared::house_name::HouseName::default();
+        house.skip();
+        house.skip_seals();
+        house.skip_heritage();
+        HouseLabel { house, persist_present: false, hour_two_held: true, book_held: true, settings_open: true, draft: String::new(), naming_offered: true, seals_offered: true }
+    }
+
+    fn mark_app(place: PlaceId, plate: PlacesPlate) -> App {
+        use crate::hud_presets::{ActiveHudPreset, HudLayoutPlugin, HudPresetId};
+        let mut hour = HourSacred::default();
+        (hour.complete, hour.hour_three_complete) = (true, true);
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins)
+            .insert_resource(LaunchDoor::InYard)
+            .insert_resource(HexTravelState { current: place })
+            .insert_resource(mark_label())
+            .insert_resource(plate)
+            .insert_resource(hour)
+            .init_resource::<AreaDifficulty>()
+            .insert_resource(ActiveHudPreset { id: Some(HudPresetId::Classic) })
+            .add_plugins((HexTravelPlugin, HudLayoutPlugin));
+        app
+    }
+
+    fn closed_plate() -> PlacesPlate { PlacesPlate { open: false, selected: None, confirm_pending: false, selected_room: None } }
+
+    fn mark_clear(app: &mut App, tier: crate::difficulty::DifficultyTier) {
+        let mut diff = app.world_mut().resource_mut::<AreaDifficulty>();
+        diff.area[crate::difficulty::slot(PlaceId::Heartwood)] = Some(tier);
+        diff.record_clear(PlaceId::Heartwood);
+    }
+
+    fn mark_text(app: &mut App) -> String {
+        let child = app.world_mut().query_filtered::<&Children, With<DifficultyRowBtn>>().single(app.world()).unwrap().iter().next().unwrap();
+        app.world().get::<Text>(child).unwrap().as_str().to_string()
+    }
+
+    fn mark_vis(app: &mut App) -> Visibility {
+        *app.world_mut().query_filtered::<&Visibility, With<DifficultyRow>>().single(app.world()).unwrap()
+    }
+
+    #[test]
+    fn mark_row_mr1_sworn_second_line() {
+        use crate::difficulty::{row_line, DifficultyTier, TierMark};
+        let mut app = mark_app(PlaceId::Heartwood, closed_plate());
+        mark_clear(&mut app, DifficultyTier::Sworn);
+        app.update();
+        let want = format!("{}\n{}", row_line(DifficultyTier::Sworn, false), TierMark::Sworn.line());
+        assert_eq!(mark_text(&mut app), want);
+        assert_eq!(mark_vis(&mut app), Visibility::Visible);
+        let name = app.world_mut().query_filtered::<&Name, With<DifficultyRow>>().single(app.world()).unwrap().as_str().to_string();
+        assert_eq!(name, "AreaDifficultyRow");
+    }
+
+    #[test]
+    fn mark_row_mr2_selected_area() {
+        use crate::difficulty::{row_line, DifficultyTier, TierMark};
+        let plate = PlacesPlate { open: true, selected: Some(PlaceId::Heartwood), confirm_pending: true, selected_room: Some("Heartwood") };
+        let mut app = mark_app(PlaceId::Sanctuary, plate);
+        mark_clear(&mut app, DifficultyTier::Sworn);
+        app.update();
+        assert_eq!(mark_text(&mut app), format!("{}\n{}", row_line(DifficultyTier::Sworn, true), TierMark::Sworn.line()));
+        app.world_mut().resource_mut::<PlacesPlate>().selected = Some(PlaceId::Sanctuary);
+        app.update();
+        let text = mark_text(&mut app);
+        assert_eq!(text, row_line(DifficultyTier::Sheltered, true));
+        assert!(!text.contains(TierMark::COPY));
+    }
+
+    #[test]
+    fn mark_row_mr3_unmarked_is_row_line() {
+        use crate::difficulty::{row_line, DifficultyTier};
+        let mut app = mark_app(PlaceId::Heartwood, closed_plate());
+        app.update();
+        let text = mark_text(&mut app);
+        assert_eq!(text, row_line(DifficultyTier::Sheltered, false));
+        assert!(!text.contains('\n'));
+    }
+
+    #[test]
+    fn mark_row_mr4_unbroken_line() {
+        use crate::difficulty::{DifficultyTier, TierMark};
+        let mut app = mark_app(PlaceId::Heartwood, closed_plate());
+        mark_clear(&mut app, DifficultyTier::Unbroken);
+        app.update();
+        let line = TierMark::Unbroken.line();
+        assert_eq!(mark_text(&mut app).rsplit('\n').next(), Some(line.as_str()));
+        assert_eq!(line, "area difficulty mark: Unbroken");
+    }
+
+    #[test]
+    fn mark_row_mr5_gate_and_copy_unchanged() {
+        use crate::difficulty::{gate, DifficultyTier, GateFacts, PickError, TierMark};
+        assert_eq!(gate(DifficultyTier::Sworn, PlaceId::Heartwood, 0, GateFacts::default()), Err(PickError::Locked));
+        assert_eq!(gate(DifficultyTier::Steady, PlaceId::Heartwood, 0, GateFacts::default()), Ok(()));
+        assert_eq!(TierMark::Sworn.line(), format!("{}: Sworn", TierMark::COPY));
     }
 }
