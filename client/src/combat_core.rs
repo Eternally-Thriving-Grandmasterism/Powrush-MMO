@@ -2304,4 +2304,93 @@ mod tests {
             assert_eq!(yard.resource::<FoundFinds>().names.len(), 1);
         });
     }
+    use crate::first_harvest_epiphany::{tend_harmony_pulse_line, HarvestPulseRoot, HarvestPulseText};
+    use crate::first_session_guidance::FirstSessionGuidanceText;
+    use crate::hud_anchor_registry::{HudSlab, ID_PICKUP, ID_PULSE, ID_SOVEREIGN, ID_THRIVING, ID_WELCOME, ID_WHISPER};
+    use crate::hud_presets::{ActiveHudPreset, HudLayoutPlugin, HudPresetId, HudYielded};
+    fn yard_find(place: PlaceId) -> FoundFinds { let mut f = FoundFinds::default(); assert!(f.first_find(1, place as u32) && f.names.len() == 1); f }
+    fn wood_drop() -> FoundFinds {
+        let place = PlaceId::Heartwood as u32;
+        (0..4096).find_map(|s| { let mut f = FoundFinds::default(); f.drop_once(DifficultyTier::Sworn, s, place).then_some(f) }).expect("drop_once")
+    }
+    fn flv<R>(tag: &str, preset: HudPresetId, place: PlaceId, finds: FoundFinds, body: impl FnOnce(&mut App, &str) -> R) -> R {
+        in_user_dir(tag, |_| {
+            let expected = finds.pending.clone().unwrap_or_default();
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default(), crate::input::InputPlugin, crate::first_session_guidance::FirstSessionGuidancePlugin, crate::first_harvest_epiphany::FirstHarvestEpiphanyPlugin, HudLayoutPlugin)).insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::ZERO)).insert_resource(ActiveHudPreset { id: Some(preset) }).insert_resource(LaunchDoor::InYard).insert_resource(HouseLabel::default()).insert_resource(PlacesPlate::default()).insert_resource(CalmQueue::default()).insert_resource(HexTravelState { current: place }).insert_resource(ButtonInput::<KeyCode>::default()).insert_resource(finds).insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).init_resource::<crate::hour_sacred::HourSacred>().init_resource::<crate::thriving_moments::ThrivingMoments>().init_resource::<crate::abundance_journey_echo::AbundanceJourneyEcho>().init_resource::<crate::mercy_harvest_nodes::NearbyMercyNode>().init_resource::<crate::harvest_feel::SoftRbePool>().init_resource::<crate::world_answer::WorldAnswer>().add_message::<bevy::input::keyboard::KeyboardInput>().add_message::<bevy::input::mouse::MouseButtonInput>().add_message::<bevy::input::touch::TouchInput>().add_message::<GamepadRumbleRequest>().add_systems(Update, show_find);
+            body(&mut app, &expected)
+        })
+    }
+    fn show2(app: &mut App) { app.world_mut().resource_mut::<FirstHarvestEpiphany>().pulse_until = 0.0; app.update(); app.update(); }
+    fn pulse_of(app: &mut App) -> (String, Visibility) {
+        let text = app.world_mut().query_filtered::<&Text, With<HarvestPulseText>>().single(app.world()).unwrap().as_str().to_string();
+        (text, *app.world_mut().query_filtered::<&Visibility, With<HarvestPulseRoot>>().single(app.world()).unwrap())
+    }
+    fn visible(tag: &str, preset: HudPresetId, place: PlaceId, finds: FoundFinds) {
+        flv(tag, preset, place, finds, |app, expected| { show2(app); assert_eq!(pulse_of(app), (expected.to_string(), Visibility::Visible), "{tag}"); });
+    }
+    #[test]
+    fn flv1_classic_yard_find_line_visible() { visible("flv1", HudPresetId::Classic, PlaceId::Sanctuary, yard_find(PlaceId::Sanctuary)); }
+    #[test]
+    fn flv2_minimal_find_line_visible() { visible("flv2", HudPresetId::Minimal, PlaceId::Sanctuary, yard_find(PlaceId::Sanctuary)); }
+    #[test]
+    fn flv3_heartwood_drop_once_find_line_visible() { visible("flv3", HudPresetId::Classic, PlaceId::Heartwood, wood_drop()); }
+    #[test]
+    fn flv4_management_find_line_visible() { visible("flv4", HudPresetId::Management, PlaceId::Sanctuary, yard_find(PlaceId::Sanctuary)); }
+    #[test]
+    fn flv5_non_find_pulses_stay_hidden() {
+        let lines = [level_up_line(COMBAT, 2), tend_harmony_pulse_line("Sanctuary ember", 0.4), LUNGE_TELL_TEXT.to_string()];
+        flv("flv5", HudPresetId::Classic, PlaceId::Sanctuary, FoundFinds::default(), |app, _| {
+            for line in lines {
+                { let mut epi = app.world_mut().resource_mut::<FirstHarvestEpiphany>(); (epi.pulse_line, epi.pulse_until) = (line.clone(), CUE_SECS); }
+                app.update();
+                assert_eq!((pulse_of(app).1, app.world().resource::<FirstHarvestEpiphany>().pulse_line.as_str()), (Visibility::Hidden, line.as_str()), "{line}");
+            }
+        });
+    }
+    #[test]
+    fn flv6_find_line_hides_after_cue() {
+        flv("flv6", HudPresetId::Classic, PlaceId::Sanctuary, yard_find(PlaceId::Sanctuary), |app, expected| {
+            show2(app);
+            let (text, vis) = pulse_of(app);
+            assert_eq!((text.as_str(), vis, app.world().resource::<FirstHarvestEpiphany>().pulse_until), (expected, Visibility::Visible, CUE_SECS));
+            app.world_mut().resource_mut::<bevy::time::Time<bevy::time::Virtual>>().set_max_delta(std::time::Duration::from_secs(5));
+            app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f64(CUE_SECS + 0.05)));
+            app.update();
+            let (text, vis) = pulse_of(app);
+            assert_eq!((text.as_str(), vis, app.world().resource::<FirstHarvestEpiphany>().pulse_until), (expected, Visibility::Hidden, CUE_SECS));
+        });
+    }
+    #[test]
+    fn flv7_pause_or_places_hides_the_find_line() {
+        for (tag, pause, places) in [("flv7p", true, false), ("flv7d", false, true)] {
+            flv(tag, HudPresetId::Classic, PlaceId::Sanctuary, yard_find(PlaceId::Sanctuary), |app, expected| {
+                app.world_mut().resource_mut::<HouseLabel>().settings_open = pause;
+                app.world_mut().resource_mut::<PlacesPlate>().open = places;
+                show2(app);
+                assert_eq!(pulse_of(app), (expected.to_string(), Visibility::Hidden), "{tag}");
+            });
+        }
+    }
+    #[test]
+    fn flv8_other_top_toast_occupants_stay_hidden() {
+        let ids = [ID_PICKUP, ID_THRIVING, ID_SOVEREIGN, ID_WHISPER, ID_WELCOME];
+        flv("flv8", HudPresetId::Classic, PlaceId::Sanctuary, yard_find(PlaceId::Sanctuary), |app, expected| {
+            let spawned: Vec<_> = ids.into_iter().map(|id| (id, app.world_mut().spawn((Node::default(), Visibility::Visible, HudSlab(id))).id())).collect();
+            show2(app);
+            assert_eq!(pulse_of(app), (expected.to_string(), Visibility::Visible));
+            for (id, entity) in spawned { assert_eq!(*app.world().get::<Visibility>(entity).unwrap(), Visibility::Hidden, "{id}"); }
+            let yielded = &app.world().resource::<HudYielded>().0;
+            assert!(ids.into_iter().all(|id| yielded.contains(&id)) && !yielded.contains(&ID_PULSE));
+        });
+    }
+    #[test]
+    fn flv10_find_line_stays_off_the_guidance_strip() {
+        flv("flv10", HudPresetId::Classic, PlaceId::Sanctuary, yard_find(PlaceId::Sanctuary), |app, expected| {
+            show2(app);
+            let guide = app.world_mut().query_filtered::<&Text, With<FirstSessionGuidanceText>>().single(app.world()).unwrap().as_str().to_string();
+            assert!(guide != expected && !guide.contains(expected), "{guide}");
+            assert_eq!(pulse_of(app), (expected.to_string(), Visibility::Visible));
+        });
+    }
 }
