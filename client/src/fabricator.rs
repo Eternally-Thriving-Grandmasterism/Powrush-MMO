@@ -7,7 +7,7 @@
 //! LaneCrate line may name the Place stood in (Sanctuary / Heartwood /
 //! Threshold-near / Depths). Threshold-near is Heartwood plus shelf reach.
 //! `None` keeps the exact slab. Civic proof of place, not gear. No gold.
-//! No Market. One string, one slab. Online grey. Bevy pin 0.14.
+//! No Market. One string, one slab. Online grey. Bevy pin 0.20.
 //!
 //! CARD TEMPER-VISIBLE-1 — a stocked MendSpool names Digit1 on this slab.
 //! Empty spool does not name a craft. No new recipe. No gold.
