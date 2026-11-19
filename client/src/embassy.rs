@@ -5,7 +5,7 @@
 //! CARD FLESH-EMBASSY-LINE — the existing lamp / E Request seat line may name
 //! Heartwood. Embassy already lives there. `None` keeps the exact `slab_line`.
 //! One string, one slab. Heartwood stub still hides this seat. No second seat.
-//! No Online lobby. Online grey. Bevy pin 0.14.
+//! No Online lobby. Online grey. Bevy pin 0.20.
 //! Contact: info@Rathor.ai
 
 use bevy::prelude::*;

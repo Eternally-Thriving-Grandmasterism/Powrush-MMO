@@ -358,7 +358,7 @@ Listed, not queued.
 3. English only; client localization.rs is never compiled. Gate: JUNCTION pending the gap-1 audit.
 4. 0 TODO markers in compiled modules at 61ae66fb; the markers found sit in uncompiled files. Gate: folded into the gap-1 audit, no separate sweep card.
 5. Name rite offer is on the existing NameHouse hint after Settled (#591). Cold Title, resolved houses, and seed 0 never call offer. Gate: spent.
-6. Human gates open: playtest minutes, Steam App ID, Online R2, Bevy climb (pin 0.14). Gate: SHERIF GATE.
+6. Human gates open: playtest minutes, Steam App ID, Online R2, Bevy climb (pin 0.20). Gate: SHERIF GATE.
 7. CI runs cargo test on ubuntu only; no shippable build or artifact. Spent by OFFLINE-BUILD-1 (build-only CI artifact, .github/workflows/offline-build.yml; Sherif's word 2026-10-09 via Lead Mate). Gate: spent.
 8. No panic hook / crash log. Spent by #605 LR-04 CRASH-LOG-HOOK-1 @ `287db83`. Gate: spent.
 9. name_rite given and house lists were both 12 words. P4 NAME-RITE-COPRIME spent at #595, main `9fe03794`: HOUSE appended "Vysholt", lists now 12 GIVEN x 13 HOUSE, coprime, 156 distinct offers. Gate: spent.

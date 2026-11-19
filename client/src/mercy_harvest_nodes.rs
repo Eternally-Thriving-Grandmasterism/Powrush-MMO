@@ -19,7 +19,7 @@
  * Place already kept on FirstHarvestEpiphany.stood_place (Sanctuary / Heartwood /
  * Threshold-near / Depths). Threshold-near is Heartwood plus shelf/threshold_near
  * from #512. None keeps the exact card. No new PlaceId. Same five well words.
- * No second HUD. No new verb. No Title chrome. Online grey. Bevy pin 0.14.
+ * No second HUD. No new verb. No Title chrome. Online grey. Bevy pin 0.20.
  * Peak memory locked (cite only): walked · tended · week was the bill · yard remembered.
  *
  * PATSAGi + TOLC 8 | Contact: info@Rathor.ai | Yoi ⚡
