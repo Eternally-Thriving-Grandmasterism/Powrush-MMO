@@ -2309,4 +2309,48 @@ mod tests {
         assert_eq!(LOCAL_HEXES.map(|p| read_hex_named(p).map_or(0, |f| f.climate.tons_moved)), [0, 0, 0]);
         let _ = std::fs::remove_dir_all(&dir);
     }
+
+    /// HB3 — Places confirm spends the crate and clears the haul cue; stock 2 brings it back.
+    #[test]
+    fn loop_teach_hb3_places_confirm_clears_cue() {
+        use crate::fabricator::{fabricator_slab_at_place, FabSlabText, FabricatorPlugin, LOOP_HAUL_CUE};
+        use crate::hour_sacred::{try_plant_house, try_ridge_tab};
+        use crate::vertical_factory::FactoryYard;
+        use shared::vertical_factory::VerticalFactory;
+        let (mut hour, mut factory) = (HourSacred::default(), VerticalFactory::default());
+        assert!(try_ridge_tab(&mut hour, true) && try_plant_house(&mut hour, &mut factory));
+        while !factory.tutorial_complete() && factory.advance() != "unfounded" {}
+        assert!(hour.charter_skin_live() && factory.tutorial_complete());
+        hour.complete = true;
+        hour.hour_three_complete = true;
+        let booked = (hour, FactoryYard { factory });
+        let slab = |app: &mut App| -> String { app.world_mut().query_filtered::<&Text, With<FabSlabText>>().single(app.world()).unwrap().as_str().to_string() };
+        for (tag, stock, again) in [("hb3a", 1u32, false), ("hb3b", 2u32, true)] {
+            let (mut app, _hold, dir) = haul_app(tag, PlaceId::Sanctuary, Some(stock));
+            app.insert_resource(booked.0.clone()).insert_resource(booked.1.clone()).init_resource::<crate::thriving_moments::ThrivingMoments>().add_plugins(FabricatorPlugin);
+            app.world_mut().spawn((Text::new(""), FabSlabText));
+            app.update();
+            app.update();
+            let fab = app.world().resource::<FabricatorYard>().fab.clone();
+            let text = slab(&mut app);
+            assert_eq!(text, format!("{} · {LOOP_HAUL_CUE}", fabricator_slab_at_place(&fab, Some("Sanctuary"))));
+            assert_eq!(text.matches(LOOP_HAUL_CUE).count(), 1);
+            assert!(!text.contains('\n'));
+            leave_to(&mut app, PlacesRoom::Heartwood);
+            let gone = slab(&mut app);
+            assert!(!gone.contains(LOOP_HAUL_CUE) && !gone.contains('\n'));
+            assert_eq!(app.world().resource::<FabricatorYard>().fab.crate_stock, stock - 1);
+            assert_eq!(read_hex_named(PlaceId::Heartwood).map(|file| file.climate.tons_moved), Some(1));
+            leave_to(&mut app, PlacesRoom::Sanctuary);
+            let back = slab(&mut app);
+            if again {
+                let fab = app.world().resource::<FabricatorYard>().fab.clone();
+                assert_eq!((fab.crate_stock, back.clone()), (1, format!("{} · {LOOP_HAUL_CUE}", fabricator_slab_at_place(&fab, Some("Sanctuary")))));
+                assert_eq!(back.matches(LOOP_HAUL_CUE).count(), 1);
+            } else {
+                assert_eq!((app.world().resource::<FabricatorYard>().fab.crate_stock, back.contains(LOOP_HAUL_CUE)), (0, false));
+            }
+            let _ = std::fs::remove_dir_all(&dir);
+        }
+    }
 }
