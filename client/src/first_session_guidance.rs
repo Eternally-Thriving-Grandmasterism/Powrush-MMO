@@ -1004,7 +1004,7 @@ pub(crate) fn loop_cue(g: &FirstSessionGuidance, w: Option<&WoodView>, y: Option
     if w.unit == 0 { return None; }
     let (y, f, h) = (y?, f?, h?);
     let fab = &y.fab;
-    (fab.crate_stock == 0 && h.hex() != HexFlag::Peace && h.charter_skin_live() && h.complete && f.factory.tutorial_complete() && fab.planted && fab.pack.repair && fab.pack.logi && fab.pack.unlocked()).then_some(LOOP_REFINE_CUE)
+    (fab.crate_stock == 0 && h.hex() != HexFlag::Peace && h.charter_skin_live() && f.factory.tutorial_complete() && fab.planted && fab.pack.repair && fab.pack.logi && fab.pack.unlocked()).then_some(LOOP_REFINE_CUE)
 }
 
 fn lived_card_line_for(
@@ -1486,9 +1486,11 @@ mod tests {
         app.insert_resource(hour).insert_resource(FactoryYard { factory: fac }).insert_resource(FabricatorYard { fab, bench_glow: 0.0 });
         app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::PlantFabricator;
         app.world_mut().resource_mut::<HourSacred>().complete = false;
+        *app.world_mut().resource_mut::<WoodView>() = WoodView { unit: 0, standing: false };
         redraw(&mut app);
         assert!(!guidance_card_section(&mut app).1.contains(LOOP_REFINE_CUE));
         app.world_mut().resource_mut::<HourSacred>().complete = true;
+        *app.world_mut().resource_mut::<WoodView>() = WoodView { unit: 1, standing: false };
         redraw(&mut app);
         assert!(guidance_card_section(&mut app).1.contains(LOOP_REFINE_CUE));
         quiet(&mut app);

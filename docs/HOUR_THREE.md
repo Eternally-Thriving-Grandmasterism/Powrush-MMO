@@ -16,7 +16,7 @@ Same binary. Same card. No second HUD. No server. Peace E / I / H / R stay harve
 ## Hands (locked order)
 
 1. Hour two held (House + I2 seen + Ledger Settled). Welcome slab names the yard.
-2. Card: *Q after arrival — plant the fabricator*. **Q** plants, then MendSpool + LaneCrate → Proof Pack.
+2. Card: *Q after House arrival — plant the fabricator*. **Q** plants, then MendSpool + LaneCrate → Proof Pack.
 3. Card: *Embassy lamp · E Request seat*. One local seat. Blueprints copy MendSpool + LaneCrate.
 4. Card then slab: *Hour three held · the book is yours*. Quit. Rerun. Yard + book survive.
 5. Stop. G Voice, War week Chart, DeclaredLethal, Crownstone, Sylvaris, Hybrid, Compass stay later (Hour four+).

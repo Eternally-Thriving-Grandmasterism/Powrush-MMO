@@ -1,6 +1,6 @@
 //! Lived-hour fabricator — Slice 7 (v23.2.11) + P2 week answer
 //!
-//! After Hour two held and the crate arrives, Q plants a fabricator then runs MendSpool and LaneCrate.
+//! After House arrival, Q plants a fabricator then runs MendSpool and LaneCrate.
 //! Mend/Lane refresh the week audit slab (tons + restored). Soft bench light (S+). Dies in Peace.
 //!
 //! CARD FLESH-FABRICATOR-LINE — the existing planted / Proof Pack / MendSpool /
@@ -106,13 +106,13 @@ TextColor(TITLE_TEXT_PRIMARY),
         });
 }
 
-/// Q after Hour two held + crate arrival plants/crafts the Proof Pack. Peace no-op.
+/// Q after House arrival plants/crafts the Proof Pack. Peace no-op.
 pub fn try_craft_proof_pack(
     hour: &HourSacred,
     tutorial_complete: bool,
     fab: &mut Fabricator,
 ) -> Option<&'static str> {
-    if hour.hex() == HexFlag::Peace || !hour.charter_skin_live() || !hour.complete {
+    if hour.hex() == HexFlag::Peace || !hour.charter_skin_live() {
         return None;
     }
     if !tutorial_complete {
@@ -280,7 +280,7 @@ fn update_fab_slab(
     mut root: Query<(&mut Visibility, &mut BorderColor, &mut BackgroundColor), With<FabSlabRoot>>,
     mut text_q: Query<&mut Text, With<FabSlabText>>,
 ) {
-    let show = hour.complete && hour.charter_skin_live() && factory.factory.tutorial_complete();
+    let show = hour.charter_skin_live() && factory.factory.tutorial_complete();
     let glow = yard.bench_glow;
     for (mut vis, mut border, mut bg) in &mut root {
         *vis = if show {
@@ -799,5 +799,114 @@ mod tests {
         assert_eq!(app.world().resource::<LivedHourBind>().climate.tons_moved, 1);
         assert_eq!(app.world().resource::<WoodHub>().memory_unit(), Some(1));
         app.world_mut().resource_mut::<WoodHub>().shutdown();
+    }
+
+    use crate::first_session_guidance::{card_line, loop_cue, spawn_guidance_strip, update_guidance_text, FirstSessionGuidance, FirstSessionGuidanceText, GuidanceObjective, LOOP_REFINE_CUE, Signpost};
+    use crate::hour_sacred::{try_mark_hour_three_held, try_plant_house, try_ridge_tab};
+    use crate::input::InputMapSet;
+    use crate::wood_expedition::WoodView;
+    use bevy::ecs::system::RunSystemOnce;
+    use shared::vertical_factory::VerticalFactory;
+    fn house_not_held(arrive: bool) -> (HourSacred, VerticalFactory) {
+        let (mut hour, mut factory) = (HourSacred::default(), VerticalFactory::default());
+        assert!(try_ridge_tab(&mut hour, true) && try_plant_house(&mut hour, &mut factory) && !hour.complete);
+        if arrive { while !factory.tutorial_complete() && factory.advance() != "unfounded" {} }
+        assert_eq!(factory.tutorial_complete(), arrive); (hour, factory)
+    }
+    /// `VerticalFactoryPlugin` schedules `handle_factory_q` with `handle_fab_q`, `update_fab_slab`, and `update_guidance_text`.
+    fn gate_app(hour: HourSacred, factory: VerticalFactory, hub: WoodHub) -> App {
+        let mut bind = LivedHourBind::default(); bind.climate = shared::shard_climate::ShardClimate::from_json(CLIMATE_V0).unwrap();
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).configure_sets(Update, InputMapSet).edit_schedule(Update, |schedule| { schedule.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); }).insert_resource(hour).insert_resource(FactoryYard { factory }).insert_resource(FabricatorYard { fab: Fabricator::default(), bench_glow: 0.0 }).insert_resource(bind).insert_resource(hub).insert_resource(HexTravelState { current: PlaceId::Sanctuary }).init_resource::<ButtonInput<KeyCode>>().init_resource::<PlayerInput>().init_resource::<ThrivingMoments>().init_resource::<FirstSessionGuidance>().init_resource::<Signpost>().init_resource::<WoodView>().add_plugins(crate::vertical_factory::VerticalFactoryPlugin).add_systems(Startup, (spawn_fab_slab, spawn_guidance_strip)).add_systems(Update, (handle_fab_q, update_fab_slab, update_guidance_text).chain().after(InputMapSet));
+        app
+    }
+    struct GateShut(App);
+    impl Drop for GateShut { fn drop(&mut self) { self.0.world_mut().resource_mut::<WoodHub>().shutdown(); } }
+    fn with_gate(tag: &str, hour: HourSacred, factory: VerticalFactory, body: impl FnOnce(&mut App)) {
+        let _lock = crate::test_env::lock();
+        crate::loot_drops::tests::in_user_dir(tag, |_| { let mut shut = GateShut(gate_app(hour, factory, carried_hub().0)); body(&mut shut.0); });
+    }
+    fn card_text(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<FirstSessionGuidanceText>>().single(app.world()).unwrap().as_str().to_string() }
+    fn refine_cue(app: &mut App) -> Option<&'static str> { app.world_mut().run_system_once(|g: Res<FirstSessionGuidance>, w: Res<WoodView>, y: Res<FabricatorYard>, f: Res<FactoryYard>, h: Res<HourSacred>| loop_cue(&g, Some(&w), Some(&y), Some(&f), Some(&h), Some(PlaceId::Sanctuary), None)).unwrap() }
+    #[test]
+    fn loop_gate_lg1_q_refines_before_hour_two() {
+        let (hour, factory) = house_not_held(true);
+        with_gate("lg1", hour, factory, |app| {
+            for _ in 0..3 { press_q(app); } let kept = app.world().resource::<WoodHub>().memory_unit();
+            press_q(app);
+            let fab = app.world().resource::<FabricatorYard>().fab.clone(); let open = !app.world().resource::<HourSacred>().complete;
+            assert_eq!((kept, open, crate_stock(&fab), fab.last_line.as_str(), app.world().resource::<WoodHub>().memory_unit()), (Some(1), true, 1, "LaneCrate ran — the lane holds a crate", Some(0)));
+        });
+    }
+    #[test]
+    fn loop_gate_lg2_slab_visible_before_hour_two() {
+        let (hour, factory) = house_not_held(true);
+        with_gate("lg2", hour, factory, |app| {
+            app.update();
+            let vis = *app.world_mut().query_filtered::<&Visibility, With<FabSlabRoot>>().single(app.world()).unwrap();
+            let text = app.world_mut().query_filtered::<&Text, With<FabSlabText>>().single(app.world()).unwrap().as_str().to_string();
+            assert_eq!((vis, text), (Visibility::Visible, fabricator_slab_at_place(&app.world().resource::<FabricatorYard>().fab, Some("Sanctuary"))));
+        });
+    }
+    #[test]
+    fn loop_gate_lg3_refine_cue_exact_then_q_clears() {
+        let (hour, factory) = house_not_held(true);
+        with_gate("lg3", hour, factory, |app| {
+            app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::PlantFabricator;
+            *app.world_mut().resource_mut::<WoodView>() = WoodView { unit: 1, standing: false };
+            for _ in 0..3 { press_q(app); }
+            let goal = card_line(GuidanceObjective::PlantFabricator.prompt());
+            assert_eq!((refine_cue(app), card_text(app)), (Some(LOOP_REFINE_CUE), format!("{goal}\n{LOOP_REFINE_CUE}")));
+            press_q(app);
+            assert_eq!((refine_cue(app), card_text(app)), (None, goal));
+        });
+    }
+    #[test]
+    fn loop_gate_lg4_peace_pre_house_and_before_arrival_keep_wood() {
+        let mut pre = HourSacred::default();
+        assert!(try_ridge_tab(&mut pre, true) && !pre.charter_skin_live());
+        let (house, founded) = house_not_held(false);
+        let cases = [("lg4p", HourSacred::default(), VerticalFactory::default()), ("lg4r", pre, VerticalFactory::default()), ("lg4b", house, founded)];
+        for (tag, hour, factory) in cases {
+            let (mut sim_h, mut sim_f) = (hour.clone(), factory.clone());
+            if !(try_plant_house(&mut sim_h, &mut sim_f) || sim_h.hex() == HexFlag::Peace || !sim_h.charter_skin_live() || sim_f.tutorial_complete()) { let _ = sim_f.advance(); }
+            let want = (serde_json::to_string(&sim_f).unwrap(), serde_json::to_string(&sim_h.session).unwrap());
+            with_gate(tag, hour, factory, |app| {
+                press_q(app);
+                let got_f = serde_json::to_string(&app.world().resource::<FactoryYard>().factory).unwrap();
+                let got_s = serde_json::to_string(&app.world().resource::<HourSacred>().session).unwrap();
+                let fab = app.world().resource::<FabricatorYard>().fab.clone();
+                assert_eq!((got_f, got_s, fab.planted, crate_stock(&fab), app.world().resource::<WoodHub>().memory_unit()), (want.0, want.1, false, 0, Some(1)));
+            });
+        }
+    }
+    #[test]
+    fn loop_gate_lg5_embassy_book_and_boot_refuse_before_hour_two() {
+        let (hour, factory) = house_not_held(true);
+        with_gate("lg5", hour, factory, |app| {
+            for _ in 0..3 { let _ = app.world_mut().resource_mut::<FabricatorYard>().fab.craft_next(); }
+            let hour = app.world().resource::<HourSacred>().clone(); let fab = app.world().resource::<FabricatorYard>().fab.clone();
+            let mut embassy = shared::embassy::Embassy::default();
+            assert!(fab.pack.unlocked() && !hour.complete && !hour.hour_three_complete && crate::embassy::try_request_embassy_seat(&hour, &fab.pack, &mut embassy).is_none() && !embassy.seated);
+            let mut held = hour.clone();
+            assert!(!try_mark_hour_three_held(&mut held, fab.pack.unlocked(), embassy.seated) && !held.hour_three_complete);
+            let mut book = shared::hour_two::HourTwoPack { session: hour.session.clone(), fabricator: fab, embassy, complete: false, ..Default::default() };
+            book.mark_hour_three();
+            assert!(!book.hour_three_complete && book.line(true) != "Hour three held · the book is yours" && !shared::hex_travel::may_enter(PlaceId::Heartwood, false) && shared::hex_travel::boot_place(shared::hex_travel::BootKind::Continue, false, Some(PlaceId::Heartwood)) == PlaceId::Sanctuary);
+        });
+    }
+    #[test]
+    fn loop_gate_lg6_civic_mend_lane_matches_existing_bind() {
+        let (hour, factory) = house_not_held(true);
+        with_gate("lg6", hour, factory, |app| {
+            let mut expect = app.world().resource::<LivedHourBind>().clone();
+            expect.climate.on_mend(); expect.standing.on_mend(); expect.refresh_climate_slab();
+            expect.climate.on_lane(); expect.standing.on_lane(); expect.refresh_climate_slab();
+            for _ in 0..3 { press_q(app); } let now = app.world().resource::<LivedHourBind>().clone();
+            assert!(!app.world().resource::<HourSacred>().complete); assert!(app.world().resource::<FabricatorYard>().fab.pack.unlocked());
+            assert_eq!((now.climate.restored_count, now.climate.tons_moved, now.climate.updated_at, now.standing.updated_at, now.week.tons_moved, now.week.restored_count, now.week.updated_at), (1, 1, 3, 2, 1, 1, 3));
+            assert_eq!((&now.climate, &now.standing, &now.week), (&expect.climate, &expect.standing, &expect.week));
+            assert_eq!((shared::user_persist::read_named(crate::lived_hour_bind::SHARD_CLIMATE_PATH).unwrap(), shared::user_persist::read_named(crate::lived_hour_bind::SHARD_STANDING_PATH).unwrap(), shared::user_persist::read_named(crate::lived_hour_bind::WEEK_AUDIT_PATH).unwrap()), (now.climate.to_json().unwrap(), now.standing.to_json().unwrap(), now.week.to_json().unwrap()));
+        });
     }
 }
