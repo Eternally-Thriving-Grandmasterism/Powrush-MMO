@@ -1243,7 +1243,13 @@ pub(crate) fn lived_hud_clean_joiner_suppressed(id: &str) -> bool {
 }
 
 pub(crate) fn pulse_passes_clean_hide(pulse_line: &str) -> bool {
+    let combat_level = pulse_line.rsplit(' ').next().and_then(|word| word.parse::<u32>().ok()).is_some_and(|n| {
+        pulse_line.ends_with(&crate::skill_xp::level_up_line(crate::skill_xp::COMBAT, n))
+    });
     shared::temper::NAMED_FINDS.iter().any(|f| crate::loot_drops::find_line(f) == pulse_line)
+        || pulse_line == crate::combat_core::LUNGE_TELL_TEXT
+        || pulse_line == crate::droid::DROID_TELL_TEXT
+        || combat_level
 }
 
 pub fn lived_classic_coded_joiner_overlap(
