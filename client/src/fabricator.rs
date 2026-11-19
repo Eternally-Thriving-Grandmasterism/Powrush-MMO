@@ -1048,4 +1048,43 @@ mod tests {
             }
         });
     }
+
+    fn bare_preset(app: &mut App, id: crate::hud_presets::HudPresetId) {
+        app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(id) });
+    }
+    fn hud_vis(app: &mut App, id: &'static str) -> Visibility {
+        let mut q = app.world_mut().query::<(&crate::hud_anchor_registry::HudSlab, &Visibility)>();
+        *q.iter(app.world()).find(|(slab, _)| slab.0 == id).expect(id).1
+    }
+    fn assert_haul_on_screen(app: &mut App) {
+        let text = fab_text(app);
+        assert_eq!(text, format!("{} · {LOOP_HAUL_CUE}", fabricator_slab_at_place(&app.world().resource::<FabricatorYard>().fab, Some("Sanctuary"))));
+        assert_eq!((text.matches(LOOP_HAUL_CUE).count(), text.contains('\n')), (1, false));
+        assert_eq!((hud_vis(app, crate::hud_anchor_registry::ID_FAB), hud_vis(app, crate::hud_anchor_registry::ID_FACTORY)), (Visibility::Visible, Visibility::Hidden));
+    }
+    /// HBR1 — Classic, booked, real Q×4. Fab visible after layout; Factory hidden; cue once, no newline.
+    #[test]
+    fn hud_bare_hbr1_classic_fab_on_screen() {
+        haul_gate("hbr1", true, |app| { bare_preset(app, crate::hud_presets::HudPresetId::Classic); q4(app); assert_haul_on_screen(app); });
+    }
+    /// HBR2 — Minimal, same booked Q×4 path.
+    #[test]
+    fn hud_bare_hbr2_minimal_fab_on_screen() {
+        haul_gate("hbr2", true, |app| { bare_preset(app, crate::hud_presets::HudPresetId::Minimal); q4(app); assert_haul_on_screen(app); });
+    }
+    /// HBR3 — pause hides Fab; closing restores the same cue line.
+    #[test]
+    fn hud_bare_hbr3_pause_restores_fab() {
+        haul_gate("hbr3", true, |app| {
+            bare_preset(app, crate::hud_presets::HudPresetId::Classic); q4(app);
+            let text = fab_text(app);
+            assert_eq!(text, format!("{} · {LOOP_HAUL_CUE}", fabricator_slab_at_place(&app.world().resource::<FabricatorYard>().fab, Some("Sanctuary"))));
+            app.insert_resource(crate::title_screen::HouseLabel { house: shared::house_name::HouseName::default(), persist_present: false, hour_two_held: false, book_held: false, settings_open: true, draft: String::new(), naming_offered: false, seals_offered: false });
+            app.update();
+            assert_eq!(hud_vis(app, crate::hud_anchor_registry::ID_FAB), Visibility::Hidden);
+            app.world_mut().resource_mut::<crate::title_screen::HouseLabel>().settings_open = false;
+            app.update();
+            assert_eq!((hud_vis(app, crate::hud_anchor_registry::ID_FAB), fab_text(app)), (Visibility::Visible, text));
+        });
+    }
 }
