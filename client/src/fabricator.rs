@@ -21,6 +21,7 @@ use bevy::prelude::*;
 use shared::fabricator::Fabricator;
 use shared::hex_travel::PlaceId;
 use shared::hour_two::HourTwoPack;
+use shared::local_settings::PeaceKey;
 use shared::space_law::HexFlag;
 
 use crate::hex_travel::HexTravelState;
@@ -207,10 +208,11 @@ pub fn fabricator_slab_at_place(fab: &Fabricator, place: Option<&str>) -> String
 /// Name it only while a MendSpool is stocked and the temper recipe is visible.
 /// Empty spool keeps the civic sentence and does not name a craft.
 fn append_digit1_when_mend_spool_stocked(fab: &Fabricator, line: String) -> String {
-    if !mend_spool_names_digit1(fab) || line.contains("Digit1") {
+    let suffix = format!(" · Press {}", PeaceKey::Digit1.display_label());
+    if !mend_spool_names_digit1(fab) || line.ends_with(&suffix) {
         return line;
     }
-    format!("{line} · Digit1")
+    format!("{line} · Press {}", PeaceKey::Digit1.display_label())
 }
 
 fn mend_spool_names_digit1(fab: &Fabricator) -> bool {
@@ -559,7 +561,7 @@ mod tests {
         assert!(mend.contains("MendSpool ran"));
         assert_eq!(
             fabricator_slab_at_place(&fab, None),
-            format!("{} · Digit1", fab.slab_line())
+            format!("{} · Press 1", fab.slab_line())
         );
         let named_mend = fabricator_line_at_place(&mend, Some("Heartwood"));
         assert_eq!(named_mend, format!("Heartwood · {mend}"));
@@ -570,10 +572,10 @@ mod tests {
         assert!(fab.pack.unlocked());
         assert_eq!(
             fabricator_slab_at_place(&fab, None),
-            format!("{} · Digit1", fab.slab_line())
+            format!("{} · Press 1", fab.slab_line())
         );
         let named_proof = fabricator_slab_at_place(&fab, Some("Depths"));
-        assert_eq!(named_proof, format!("Depths · {proof} · Digit1"));
+        assert_eq!(named_proof, format!("Depths · {proof} · Press 1"));
 
         let lane = "LaneCrate ran — the lane holds a crate";
         let named_lane = fabricator_line_at_place(lane, Some("Threshold-near"));
@@ -667,15 +669,17 @@ mod tests {
         assert_eq!(fab.craft(Recipe::MendSpool), "crafted");
         assert_eq!(fab.spool_stock, 1);
         let stocked = fabricator_slab_at_place(&fab, None);
-        assert!(stocked.contains("Digit1"), "{stocked}");
-        assert_eq!(stocked.matches("Digit1").count(), 1);
+        assert_eq!(shared::local_settings::PeaceKey::Digit1.display_label(), "1");
+        let body = stocked.strip_suffix(" · Press 1").unwrap_or_else(|| panic!("{stocked}"));
+        assert!(!stocked.contains("Digit") && body.chars().any(|c| c.is_ascii_digit()), "{stocked}");
+        assert_eq!(stocked.matches(" · Press 1").count(), 1);
         assert!(stocked.starts_with(&fab.slab_line()));
         assert!(manufacture_copy_is_honest(&stocked), "{stocked}");
         assert!(!stocked.to_lowercase().contains("gold"));
         let named = fabricator_slab_at_place(&fab, Some("Heartwood"));
-        assert_eq!(named, format!("Heartwood · {} · Digit1", fab.last_line));
+        assert_eq!(named, format!("Heartwood · {} · Press 1", fab.last_line));
         assert_eq!(named.matches('\n').count(), 0);
-        assert_eq!(named.matches("Digit1").count(), 1);
+        assert!(!named.contains("Digit") && named.matches(" · Press 1").count() == 1, "{named}");
         assert!(manufacture_copy_is_honest(&named), "{named}");
 
         let item = fab.craft_tend_hook(1, "hands").expect("hook");
@@ -687,7 +691,7 @@ mod tests {
     }
 
     fn slab_names_a_craft(line: &str) -> bool {
-        line.contains("Digit1")
+        line.contains(" · Press 1")
             || line.contains("Tend Hook")
             || line
                 .split(|c: char| !c.is_ascii_alphanumeric())
@@ -746,7 +750,7 @@ mod tests {
         let yard = &app.world().resource::<FabricatorYard>().fab;
         assert_eq!((crate_stock(yard), yard.last_line.as_str()), (1, "LaneCrate ran — the lane holds a crate"));
         assert_eq!((yard.pack.clone(), yard.spool_stock, yard.reserve), (fab.pack.clone(), fab.spool_stock, fab.reserve));
-        assert!(fabricator_slab_at_place(yard, None).ends_with(" · Digit1"));
+        assert!(fabricator_slab_at_place(yard, None).ends_with(" · Press 1"));
         let pack = HourTwoPack { fabricator: yard.clone(), ..Default::default() };
         assert_eq!(crate_stock(&HourTwoPack::from_json(&serde_json::to_string(&pack).unwrap()).fabricator), 1);
         assert_eq!(app.world().resource::<WoodHub>().memory_unit(), Some(0));
@@ -999,8 +1003,8 @@ mod tests {
             let text = fab_text(app);
             let want = format!("{} · {LOOP_HAUL_CUE}", fabricator_slab_at_place(&fab, Some("Sanctuary")));
             assert_eq!(text, want);
-            assert!(want.contains(&format!(" · Digit1 · {LOOP_HAUL_CUE}")));
-            assert_eq!((text.matches("Digit1").count(), text.matches(LOOP_HAUL_CUE).count()), (1, 1));
+            assert!(want.contains(&format!(" · Press 1 · {LOOP_HAUL_CUE}")));
+            assert_eq!((text.matches(" · Press 1").count(), text.matches(LOOP_HAUL_CUE).count(), text.contains("Digit")), (1, 1, false));
             assert!(shared::fabricator::manufacture_copy_is_honest(&text) && shared::fabricator::manufacture_copy_is_honest(LOOP_HAUL_CUE));
             assert!(!text.contains('\n'));
         });
@@ -1058,9 +1062,12 @@ mod tests {
     }
     fn assert_haul_on_screen(app: &mut App) {
         let text = fab_text(app);
+        let vis = hud_vis(app, crate::hud_anchor_registry::ID_FAB);
         assert_eq!(text, format!("{} · {LOOP_HAUL_CUE}", fabricator_slab_at_place(&app.world().resource::<FabricatorYard>().fab, Some("Sanctuary"))));
-        assert_eq!((text.matches(LOOP_HAUL_CUE).count(), text.contains('\n')), (1, false));
-        assert_eq!((hud_vis(app, crate::hud_anchor_registry::ID_FAB), hud_vis(app, crate::hud_anchor_registry::ID_FACTORY)), (Visibility::Visible, Visibility::Hidden));
+        assert_eq!(
+            (vis, hud_vis(app, crate::hud_anchor_registry::ID_FACTORY), text.matches(" · Press 1").count(), text.matches(LOOP_HAUL_CUE).count(), text.contains("Digit"), text.contains('\n')),
+            (Visibility::Visible, Visibility::Hidden, 1, 1, false, false)
+        );
     }
     /// HBR1 — Classic, booked, real Q×4. Fab visible after layout; Factory hidden; cue once, no newline.
     #[test]
