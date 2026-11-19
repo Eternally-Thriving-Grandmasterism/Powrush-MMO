@@ -1228,7 +1228,6 @@ pub(crate) const LIVED_HUD_CLEAN_SUPPRESSED: &[&str] = &[
     ID_WHISPER,
     ID_WELCOME,
     ID_FACTORY,
-    ID_FAB,
     ID_SPILL,
     ID_EMBASSY,
     ID_REDEMPTION,
@@ -2019,6 +2018,8 @@ fn apply_active_preset(
                 }
             }
         }
+        let clean = door == Some(crate::title_screen::LaunchDoor::InYard)
+            && matches!(id, HudPresetId::Classic | HudPresetId::Minimal);
         for anchor in layout.anchors {
             if anchor.share != HudShare::Yield {
                 continue;
@@ -2033,16 +2034,19 @@ fn apply_active_preset(
                     (occupant.id, on)
                 })
                 .collect();
+            let bare: Vec<(&str, bool)> = showing
+                .iter()
+                .map(|(occ, on)| (*occ, *on && !lived_hud_clean_joiner_suppressed(occ)))
+                .collect();
             for item in &live {
-                if item.anchor_id == anchor.id && r2_yields_to(anchor, item.id, &showing) {
+                let claim = if clean && item.id == ID_FAB { &bare } else { &showing };
+                if item.anchor_id == anchor.id && r2_yields_to(anchor, item.id, claim) {
                     hide.insert(item.entity);
                     r2.push(item.id); // CL-Y2: only the R2 arm marks a slab yielded
                 }
             }
         }
-        if door == Some(crate::title_screen::LaunchDoor::InYard)
-            && matches!(id, HudPresetId::Classic | HudPresetId::Minimal)
-        {
+        if clean {
             for item in &live {
                 if lived_hud_clean_joiner_suppressed(item.id) {
                     hide.insert(item.entity);
@@ -4258,5 +4262,84 @@ child_style.clone(),
             HudLayoutChoice::Fallback(HudPresetId::Classic),
             "F6 uses classic when base itself fails"
         );
+    }
+
+    fn bare_yard(preset: HudPresetId, rows: &[(&'static str, Visibility)]) -> (App, Vec<(&'static str, Entity)>) {
+        let mut app = layout_app();
+        app.insert_resource(LaunchDoor::InYard);
+        let mut spawned = Vec::new();
+        for &(id, vis) in rows {
+            spawned.push((id, app.world_mut().spawn((sentinel_style(), vis, HudSlab(id))).id()));
+        }
+        app.world_mut().resource_mut::<ActiveHudPreset>().id = Some(preset);
+        app.update();
+        (app, spawned)
+    }
+
+    fn vis_of(app: &App, spawned: &[(&str, Entity)], id: &str) -> Visibility {
+        let entity = spawned.iter().find(|(slab, _)| *slab == id).expect(id).1;
+        *app.world().get::<Visibility>(entity).expect(id)
+    }
+
+    /// HBR4 — Classic InYard: Fab shows; Factory and Spill stay hidden; yield marks Spill only.
+    #[test]
+    fn hud_bare_hbr4_classic_fab_shows_factory_and_spill_hidden() {
+        let (app, spawned) = bare_yard(HudPresetId::Classic, &[
+            (ID_FACTORY, Visibility::Visible),
+            (ID_FAB, Visibility::Visible),
+            (ID_SPILL, Visibility::Visible),
+        ]);
+        assert_eq!(vis_of(&app, &spawned, ID_FAB), Visibility::Visible);
+        assert_eq!(vis_of(&app, &spawned, ID_FACTORY), Visibility::Hidden);
+        assert_eq!(vis_of(&app, &spawned, ID_SPILL), Visibility::Hidden);
+        let yielded = &app.world().resource::<HudYielded>().0;
+        assert!(yielded.contains(&ID_SPILL));
+        assert!(!yielded.contains(&ID_FAB));
+    }
+
+    /// HBR5 — suppressed toast ids keep main's R2 yield list (CL-Y2).
+    #[test]
+    fn hud_bare_hbr5_suppressed_yield_list_matches_main() {
+        let (app, _) = bare_yard(HudPresetId::Classic, &[
+            (ID_PULSE, Visibility::Visible),
+            (ID_THRIVING, Visibility::Visible),
+            (ID_SOVEREIGN, Visibility::Visible),
+        ]);
+        assert_eq!(app.world().resource::<HudYielded>().0, vec![ID_THRIVING, ID_SOVEREIGN]);
+    }
+
+    /// HBR6 — Management still yields Fab to Factory (Q1 fence).
+    #[test]
+    fn hud_bare_hbr6_management_fab_yields_to_factory() {
+        let (app, spawned) = bare_yard(HudPresetId::Management, &[
+            (ID_FACTORY, Visibility::Visible),
+            (ID_FAB, Visibility::Visible),
+        ]);
+        assert_eq!(vis_of(&app, &spawned, ID_FAB), Visibility::Hidden);
+        assert_eq!(vis_of(&app, &spawned, ID_FACTORY), Visibility::Visible);
+        assert!(app.world().resource::<HudYielded>().0.contains(&ID_FAB));
+    }
+
+    /// HBR7 — S1-n: Well and ClimateState stay hidden InYard on Minimal.
+    #[test]
+    fn hud_bare_hbr7_minimal_well_and_climate_stay_hidden() {
+        let (app, spawned) = bare_yard(HudPresetId::Minimal, &[
+            (ID_FACTORY, Visibility::Visible),
+            (ID_FAB, Visibility::Hidden),
+            (ID_WELL, Visibility::Visible),
+            (ID_CLIMATE_STATE, Visibility::Visible),
+        ]);
+        assert_eq!(vis_of(&app, &spawned, ID_WELL), Visibility::Hidden);
+        assert_eq!(vis_of(&app, &spawned, ID_CLIMATE_STATE), Visibility::Hidden);
+    }
+
+    /// HBR8 — clean list is main's list minus ID_FAB, same order, 15 entries.
+    #[test]
+    fn hud_bare_hbr8_clean_list_omits_fab() {
+        let _app = layout_app();
+        assert_eq!(LIVED_HUD_CLEAN_SUPPRESSED, &[
+            ID_PULSE, ID_PICKUP, ID_THRIVING, ID_SOVEREIGN, ID_WHISPER, ID_WELCOME, ID_FACTORY,
+            ID_SPILL, ID_EMBASSY, ID_REDEMPTION, ID_HYBRID, ID_COMPASS, ID_VOICE, ID_PEER, ID_PLACE_NAME,
+        ]);
     }
 }
