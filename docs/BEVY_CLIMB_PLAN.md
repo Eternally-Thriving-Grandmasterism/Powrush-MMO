@@ -11,7 +11,7 @@ Model seat: Agents may use Grok or Claude (or other approved models), choosing w
 
 | When | Do |
 |---|---|
-| **NOW** | Stay on Bevy **0.14**. Heartbeat core tests. TODO-SYNC if still stale. No engine port. |
+| **NOW** | Stay on Bevy **0.20**. Heartbeat core tests. TODO-SYNC if still stale. No engine port. |
 | **NOT NOW** | Do not bump to 0.19.1 (layover tax). Do not bump to **0.20.0-rc.*** (input regressions). |
 | **LATER** | When **Bevy 0.20.0 stable** exists on crates.io (tag `v0.20.0`, not `v0.20.0-rc.N`), open **CARD BEVY-CLIMB**. |
 | **NEVER from bots** | Unreal / Unity / Godot rewrite. Bevy 1.0 wait-forever. Lighting Title Online to justify a renderer. |
