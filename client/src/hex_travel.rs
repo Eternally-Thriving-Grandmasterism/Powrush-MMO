@@ -479,7 +479,7 @@ GlobalZIndex(PLACES_PLATE_Z),
         .with_children(|p| {
             p.spawn((
 Text::new(PLACES_TITLE),
-TextFont { font_size: FontSize::Px(18.0 / 1.2), ..default() },
+crate::ui_kit::display_font(18.0),
 TextColor(TITLE_TEXT_PRIMARY),
 ));
             p.spawn((
@@ -2546,5 +2546,25 @@ mod tests {
         assert_eq!(gate(DifficultyTier::Sworn, PlaceId::Heartwood, 0, GateFacts::default()), Err(PickError::Locked));
         assert_eq!(gate(DifficultyTier::Steady, PlaceId::Heartwood, 0, GateFacts::default()), Ok(()));
         assert_eq!(TierMark::Sworn.line(), format!("{}: Sworn", TierMark::COPY));
+    }
+
+    #[test]
+    fn font_display_fd4_places_header_size_and_body_face() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).add_systems(Startup, spawn_places_plate).update();
+        let def = TextFont::default().font;
+        for (t, f) in app.world_mut().query::<(&Text, &TextFont)>().iter(app.world()) {
+            if t.0 == PLACES_TITLE { assert_eq!(f.font_size, FontSize::Px(18.0 / 1.2)); }
+            else { assert_eq!(f.font, def, "{}", t.0); }
+        }
+    }
+
+    #[test]
+    fn font_display_fd3_places_title_uses_display_face() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).add_systems(Startup, spawn_places_plate).update();
+        let (want, def) = (FontSource::from(crate::ui_font::DISPLAY_FONT), TextFont::default().font);
+        let ok = app.world_mut().query::<(&Text, &TextFont)>().iter(app.world()).any(|(t, f)| t.0 == PLACES_TITLE && f.font == want && f.font != def);
+        assert!(ok, "Places");
     }
 }
