@@ -831,6 +831,7 @@ pub(crate) fn spawn_guidance_strip(mut commands: Commands) {
                 },
                 BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
                 BorderColor::all(TITLE_BORDER.with_alpha(0.82)),
+                crate::ui_frame::plate_frame(),
                 Visibility::Visible,
             ),
             FirstSessionGuidanceStrip,
@@ -4322,5 +4323,33 @@ mod tests {
         let epiphany = app.world().resource::<FirstHarvestEpiphany>();
         assert_eq!((epiphany.pulse_line.as_str(), epiphany.pulse_until), ("kept-line", 4.2));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    /// FRAME-NINESLICE-1 FN7. Guidance visibility under the three presets, with and without an ImageNode.
+    #[test]
+    fn frame_nineslice_fn7_guidance_visibility() {
+        use crate::hud_presets::{ActiveHudPreset, HudLayoutPlugin, HudPresetId};
+        let case = |id: HudPresetId, keep: bool| {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, HudLayoutPlugin)).insert_resource(ActiveHudPreset { id: Some(id) }).insert_resource(LaunchDoor::InYard).add_systems(Startup, spawn_guidance_strip).update();
+            if !keep {
+                let e = app.world_mut().query_filtered::<Entity, With<FirstSessionGuidanceStrip>>().single(app.world()).unwrap();
+                app.world_mut().entity_mut(e).remove::<ImageNode>();
+            }
+            let vis = |app: &mut App| *app.world_mut().query_filtered::<&Visibility, With<FirstSessionGuidanceStrip>>().single(app.world()).unwrap();
+            let shown = vis(&mut app);
+            app.insert_resource(LaunchDoor::Title);
+            app.update();
+            let r5 = vis(&mut app);
+            app.insert_resource(LaunchDoor::InYard);
+            app.world_mut().spawn((HudSlab(ID_CARE_STRIP), Visibility::Visible, Node::default()));
+            app.update();
+            (shown, r5, vis(&mut app))
+        };
+        for id in [HudPresetId::Classic, HudPresetId::Minimal, HudPresetId::Management] {
+            let with = case(id, true);
+            assert_eq!(with, case(id, false), "{id:?} with {with:?}");
+            assert_eq!(with, (Visibility::Visible, Visibility::Hidden, Visibility::Hidden), "{id:?}");
+        }
     }
 }

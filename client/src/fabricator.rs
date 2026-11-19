@@ -90,6 +90,7 @@ pub(crate) fn spawn_fab_slab(mut commands: Commands) {
                 },
                 BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
                 BorderColor::all(TITLE_BORDER.with_alpha(1.0)),
+                crate::ui_frame::plate_frame(),
                 Visibility::Hidden,
             ),
             FabSlabRoot,
@@ -1222,5 +1223,27 @@ mod tests {
         assert_eq!(fabricator_slab_at_place(&fab, None), fab.slab_line());
         fab.spool_stock = 1;
         assert_eq!(fabricator_slab_at_place(&fab, Some("Heartwood")), format!("{HAUL_DELIVERED_CUE} · Press {}", PeaceKey::Digit1.display_label()));
+    }
+
+    #[test]
+    fn frame_nineslice_fn3_fn6_fn8_fab() {
+        for assets in [false, true] {
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins);
+            if assets { app.add_plugins(bevy::asset::AssetPlugin::default()).init_asset::<Image>(); }
+            app.add_systems(Startup, spawn_fab_slab).update();
+            if assets { assert!(app.world().resource::<Assets<Image>>().get(crate::ui_frame::FRAME_IMAGE.id()).is_none()); }
+            let world = app.world_mut();
+            let root = world.query_filtered::<Entity, With<FabSlabRoot>>().single(world).unwrap();
+            let image = world.get::<ImageNode>(root).expect("FN3");
+            assert_eq!((image.image.id(), image.visual_box), (crate::ui_frame::FRAME_IMAGE.id(), VisualBox::PaddingBox));
+            assert_eq!(image.image_mode, NodeImageMode::Sliced(crate::ui_frame::frame_slicer()));
+            let (border, bg) = world.query_filtered::<(&BorderColor, &BackgroundColor), With<FabSlabRoot>>().single(world).unwrap();
+            assert_eq!((border.top, border.right, border.bottom, border.left, bg.0), (TITLE_BORDER.with_alpha(1.0), TITLE_BORDER.with_alpha(1.0), TITLE_BORDER.with_alpha(1.0), TITLE_BORDER.with_alpha(1.0), TITLE_PLATE_BG.with_alpha(1.0)));
+            let text = world.query_filtered::<(&TextFont, &TextLayout, &Node, Option<&ImageNode>), With<FabSlabText>>().single(world).unwrap();
+            let plain = TextLayout::default();
+            assert_eq!((text.0.font_size, text.0.font.clone(), text.1.justify, text.1.linebreak, text.2.clone(), text.3.is_none()), (FontSize::Px(14.0 / 1.2), TextFont::default().font, plain.justify, plain.linebreak, Node::default(), true));
+            assert_eq!(world.query::<&ImageNode>().iter(world).count(), 1);
+        }
     }
 }
