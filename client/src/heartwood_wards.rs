@@ -11,6 +11,7 @@ use shared::heartwood_wards::{
     WardDress, WardVerb, WARD_POST_CENTERS, WARD_POST_SIZE, WARD_SEALS, WARD_USE_RADIUS,
 };
 use shared::hex_travel::PlaceId;
+use crate::climate_plane::{PropMesh, PropMeshFit};
 
 #[derive(Component)]
 struct WardPost;
@@ -69,6 +70,7 @@ fn sync_heartwood_wards(
                 MeshMaterial3d(material.clone()),
                 Transform::from_translation(Vec3::from_array(*center)),
             ),
+            PropMesh { rel: "models/kenney-fantasy-town-kit/pillar-stone.glb", primitive: 0, fit: PropMeshFit::Post },
             WardPost,
             Name::new(format!("WardPost{i}")),
         ));
@@ -278,5 +280,50 @@ mod tests {
         app.world_mut().resource_mut::<crate::wood_expedition::WoodClaim>().set_held(false);
         app.update();
         assert_eq!(app.world().resource::<WardSession>().dress.tends, 1);
+    }
+    fn ww_root() -> std::path::PathBuf { std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().unwrap() }
+    fn ww_tick(app: &mut App, root: &std::path::Path, n: usize) { for _ in 0..n { crate::test_env::with_bevy_asset_root(root, || { app.update(); bevy::tasks::tick_global_task_pools_on_main_thread(); }); } }
+    fn ww_boot(root: &std::path::Path, preset: shared::local_settings::GraphicsPreset) -> App {
+        use bevy::prelude::AssetPlugin; let mut app = App::new();
+        app.set_error_handler(bevy::ecs::error::ignore).add_plugins((MinimalPlugins, AssetPlugin { file_path: root.join("assets").into_os_string().into_string().unwrap(), watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin)).init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().insert_resource(crate::local_settings::LocalMeshLodFeel { preset }).insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) }).insert_resource(HexTravelState { current: PlaceId::Heartwood }).insert_resource(SoftPresence { position: Vec3::from_array(WARD_POST_CENTERS[0]), velocity: Vec3::ZERO, grounded: true, ..Default::default() }).insert_resource(PlayerInput::default()).add_plugins((crate::climate_plane::ClimatePlanePlugin, crate::heartwood_lip::HeartwoodLipPlugin, HeartwoodWardsPlugin));
+        app.finish(); app.cleanup(); app.world_mut().run_schedule(Startup); app
+    }
+    #[test]
+    fn props_wire_1b_ward_posts_swap_world_fit() {
+        let _g = crate::test_env::lock(); let root = ww_root(); let mut app = ww_boot(&root, shared::local_settings::GraphicsPreset::Medium); ww_tick(&mut app, &root, 1);
+        let ids = |app: &mut App| { let mut q = app.world_mut().query::<(&Name, &Transform, &Mesh3d)>(); q.iter(app.world()).filter(|(n, _, _)| n.as_str().starts_with("WardPost")).map(|(n, t, m)| (n.as_str().to_string(), *t, m.0.id())).collect::<Vec<_>>() };
+        let pre = ids(&mut app); assert_eq!(pre.len(), 3, "spawn");
+        for _ in 0..900 { ww_tick(&mut app, &root, 1); if ids(&mut app).iter().all(|(_, _, h)| pre.iter().all(|p| p.2 != *h)) { break; } }
+        let rows = ids(&mut app); assert!(rows.len() == 3 && rows.iter().all(|(_, _, h)| pre.iter().all(|p| p.2 != *h)) && rows.iter().all(|(_, _, h)| *h == rows[0].2), "swap");
+        let meshes = app.world().resource::<Assets<Mesh>>();
+        for (name, tf, id) in &rows {
+            let mesh = meshes.get(*id).unwrap(); let pos = mesh.attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()).unwrap();
+            let mut ix: Vec<usize> = match mesh.indices() { Some(bevy::mesh::Indices::U32(i)) => i.iter().map(|&u| u as usize).collect(), Some(bevy::mesh::Indices::U16(i)) => i.iter().map(|&u| u as usize).collect(), None => (0..pos.len()).collect() }; ix.sort_unstable(); ix.dedup();
+            let (mut lo, mut hi, mut rad) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN), 0_f32); for i in ix { let w = tf.transform_point(Vec3::from_array(pos[i])); lo = lo.min(w); hi = hi.max(w); rad = rad.max((w.x - tf.translation.x).hypot(w.z - tf.translation.z)); }
+            let size = hi - lo; let idx: usize = name.trim_start_matches("WardPost").parse().unwrap();
+            assert!((size.x - 0.28).abs() < 0.01 && (size.y - 1.4).abs() < 0.01 && (size.z - 0.28).abs() < 0.01 && lo.y.abs() < 0.02 && rad <= shared::heartwood_wards::WARD_FOOTPRINT_RADIUS + 1e-4 && (tf.translation - Vec3::from_array(WARD_POST_CENTERS[idx])).length() < 1e-4 && tf.rotation.dot(Quat::IDENTITY).abs() > 1.0 - 1e-4, "{name} {lo} {size} {rad}");
+            if idx == 0 { eprintln!("PW1B post_base_y={} size={size:?} center={:?}", lo.y, tf.translation); }
+        }
+        { let mut p = app.world_mut().resource_mut::<SoftPresence>(); p.position = Vec3::from_array(WARD_POST_CENTERS[0]); } app.world_mut().resource_mut::<PlayerInput>().interact = true; ww_tick(&mut app, &root, 1); assert_eq!(app.world().resource::<WardSession>().dress.tends, 1);
+    }
+    #[test]
+    fn props_wire_1b_low_mobile_keep_primitives() {
+        let _g = crate::test_env::lock(); let root = ww_root();
+        let cap = Mesh::from(Capsule3d::new(0.32, 2.0)).attribute(Mesh::ATTRIBUTE_POSITION).unwrap().len(); let rib = Mesh::from(Cuboid::new(0.16, 0.16, 3.0)).attribute(Mesh::ATTRIBUTE_POSITION).unwrap().len(); let post = Mesh::from(Cuboid::new(WARD_POST_SIZE[0], WARD_POST_SIZE[1], WARD_POST_SIZE[2])).attribute(Mesh::ATTRIBUTE_POSITION).unwrap().len();
+        for preset in [shared::local_settings::GraphicsPreset::Low, shared::local_settings::GraphicsPreset::Mobile] {
+            let mut app = ww_boot(&root, preset); ww_tick(&mut app, &root, 8); let mut q = app.world_mut().query::<(&Name, &Mesh3d)>();
+            let rows: Vec<_> = q.iter(app.world()).filter(|(n, _)| n.as_str().starts_with("HeartwoodWalkway") || n.as_str().starts_with("HeartwoodHangingRib") || n.as_str().starts_with("WardPost")).map(|(n, m)| (n.as_str().to_string(), m.0.id())).collect();
+            assert_eq!(rows.len(), 10, "{preset:?}"); let meshes = app.world().resource::<Assets<Mesh>>();
+            for (name, id) in &rows { let n = meshes.get(*id).unwrap().attribute(Mesh::ATTRIBUTE_POSITION).unwrap().len(); let want = if name.starts_with("HeartwoodWalkway") { cap } else if name.starts_with("WardPost") { post } else { rib }; assert_eq!(n, want, "{preset:?} {name}"); }
+        }
+    }
+    #[test]
+    fn props_wire_1b_assets_licensed() {
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join(".."); let csv = include_str!("../../assets/asset-licenses.csv"); let mut total = 0_u64;
+        for rel in ["assets/models/kenney-nature-kit/log_large.glb", "assets/models/kenney-fantasy-town-kit/pillar-wood.glb", "assets/models/kenney-fantasy-town-kit/pillar-stone.glb"] { assert!(csv.lines().any(|line| line.starts_with(rel) && line.split(',').nth(2) == Some("CC0-1.0")), "{rel}"); let n = std::fs::metadata(root.join(rel)).unwrap().len(); assert!(n <= 40 * 1024, "{rel} {n}"); total += n; }
+        for rel in ["assets/models/kenney-nature-kit/tree_default.glb", "assets/models/kenney-nature-kit/stone_smallFlatA.glb"] { total += std::fs::metadata(root.join(rel)).unwrap().len(); }
+        assert!(!csv.contains("colormap.png") && !root.join("assets/models/kenney-fantasy-town-kit/Textures").exists() && total <= 120 * 1024, "{total}");
+        assert!(!crate::climate_plane::PropMesh::props_wire_authored_glb_present());
+        assert!(std::process::Command::new("bash").arg(root.join("scripts/check_asset_licenses.sh")).arg(&root).status().unwrap().success());
     }
 }
