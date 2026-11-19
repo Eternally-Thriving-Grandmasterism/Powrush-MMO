@@ -26,6 +26,7 @@ use crate::human_presence::SoftPresence;
 use crate::input::PlayerInput;
 use crate::lived_hour_bind::LivedHourBind;
 use crate::local_settings::LocalSettingsState;
+use crate::climate_plane::{PropMesh, PropMeshFit};
 
 const STAND_HEIGHT: f32 = 0.90;
 
@@ -125,18 +126,20 @@ fn sync_heartwood_lip(
     });
 
     for (index, instance) in HEARTWOOD_LIP_INSTANCES.iter().enumerate() {
-        let (mesh, material, rotation, label) = match instance.kind {
+        let (mesh, material, rotation, label, dress) = match instance.kind {
             HeartwoodLipKind::WalkwayCapsule => (
                 walkway_mesh.clone(),
                 walkway_material.clone(),
                 Quat::from_rotation_z(std::f32::consts::FRAC_PI_2),
                 "HeartwoodWalkwayCapsule",
+                PropMesh { rel: "models/kenney-nature-kit/log_large.glb", primitive: 0, fit: PropMeshFit::Log },
             ),
             HeartwoodLipKind::HangingRib => (
                 rib_mesh.clone(),
                 rib_material.clone(),
                 Quat::IDENTITY,
                 "HeartwoodHangingRib",
+                PropMesh { rel: "models/kenney-fantasy-town-kit/pillar-wood.glb", primitive: 0, fit: PropMeshFit::Rib },
             ),
         };
         commands.spawn((
@@ -149,6 +152,7 @@ fn sync_heartwood_lip(
                     ..default()
                 },
             ),
+            dress,
             HeartwoodLipProp,
             Name::new(format!("{label}_{index}")),
         ));
@@ -771,5 +775,59 @@ mod tests {
             ),
             Ok(PlaceId::Sanctuary)
         );
+    }
+    fn pw_root() -> std::path::PathBuf { std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().unwrap() }
+    fn pw_tick(app: &mut App, root: &std::path::Path, n: usize) { for _ in 0..n { crate::test_env::with_bevy_asset_root(root, || { app.update(); bevy::tasks::tick_global_task_pools_on_main_thread(); }); } }
+    fn pw_boot(root: &std::path::Path, preset: GraphicsPreset) -> App {
+        use bevy::prelude::AssetPlugin;
+        let mut app = App::new();
+        app.set_error_handler(bevy::ecs::error::ignore).add_plugins((MinimalPlugins, AssetPlugin { file_path: root.join("assets").into_os_string().into_string().unwrap(), watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin)).init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().insert_resource(crate::local_settings::LocalMeshLodFeel { preset }).insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) }).insert_resource(HexTravelState { current: PlaceId::Heartwood }).insert_resource(SoftPresence::default()).insert_resource(PlayerInput::default()).add_plugins((crate::climate_plane::ClimatePlanePlugin, HeartwoodLipPlugin, crate::heartwood_wards::HeartwoodWardsPlugin));
+        app.finish(); app.cleanup(); app.world_mut().run_schedule(Startup); app
+    }
+    fn pw_drawn(mesh: &Mesh, tf: &Transform) -> (Vec3, Vec3, Vec3, f32, usize) {
+        let pos = mesh.attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()).unwrap();
+        let nrm = mesh.attribute(Mesh::ATTRIBUTE_NORMAL).and_then(|a| a.as_float3()).unwrap();
+        let (mut ix, tris) = match mesh.indices() { Some(bevy::mesh::Indices::U16(i)) => (i.iter().map(|&u| u as usize).collect::<Vec<_>>(), i.len() / 3), Some(bevy::mesh::Indices::U32(i)) => (i.iter().map(|&u| u as usize).collect::<Vec<_>>(), i.len() / 3), None => ((0..pos.len()).collect(), 0) };
+        ix.sort_unstable(); ix.dedup();
+        let (mut lo, mut hi, mut top_y, mut top_n, mut rad) = (Vec3::splat(f32::MAX), Vec3::splat(f32::MIN), f32::MIN, Vec3::ZERO, 0_f32);
+        for i in ix { let w = tf.transform_point(Vec3::from_array(pos[i])); lo = lo.min(w); hi = hi.max(w); rad = rad.max((w.x - tf.translation.x).hypot(w.z - tf.translation.z)); if w.y > top_y { top_y = w.y; top_n = tf.rotation * Vec3::from_array(nrm[i]); } }
+        (lo, hi, top_n, rad, tris)
+    }
+    #[test]
+    fn props_wire_1b_lip_walkways_and_ribs_swap_world_fit() {
+        let _g = crate::test_env::lock(); let root = pw_root(); let mut app = pw_boot(&root, GraphicsPreset::Medium); pw_tick(&mut app, &root, 1);
+        let ids = |app: &mut App| { let mut q = app.world_mut().query::<(&Name, &Transform, &Mesh3d)>(); q.iter(app.world()).filter(|(n, _, _)| n.as_str().starts_with("HeartwoodWalkway") || n.as_str().starts_with("HeartwoodHangingRib")).map(|(n, t, m)| (n.as_str().to_string(), *t, m.0.id())).collect::<Vec<_>>() };
+        let pre = ids(&mut app); assert_eq!(pre.len(), 7, "spawn");
+        for _ in 0..900 { pw_tick(&mut app, &root, 1); if ids(&mut app).iter().all(|(_, _, h)| pre.iter().all(|p| p.2 != *h)) { break; } }
+        let rows = ids(&mut app); assert!(rows.len() == 7 && rows.iter().all(|(_, _, h)| pre.iter().all(|p| p.2 != *h)), "swap");
+        let meshes = app.world().resource::<Assets<Mesh>>();
+        let (mut walks, mut ribs) = (Vec::new(), Vec::new());
+        for (name, tf, id) in &rows {
+            let (lo, hi, top_n, rad, tris) = pw_drawn(meshes.get(*id).unwrap(), tf);
+            let idx: usize = name.rsplit_once('_').unwrap().1.parse().unwrap(); let inst = &HEARTWOOD_LIP_INSTANCES[idx];
+            let want_r = if name.starts_with("HeartwoodWalkway") { Quat::from_rotation_z(std::f32::consts::FRAC_PI_2) } else { Quat::IDENTITY };
+            assert!(tf.rotation.dot(want_r).abs() > 1.0 - 1e-4 && (tf.translation - Vec3::from_array(inst.center)).length() < 1e-4 && (tf.scale - Vec3::ONE).length() < 1e-4 && rad <= inst.footprint_radius + 1e-3, "{name} {rad}");
+            if name.starts_with("HeartwoodWalkway") { let size = hi - lo; assert!((size.x - 2.64).abs() < 0.03 && (size.y - 0.64).abs() < 0.03 && (size.z - 0.64).abs() < 0.03 && (lo.y + 0.02).abs() < 0.02 && tris == 96 && top_n.y > 0.9, "{name} {lo} {size} {tris} {top_n}"); walks.push(*id); if walks.len() == 1 { eprintln!("PW1B walkway_base_y={} size={size:?} top_n={top_n:?}", lo.y); } }
+            else { let size = hi - lo; let mid = (lo + hi) * 0.5; assert!((size.x - 0.16).abs() < 0.01 && (size.y - 0.16).abs() < 0.01 && (size.z - 3.0).abs() < 0.01 && (mid - Vec3::from_array(inst.center)).length() < 0.01, "{name} {size} {mid}"); ribs.push(*id); eprintln!("PW1B rib {name} y0={} y1={} mid_y={}", lo.y, hi.y, mid.y); }
+        }
+        assert!(walks.len() == 2 && ribs.len() == 5 && walks.iter().all(|h| *h == walks[0]) && ribs.iter().all(|h| *h == ribs[0])); let (bw, br) = (walks[0], ribs[0]);
+        let settle = |app: &mut App, root: &std::path::Path| { let (mut prev, mut same) = (usize::MAX, 0); for _ in 0..40 { pw_tick(app, root, 1); let n = app.world().resource::<Assets<Mesh>>().len(); if n == prev { same += 1; if same >= 4 { return n; } } else { prev = n; same = 0; } } prev }; let n0 = settle(&mut app, &root);
+        for _ in 0..3 {
+            app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Sanctuary; pw_tick(&mut app, &root, 2);
+            app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Heartwood; let mut ok = false;
+            for _ in 0..90 { pw_tick(&mut app, &root, 1); let now = ids(&mut app); if now.len() == 7 && now.iter().all(|(_, _, h)| *h == bw || *h == br) { ok = true; break; } }
+            assert!(ok, "reentry");
+        }
+        assert_eq!(settle(&mut app, &root), n0, "mesh leak");
+    }
+    #[test]
+    fn props_wire_1b_missing_glb_keeps_primitive() {
+        let _g = crate::test_env::lock(); let dir = std::env::temp_dir().join(format!("pw1b4_{}", std::process::id())); let _ = std::fs::remove_dir_all(&dir); std::fs::create_dir_all(dir.join("assets")).unwrap();
+        let mut app = pw_boot(&dir, GraphicsPreset::Medium); pw_tick(&mut app, &dir, 1);
+        let ids = |app: &mut App| { let mut q = app.world_mut().query::<(&Name, &Mesh3d)>(); q.iter(app.world()).filter(|(n, _)| n.as_str().starts_with("HeartwoodWalkway") || n.as_str().starts_with("HeartwoodHangingRib")).map(|(_, m)| m.0.id()).collect::<Vec<_>>() };
+        let pre = ids(&mut app); assert_eq!(pre.len(), 7); pw_tick(&mut app, &dir, 8); let now = ids(&mut app); assert_eq!(now, pre);
+        let meshes = app.world().resource::<Assets<Mesh>>(); assert!(now.iter().all(|id| meshes.get(*id).is_some()));
+        let server = app.world().resource::<AssetServer>();
+        for rel in ["models/kenney-nature-kit/log_large.glb", "models/kenney-fantasy-town-kit/pillar-wood.glb", "models/kenney-fantasy-town-kit/pillar-stone.glb"] { assert!(server.get_handle::<Mesh>(bevy::gltf::GltfAssetLabel::Primitive { mesh: 0, primitive: 0 }.from_asset(rel)).is_none() && server.get_handle::<Mesh>(bevy::gltf::GltfAssetLabel::Primitive { mesh: 0, primitive: 1 }.from_asset(rel)).is_none(), "{rel}"); }
     }
 }
