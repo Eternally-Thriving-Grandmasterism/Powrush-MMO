@@ -3477,6 +3477,7 @@ pub(crate) mod tests {
 
     #[test]
     fn ground_tex_wood_bark() {
+        let _hold = crate::test_env::BEVY_ASSET_ROOT_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         if !crate::climate_plane::ambientcg_maps_on_disk("Bark012") {
             return;
         }

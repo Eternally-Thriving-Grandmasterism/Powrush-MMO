@@ -1082,6 +1082,7 @@ mod tests {
 
     #[test]
     fn ground_tex_rock_bark_ecology() {
+        let _hold = crate::test_env::BEVY_ASSET_ROOT_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
         let mut app = ecology_build();
         let mut q = app.world_mut().query::<(&EcologyProp, &MeshMaterial3d<StandardMaterial>)>();
         let (rock, trunk) = (
