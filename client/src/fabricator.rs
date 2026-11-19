@@ -32,7 +32,7 @@ use crate::soft_play_bindings;
 use crate::input::{InputMapSet, PlayerInput};
 use crate::thriving_moments::{fire_thriving, ThrivingKind, ThrivingMoments};
 use crate::vertical_factory::FactoryYard;
-use crate::title_screen::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
+use crate::title_screen::{LaunchDoor, TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY};
 use crate::wood_expedition::WoodHub;
 
 #[derive(Resource, Debug, Clone)]
@@ -60,7 +60,7 @@ impl Default for FabricatorYard {
 #[derive(Component)]
 struct FabSlabRoot;
 #[derive(Component)]
-struct FabSlabText;
+pub(crate) struct FabSlabText;
 
 pub struct FabricatorPlugin;
 
@@ -271,12 +271,22 @@ fn tick_bench_glow(time: Res<Time>, mut yard: ResMut<FabricatorYard>) {
     }
 }
 
+/// LOOP-TEACH-1b — Sanctuary yard, stocked crate, Places live.
+pub const LOOP_HAUL_CUE: &str = "Esc · Places · haul the crate";
+
+#[rustfmt::skip]
+fn haul_cue_live(crate_stock: u32, complete: bool, hour_three_complete: bool, place: Option<PlaceId>, door: Option<LaunchDoor>) -> bool {
+    crate_stock > 0 && shared::hex_travel::places_eligible(complete, hour_three_complete) && place == Some(PlaceId::Sanctuary) && door == Some(LaunchDoor::InYard)
+}
+
+#[allow(clippy::too_many_arguments)] // LaunchDoor is the yard gate for the haul cue
 fn update_fab_slab(
     hour: Res<HourSacred>,
     factory: Res<FactoryYard>,
     yard: Res<FabricatorYard>,
     travel: Option<Res<HexTravelState>>,
     presence: Option<Res<SoftPresence>>,
+    door: Option<Res<LaunchDoor>>,
     mut root: Query<(&mut Visibility, &mut BorderColor, &mut BackgroundColor), With<FabSlabRoot>>,
     mut text_q: Query<&mut Text, With<FabSlabText>>,
 ) {
@@ -313,7 +323,8 @@ fn update_fab_slab(
         return;
     }
     let place = fabricator_stood_place_label(travel.as_deref(), presence.as_deref());
-    let line = fabricator_slab_at_place(&yard.fab, place);
+    let mut line = fabricator_slab_at_place(&yard.fab, place);
+    if haul_cue_live(yard.fab.crate_stock, hour.complete, hour.hour_three_complete, travel.as_deref().map(|t| t.current), door.as_deref().copied()) { line = format!("{line} · {LOOP_HAUL_CUE}"); }
     for mut text in &mut text_q {
         if text.as_str() != line {
             **text = line.clone();
@@ -907,6 +918,134 @@ mod tests {
             assert_eq!((now.climate.restored_count, now.climate.tons_moved, now.climate.updated_at, now.standing.updated_at, now.week.tons_moved, now.week.restored_count, now.week.updated_at), (1, 1, 3, 2, 1, 1, 3));
             assert_eq!((&now.climate, &now.standing, &now.week), (&expect.climate, &expect.standing, &expect.week));
             assert_eq!((shared::user_persist::read_named(crate::lived_hour_bind::SHARD_CLIMATE_PATH).unwrap(), shared::user_persist::read_named(crate::lived_hour_bind::SHARD_STANDING_PATH).unwrap(), shared::user_persist::read_named(crate::lived_hour_bind::WEEK_AUDIT_PATH).unwrap()), (now.climate.to_json().unwrap(), now.standing.to_json().unwrap(), now.week.to_json().unwrap()));
+        });
+    }
+
+    fn haul_gate(tag: &str, booked: bool, body: impl FnOnce(&mut App)) {
+        let (mut hour, factory) = house_not_held(true);
+        if booked { hour.complete = true; hour.hour_three_complete = true; }
+        with_gate(tag, hour, factory, |app| { app.insert_resource(LaunchDoor::InYard); body(app); });
+    }
+    fn q_edge(app: &mut App) { press_q(app); app.insert_resource(ButtonInput::<KeyCode>::default()); app.update(); }
+    fn key_edge(app: &mut App, key: KeyCode) {
+        let mut keys = ButtonInput::<KeyCode>::default(); keys.press(key); app.insert_resource(keys); app.update(); app.insert_resource(ButtonInput::<KeyCode>::default()); app.update();
+    }
+    fn fab_text(app: &mut App) -> String {
+        app.world_mut().query_filtered::<&Text, With<FabSlabText>>().single(app.world()).unwrap().as_str().to_string()
+    }
+    fn assert_bare(app: &mut App) {
+        app.update();
+        app.update();
+        let fab = app.world().resource::<FabricatorYard>().fab.clone();
+        let travel = app.world().resource::<HexTravelState>().clone();
+        assert_eq!(fab_text(app), fabricator_slab_at_place(&fab, fabricator_stood_place_label(Some(&travel), None)));
+    }
+    fn q4(app: &mut App) { for _ in 0..4 { q_edge(app); } }
+
+    /// HB1 — charter booked, real Q x4, the haul cue once on one line.
+    #[test]
+    fn loop_teach_hb1_exact_cue() {
+        haul_gate("hb1", true, |app| {
+            q4(app);
+            let fab = app.world().resource::<FabricatorYard>().fab.clone();
+            assert_eq!((crate_stock(&fab), fab.last_line.as_str()), (1, "LaneCrate ran — the lane holds a crate"));
+            let text = fab_text(app);
+            assert_eq!(text, format!("{} · {LOOP_HAUL_CUE}", fabricator_slab_at_place(&fab, Some("Sanctuary"))));
+            assert_eq!(text.matches(LOOP_HAUL_CUE).count(), 1);
+            assert!(!text.contains('\n'));
+        });
+    }
+
+    /// HB2 — one gate off at a time is the bare slab. Pre-book refine is heavy and quiet.
+    #[test]
+    fn loop_teach_hb2_honesty_table() {
+        haul_gate("hb2", true, |app| {
+            q4(app);
+            assert!(fab_text(app).contains(LOOP_HAUL_CUE));
+            app.world_mut().resource_mut::<FabricatorYard>().fab.crate_stock = 0;
+            assert_bare(app);
+            app.world_mut().resource_mut::<FabricatorYard>().fab.crate_stock = 1;
+            app.world_mut().resource_mut::<HourSacred>().complete = false;
+            assert_bare(app);
+            app.world_mut().resource_mut::<HourSacred>().complete = true;
+            app.world_mut().resource_mut::<HourSacred>().hour_three_complete = false;
+            assert_bare(app);
+            app.world_mut().resource_mut::<HourSacred>().hour_three_complete = true;
+            app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Heartwood;
+            assert_bare(app);
+            app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Depths;
+            assert_bare(app);
+            app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Sanctuary;
+            app.insert_resource(LaunchDoor::Title);
+            assert_bare(app);
+        });
+        haul_gate("hb2pre", false, |app| {
+            app.add_plugins(crate::living_body::LivingBodyPlugin).init_resource::<crate::living_practice_loop::SoftPlayerRealm>().init_resource::<crate::harvest_feel::SoftRbePool>();
+            q4(app);
+            let fab = app.world().resource::<FabricatorYard>().fab.clone();
+            assert_eq!(crate_stock(&fab), 1);
+            assert!(app.world().resource::<crate::living_body::LivingBody>().heavy);
+            assert_eq!(fab_text(app), fabricator_slab_at_place(&fab, Some("Sanctuary")));
+        });
+    }
+
+    /// HB4 — Digit1 stays before the haul cue, each once, civic copy.
+    #[test]
+    fn loop_teach_hb4_digit1_order() {
+        haul_gate("hb4", true, |app| {
+            q4(app);
+            let fab = app.world().resource::<FabricatorYard>().fab.clone();
+            assert!(fab.spool_stock > 0 && fab.crate_stock > 0);
+            let text = fab_text(app);
+            let want = format!("{} · {LOOP_HAUL_CUE}", fabricator_slab_at_place(&fab, Some("Sanctuary")));
+            assert_eq!(text, want);
+            assert!(want.contains(&format!(" · Digit1 · {LOOP_HAUL_CUE}")));
+            assert_eq!((text.matches("Digit1").count(), text.matches(LOOP_HAUL_CUE).count()), (1, 1));
+            assert!(shared::fabricator::manufacture_copy_is_honest(&text) && shared::fabricator::manufacture_copy_is_honest(LOOP_HAUL_CUE));
+            assert!(!text.contains('\n'));
+        });
+    }
+
+    /// HB5 — quiet frames do not rewrite the slab; the stock frame does.
+    #[test]
+    fn loop_teach_hb5_quiet_path() {
+        #[derive(Resource)]
+        struct SlabWrites(u32);
+        fn count(q: Query<(), (Changed<Text>, With<FabSlabText>)>, mut n: ResMut<SlabWrites>) {
+            n.0 += q.iter().count() as u32;
+        }
+        haul_gate("hb5", true, |app| {
+            app.insert_resource(SlabWrites(0)).add_systems(Update, count.after(update_fab_slab));
+            q4(app);
+            app.world_mut().resource_mut::<SlabWrites>().0 = 0;
+            app.update();
+            app.update();
+            assert_eq!(app.world().resource::<SlabWrites>().0, 0);
+            app.world_mut().resource_mut::<FabricatorYard>().fab.crate_stock = 0;
+            app.update();
+            assert!(app.world().resource::<SlabWrites>().0 > 0);
+        });
+    }
+
+    /// HB6 — Q, E, and Tab leave the crate, the place, and the tons alone.
+    #[test]
+    fn loop_teach_hb6_q_e_tab_leave_stock_travel_tons() {
+        haul_gate("hb6", true, |app| {
+            q4(app);
+            let snap = |app: &App| { let w = app.world(); (w.resource::<FabricatorYard>().fab.crate_stock, w.resource::<HexTravelState>().current, w.resource::<LivedHourBind>().climate.tons_moved, w.resource::<LivedHourBind>().week.tons_moved) };
+            let before = snap(app);
+            assert!(fab_text(app).contains(LOOP_HAUL_CUE));
+            let mut sim = app.world().resource::<FabricatorYard>().fab.clone();
+            let hour = app.world().resource::<HourSacred>().clone();
+            let done = app.world().resource::<FactoryYard>().factory.tutorial_complete();
+            let step = try_craft_proof_pack(&hour, done, &mut sim).unwrap();
+            assert!(!refine_wood_when_idle(step, &mut sim, None));
+            q_edge(app);
+            assert_eq!((app.world().resource::<FabricatorYard>().fab.clone(), snap(app)), (sim.clone(), before));
+            for key in [soft_play_bindings::INTERACT, soft_play_bindings::CHART] {
+                key_edge(app, key);
+                assert_eq!((app.world().resource::<FabricatorYard>().fab.clone(), snap(app)), (sim.clone(), before));
+            }
         });
     }
 }
