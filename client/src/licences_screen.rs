@@ -216,7 +216,7 @@ mod tests {
     fn open(app: &App) -> (bool, usize) { let s = app.world().resource::<LicencesScreen>(); (s.open, s.page) }
 
     #[test]
-    fn licences_copy_and_fira_sans_heading_are_verbatim() {
+    fn licences_copy_verbatim_and_fira_sans_ofl_page_once() {
         assert_eq!(LICENCES_BUTTON, "Licences");
         assert_eq!(LICENCES_TITLE, "Third-party licences");
         assert_eq!(LICENCES_INTRO, "Open-source software and fonts used in Powrush, with their licence texts.");

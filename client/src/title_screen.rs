@@ -10787,6 +10787,16 @@ mod tests {
             let tabs: Vec<_> = world.query_filtered::<&ComputedNode, With<PauseTabBtn>>().iter(world).map(bf2_corner).collect(); let lic: Vec<_> = bf2_btns(world).into_iter().filter(|e| matches!(bf2_text(world, *e).as_str(), "Licences" | "LB · Prev" | "Next · RB" | "Esc / B · Back") && world.get::<ComputedNode>(*e).unwrap().size().y > 0.).map(|e| bf2_corner(world.get::<ComputedNode>(e).unwrap())).collect(); assert_eq!((tabs, lic), (vec![1.; 4], vec![1.; 4]), "{w}x{h}");
         }
     }
+    /// Guide-tab Licences entry (mounted at :2067). Node copied from licences_screen.rs spawn_btn (BTN_PAD_Y = SPACE_S).
+    #[test] fn button_frame_bf2_7_licences_entry_matches_without_image() {
+        let want = Node { width: Val::Percent(100.0), padding: UiRect::axes(Val::Px(ui_kit::SPACE_XL), Val::Px(ui_kit::SPACE_S)), justify_content: JustifyContent::Center, border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)), ..default() };
+        for (w, h, s) in [(1280u32, 720u32, 1f32), (2560, 1440, 2.)] {
+            let mut app = bf2_pause(w, h, s); *app.world_mut().resource_mut::<PauseTab>() = PauseTab::Guide; (app.update(), app.update());
+            let e = app.world_mut().query_filtered::<Entity, With<crate::licences_screen::LicencesOpenBtn>>().single(app.world()).unwrap(); let at = |app: &App| (app.world().get::<ComputedNode>(e).unwrap().size(), app.world().get::<bevy::ui::UiGlobalTransform>(e).unwrap().translation); let before = at(&app);
+            assert!(before.0.y > 0. && app.world().get::<ImageNode>(e).is_some_and(|i| i.image.id() == crate::ui_frame::FRAME_IMAGE.id()), "entry shown and framed {w}x{h} {before:?}");
+            app.world_mut().entity_mut(e).remove::<ImageNode>(); app.update(); assert_eq!(at(&app), before, "entry {w}x{h}"); assert_eq!(app.world().get::<Node>(e), Some(&want), "entry node {w}x{h}");
+        }
+    }
     #[test] fn button_frame_bf2_9_online_stays_grey_and_menu_rows_bare() {
         let mut app = bf2_pause(1280, 720, 1.); { use bevy::ecs::system::RunSystemOnce; app.world_mut().run_system_once(spawn_title_screen).unwrap(); } app.update(); let w = app.world_mut(); let mut online: Vec<_> = bf2_btns(w).into_iter().filter(|e| bf2_text(w, *e) == ONLINE_STUB_LABEL).map(|e| (w.get::<ImageNode>(e).map(|n| n.image.id()), w.get::<BackgroundColor>(e).unwrap().0)).collect(); online.sort_by_key(|(id, _)| id.is_some());
         assert_eq!(online, vec![(None, TITLE_BTN_DISABLED_BG), (Some(crate::ui_frame::FRAME_IMAGE.id()), TITLE_BTN_DISABLED_BG)]);
