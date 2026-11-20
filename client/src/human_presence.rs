@@ -6686,4 +6686,151 @@ mod tests {
         let top = 0.22 + YARD_ROCK_MESH_R * YARD_ROCK_SCALE.y * (1.0 + YARD_ROCK_JITTER);
         assert!(silhouette().feet < top);
     }
+
+    // CARD CAMERA-UX-1a — K close-up on the real HumanPresencePlugin schedule.
+    // Behaviour only: pivot-to-eye distance and FollowOrbit, no new symbols.
+    fn cux_world(pre: impl FnOnce(&mut App)) -> App {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .set_error_handler(bevy::ecs::error::ignore)
+            .init_asset::<Mesh>()
+            .init_asset::<StandardMaterial>()
+            .init_resource::<ButtonInput<KeyCode>>()
+            .init_resource::<LocalLookFeel>()
+            .insert_resource(LocalFeedbackFeel::default())
+            .insert_resource(LaunchDoor::InYard)
+            .insert_resource(quiet_house(false))
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(
+                std::time::Duration::from_secs_f64(1.0 / 60.0),
+            ))
+            .add_plugins(HumanPresencePlugin);
+        pre(&mut app);
+        app.world_mut()
+            .spawn((Camera3d::default(), Transform::from_xyz(0.0, 8.0, 14.0)));
+        settle_follow(&mut app);
+        app
+    }
+
+    fn cux_tap_k(app: &mut App) {
+        app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::KeyK);
+        app.update();
+        let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
+        keys.release(KeyCode::KeyK);
+        keys.clear();
+    }
+
+    /// Pivot-to-eye over today's orbit distance: 1.0 Walk, 0.55 CloseUp.
+    fn cux_ratio(app: &mut App) -> f32 {
+        let pos = app.world().resource::<SoftPresence>().position;
+        let d = app.world().resource::<FollowOrbit>().distance;
+        cam_translation(app).distance(pos) / d
+    }
+
+    fn cux_transform(app: &mut App) -> Transform {
+        let mut q = app.world_mut().query::<(&Transform, &Camera3d)>();
+        *q.iter(app.world()).next().expect("camera").0
+    }
+
+    #[test]
+    fn cux1a_m1_walk_at_rest_matches_main_follow() {
+        let mut real = cux_world(|_| {});
+        let mut main = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        settle_follow(&mut main);
+        let (a, b) = (cux_transform(&mut real), cux_transform(&mut main));
+        assert_eq!(a.translation.to_array().map(f32::to_bits), b.translation.to_array().map(f32::to_bits));
+        assert_eq!(a.rotation.to_array().map(f32::to_bits), b.rotation.to_array().map(f32::to_bits));
+        assert!((cux_ratio(&mut real) - 1.0).abs() < 1e-3);
+    }
+
+    #[test]
+    fn cux1a_m2_k_press_pulls_eye_to_0_55_and_keeps_orbit_distance() {
+        let mut app = cux_world(|_| {});
+        cux_tap_k(&mut app);
+        settle_follow(&mut app);
+        let r = cux_ratio(&mut app);
+        assert!((r - 0.55).abs() < 1e-2, "close-up ratio {r}");
+        assert_eq!(app.world().resource::<FollowOrbit>().distance, default_orbit_distance());
+    }
+
+    #[test]
+    fn cux1a_m3_second_k_returns_to_walk() {
+        let mut app = cux_world(|_| {});
+        cux_tap_k(&mut app);
+        settle_follow(&mut app);
+        assert!((cux_ratio(&mut app) - 0.55).abs() < 1e-2, "first K is close-up");
+        cux_tap_k(&mut app);
+        settle_follow(&mut app);
+        settle_follow(&mut app);
+        let mut main = orbit_world(Some(LaunchDoor::InYard), Some(false));
+        settle_follow(&mut main);
+        let (a, b) = (cam_translation(&mut app), cam_translation(&mut main));
+        assert!(a.distance(b) < 1e-3, "walk again {a:?} vs main {b:?}");
+    }
+
+    #[test]
+    fn cux1a_m4_wheel_still_owns_orbit_distance_in_close_up() {
+        let mut app = cux_world(|_| {});
+        cux_tap_k(&mut app);
+        {
+            let mut scroll = app.world_mut().resource_mut::<AccumulatedMouseScroll>();
+            scroll.unit = MouseScrollUnit::Line;
+            scroll.delta = Vec2::new(0.0, 1.0);
+        }
+        app.update();
+        app.world_mut().resource_mut::<AccumulatedMouseScroll>().delta = Vec2::ZERO;
+        let d = app.world().resource::<FollowOrbit>().distance;
+        assert!((d - (default_orbit_distance() - ORBIT_DIST_PER_LINE)).abs() < 1e-4, "wheel distance {d}");
+        settle_follow(&mut app);
+        let r = cux_ratio(&mut app);
+        assert!((r - 0.55).abs() < 1e-2, "close-up follows the wheel, ratio {r}");
+    }
+
+    #[test]
+    fn cux1a_m5_no_mode_change_without_k() {
+        let mut app = cux_world(|_| {});
+        for f in 0..120 {
+            app.update();
+            assert!((cux_ratio(&mut app) - 1.0).abs() < 1e-3, "walk frame {f}");
+        }
+        cux_tap_k(&mut app);
+        settle_follow(&mut app);
+        for f in 0..120 {
+            app.update();
+            assert!((cux_ratio(&mut app) - 0.55).abs() < 1e-2, "close-up frame {f}");
+        }
+    }
+
+    #[test]
+    fn cux1a_m6_k_bound_to_peace_action_does_not_toggle() {
+        let mut inner = LocalSettings::default();
+        inner.key_jump = PeaceKey::K;
+        let mut app = cux_world(|app| {
+            app.insert_resource(LocalSettingsState { inner, dirty: false });
+        });
+        cux_tap_k(&mut app);
+        settle_follow(&mut app);
+        assert!((cux_ratio(&mut app) - 1.0).abs() < 1e-3, "K is jump, no close-up");
+        // Control: rebind jump away from K and the same tap toggles.
+        app.world_mut().resource_mut::<LocalSettingsState>().inner.key_jump = LocalSettings::default().key_jump;
+        cux_tap_k(&mut app);
+        settle_follow(&mut app);
+        assert!((cux_ratio(&mut app) - 0.55).abs() < 1e-2, "K free again toggles");
+    }
+
+    #[test]
+    fn cux1a_m7_no_toggle_while_text_entry_settings_or_panel_open() {
+        let blocks: [fn(&mut App); 4] = [
+            |app| { app.insert_resource(quiet_house(true)); },
+            |app| { app.insert_resource(LaunchDoor::NameHouse); },
+            |app| { app.insert_resource(crate::title_screen::PersonaCreatorState { open: true, ..default() }); },
+            |app| { let mut p = crate::hex_travel::PlacesPlate::default(); p.open = true; app.insert_resource(p); },
+        ];
+        for (i, block) in blocks.into_iter().enumerate() {
+            let mut app = cux_world(block);
+            let before = cam_translation(&mut app);
+            cux_tap_k(&mut app);
+            settle_follow(&mut app);
+            assert!(cam_translation(&mut app).distance(before) < 1e-3, "block {i} toggled");
+        }
+    }
 }
