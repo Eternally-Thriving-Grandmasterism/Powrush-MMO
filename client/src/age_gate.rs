@@ -292,27 +292,31 @@ mod tests {
         ids.into_iter().map(|e| (e, world.get::<Children>(e).and_then(|c| c.iter().find_map(|k| world.get::<Text>(k).map(|t| t.as_str().to_string()))).unwrap_or_default())).collect()
     }
     fn agl1_label(world: &World, e: Entity) -> Entity { world.get::<Children>(e).and_then(|c| c.iter().find_map(|k| world.get::<Text>(k).is_some().then_some(k))).unwrap() }
-    fn agl1_ink(world: &World, e: Entity) -> (Rect, Rect, f32) {
+    fn agl1_label_box(world: &World, e: Entity) -> (Rect, Rect, f32) {
         let (node, centre) = (*world.get::<ComputedNode>(e).unwrap(), world.get::<bevy::ui::UiGlobalTransform>(e).unwrap().translation);
         let text_e = agl1_label(world, e); let text = world.get::<ComputedNode>(text_e).unwrap(); let at = world.get::<bevy::ui::UiGlobalTransform>(text_e).unwrap().translation; let local = node.content_box();
         (Rect::from_center_size(at, text.size), Rect { min: centre + local.min, max: centre + local.max }, text.size.x * text.inverse_scale_factor)
     }
-    fn agl1_inside(ink: Rect, box_: Rect) -> bool { ink.min.x >= box_.min.x - 0.5 && ink.max.x <= box_.max.x + 0.5 && ink.min.y >= box_.min.y - 0.5 && ink.max.y <= box_.max.y + 0.5 }
+    fn agl1_inside(label: Rect, box_: Rect) -> bool { label.min.x >= box_.min.x - 0.5 && label.max.x <= box_.max.x + 0.5 && label.min.y >= box_.min.y - 0.5 && label.max.y <= box_.max.y + 0.5 }
     fn agl1_sig(world: &mut World) -> Vec<(String, u32, ComputedNode, ComputedNode)> {
         let mut sig: Vec<_> = agl1_chips(world).into_iter().map(|(e, label)| (label, world.get::<bevy::ui::UiGlobalTransform>(e).unwrap().translation.x.to_bits(), *world.get::<ComputedNode>(e).unwrap(), *world.get::<ComputedNode>(agl1_label(world, e)).unwrap())).collect();
         sig.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1))); sig
     }
     fn agl1_centred(got: Vec2, w: u32, h: u32) -> bool { (got.x - w as f32 * 0.5).abs() <= 1. && (got.y - h as f32 * 0.5).abs() <= 1. }
     #[test] fn age_gate_layout_agl1_1_ask_centred() {
-        for (w, h, s) in agl1_view() { let mut app = agl1_app(w, h, s, 1.); let (got, vis) = agl1_pane(app.world_mut(), Pane::Ask); assert_eq!(vis, Visibility::Visible, "{w}x{h}"); assert!(agl1_centred(got, w, h), "AGL1-1 {w}x{h}x{s} centre {got:?} want {:?}", Vec2::new(w as f32 * 0.5, h as f32 * 0.5)); }
+        let mut miss = Vec::new();
+        for (w, h, s) in agl1_view() { let mut app = agl1_app(w, h, s, 1.); let (got, vis) = agl1_pane(app.world_mut(), Pane::Ask); if vis != Visibility::Visible || !agl1_centred(got, w, h) { miss.push(format!("AGL1-1 {w}x{h}x{s} {vis:?} centre {got:?} want {:?}", Vec2::new(w as f32 * 0.5, h as f32 * 0.5))); } }
+        assert!(miss.is_empty(), "{miss:?}");
     }
     #[test] fn age_gate_layout_agl1_2_denied_centred() {
-        for (w, h, s) in agl1_view() { let mut app = agl1_app(w, h, s, 1.); agl1_young(&mut app); assert!(app.world().resource::<AgeGate>().open, "young path"); let (got, vis) = agl1_pane(app.world_mut(), Pane::Denied); assert_eq!(vis, Visibility::Visible, "{w}x{h}"); assert!(agl1_centred(got, w, h), "AGL1-2 {w}x{h}x{s} centre {got:?} want {:?}", Vec2::new(w as f32 * 0.5, h as f32 * 0.5)); }
+        let mut miss = Vec::new();
+        for (w, h, s) in agl1_view() { let mut app = agl1_app(w, h, s, 1.); agl1_young(&mut app); assert!(app.world().resource::<AgeGate>().open, "young path"); let (got, vis) = agl1_pane(app.world_mut(), Pane::Denied); if vis != Visibility::Visible || !agl1_centred(got, w, h) { miss.push(format!("AGL1-2 {w}x{h}x{s} {vis:?} centre {got:?} want {:?}", Vec2::new(w as f32 * 0.5, h as f32 * 0.5))); } }
+        assert!(miss.is_empty(), "{miss:?}");
     }
-    #[test] fn age_gate_layout_agl1_3_label_inside() {
+    #[test] fn age_gate_layout_agl1_3_label_box_inside() {
         for (w, h, s) in agl1_view() {
             let mut app = agl1_app(w, h, s, 1.); let chips = agl1_chips(app.world_mut()); assert_eq!(chips.len(), 6, "{w}x{h}");
-            for (e, label) in &chips { let (ink, box_, logical_w) = agl1_ink(app.world(), *e); if label == "Continue" { assert!(logical_w > 50., "Continue ink {logical_w} unmeasured {w}x{h}"); } assert!(agl1_inside(ink, box_), "AGL1-3 {label} {w}x{h}x{s} ink {ink:?} content {box_:?} logical_w {logical_w}"); }
+            for (e, label) in &chips { let (label_box, box_, logical_w) = agl1_label_box(app.world(), *e); if label == "Continue" { assert!(logical_w > 50., "Continue label box {logical_w} unmeasured {w}x{h}"); } assert!(agl1_inside(label_box, box_), "AGL1-3 {label} {w}x{h}x{s} label box {label_box:?} content {box_:?} logical_w {logical_w}"); }
         }
     }
     #[test] fn age_gate_layout_agl1_4_text_scale() {
@@ -321,7 +325,7 @@ mod tests {
             for scale in [shared::local_settings::TEXT_SCALE_MIN, shared::local_settings::TEXT_SCALE_MAX] {
                 let mut app = agl1_app(w, h, s, scale); assert_eq!(agl1_sig(app.world_mut()), base, "AGL1-4 layout moved at {scale} {w}x{h}");
                 let (got, _) = agl1_pane(app.world_mut(), Pane::Ask); assert!(agl1_centred(got, w, h), "AGL1-1 at text_scale {scale} {w}x{h} centre {got:?}");
-                let chips = agl1_chips(app.world_mut()); assert!(chips.iter().all(|(e, _)| { let (ink, box_, _) = agl1_ink(app.world(), *e); agl1_inside(ink, box_) }), "AGL1-3 at text_scale {scale} {w}x{h}");
+                let chips = agl1_chips(app.world_mut()); assert!(chips.iter().all(|(e, _)| { let (label_box, box_, _) = agl1_label_box(app.world(), *e); agl1_inside(label_box, box_) }), "AGL1-3 at text_scale {scale} {w}x{h}");
             }
         }
     }
@@ -338,6 +342,7 @@ mod tests {
             assert_eq!(n, 4, "{w}x{h}"); ys.push(row_y.unwrap());
         }
         assert!((ys[0] - ys[1]).abs() <= 1., "AGL1-5 chip y across scale {ys:?}");
+        assert!((ys[0] - 354.0).abs() <= 0.5 && (ys[1] - 353.5).abs() <= 0.5, "AGL1-5 chip y pinned to AGL1_TRACE on 0aa82606 [354.0, 353.5], got {ys:?}");
         if std::env::var_os("AGL1_TRACE").is_some() { eprintln!("AGL1-5 logical y {ys:?}"); }
     }
     #[test] fn age_gate_layout_agl1_guards() {

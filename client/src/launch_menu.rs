@@ -475,6 +475,7 @@ mod tests {
         assert_eq!((app.world().get::<BackgroundColor>(online).unwrap().0, app.world().get::<TextColor>(child).unwrap().0), (TITLE_BTN_DISABLED_BG, crate::ui_kit::TITLE_BTN_DISABLED_FG));
         let at = app.world().get::<bevy::ui::UiGlobalTransform>(online).unwrap().translation;
         aim(&mut app, Some(at));
+        assert_eq!(app.world().get::<Interaction>(online).copied(), Some(Interaction::Hovered), "BF5 hover landed {at:?}");
         assert_eq!((app.world().get::<ImageNode>(online).unwrap().image.id(), app.world().get::<BackgroundColor>(online).unwrap().0), (crate::ui_frame::FRAME_IMAGE.id(), TITLE_BTN_DISABLED_BG));
         app.world_mut().resource_mut::<HouseLabel>().persist_present = true;
         (0..LaunchRow::ALL.len()).for_each(|_| pad(&mut app, GamepadButton::DPadDown));
@@ -489,6 +490,8 @@ mod tests {
         let at = centre(&mut app, LaunchRow::Continue);
         aim(&mut app, Some(at));
         let found = rows(app.world_mut());
+        let cont = found.iter().copied().find(|e| app.world().get::<LaunchRow>(*e) == Some(&LaunchRow::Continue)).unwrap();
+        assert_eq!(app.world().get::<Interaction>(cont).copied(), Some(Interaction::Hovered), "BF6 hover landed {at:?}");
         lit_only(app.world(), &found, None);
         assert_eq!(fill(&mut app, LaunchRow::Continue), TITLE_BTN_DISABLED_BG);
     }

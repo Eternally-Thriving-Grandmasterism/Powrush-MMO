@@ -256,7 +256,7 @@ mod tests {
         assert_eq!(sha256_hex(b""), "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855");
         assert_eq!(sha256_hex(b"abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad");
         assert_eq!(sha256_hex(UI_FONT_DISPLAY), "af0031129f27dc752e8629a80b793d27abea94027faa27cc660c3fc33f607a1f");
-        let tests = include_str!("ui_font.rs").split("mod tests").nth(1).unwrap();
+        let tests = include_str!("ui_font.rs").split("\n#[cfg(test)]\nmod tests {").nth(1).unwrap();
         assert!(!tests.contains(concat!("process::", "Command")) && !tests.contains(concat!("sha256", "sum")));
     }
     #[test]
