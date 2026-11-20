@@ -352,4 +352,51 @@ mod tests {
         for line in [AGE_GATE_HEADING, AGE_GATE_ASK, AGE_GATE_CONTINUE, AGE_GATE_NOTE, AGE_GATE_UNDER, AGE_GATE_QUIT, "-", "+"] { assert!(copy.contains(line), "{line}"); }
         if std::env::var_os("AGL1_TRACE").is_some() { let mut faces = world.query::<(&Text, Option<&MonthFace>, Option<&YearFace>)>(); for (text, month, year) in faces.iter(world) { if month.is_some() || year.is_some() { eprintln!("AGL1 rest face month={} year={} {:?}", month.is_some(), year.is_some(), text.as_str()); } } }
     }
+    fn agf1_scales() -> [f32; 2] { [0.85, shared::local_settings::TEXT_SCALE_MAX] }
+    fn agf1_put(app: &mut App, month: Option<u8>, year: Option<i32>) {
+        { let mut entry = app.world_mut().resource_mut::<AgeEntry>(); entry.month = month; entry.year = year; }
+        app.update(); app.update();
+    }
+    fn agf1_face(world: &mut World, month: bool) -> (String, TextColor) {
+        let mut q = world.query::<(&Text, &TextColor, Option<&MonthFace>, Option<&YearFace>)>();
+        let mut hit = q.iter(world).filter(|(_, _, m, y)| if month { m.is_some() } else { y.is_some() }).map(|(t, c, _, _)| (t.as_str().to_string(), *c));
+        let one = hit.next().unwrap(); assert!(hit.next().is_none(), "one face"); one
+    }
+    fn agf1_xs(world: &mut World) -> Vec<f32> {
+        let mut q = world.query::<(&AgeBtn, &ComputedNode, &bevy::ui::UiGlobalTransform)>();
+        let mut xs = [0f32; 4]; let mut n = 0u8;
+        for (btn, node, xf) in q.iter(world) {
+            let Some(k) = (match *btn { AgeBtn::MonthDec => Some(0), AgeBtn::MonthInc => Some(1), AgeBtn::YearDec => Some(2), AgeBtn::YearInc => Some(3), _ => None }) else { continue };
+            xs[k] = xf.translation.x * node.inverse_scale_factor; n += 1;
+        }
+        assert_eq!(n, 4); xs.to_vec()
+    }
+    fn agf1_near(a: &[f32], b: &[f32]) -> bool { a.len() == b.len() && a.iter().zip(b).all(|(p, q)| (p - q).abs() <= 0.5) }
+    #[test] fn age_gate_faces_agf1_1_rest() {
+        for (w, h, s) in agl1_view() { for scale in agf1_scales() {
+            let mut app = agl1_app(w, h, s, scale);
+            let month = agf1_face(app.world_mut(), true); let year = agf1_face(app.world_mut(), false);
+            assert_eq!((month.0.as_str(), year.0.as_str()), ("--", "----"), "AGF1-1 text {w}x{h}x{s} scale {scale}");
+            assert_eq!((month.1, year.1), (TextColor(TITLE_TEXT_SECONDARY), TextColor(TITLE_TEXT_SECONDARY)), "AGF1-1 colour {w}x{h}x{s} scale {scale}");
+        } }
+    }
+    #[test] fn age_gate_faces_agf1_2_values() {
+        for (w, h, s) in agl1_view() { for scale in agf1_scales() {
+            let mut app = agl1_app(w, h, s, scale); agf1_put(&mut app, Some(12), Some(2026));
+            let month = agf1_face(app.world_mut(), true); let year = agf1_face(app.world_mut(), false);
+            assert_eq!((month.0.as_str(), year.0.as_str(), month.1, year.1), ("12", "2026", TextColor(TITLE_TEXT_PRIMARY), TextColor(TITLE_TEXT_PRIMARY)), "AGF1-2 12/2026 {w}x{h}x{s} scale {scale}");
+            agf1_put(&mut app, Some(1), Some(1907));
+            let month = agf1_face(app.world_mut(), true); let year = agf1_face(app.world_mut(), false);
+            assert_eq!((month.0.as_str(), year.0.as_str(), month.1, year.1), ("1", "1907", TextColor(TITLE_TEXT_PRIMARY), TextColor(TITLE_TEXT_PRIMARY)), "AGF1-2 1/1907 {w}x{h}x{s} scale {scale}");
+        } }
+    }
+    #[test] fn age_gate_faces_agf1_3_chip_x() {
+        for (w, h, s) in agl1_view() { for scale in agf1_scales() {
+            let mut app = agl1_app(w, h, s, scale); let rest = agf1_xs(app.world_mut());
+            agf1_put(&mut app, Some(12), Some(2026)); let wide = agf1_xs(app.world_mut());
+            agf1_put(&mut app, Some(1), Some(1907)); let narrow = agf1_xs(app.world_mut());
+            if std::env::var_os("AGF1_TRACE").is_some() { eprintln!("AGF1-3 {w}x{h}x{s} scale {scale} rest {rest:?} wide {wide:?} narrow {narrow:?}"); }
+            assert!(agf1_near(&rest, &wide) && agf1_near(&rest, &narrow), "AGF1-3 {w}x{h}x{s} scale {scale} rest {rest:?} 12/2026 {wide:?} 1/1907 {narrow:?}");
+        } }
+    }
 }
