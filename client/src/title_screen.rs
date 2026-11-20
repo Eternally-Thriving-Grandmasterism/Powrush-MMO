@@ -3217,6 +3217,7 @@ fn spawn_pause_tab_btn(p: &mut ChildSpawnerCommands, tab: PauseTab) {
     p.spawn((
         (
             ui_kit::button(TITLE_BTN_BG),
+            crate::ui_frame::button_frame(),
             Node {
                 padding: UiRect::axes(Val::Px(ui_kit::SPACE_XL), Val::Px(ui_kit::SPACE_S)),
                 justify_content: JustifyContent::Center,
@@ -10697,7 +10698,7 @@ mod tests {
         app.add_plugins(MinimalPlugins).add_systems(Startup, (spawn_settings_stub, spawn_name_house_panel, spawn_house_dress_panel, spawn_persona_creator_panel));
         app.world_mut().run_schedule(Startup);
         let world = app.world_mut();
-        assert_eq!(world.query::<&ImageNode>().iter(world).count(), 0);
+        assert_eq!(world.query::<&ImageNode>().iter(world).count(), 5);
         assert_eq!(world.query_filtered::<Entity, Or<(With<SettingsStubRoot>, With<NameHouseRoot>, With<HouseDressRoot>, With<PersonaCreatorRoot>)>>().iter(world).count(), 4);
     }
 
@@ -10732,5 +10733,63 @@ mod tests {
         assert!(rows.iter().any(|(t, d, s)| t == "Play — first Hands" && !d && !s), "button");
         assert!(rows.iter().all(|(_, d, s)| d == s), "shadow set {shadowed} display set {display}");
         assert_eq!((display, shadowed), (4, 4));
+    }
+    fn bf2_ui(w: u32, h: u32, s: f32) -> App {
+        use {bevy::camera::{ComputedCameraValues, RenderTargetInfo}, bevy::window::{PrimaryWindow, WindowResolution}};
+        let mut app = App::new(); let info = Some(RenderTargetInfo { physical_size: UVec2::new(w, h), scale_factor: s });
+        app.add_plugins((MinimalPlugins, AssetPlugin::default(), bevy::input::InputPlugin, bevy::text::TextPlugin, bevy::ui::UiPlugin, crate::ui_font::UiFontPlugin)).init_asset::<Image>().init_asset::<TextureAtlasLayout>().add_message::<bevy::picking::pointer::PointerInput>().add_message::<bevy::picking::backend::PointerHits>().init_resource::<bevy::picking::hover::HoverMap>().init_resource::<bevy::picking::events::PointerState>(); app.world_mut().spawn((Camera2d, Camera { computed: ComputedCameraValues { target_info: info, ..default() }, ..default() })); app.world_mut().spawn((Window { resolution: WindowResolution::new(w, h).with_scale_factor_override(s), ..default() }, PrimaryWindow)); app
+    }
+    fn bf2_house(open: bool) -> HouseLabel { HouseLabel { house: shared::house_name::HouseName::default(), persist_present: false, hour_two_held: false, book_held: false, settings_open: open, draft: String::new(), naming_offered: false, seals_offered: false } }
+    fn bf2_corner(n: &ComputedNode) -> f32 { let l = n.padding_box().size() * n.inverse_scale_factor; (l / 24.0).min_element().min(1.0) }
+    fn bf2_text(w: &World, e: Entity) -> String { w.get::<Children>(e).and_then(|c| c.iter().find_map(|k| w.get::<Text>(k).map(|t| t.0.clone()))).unwrap_or_default() }
+    fn bf2_btns(w: &mut World) -> Vec<Entity> { let mut q = w.query::<(Entity, &bevy::ui_widgets::Button)>(); q.iter(w).map(|(e, _)| e).collect() }
+    fn bf2_aim(a: &mut App, at: Vec2) { a.world_mut().query_filtered::<&mut Window, With<bevy::window::PrimaryWindow>>().single_mut(a.world_mut()).unwrap().set_physical_cursor_position(Some(at.as_dvec2())); a.update(); }
+    fn bf2_at(a: &mut App, label: &str) -> (Entity, Vec2) { let w = a.world_mut(); let e = bf2_btns(w).into_iter().find(|e| bf2_text(w, *e) == label).unwrap(); (e, w.get::<bevy::ui::UiGlobalTransform>(e).unwrap().translation) }
+    fn bf2_pause(w: u32, h: u32, s: f32) -> App {
+        let mut app = bf2_ui(w, h, s); app.insert_resource(LaunchDoor::InYard).insert_resource(bf2_house(true)).insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).init_resource::<PersonaCreatorState>().init_resource::<PauseTab>().init_resource::<SessionNetMode>().add_plugins(crate::licences_screen::LicencesScreenPlugin).add_systems(Startup, (spawn_settings_stub, spawn_name_house_panel, spawn_house_dress_panel, spawn_persona_creator_panel, spawn_comfort_graphics_banner).chain()).add_systems(Update, (sync_settings_stub, sync_comfort_graphics_banner, pause_tab_clicks, sync_pause_tabs).chain()); (app.update(), app.update()); app
+    }
+    #[test] fn button_frame_bf2_3_pause_tabs_use_frame_image() {
+        let mut app = App::new(); app.add_plugins(MinimalPlugins).add_systems(Startup, (spawn_settings_stub, spawn_name_house_panel, spawn_house_dress_panel, spawn_persona_creator_panel)); app.world_mut().run_schedule(Startup); let w = app.world_mut();
+        let images: Vec<Entity> = w.query::<(Entity, &ImageNode)>().iter(w).map(|(e, _)| e).collect(); assert_eq!(images.into_iter().filter(|e| w.get::<PauseTabBtn>(*e).is_none() && w.get::<crate::licences_screen::LicencesOpenBtn>(*e).is_none()).count(), 0, "name dress persona rows chips places");
+        let tabs: Vec<_> = w.query_filtered::<Option<&ImageNode>, With<PauseTabBtn>>().iter(w).map(|n| n.map(|i| i.image.id())).collect(); let entry: Vec<_> = w.query_filtered::<Option<&ImageNode>, With<crate::licences_screen::LicencesOpenBtn>>().iter(w).map(|n| n.map(|i| i.image.id())).collect();
+        assert_eq!((tabs, entry), (vec![Some(crate::ui_frame::FRAME_IMAGE.id()); 4], vec![Some(crate::ui_frame::FRAME_IMAGE.id())]), "BF2-3");
+    }
+    /// Dismiss (:1641) left out. Shown padding box is 55×20 logical px at 720p and at 2×, corner scale 20/24 = 0.833.
+    #[test] fn button_frame_bf2_4_dismiss_left_out_below_one() {
+        for (w, h, s) in [(1280u32, 720u32, 1f32), (2560, 1440, 2.)] {
+            let mut app = bf2_pause(w, h, s); let world = app.world_mut(); let rows: Vec<(Entity, ComputedNode)> = world.query_filtered::<(Entity, &ComputedNode), With<ComfortGraphicsBannerDismissBtn>>().iter(world).map(|(e, n)| (e, *n)).collect();
+            assert_eq!(rows.into_iter().filter(|(_, n)| n.size().y > 0.).map(|(e, n)| ((n.padding_box().size() * n.inverse_scale_factor).y, bf2_corner(&n), world.get::<ImageNode>(e).is_none())).collect::<Vec<_>>(), vec![(20., 20. / 24., true)], "{w}x{h}");
+        }
+    }
+    #[test] fn button_frame_bf2_5_pause_tab_stays_unlit_under_cursor() {
+        let mut app = bf2_pause(1280, 720, 1.); let hit = bf2_at(&mut app, "Controls"); app.world_mut().entity_mut(hit.0).insert(bevy::camera::visibility::InheritedVisibility::VISIBLE); bf2_aim(&mut app, hit.1); assert_eq!(app.world().get::<Interaction>(hit.0).copied(), Some(Interaction::Hovered), "cursor {:?}", hit.1);
+        let w = app.world_mut(); assert!(bf2_btns(w).into_iter().all(|e| w.get::<ImageNode>(e).map(|n| n.image.id()) != Some(crate::ui_frame::FRAME_LIT_IMAGE.id())));
+    }
+    #[test] fn button_frame_bf2_6_tab_colours_survive_hover_and_press() {
+        use bevy::input::{mouse::MouseButtonInput, ButtonState};
+        let mut app = bf2_pause(1280, 720, 1.); let paint = |a: &mut App, label: &str| { let w = a.world_mut(); let e = bf2_btns(w).into_iter().find(|e| bf2_text(w, *e) == label).unwrap(); (w.get::<BackgroundColor>(e).unwrap().0, w.get::<BorderColor>(e).unwrap().top) };
+        assert_eq!((paint(&mut app, "Comfort"), paint(&mut app, "Controls")), ((TITLE_BTN_ACTIVE_BG, TITLE_BORDER), (TITLE_BTN_BG, TITLE_BORDER_MUTED))); let at = bf2_at(&mut app, "Controls"); app.world_mut().entity_mut(at.0).insert(bevy::camera::visibility::InheritedVisibility::VISIBLE); bf2_aim(&mut app, at.1); assert_eq!(paint(&mut app, "Controls"), (TITLE_BTN_BG, TITLE_BORDER_MUTED), "hover");
+        let window = app.world_mut().query_filtered::<Entity, With<bevy::window::PrimaryWindow>>().single(app.world()).unwrap(); app.world_mut().write_message(MouseButtonInput { button: MouseButton::Left, state: ButtonState::Pressed, window }); app.update(); assert_eq!((*app.world().resource::<PauseTab>(), paint(&mut app, "Controls"), paint(&mut app, "Comfort")), (PauseTab::Controls, (TITLE_BTN_ACTIVE_BG, TITLE_BORDER), (TITLE_BTN_BG, TITLE_BORDER_MUTED)));
+    }
+    #[test] fn button_frame_bf2_7_computed_node_matches_without_image() {
+        let tab = Node { padding: UiRect::axes(Val::Px(ui_kit::SPACE_XL), Val::Px(ui_kit::SPACE_S)), justify_content: JustifyContent::Center, border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)), flex_grow: 1., ..default() };
+        for (w, h, s) in [(1280u32, 720u32, 1f32), (2560, 1440, 2.)] {
+            let mut app = bf2_pause(w, h, s); let tabs: Vec<Entity> = { let world = app.world_mut(); world.query_filtered::<Entity, With<PauseTabBtn>>().iter(world).collect() }; assert!(tabs.iter().all(|e| app.world().get::<Node>(*e) == Some(&tab)), "{w}x{h}");
+            let before: Vec<_> = tabs.iter().map(|e| (app.world().get::<ComputedNode>(*e).unwrap().size(), app.world().get::<bevy::ui::UiGlobalTransform>(*e).unwrap().translation)).collect(); for e in &tabs { app.world_mut().entity_mut(*e).remove::<ImageNode>(); } app.update();
+            for (e, got) in tabs.iter().zip(&before) { assert_eq!(&(app.world().get::<ComputedNode>(*e).unwrap().size(), app.world().get::<bevy::ui::UiGlobalTransform>(*e).unwrap().translation), got, "tab {w}x{h}"); }
+            crate::licences_screen::open_licences(&mut app.world_mut().resource_mut::<crate::licences_screen::LicencesScreen>(), None, Some(LaunchDoor::InYard), false); (app.update(), app.update()); let nav: Vec<Entity> = { let world = app.world_mut(); bf2_btns(world).into_iter().filter(|e| matches!(bf2_text(world, *e).as_str(), "LB · Prev" | "Next · RB" | "Esc / B · Back")).collect() }; assert_eq!(nav.len(), 3, "licences nav");
+            let before: Vec<_> = nav.iter().map(|e| (app.world().get::<ComputedNode>(*e).unwrap().size(), app.world().get::<bevy::ui::UiGlobalTransform>(*e).unwrap().translation)).collect(); for e in &nav { app.world_mut().entity_mut(*e).remove::<ImageNode>(); } app.update(); for (e, got) in nav.iter().zip(&before) { assert_eq!(&(app.world().get::<ComputedNode>(*e).unwrap().size(), app.world().get::<bevy::ui::UiGlobalTransform>(*e).unwrap().translation), got, "lic {w}x{h}"); }
+        }
+    }
+    #[test] fn button_frame_bf2_8_corner_scale_is_one() {
+        for (w, h, s) in [(1280u32, 720u32, 1f32), (2560, 1440, 2.)] {
+            let mut app = bf2_pause(w, h, s); *app.world_mut().resource_mut::<PauseTab>() = PauseTab::Guide; crate::licences_screen::open_licences(&mut app.world_mut().resource_mut::<crate::licences_screen::LicencesScreen>(), None, Some(LaunchDoor::InYard), false); (app.update(), app.update()); if let Some(e) = app.world_mut().query_filtered::<Entity, With<crate::licences_screen::LicencesRoot>>().iter(app.world()).next() { let mut node = app.world_mut().get_mut::<Node>(e).unwrap(); node.width = Val::Px(w as f32); node.height = Val::Px(h as f32); } app.update(); let world = app.world_mut();
+            let tabs: Vec<_> = world.query_filtered::<&ComputedNode, With<PauseTabBtn>>().iter(world).map(bf2_corner).collect(); let lic: Vec<_> = bf2_btns(world).into_iter().filter(|e| matches!(bf2_text(world, *e).as_str(), "Licences" | "LB · Prev" | "Next · RB" | "Esc / B · Back") && world.get::<ComputedNode>(*e).unwrap().size().y > 0.).map(|e| bf2_corner(world.get::<ComputedNode>(e).unwrap())).collect(); assert_eq!((tabs, lic), (vec![1.; 4], vec![1.; 4]), "{w}x{h}");
+        }
+    }
+    #[test] fn button_frame_bf2_9_online_stays_grey_and_menu_rows_bare() {
+        let mut app = bf2_pause(1280, 720, 1.); { use bevy::ecs::system::RunSystemOnce; app.world_mut().run_system_once(spawn_title_screen).unwrap(); } app.update(); let w = app.world_mut(); let mut online: Vec<_> = bf2_btns(w).into_iter().filter(|e| bf2_text(w, *e) == ONLINE_STUB_LABEL).map(|e| (w.get::<ImageNode>(e).map(|n| n.image.id()), w.get::<BackgroundColor>(e).unwrap().0)).collect(); online.sort_by_key(|(id, _)| id.is_some());
+        assert_eq!(online, vec![(None, TITLE_BTN_DISABLED_BG), (Some(crate::ui_frame::FRAME_IMAGE.id()), TITLE_BTN_DISABLED_BG)]);
+        for label in ["Resume", "Title", "Quit"] { let e = bf2_btns(w).into_iter().find(|e| bf2_text(w, *e) == label).unwrap(); assert!(w.get::<ImageNode>(e).is_none(), "{label}"); }
     }
 }
