@@ -246,6 +246,7 @@ fn spawn_echo_panel(mut commands: Commands) {
                 },
                 BackgroundColor(TITLE_PLATE_BG),
                 BorderColor::all(TITLE_BORDER),
+                crate::ui_frame::plate_frame(),
                 Visibility::Hidden,
             ),
             JourneyEchoRoot,
