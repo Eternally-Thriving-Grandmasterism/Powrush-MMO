@@ -1232,4 +1232,32 @@ mod tests {
         let mut app = open_satchel("g8", None, None);
         assert!(body(&mut app).contains("Gear: none equipped") && { let w = app.world_mut(); w.query::<&Text>().iter(w).any(|t| t.contains("4: equip next find")) });
     }
+    #[test] fn hud_plate_hp1_1_satchel_carries_sliced_frame() {
+        for assets in [false, true] {
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins);
+            if assets { app.add_plugins(bevy::asset::AssetPlugin::default()).init_asset::<Image>(); }
+            app.add_systems(Startup, spawn_inventory_surfaces).update();
+            if assets { assert!(app.world().resource::<Assets<Image>>().get(crate::ui_frame::FRAME_IMAGE.id()).is_none(), "HP1-1"); }
+            let w = app.world_mut();
+            let root = w.query_filtered::<Entity, With<SatchelRoot>>().single(w).unwrap();
+            assert_eq!(w.get::<ImageNode>(root).cloned().map(|i| (i.image.id(), i.visual_box, i.image_mode)), Some((crate::ui_frame::FRAME_IMAGE.id(), VisualBox::PaddingBox, NodeImageMode::Sliced(crate::ui_frame::frame_slicer()))), "HP1-1");
+        }
+    }
+    #[test] fn hud_plate_hp1_3_watch_and_pickup_carry_no_image() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).add_systems(Startup, spawn_inventory_surfaces).update();
+        let w = app.world_mut();
+        assert!(w.query_filtered::<&ImageNode, Or<(With<WatchStripRoot>, With<PickupFlashRoot>)>>().iter(w).next().is_none(), "HP1-3");
+    }
+    #[test] fn hud_plate_hp1_2_open_padding_box_covers_frame() {
+        for scale in [0.85_f32, shared::local_settings::TEXT_SCALE_MAX] {
+            let mut app = App::new();
+            app.insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings { text_scale: scale, ..shared::local_settings::LocalSettings::peace_defaults() }, dirty: false }).insert_resource(HumanInventory { open: true, ..default() }).insert_resource(SoftRbePool::default()).insert_resource(LivedHourBind::default()).insert_resource(HouseLabel::default()).add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default(), bevy::input::InputPlugin, bevy::text::TextPlugin, bevy::ui::UiPlugin, crate::ui_font::UiFontPlugin)).init_asset::<Image>().init_asset::<TextureAtlasLayout>().add_message::<bevy::picking::pointer::PointerInput>().add_message::<bevy::picking::backend::PointerHits>().init_resource::<bevy::picking::hover::HoverMap>().init_resource::<bevy::picking::events::PointerState>().add_systems(Startup, spawn_inventory_surfaces).add_systems(Update, (scale_satchel_fonts, update_satchel));
+            app.world_mut().spawn((Camera2d, bevy::ui::IsDefaultUiCamera, Camera { computed: bevy::camera::ComputedCameraValues { target_info: Some(bevy::camera::RenderTargetInfo { physical_size: UVec2::new(1280, 720), scale_factor: 1. }), ..default() }, ..default() }));
+            (app.update(), app.update());
+            let (logical, open) = { let w = app.world_mut(); let (node, vis) = w.query_filtered::<(&ComputedNode, &Visibility), With<SatchelRoot>>().single(w).unwrap(); (node.padding_box().size() * node.inverse_scale_factor, *vis) };
+            assert!(open == Visibility::Visible && logical.x >= 24. && logical.y >= 24., "HP1-2 {scale} {logical}");
+        }
+    }
 }
