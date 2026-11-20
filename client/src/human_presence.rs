@@ -771,6 +771,7 @@ impl Plugin for HumanPresencePlugin {
             .init_resource::<PersonAttend>()
             .init_resource::<PersonRhythm>()
             .init_resource::<FollowOrbit>()
+            .init_resource::<CameraMode>()
             .init_resource::<ControlPreset>()
             .init_resource::<BodyFacing>()
             .init_resource::<MoveKeySnapshot>()
@@ -799,6 +800,7 @@ impl Plugin for HumanPresencePlugin {
                     )
                         .chain(),
                     pull_camera_from_walls.after(follow_camera),
+                    toggle_close_up.before(follow_camera),
                     (
                         setup_ual1_animation_graph,
                         attach_ual1_animation_player,
@@ -2114,6 +2116,62 @@ struct FollowTimePads<'w, 's> {
     time: Res<'w, Time>,
     fixed: Option<Res<'w, Time<Fixed>>>,
     pads: Query<'w, 's, &'static Gamepad>,
+    /// CARD CAMERA-UX-1a — absent reads as Walk.
+    mode: Option<Res<'w, CameraMode>>,
+}
+
+/// CARD CAMERA-UX-1a — K pulls the follow camera in for a close look.
+/// Session only, never persisted. Walk is today's camera.
+#[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
+enum CameraMode {
+    #[default]
+    Walk,
+    CloseUp,
+}
+
+/// CloseUp scales the follow offset. `orbit.distance` stays the wheel's.
+const CLOSE_UP_SCALE: f32 = 0.55;
+
+fn close_up_offset_scale(mode: Option<&CameraMode>) -> f32 {
+    match mode {
+        Some(CameraMode::CloseUp) => CLOSE_UP_SCALE,
+        _ => 1.0,
+    }
+}
+
+fn peace_key_k_is_bound(s: &LocalSettings) -> bool {
+    [s.key_move_up, s.key_move_down, s.key_move_left, s.key_move_right, s.key_jump, s.key_sprint, s.key_use, s.key_satchel, s.key_hide, s.key_allocate]
+        .into_iter()
+        .any(|k| k == PeaceKey::K)
+}
+
+/// Same runtime guard as lineage C (`player_lineage.rs`).
+fn close_up_k_is_free(settings_open: bool, text_entry: bool, panel_open: bool, k_peace_bound: bool) -> bool {
+    !settings_open && !text_entry && !panel_open && !k_peace_bound
+}
+
+fn toggle_close_up(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut mode: ResMut<CameraMode>,
+    house: Option<Res<HouseLabel>>,
+    door: Option<Res<LaunchDoor>>,
+    persona: Option<Res<crate::title_screen::PersonaCreatorState>>,
+    places: Option<Res<crate::hex_travel::PlacesPlate>>,
+    hud_edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
+    settings: Option<Res<LocalSettingsState>>,
+) {
+    if !keyboard.just_pressed(KeyCode::KeyK) || !close_up_k_is_free(
+        house.as_deref().is_some_and(|h| h.settings_open),
+        door.as_deref().is_some_and(|d| *d == LaunchDoor::NameHouse) || persona.as_deref().is_some_and(|p| p.open),
+        places.as_deref().is_some_and(|p| p.open) || hud_edit.as_deref().is_some_and(|h| h.active),
+        settings.as_deref().is_some_and(|s| peace_key_k_is_bound(&s.inner)),
+    ) {
+        return;
+    }
+    *mode = match *mode {
+        CameraMode::Walk => CameraMode::CloseUp,
+        CameraMode::CloseUp => CameraMode::Walk,
+    };
 }
 
 fn follow_camera(
@@ -2170,7 +2228,7 @@ fn follow_camera(
     let desired = if look_down {
         pos + Vec3::new(0.0, CAM_UP + 1.1, CAM_BACK - 1.4)
     } else {
-        pos + orbit.offset() + punch_delta
+        pos + orbit.offset() * close_up_offset_scale(clock.mode.as_deref()) + punch_delta
     };
     let look = if look_down {
         Vec3::new(pos.x, 0.45, pos.z)
