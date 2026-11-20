@@ -283,7 +283,7 @@ mod tests {
         assert!(include_str!("peace_audio.rs").split("fn play_ui_click(").nth(1).unwrap().contains("b.0 == crate::ui_kit::TITLE_BTN_DISABLED_BG"));
     }
     #[test] fn button_frame_bf2_7_age_computed_node_matches_without_image() {
-        let chip = Node { width: Val::Px(44.), height: Val::Px(44.), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(crate::ui_kit::BORDER_HAIRLINE)), ..default() };
+        let chip = Node { min_width: Val::Px(44.), height: Val::Px(44.), padding: UiRect::horizontal(Val::Px(crate::ui_kit::SPACE_XL)), align_self: AlignSelf::FlexStart, justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(crate::ui_kit::BORDER_HAIRLINE)), ..default() };
         for (w, h, s) in [(1280u32, 720u32, 1f32), (2560, 1440, 2.)] {
             let mut app = bf2_gate(Some((w, h, s))); let chips = { let world = app.world_mut(); bf2_chips(world) }; assert!(chips.iter().all(|e| app.world().get::<Node>(*e) == Some(&chip)), "{w}x{h}");
             let before: Vec<_> = chips.iter().map(|e| (app.world().get::<ComputedNode>(*e).unwrap().size(), app.world().get::<bevy::ui::UiGlobalTransform>(*e).unwrap().translation)).collect();

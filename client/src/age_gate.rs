@@ -42,7 +42,7 @@ fn chip(parent: &mut bevy::ecs::relationship::RelatedSpawnerCommands<ChildOf>, l
     parent.spawn((
         ui_kit::button(TITLE_BTN_BG),
         crate::ui_frame::button_frame(),
-        Node { width: Val::Px(44.0), height: Val::Px(44.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)), ..default() },
+        Node { min_width: Val::Px(44.0), height: Val::Px(44.0), padding: UiRect::horizontal(Val::Px(ui_kit::SPACE_XL)), align_self: AlignSelf::FlexStart, justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)), ..default() },
         btn,
     )).with_children(|child| { child.spawn(words(label, 16.0, TITLE_BTN_FG)); });
 }
@@ -64,7 +64,7 @@ fn spawn_age_gate(commands: &mut Commands) {
             chip(pane, AGE_GATE_CONTINUE, AgeBtn::Continue);
             pane.spawn(words(AGE_GATE_NOTE, 13.0, TITLE_TEXT_SECONDARY));
         });
-        root.spawn((column(), ui_kit::plate(), Visibility::Hidden, Pane::Denied)).with_children(|pane| {
+        root.spawn((Node { position_type: PositionType::Absolute, ..column() }, ui_kit::plate(), Visibility::Hidden, Pane::Denied)).with_children(|pane| {
             pane.spawn(words(AGE_GATE_UNDER, 18.0, TITLE_TEXT_PRIMARY));
             chip(pane, AGE_GATE_QUIT, AgeBtn::Quit);
         });
