@@ -663,4 +663,41 @@ mod tests {
         assert!(!bak.exists(), "idle reload must not write");
         assert!(!journey_sibling(scratch.path(), ".tmp").exists());
     }
+    fn hp3_bare(assets: bool) -> App {
+        let mut app = App::new(); app.add_plugins(MinimalPlugins);
+        if assets { app.add_plugins(bevy::asset::AssetPlugin::default()).init_asset::<Image>(); }
+        app.add_systems(Startup, spawn_echo_panel).update(); app
+    }
+    fn hp3_open(w: u32, h: u32, s: f32, scale: f32) -> App {
+        let mut app = App::new(); app.insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings { text_scale: scale, ..shared::local_settings::LocalSettings::peace_defaults() }, dirty: false }).add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default(), bevy::input::InputPlugin, bevy::text::TextPlugin, bevy::ui::UiPlugin, crate::ui_font::UiFontPlugin)).init_asset::<Image>().init_asset::<TextureAtlasLayout>().add_message::<bevy::picking::pointer::PointerInput>().add_message::<bevy::picking::backend::PointerHits>().init_resource::<bevy::picking::hover::HoverMap>().init_resource::<bevy::picking::events::PointerState>().insert_resource(AbundanceJourneyEcho { panel_open: true, ..default() }).add_systems(Startup, spawn_echo_panel).add_systems(Update, (update_echo_visibility, update_echo_body));
+        app.world_mut().spawn((Camera2d, bevy::ui::IsDefaultUiCamera, Camera { computed: bevy::camera::ComputedCameraValues { target_info: Some(bevy::camera::RenderTargetInfo { physical_size: UVec2::new(w, h), scale_factor: s }), ..default() }, ..default() }));
+        (app.update(), app.update()); app
+    }
+    fn hp3_root(app: &mut App) -> Entity { let w = app.world_mut(); w.query_filtered::<Entity, With<JourneyEchoRoot>>().single(w).unwrap() }
+    #[test] fn hud_plate_hp3_a_journey_carries_sliced_frame() {
+        for assets in [false, true] {
+            let mut app = hp3_bare(assets); let root = hp3_root(&mut app);
+            if assets { assert!(app.world().resource::<Assets<Image>>().get(crate::ui_frame::FRAME_IMAGE.id()).is_none(), "HP3-a assets"); }
+            assert_eq!(app.world().get::<ImageNode>(root).cloned().map(|i| (i.image.id(), i.visual_box, i.image_mode)), Some((crate::ui_frame::FRAME_IMAGE.id(), VisualBox::PaddingBox, NodeImageMode::Sliced(crate::ui_frame::frame_slicer()))), "HP3-a journey frame missing assets={assets}");
+        }
+    }
+    #[test] fn hud_plate_hp3_b_journey_open_padding_box_covers_frame() {
+        for scale in [0.85_f32, shared::local_settings::TEXT_SCALE_MAX] {
+            let mut app = hp3_open(1280, 720, 1., scale); let root = hp3_root(&mut app);
+            let (n, vis) = (app.world().get::<ComputedNode>(root).unwrap(), app.world().get::<Visibility>(root).unwrap()); let pad = n.padding_box().size() * n.inverse_scale_factor;
+            assert!(*vis == Visibility::Visible && pad.x >= 24. && pad.y >= 24. && (pad / crate::ui_frame::FRAME_PX as f32).min_element().min(crate::ui_frame::frame_slicer().max_corner_scale) == 1., "HP3-b journey {scale} {pad}");
+        }
+    }
+    #[test] fn hud_plate_hp3_c_journey_layout_matches_without_image() {
+        for (w, h, s) in [(1280u32, 720u32, 1f32), (2560, 1440, 2.)] {
+            let mut app = hp3_open(w, h, s, 1.); let root = hp3_root(&mut app);
+            let at = |app: &App| (app.world().get::<ComputedNode>(root).unwrap().size(), app.world().get::<bevy::ui::UiGlobalTransform>(root).unwrap().translation); let framed = at(&app);
+            app.world_mut().entity_mut(root).remove::<ImageNode>(); app.update(); assert_eq!(at(&app), framed, "HP3-c journey {w}x{h}");
+        }
+    }
+    #[test] fn hud_plate_hp3_d_journey_text_children_carry_no_image_and_one_root() {
+        let mut app = hp3_bare(false); let root = hp3_root(&mut app); let w = app.world();
+        assert_eq!(w.get::<Children>(root).unwrap().iter().map(|c| (w.get::<Text>(c).is_some(), w.get::<ImageNode>(c).is_some())).collect::<Vec<_>>(), vec![(true, false); 3], "HP3-d journey");
+        let w = app.world_mut(); assert_eq!(w.query::<&ImageNode>().iter(w).count(), 1, "HP3-d root count");
+    }
 }
