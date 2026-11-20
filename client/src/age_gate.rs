@@ -42,7 +42,7 @@ fn chip(parent: &mut bevy::ecs::relationship::RelatedSpawnerCommands<ChildOf>, l
     parent.spawn((
         ui_kit::button(TITLE_BTN_BG),
         crate::ui_frame::button_frame(),
-        Node { width: Val::Px(44.0), height: Val::Px(44.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)), ..default() },
+        Node { min_width: Val::Px(44.0), height: Val::Px(44.0), padding: UiRect::horizontal(Val::Px(ui_kit::SPACE_XL)), align_self: AlignSelf::FlexStart, justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)), ..default() },
         btn,
     )).with_children(|child| { child.spawn(words(label, 16.0, TITLE_BTN_FG)); });
 }
@@ -64,7 +64,7 @@ fn spawn_age_gate(commands: &mut Commands) {
             chip(pane, AGE_GATE_CONTINUE, AgeBtn::Continue);
             pane.spawn(words(AGE_GATE_NOTE, 13.0, TITLE_TEXT_SECONDARY));
         });
-        root.spawn((column(), ui_kit::plate(), Visibility::Hidden, Pane::Denied)).with_children(|pane| {
+        root.spawn((Node { position_type: PositionType::Absolute, ..column() }, ui_kit::plate(), Visibility::Hidden, Pane::Denied)).with_children(|pane| {
             pane.spawn(words(AGE_GATE_UNDER, 18.0, TITLE_TEXT_PRIMARY));
             chip(pane, AGE_GATE_QUIT, AgeBtn::Quit);
         });
@@ -273,5 +273,83 @@ mod tests {
         }));
         match &prev { Some(value) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value), None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV) }
         if let Err(payload) = run { std::panic::resume_unwind(payload); }
+    }
+    fn agl1_view() -> [(u32, u32, f32); 2] { [(1280, 720, 1.), (2560, 1440, 2.)] }
+    fn agl1_app(w: u32, h: u32, s: f32, scale: f32) -> App {
+        use bevy::camera::{ComputedCameraValues, RenderTargetInfo};
+        let mut app = App::new(); let info = Some(RenderTargetInfo { physical_size: UVec2::new(w, h), scale_factor: s });
+        app.insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).add_plugins((MinimalPlugins, bevy::input::InputPlugin, AgeGatePlugin)).add_message::<AppExit>().add_plugins((AssetPlugin::default(), bevy::text::TextPlugin, bevy::ui::UiPlugin, crate::ui_font::UiFontPlugin, crate::ui_frame::UiFramePlugin)).init_asset::<Image>().init_asset::<TextureAtlasLayout>().add_message::<bevy::picking::pointer::PointerInput>().add_message::<bevy::picking::backend::PointerHits>().init_resource::<bevy::picking::hover::HoverMap>().init_resource::<bevy::picking::events::PointerState>();
+        app.world_mut().resource_mut::<crate::local_settings::LocalSettingsState>().inner.text_scale = scale; app.world_mut().spawn((Camera2d, Camera { computed: ComputedCameraValues { target_info: info, ..default() }, ..default() }));
+        for _ in 0..3 { app.update(); }
+        app
+    }
+    fn agl1_pane(world: &mut World, pane: Pane) -> (Vec2, Visibility) {
+        let mut q = world.query::<(&Pane, &bevy::ui::UiGlobalTransform, &Visibility)>(); q.iter(world).find(|(p, _, _)| **p == pane).map(|(_, xf, vis)| (xf.translation, *vis)).unwrap()
+    }
+    fn agl1_young(app: &mut App) { tap(app, KeyCode::ArrowUp, Key::ArrowUp); tap(app, KeyCode::Tab, Key::Tab); tap(app, KeyCode::ArrowDown, Key::ArrowDown); tap(app, KeyCode::Enter, Key::Enter); }
+    fn agl1_chips(world: &mut World) -> Vec<(Entity, String)> {
+        let mut q = world.query::<(Entity, &AgeBtn)>(); let ids: Vec<Entity> = q.iter(world).map(|(e, _)| e).collect();
+        ids.into_iter().map(|e| (e, world.get::<Children>(e).and_then(|c| c.iter().find_map(|k| world.get::<Text>(k).map(|t| t.as_str().to_string()))).unwrap_or_default())).collect()
+    }
+    fn agl1_label(world: &World, e: Entity) -> Entity { world.get::<Children>(e).and_then(|c| c.iter().find_map(|k| world.get::<Text>(k).is_some().then_some(k))).unwrap() }
+    fn agl1_ink(world: &World, e: Entity) -> (Rect, Rect, f32) {
+        let (node, centre) = (*world.get::<ComputedNode>(e).unwrap(), world.get::<bevy::ui::UiGlobalTransform>(e).unwrap().translation);
+        let text_e = agl1_label(world, e); let text = world.get::<ComputedNode>(text_e).unwrap(); let at = world.get::<bevy::ui::UiGlobalTransform>(text_e).unwrap().translation; let local = node.content_box();
+        (Rect::from_center_size(at, text.size), Rect { min: centre + local.min, max: centre + local.max }, text.size.x * text.inverse_scale_factor)
+    }
+    fn agl1_inside(ink: Rect, box_: Rect) -> bool { ink.min.x >= box_.min.x - 0.5 && ink.max.x <= box_.max.x + 0.5 && ink.min.y >= box_.min.y - 0.5 && ink.max.y <= box_.max.y + 0.5 }
+    fn agl1_sig(world: &mut World) -> Vec<(String, u32, ComputedNode, ComputedNode)> {
+        let mut sig: Vec<_> = agl1_chips(world).into_iter().map(|(e, label)| (label, world.get::<bevy::ui::UiGlobalTransform>(e).unwrap().translation.x.to_bits(), *world.get::<ComputedNode>(e).unwrap(), *world.get::<ComputedNode>(agl1_label(world, e)).unwrap())).collect();
+        sig.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1))); sig
+    }
+    fn agl1_centred(got: Vec2, w: u32, h: u32) -> bool { (got.x - w as f32 * 0.5).abs() <= 1. && (got.y - h as f32 * 0.5).abs() <= 1. }
+    #[test] fn age_gate_layout_agl1_1_ask_centred() {
+        for (w, h, s) in agl1_view() { let mut app = agl1_app(w, h, s, 1.); let (got, vis) = agl1_pane(app.world_mut(), Pane::Ask); assert_eq!(vis, Visibility::Visible, "{w}x{h}"); assert!(agl1_centred(got, w, h), "AGL1-1 {w}x{h}x{s} centre {got:?} want {:?}", Vec2::new(w as f32 * 0.5, h as f32 * 0.5)); }
+    }
+    #[test] fn age_gate_layout_agl1_2_denied_centred() {
+        for (w, h, s) in agl1_view() { let mut app = agl1_app(w, h, s, 1.); agl1_young(&mut app); assert!(app.world().resource::<AgeGate>().open, "young path"); let (got, vis) = agl1_pane(app.world_mut(), Pane::Denied); assert_eq!(vis, Visibility::Visible, "{w}x{h}"); assert!(agl1_centred(got, w, h), "AGL1-2 {w}x{h}x{s} centre {got:?} want {:?}", Vec2::new(w as f32 * 0.5, h as f32 * 0.5)); }
+    }
+    #[test] fn age_gate_layout_agl1_3_label_inside() {
+        for (w, h, s) in agl1_view() {
+            let mut app = agl1_app(w, h, s, 1.); let chips = agl1_chips(app.world_mut()); assert_eq!(chips.len(), 6, "{w}x{h}");
+            for (e, label) in &chips { let (ink, box_, logical_w) = agl1_ink(app.world(), *e); if label == "Continue" { assert!(logical_w > 50., "Continue ink {logical_w} unmeasured {w}x{h}"); } assert!(agl1_inside(ink, box_), "AGL1-3 {label} {w}x{h}x{s} ink {ink:?} content {box_:?} logical_w {logical_w}"); }
+        }
+    }
+    #[test] fn age_gate_layout_agl1_4_text_scale() {
+        for (w, h, s) in agl1_view() {
+            let base = { let mut app = agl1_app(w, h, s, shared::local_settings::DEFAULT_TEXT_SCALE); agl1_sig(app.world_mut()) };
+            for scale in [shared::local_settings::TEXT_SCALE_MIN, shared::local_settings::TEXT_SCALE_MAX] {
+                let mut app = agl1_app(w, h, s, scale); assert_eq!(agl1_sig(app.world_mut()), base, "AGL1-4 layout moved at {scale} {w}x{h}");
+                let (got, _) = agl1_pane(app.world_mut(), Pane::Ask); assert!(agl1_centred(got, w, h), "AGL1-1 at text_scale {scale} {w}x{h} centre {got:?}");
+                let chips = agl1_chips(app.world_mut()); assert!(chips.iter().all(|(e, _)| { let (ink, box_, _) = agl1_ink(app.world(), *e); agl1_inside(ink, box_) }), "AGL1-3 at text_scale {scale} {w}x{h}");
+            }
+        }
+    }
+    #[test] fn age_gate_layout_agl1_5_step_chips() {
+        let mut ys = Vec::new();
+        for (w, h, s) in agl1_view() {
+            let mut app = agl1_app(w, h, s, 1.); let world = app.world_mut(); let chips = agl1_chips(world); let (mut row_y, mut n) = (None, 0u32);
+            for (e, label) in &chips {
+                let node = world.get::<ComputedNode>(*e).unwrap(); assert_eq!((node.padding_box().size() * node.inverse_scale_factor / 24.).min_element().min(1.), 1., "BF2-8 {label} {w}x{h}");
+                if label != "-" && label != "+" { continue; }
+                let logical = node.size * node.inverse_scale_factor; assert!((logical.x - 44.).abs() <= 0.5 && (logical.y - 44.).abs() <= 0.5, "AGL1-5 {label} {logical} {w}x{h}");
+                let y = world.get::<bevy::ui::UiGlobalTransform>(*e).unwrap().translation.y * node.inverse_scale_factor; match row_y { None => row_y = Some(y), Some(prev) => assert!((y - prev).abs() <= 0.5, "chip y {y} vs {prev}") } n += 1;
+            }
+            assert_eq!(n, 4, "{w}x{h}"); ys.push(row_y.unwrap());
+        }
+        assert!((ys[0] - ys[1]).abs() <= 1., "AGL1-5 chip y across scale {ys:?}");
+        if std::env::var_os("AGL1_TRACE").is_some() { eprintln!("AGL1-5 logical y {ys:?}"); }
+    }
+    #[test] fn age_gate_layout_agl1_guards() {
+        assert_eq!((AGE_GATE_HEADING, AGE_GATE_ASK, AGE_GATE_CONTINUE, AGE_GATE_NOTE, AGE_GATE_UNDER, AGE_GATE_QUIT), ("Before you start", "Powrush is made for adults. Please enter your month and year of birth.", "Continue", "We only check this on your computer. Your date of birth is not saved or sent anywhere.", "Sorry — Powrush is made for players 18 and over.", "Quit"));
+        let src = include_str!("age_gate.rs"); let prod = src.split("\n#[cfg(test)]\nmod tests {").next().unwrap(); assert_eq!(prod.matches("&mut Node").count(), 0);
+        assert!(prod.contains("fn try_continue(entry: &mut AgeEntry, settings: &mut LocalSettingsState) {\n    let (Some(month), Some(year)) = (entry.month, entry.year) else { return };\n    let Some((today_y, today_m, _)) = shared::civil_date::civil_today() else { return };\n    entry.month = None; entry.year = None;\n    if shared::civil_date::is_adult(today_y, today_m, year, u32::from(month)) {\n        settings.inner.confirm_age(); settings.mark_and_persist(); entry.close = true;\n    } else { entry.denied = true; }\n}"));
+        for needle in ["words(AGE_GATE_HEADING, 22.0, TITLE_TEXT_PRIMARY)", "words(AGE_GATE_ASK, 15.0, TITLE_TEXT_SECONDARY)", "words(label, 16.0, TITLE_BTN_FG)", "words(\"\", 16.0, TITLE_TEXT_PRIMARY)", "words(AGE_GATE_NOTE, 13.0, TITLE_TEXT_SECONDARY)", "words(AGE_GATE_UNDER, 18.0, TITLE_TEXT_PRIMARY)", "chip(row, \"-\", AgeBtn::MonthDec)", "chip(row, \"+\", AgeBtn::MonthInc)", "chip(row, \"-\", AgeBtn::YearDec)", "chip(row, \"+\", AgeBtn::YearInc)", "fn age_gate_schedule_blocks_fresh_enter_then_remembers()", r#"\"age_confirmed\": true"#, "fn pad_only_boot_clears_age_gate_then_plays()", "the A that clears the gate does not also play"] { assert!(src.contains(needle), "{needle}"); }
+        let mut app = agl1_app(1280, 720, 1., 1.); let world = app.world_mut(); let mut fonts = world.query::<&TextFont>(); let mut sizes = std::collections::BTreeSet::new();
+        for font in fonts.iter(world) { let FontSize::Px(px) = font.font_size else { panic!("{:?}", font.font_size) }; sizes.insert(px.to_bits()); }
+        assert_eq!(sizes, [13.0f32, 15., 16., 18., 22.].into_iter().map(f32::to_bits).collect());
+        let copy = { let mut texts = world.query::<&Text>(); texts.iter(world).map(|t| t.as_str().to_string()).collect::<Vec<_>>().join("\n") };
+        for line in [AGE_GATE_HEADING, AGE_GATE_ASK, AGE_GATE_CONTINUE, AGE_GATE_NOTE, AGE_GATE_UNDER, AGE_GATE_QUIT, "-", "+"] { assert!(copy.contains(line), "{line}"); }
+        if std::env::var_os("AGL1_TRACE").is_some() { let mut faces = world.query::<(&Text, Option<&MonthFace>, Option<&YearFace>)>(); for (text, month, year) in faces.iter(world) { if month.is_some() || year.is_some() { eprintln!("AGL1 rest face month={} year={} {:?}", month.is_some(), year.is_some(), text.as_str()); } } }
     }
 }
