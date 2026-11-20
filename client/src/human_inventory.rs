@@ -130,6 +130,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     ..default()
                 },
                 ui_kit::plate(),
+                crate::ui_frame::plate_frame(),
                 Visibility::Hidden,
             ),
             WatchStripRoot,
@@ -1249,7 +1250,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins).add_systems(Startup, spawn_inventory_surfaces).update();
         let w = app.world_mut();
-        assert!(w.query_filtered::<&ImageNode, Or<(With<WatchStripRoot>, With<PickupFlashRoot>)>>().iter(w).next().is_none(), "HP1-3");
+        assert!(w.query_filtered::<&ImageNode, With<PickupFlashRoot>>().iter(w).next().is_none(), "HP1-3");
     }
     #[test] fn hud_plate_hp1_2_open_padding_box_covers_frame() {
         for scale in [0.85_f32, shared::local_settings::TEXT_SCALE_MAX] {
@@ -1260,5 +1261,29 @@ mod tests {
             let (logical, open) = { let w = app.world_mut(); let (node, vis) = w.query_filtered::<(&ComputedNode, &Visibility), With<SatchelRoot>>().single(w).unwrap(); (node.padding_box().size() * node.inverse_scale_factor, *vis) };
             assert!(open == Visibility::Visible && logical.x >= 24. && logical.y >= 24., "HP1-2 {scale} {logical}");
         }
+    }
+    fn hp2_ui(w: u32, h: u32, s: f32) -> App {
+        let mut app = App::new(); app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default(), bevy::input::InputPlugin, bevy::text::TextPlugin, bevy::ui::UiPlugin, crate::ui_font::UiFontPlugin)).init_asset::<Image>().init_asset::<TextureAtlasLayout>().add_message::<bevy::picking::pointer::PointerInput>().add_message::<bevy::picking::backend::PointerHits>().init_resource::<bevy::picking::hover::HoverMap>().init_resource::<bevy::picking::events::PointerState>().add_systems(Startup, spawn_inventory_surfaces);
+        app.world_mut().spawn((Camera2d, bevy::ui::IsDefaultUiCamera, Camera { computed: bevy::camera::ComputedCameraValues { target_info: Some(bevy::camera::RenderTargetInfo { physical_size: UVec2::new(w, h), scale_factor: s }), ..default() }, ..default() })); app
+    }
+    fn hp2_root(app: &mut App) -> Entity { let w = app.world_mut(); w.query_filtered::<Entity, With<WatchStripRoot>>().single(w).unwrap() }
+    #[test] fn hud_plate_hp2_a_watch_carries_sliced_frame() {
+        let mut app = App::new(); app.add_plugins(MinimalPlugins).add_systems(Startup, spawn_inventory_surfaces).update(); let root = hp2_root(&mut app);
+        assert_eq!(app.world().get::<ImageNode>(root).cloned().map(|i| (i.image.id(), i.visual_box, i.image_mode)), Some((crate::ui_frame::FRAME_IMAGE.id(), VisualBox::PaddingBox, NodeImageMode::Sliced(crate::ui_frame::frame_slicer()))), "HP2-a watch frame missing");
+    }
+    #[test] fn hud_plate_hp2_b_watch_text_has_no_image() {
+        let mut app = App::new(); app.add_plugins(MinimalPlugins).add_systems(Startup, spawn_inventory_surfaces).update(); let w = app.world_mut();
+        assert_eq!(w.query_filtered::<Option<&ImageNode>, With<WatchStripText>>().iter(w).map(|i| i.is_some()).collect::<Vec<_>>(), vec![false], "HP2-b watch");
+    }
+    #[test] fn hud_plate_hp2_c_watch_layout_matches_without_image() {
+        for (w, h, s) in [(1280u32, 720u32, 1f32), (2560, 1440, 2.)] {
+            let mut app = hp2_ui(w, h, s); (app.update(), app.update()); let root = hp2_root(&mut app);
+            let at = |app: &App| (app.world().get::<ComputedNode>(root).unwrap().size(), app.world().get::<bevy::ui::UiGlobalTransform>(root).unwrap().translation); let framed = at(&app);
+            app.world_mut().entity_mut(root).remove::<ImageNode>(); app.update(); assert_eq!(at(&app), framed, "HP2-c watch {w}x{h}");
+        }
+    }
+    #[test] fn hud_plate_hp2_d_watch_corner_is_one_at_text_scale_085() {
+        let mut app = hp2_ui(1280, 720, 1.); app.insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings { text_scale: 0.85, ..shared::local_settings::LocalSettings::peace_defaults() }, dirty: false }).add_systems(Update, (scale_strip_and_flash_fonts, |mut q: Query<&mut Text, With<WatchStripText>>| for mut t in &mut q { t.0 = "Harvests 1 · Vitality 1.2".into(); })); (app.update(), app.update()); let root = hp2_root(&mut app); let n = app.world().get::<ComputedNode>(root).unwrap(); let pad = n.padding_box().size() * n.inverse_scale_factor;
+        assert!(pad.x >= 24. && pad.y >= 24. && (pad / crate::ui_frame::FRAME_PX as f32).min_element().min(crate::ui_frame::frame_slicer().max_corner_scale) == 1., "HP2-d watch {pad}");
     }
 }
