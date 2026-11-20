@@ -195,7 +195,7 @@ mod tests {
         lic.world_mut().query_filtered::<&mut Interaction, With<crate::licences_screen::LicencesOpenBtn>>().iter_mut(lic.world_mut()).for_each(|mut i| *i = Interaction::Pressed);
         lic.update();
         assert!(lic.world_mut().query_filtered::<Entity, With<crate::licences_screen::LicencesRoot>>().iter(lic.world()).next().is_some());
-        assert_eq!(lic.world_mut().query::<&ImageNode>().iter(lic.world()).count(), 0);
+        assert_eq!(lic.world_mut().query::<&ImageNode>().iter(lic.world()).count(), 4);
     }
 
     fn client_prod() -> Vec<(String, String)> {
@@ -229,10 +229,10 @@ mod tests {
         let kit = include_str!("ui_kit.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
         assert!(kit.contains("pub fn button(bg: Color) -> (Button, Interaction, BorderColor, BackgroundColor) {\n    (Button, Interaction::default(), BorderColor::all(TITLE_BORDER), BackgroundColor(bg))\n}"));
         let calls: Vec<_> = client_prod().into_iter().filter(|(n, _)| n != "ui_frame.rs").filter_map(|(n, p)| { let c = p.matches("button_frame()").count(); (c > 0).then(|| (n, c, p.split("fn spawn_title_plate_btn").nth(1).is_some_and(|b| b.contains("button_frame()")))) }).collect();
-        assert_eq!(calls, vec![("title_screen.rs".into(), 1, true)]);
+        assert_eq!({ let mut c = calls; c.sort(); c }, vec![("age_gate.rs".into(), 1, false), ("licences_screen.rs".into(), 1, false), ("title_screen.rs".into(), 2, true)]);
         let mut gate = App::new();
         gate.insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).add_plugins((MinimalPlugins, bevy::input::InputPlugin, crate::age_gate::AgeGatePlugin)).add_message::<AppExit>().update();
-        assert_eq!(gate.world_mut().query::<&ImageNode>().iter(gate.world()).count(), 0, "age-gate chip");
+        assert_eq!(gate.world_mut().query::<&ImageNode>().iter(gate.world()).count(), 6, "age-gate chip");
     }
     #[test]
     fn button_frame_bf9_one_image_writer() {
@@ -240,5 +240,64 @@ mod tests {
         assert_eq!(found, vec![("launch_menu.rs".into(), 1)]);
         let menu = include_str!("launch_menu.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
         assert!(menu.contains("&mut ImageNode), With<LaunchRow>") && menu.matches("&mut BackgroundColor").count() == 2 && menu.matches("&mut BorderColor").count() == 0);
+    }
+    fn bf2_gate(layout: Option<(u32, u32, f32)>) -> App {
+        use bevy::camera::{ComputedCameraValues, RenderTargetInfo};
+        let mut app = App::new(); app.insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).add_plugins((MinimalPlugins, bevy::input::InputPlugin, crate::age_gate::AgeGatePlugin)).add_message::<AppExit>();
+        if let Some((w, h, s)) = layout {
+            let info = Some(RenderTargetInfo { physical_size: UVec2::new(w, h), scale_factor: s });
+            app.add_plugins((AssetPlugin::default(), bevy::text::TextPlugin, bevy::ui::UiPlugin, crate::ui_font::UiFontPlugin)).init_asset::<Image>().init_asset::<TextureAtlasLayout>().add_message::<bevy::picking::pointer::PointerInput>().add_message::<bevy::picking::backend::PointerHits>().init_resource::<bevy::picking::hover::HoverMap>().init_resource::<bevy::picking::events::PointerState>();
+            app.world_mut().spawn((Camera2d, Camera { computed: ComputedCameraValues { target_info: info, ..default() }, ..default() })); (app.update(), app.update());
+        } else { app.update(); }
+        app
+    }
+    fn bf2_pad(app: &mut App, button: GamepadButton) {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent, RawGamepadEvent};
+        let found = app.world_mut().query_filtered::<Entity, With<Gamepad>>().iter(app.world()).next();
+        let id = found.unwrap_or_else(|| { let (id, name) = (app.world_mut().spawn_empty().id(), "pad".into()); app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Connected { name, vendor_id: None, product_id: None })); app.update(); id });
+        for v in [1f32, 0.] { app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, button, v))); app.update(); }
+    }
+    fn bf2_label(world: &World, e: Entity) -> String { world.get::<Children>(e).and_then(|c| c.iter().find_map(|k| world.get::<Text>(k).map(|t| t.0.clone()))).unwrap_or_default() }
+    fn bf2_chips(world: &mut World) -> Vec<Entity> { let mut q = world.query::<(Entity, &bevy::ui_widgets::Button)>(); q.iter(world).map(|(e, _)| e).collect() }
+    #[test] fn button_frame_bf2_1_age_chips_use_frame_image() {
+        let mut gate = bf2_gate(None); let world = gate.world_mut(); let want = { let n = button_frame(); (n.image.id(), n.visual_box, n.color, n.image_mode) };
+        assert_eq!(world.query::<(&bevy::ui_widgets::Button, Option<&ImageNode>)>().iter(world).map(|(_, n)| n.map(|i| (i.image.id(), i.visual_box, i.color, i.image_mode.clone()))).collect::<Vec<_>>(), vec![Some(want); 6], "BF2-1");
+    }
+    #[test] fn button_frame_bf2_2_licences_buttons_use_frame_image() {
+        let mut lic = App::new(); lic.add_plugins((MinimalPlugins, crate::licences_screen::LicencesScreenPlugin));
+        lic.world_mut().commands().spawn(Node::default()).with_children(crate::licences_screen::spawn_licences_entry); lic.world_mut().flush();
+        lic.world_mut().query_filtered::<&mut Interaction, With<crate::licences_screen::LicencesOpenBtn>>().iter_mut(lic.world_mut()).for_each(|mut i| *i = Interaction::Pressed); lic.update();
+        assert_eq!(lic.world_mut().query::<(&bevy::ui_widgets::Button, Option<&ImageNode>)>().iter(lic.world()).map(|(_, n)| n.map(|i| i.image.id())).collect::<Vec<_>>(), vec![Some(FRAME_IMAGE.id()); 4], "BF2-2");
+    }
+    #[test] fn button_frame_bf2_5_age_pad_focus_stays_unlit() {
+        let mut app = bf2_gate(None); bf2_pad(&mut app, GamepadButton::DPadRight); let world = app.world_mut();
+        let ids: Vec<_> = bf2_chips(world).into_iter().map(|e| world.get::<ImageNode>(e).map(|n| n.image.id())).collect();
+        assert!(ids.len() == 6 && ids.into_iter().all(|id| id != Some(FRAME_LIT_IMAGE.id())));
+    }
+    #[test] fn button_frame_bf2_6_age_sync_keeps_fill() {
+        let fill = |app: &mut App, label: &str| { let w = app.world_mut(); let e = bf2_chips(w).into_iter().find(|e| bf2_label(w, *e) == label).unwrap(); w.get::<BackgroundColor>(e).unwrap().0 };
+        let mut bare = bf2_gate(None); assert_eq!(fill(&mut bare, "Continue"), crate::ui_kit::TITLE_BTN_DISABLED_BG);
+        bf2_pad(&mut bare, GamepadButton::DPadRight); bf2_pad(&mut bare, GamepadButton::DPadRight); assert_eq!(fill(&mut bare, "Continue"), crate::ui_kit::TITLE_BTN_DISABLED_BG, "focused, not ready");
+        let mut ready = bf2_gate(None); for b in [GamepadButton::DPadUp, GamepadButton::DPadRight, GamepadButton::DPadUp, GamepadButton::DPadRight] { bf2_pad(&mut ready, b); }
+        assert_eq!(fill(&mut ready, "Continue"), crate::ui_kit::TITLE_BTN_ACTIVE_BG);
+        assert!(include_str!("peace_audio.rs").split("fn play_ui_click(").nth(1).unwrap().contains("b.0 == crate::ui_kit::TITLE_BTN_DISABLED_BG"));
+    }
+    #[test] fn button_frame_bf2_7_age_computed_node_matches_without_image() {
+        let chip = Node { width: Val::Px(44.), height: Val::Px(44.), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(crate::ui_kit::BORDER_HAIRLINE)), ..default() };
+        for (w, h, s) in [(1280u32, 720u32, 1f32), (2560, 1440, 2.)] {
+            let mut app = bf2_gate(Some((w, h, s))); let chips = { let world = app.world_mut(); bf2_chips(world) }; assert!(chips.iter().all(|e| app.world().get::<Node>(*e) == Some(&chip)), "{w}x{h}");
+            let before: Vec<_> = chips.iter().map(|e| (app.world().get::<ComputedNode>(*e).unwrap().size(), app.world().get::<bevy::ui::UiGlobalTransform>(*e).unwrap().translation)).collect();
+            for e in &chips { app.world_mut().entity_mut(*e).remove::<ImageNode>(); } app.update();
+            for (e, got) in chips.iter().zip(&before) { assert_eq!(&(app.world().get::<ComputedNode>(*e).unwrap().size(), app.world().get::<bevy::ui::UiGlobalTransform>(*e).unwrap().translation), got, "{w}x{h}"); }
+            assert_eq!(chips.iter().map(|e| { let n = app.world().get::<ComputedNode>(*e).unwrap(); (n.padding_box().size() * n.inverse_scale_factor / FRAME_PX as f32).min_element().min(1.) }).collect::<Vec<_>>(), vec![1.; 6], "BF2-8 age {w}x{h}");
+        }
+    }
+    #[test] fn button_frame_bf2_9_scope_writer_and_places_hold() {
+        let mut found: Vec<_> = client_prod().into_iter().filter_map(|(n, p)| { let c = p.matches("&mut ImageNode").count(); (c > 0).then_some((n, c)) }).collect(); found.sort();
+        let mut lit: Vec<_> = client_prod().into_iter().filter(|(_, src)| src.contains("FRAME_LIT_IMAGE")).map(|(n, _)| n).collect(); lit.sort();
+        assert_eq!((found, lit), (vec![("launch_menu.rs".into(), 1)], vec!["launch_menu.rs".into(), "ui_frame.rs".into()]));
+        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")); for path in [root.join("Cargo.toml"), root.join("../Cargo.toml"), root.join("../Cargo.lock")] { assert!(!std::fs::read_to_string(&path).unwrap().contains("button_frame"), "{}", path.display()); }
+        let mut places = App::new(); places.add_plugins((MinimalPlugins, crate::hex_travel::HexTravelPlugin)); places.world_mut().run_schedule(Startup); assert_eq!(places.world_mut().query::<&ImageNode>().iter(places.world()).count(), 0, "places");
+        assert!(include_str!("ui_kit.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap().contains("pub fn button(bg: Color) -> (Button, Interaction, BorderColor, BackgroundColor) {\n    (Button, Interaction::default(), BorderColor::all(TITLE_BORDER), BackgroundColor(bg))\n}"));
     }
 }

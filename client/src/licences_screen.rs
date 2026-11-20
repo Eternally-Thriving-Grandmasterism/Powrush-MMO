@@ -107,6 +107,7 @@ fn words(text: impl Into<String>, px: f32, color: Color) -> (Text, TextFont, Tex
 fn spawn_btn(p: &mut ChildSpawnerCommands, label: &str, marker: impl Component, width: Val) {
     let node = Node { width, padding: UiRect::axes(Val::Px(ui_kit::SPACE_XL), Val::Px(BTN_PAD_Y)), justify_content: JustifyContent::Center, border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)), ..default() };
     p.spawn((ui_kit::button(TITLE_BTN_BG), node, marker))
+        .insert(crate::ui_frame::button_frame())
         .with_children(|b| { b.spawn(words(label, NAV_PX, TITLE_BTN_FG)); });
 }
 

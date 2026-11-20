@@ -41,6 +41,7 @@ fn words(text: &str, px: f32, color: Color) -> (Text, TextFont, TextColor) {
 fn chip(parent: &mut bevy::ecs::relationship::RelatedSpawnerCommands<ChildOf>, label: &str, btn: AgeBtn) {
     parent.spawn((
         ui_kit::button(TITLE_BTN_BG),
+        crate::ui_frame::button_frame(),
         Node { width: Val::Px(44.0), height: Val::Px(44.0), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(ui_kit::BORDER_HAIRLINE)), ..default() },
         btn,
     )).with_children(|child| { child.spawn(words(label, 16.0, TITLE_BTN_FG)); });
