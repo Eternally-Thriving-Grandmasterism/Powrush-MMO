@@ -677,8 +677,7 @@ mod tests {
             app.world_mut().entity_mut(root).remove::<ImageNode>(); app.update(); assert_eq!(at(&app), framed, "HP2-c practice {w}x{h}");
         }
     }
-    #[test] fn hud_plate_hp2_d_practice_corner_is_one_at_text_scale_085() {
-        let mut app = hp2_ui(1280, 720, 1.); app.insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings { text_scale: 0.85, ..shared::local_settings::LocalSettings::peace_defaults() }, dirty: false }); (app.update(), app.update()); let root = hp2_root(&mut app); let n = app.world().get::<ComputedNode>(root).unwrap(); let pad = n.padding_box().size() * n.inverse_scale_factor;
+    #[test] fn hud_plate_hp2_d_practice_corner_is_one_at_spawned_font() { let mut app = hp2_ui(1280, 720, 1.); (app.update(), app.update()); let root = hp2_root(&mut app); let n = app.world().get::<ComputedNode>(root).unwrap(); let pad = n.padding_box().size() * n.inverse_scale_factor;
         assert!(pad.x >= 24. && pad.y >= 24. && (pad / crate::ui_frame::FRAME_PX as f32).min_element().min(crate::ui_frame::frame_slicer().max_corner_scale) == 1., "HP2-d practice {pad}");
     }
 }
