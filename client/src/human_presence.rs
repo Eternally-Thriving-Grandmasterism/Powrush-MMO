@@ -2159,10 +2159,12 @@ fn toggle_close_up(
     places: Option<Res<crate::hex_travel::PlacesPlate>>,
     hud_edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
     settings: Option<Res<LocalSettingsState>>,
+    presence: Option<Res<SoftPresence>>,
 ) {
-    if !keyboard.just_pressed(KeyCode::KeyK) || !close_up_k_is_free(
+    // CARD CAMERA-UX-1b-0 — yard only (no reset on door change), and never while lifted.
+    if !keyboard.just_pressed(KeyCode::KeyK) || presence.is_some_and(|p| presence_reads_ambrosian_lift(p.position)) || !close_up_k_is_free(
         house.as_deref().is_some_and(|h| h.settings_open),
-        door.as_deref().is_some_and(|d| *d == LaunchDoor::NameHouse) || persona.as_deref().is_some_and(|p| p.open),
+        door.as_deref().is_some_and(|d| *d != LaunchDoor::InYard) || persona.as_deref().is_some_and(|p| p.open),
         places.as_deref().is_some_and(|p| p.open) || hud_edit.as_deref().is_some_and(|h| h.active),
         settings.as_deref().is_some_and(|s| peace_key_k_is_bound(&s.inner)),
     ) {
@@ -6903,6 +6905,8 @@ mod tests {
             app.insert_resource(LaunchDoor::InYard);
             settle_follow(&mut app);
             let mut yard = cux_world(|_| {});
+            yard.update();
+            settle_follow(&mut yard);
             let (a, b) = (cux_transform(&mut app), cux_transform(&mut yard));
             assert_eq!(a.translation.to_array().map(f32::to_bits), b.translation.to_array().map(f32::to_bits), "{door:?}");
             assert_eq!(a.rotation.to_array().map(f32::to_bits), b.rotation.to_array().map(f32::to_bits), "{door:?}");
