@@ -2159,10 +2159,12 @@ fn toggle_close_up(
     places: Option<Res<crate::hex_travel::PlacesPlate>>,
     hud_edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
     settings: Option<Res<LocalSettingsState>>,
+    presence: Option<Res<SoftPresence>>,
 ) {
-    if !keyboard.just_pressed(KeyCode::KeyK) || !close_up_k_is_free(
+    // CARD CAMERA-UX-1b-0 — yard only (no reset on door change), and never while lifted.
+    if !keyboard.just_pressed(KeyCode::KeyK) || presence.is_some_and(|p| presence_reads_ambrosian_lift(p.position)) || !close_up_k_is_free(
         house.as_deref().is_some_and(|h| h.settings_open),
-        door.as_deref().is_some_and(|d| *d == LaunchDoor::NameHouse) || persona.as_deref().is_some_and(|p| p.open),
+        door.as_deref().is_some_and(|d| *d != LaunchDoor::InYard) || persona.as_deref().is_some_and(|p| p.open),
         places.as_deref().is_some_and(|p| p.open) || hud_edit.as_deref().is_some_and(|h| h.active),
         settings.as_deref().is_some_and(|s| peace_key_k_is_bound(&s.inner)),
     ) {
@@ -6877,11 +6879,12 @@ mod tests {
 
     #[test]
     fn cux1a_m7_no_toggle_while_text_entry_settings_or_panel_open() {
-        let blocks: [fn(&mut App); 4] = [
+        let blocks: [fn(&mut App); 5] = [
             |app| { app.insert_resource(quiet_house(true)); },
             |app| { app.insert_resource(LaunchDoor::NameHouse); },
             |app| { app.insert_resource(crate::title_screen::PersonaCreatorState { open: true, ..default() }); },
             |app| { let mut p = crate::hex_travel::PlacesPlate::default(); p.open = true; app.insert_resource(p); },
+            |app| { let mut h = crate::hud_edit_mode::HudEditMode::default(); h.active = true; app.insert_resource(h); },
         ];
         for (i, block) in blocks.into_iter().enumerate() {
             let mut app = cux_world(block);
@@ -6889,6 +6892,40 @@ mod tests {
             cux_tap_k(&mut app);
             settle_follow(&mut app);
             assert!(cam_translation(&mut app).distance(before) < 1e-3, "block {i} toggled");
+        }
+    }
+
+    // CARD CAMERA-UX-1b-0 — K acts only in the yard, on the ground.
+    #[test]
+    fn cux1b0_f1_k_on_title_or_house_dress_leaves_walk_into_yard() {
+        for door in [LaunchDoor::Title, LaunchDoor::HouseDress] {
+            let mut app = cux_world(|app| { app.insert_resource(door); });
+            cux_tap_k(&mut app);
+            assert_eq!(*app.world().resource::<CameraMode>(), CameraMode::Walk, "{door:?} K flipped the mode");
+            app.insert_resource(LaunchDoor::InYard);
+            settle_follow(&mut app);
+            let mut yard = cux_world(|_| {});
+            yard.update();
+            settle_follow(&mut yard);
+            let (a, b) = (cux_transform(&mut app), cux_transform(&mut yard));
+            assert_eq!(a.translation.to_array().map(f32::to_bits), b.translation.to_array().map(f32::to_bits), "{door:?}");
+            assert_eq!(a.rotation.to_array().map(f32::to_bits), b.rotation.to_array().map(f32::to_bits), "{door:?}");
+        }
+    }
+
+    #[test]
+    fn cux1b0_f2_k_while_lifted_leaves_mode_unchanged() {
+        let lifted = sanctuary_yard_wake().y + AMBROSIAN_LIFT_DETECT + 1.0;
+        for start_close_up in [false, true] {
+            let mut app = cux_world(|_| {});
+            if start_close_up {
+                cux_tap_k(&mut app);
+            }
+            let want = *app.world().resource::<CameraMode>();
+            app.world_mut().resource_mut::<SoftPresence>().position.y = lifted;
+            assert!(presence_reads_ambrosian_lift(app.world().resource::<SoftPresence>().position));
+            cux_tap_k(&mut app);
+            assert_eq!(*app.world().resource::<CameraMode>(), want, "lifted K, start close-up {start_close_up}");
         }
     }
 }
