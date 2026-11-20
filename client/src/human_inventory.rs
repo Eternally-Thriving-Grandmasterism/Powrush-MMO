@@ -163,6 +163,7 @@ TextColor(TITLE_TEXT_PRIMARY),
                 },
                 // Opaque I/Ledger face — Title contrast law on soft GPU.
                 ui_kit::plate(),
+                crate::ui_frame::plate_frame(),
                 Visibility::Hidden,
             ),
 GlobalZIndex(LIVED_UI_Z_LEDGER),
