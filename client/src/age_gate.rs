@@ -58,8 +58,8 @@ fn spawn_age_gate(commands: &mut Commands) {
             pane.spawn(words(AGE_GATE_HEADING, 22.0, TITLE_TEXT_PRIMARY));
             pane.spawn(words(AGE_GATE_ASK, 15.0, TITLE_TEXT_SECONDARY));
             pane.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(ui_kit::SPACE_M), align_items: AlignItems::Center, ..default() }).with_children(|row| {
-                chip(row, "-", AgeBtn::MonthDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), MonthFace)); chip(row, "+", AgeBtn::MonthInc);
-                chip(row, "-", AgeBtn::YearDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), YearFace)); chip(row, "+", AgeBtn::YearInc);
+                chip(row, "-", AgeBtn::MonthDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), TextLayout::justify(Justify::Center), Node { min_width: Val::Px(21.0), justify_content: JustifyContent::Center, ..default() }, MonthFace)); chip(row, "+", AgeBtn::MonthInc);
+                chip(row, "-", AgeBtn::YearDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), TextLayout::justify(Justify::Center), Node { min_width: Val::Px(45.0), justify_content: JustifyContent::Center, ..default() }, YearFace)); chip(row, "+", AgeBtn::YearInc);
             });
             chip(pane, AGE_GATE_CONTINUE, AgeBtn::Continue);
             pane.spawn(words(AGE_GATE_NOTE, 13.0, TITLE_TEXT_SECONDARY));
@@ -129,7 +129,7 @@ fn age_gate_sync(
     gate: Res<AgeGate>, entry: Option<Res<AgeEntry>>,
     mut roots: Query<&mut Visibility, (With<AgeRoot>, Without<Pane>)>,
     mut panes: Query<(&Pane, &mut Visibility), Without<AgeRoot>>,
-    mut month: Query<&mut Text, With<MonthFace>>, mut year: Query<&mut Text, (With<YearFace>, Without<MonthFace>)>,
+    mut month: Query<(&mut Text, &mut TextColor), With<MonthFace>>, mut year: Query<(&mut Text, &mut TextColor), (With<YearFace>, Without<MonthFace>)>,
     mut buttons: Query<(&AgeBtn, &mut BackgroundColor)>,
     pads: Query<(), With<Gamepad>>,
 ) {
@@ -138,10 +138,10 @@ fn age_gate_sync(
     let show = |on: bool| if on { Visibility::Visible } else { Visibility::Hidden };
     for mut root in &mut roots { *root = show(gate.open); }
     for (pane, mut vis) in &mut panes { *vis = show(gate.open && (*pane == Pane::Denied) == denied); }
-    let month_s = entry.as_ref().and_then(|e| e.month).map(|m| m.to_string()).unwrap_or_default();
-    let year_s = entry.as_ref().and_then(|e| e.year).map(|y| y.to_string()).unwrap_or_default();
-    for mut text in &mut month { if text.as_str() != month_s { **text = month_s.clone(); } }
-    for mut text in &mut year { if text.as_str() != year_s { **text = year_s.clone(); } }
+    let month_s = entry.as_ref().and_then(|e| e.month).map(|m| m.to_string()).unwrap_or_else(|| "--".into());
+    let year_s = entry.as_ref().and_then(|e| e.year).map(|y| y.to_string()).unwrap_or_else(|| "----".into());
+    for (mut text, mut color) in &mut month { if text.as_str() != month_s { **text = month_s.clone(); } color.set_if_neq(TextColor(if entry.as_ref().and_then(|e| e.month).is_some() { TITLE_TEXT_PRIMARY } else { TITLE_TEXT_SECONDARY })); }
+    for (mut text, mut color) in &mut year { if text.as_str() != year_s { **text = year_s.clone(); } color.set_if_neq(TextColor(if entry.as_ref().and_then(|e| e.year).is_some() { TITLE_TEXT_PRIMARY } else { TITLE_TEXT_SECONDARY })); }
     // The focused field shows only while a pad is connected; a not-ready Continue stays grey.
     let focus = entry.as_ref().filter(|_| !pads.is_empty()).map(|entry| entry.focus);
     for (btn, mut bg) in &mut buttons {
@@ -351,5 +351,65 @@ mod tests {
         let copy = { let mut texts = world.query::<&Text>(); texts.iter(world).map(|t| t.as_str().to_string()).collect::<Vec<_>>().join("\n") };
         for line in [AGE_GATE_HEADING, AGE_GATE_ASK, AGE_GATE_CONTINUE, AGE_GATE_NOTE, AGE_GATE_UNDER, AGE_GATE_QUIT, "-", "+"] { assert!(copy.contains(line), "{line}"); }
         if std::env::var_os("AGL1_TRACE").is_some() { let mut faces = world.query::<(&Text, Option<&MonthFace>, Option<&YearFace>)>(); for (text, month, year) in faces.iter(world) { if month.is_some() || year.is_some() { eprintln!("AGL1 rest face month={} year={} {:?}", month.is_some(), year.is_some(), text.as_str()); } } }
+    }
+    fn agf1_scales() -> [f32; 2] { [0.85, shared::local_settings::TEXT_SCALE_MAX] }
+    fn agf1_put(app: &mut App, month: Option<u8>, year: Option<i32>) {
+        { let mut entry = app.world_mut().resource_mut::<AgeEntry>(); entry.month = month; entry.year = year; }
+        app.update(); app.update();
+    }
+    fn agf1_face(world: &mut World, month: bool) -> (String, TextColor) {
+        let mut q = world.query::<(&Text, &TextColor, Option<&MonthFace>, Option<&YearFace>)>();
+        let mut hit = q.iter(world).filter(|(_, _, m, y)| if month { m.is_some() } else { y.is_some() }).map(|(t, c, _, _)| (t.as_str().to_string(), *c));
+        let one = hit.next().unwrap(); assert!(hit.next().is_none(), "one face"); one
+    }
+    fn agf1_xs(world: &mut World) -> Vec<f32> {
+        let mut q = world.query::<(&AgeBtn, &ComputedNode, &bevy::ui::UiGlobalTransform)>();
+        let mut xs = [0f32; 4]; let mut n = 0u8;
+        for (btn, node, xf) in q.iter(world) {
+            let Some(k) = (match *btn { AgeBtn::MonthDec => Some(0), AgeBtn::MonthInc => Some(1), AgeBtn::YearDec => Some(2), AgeBtn::YearInc => Some(3), _ => None }) else { continue };
+            xs[k] = xf.translation.x * node.inverse_scale_factor; n += 1;
+        }
+        assert_eq!(n, 4); xs.to_vec()
+    }
+    fn agf1_near(a: &[f32], b: &[f32]) -> bool { a.len() == b.len() && a.iter().zip(b).all(|(p, q)| (p - q).abs() <= 0.5) }
+    #[test] fn age_gate_faces_agf1_1_rest() {
+        for (w, h, s) in agl1_view() { for scale in agf1_scales() {
+            let mut app = agl1_app(w, h, s, scale);
+            let month = agf1_face(app.world_mut(), true); let year = agf1_face(app.world_mut(), false);
+            assert_eq!((month.0.as_str(), year.0.as_str()), ("--", "----"), "AGF1-1 text {w}x{h}x{s} scale {scale}");
+            assert_eq!((month.1, year.1), (TextColor(TITLE_TEXT_SECONDARY), TextColor(TITLE_TEXT_SECONDARY)), "AGF1-1 colour {w}x{h}x{s} scale {scale}");
+        } }
+    }
+    #[test] fn age_gate_faces_agf1_2_values() {
+        for (w, h, s) in agl1_view() { for scale in agf1_scales() {
+            let mut app = agl1_app(w, h, s, scale); agf1_put(&mut app, Some(12), Some(2026));
+            let month = agf1_face(app.world_mut(), true); let year = agf1_face(app.world_mut(), false);
+            assert_eq!((month.0.as_str(), year.0.as_str(), month.1, year.1), ("12", "2026", TextColor(TITLE_TEXT_PRIMARY), TextColor(TITLE_TEXT_PRIMARY)), "AGF1-2 12/2026 {w}x{h}x{s} scale {scale}");
+            agf1_put(&mut app, Some(1), Some(1907));
+            let month = agf1_face(app.world_mut(), true); let year = agf1_face(app.world_mut(), false);
+            assert_eq!((month.0.as_str(), year.0.as_str(), month.1, year.1), ("1", "1907", TextColor(TITLE_TEXT_PRIMARY), TextColor(TITLE_TEXT_PRIMARY)), "AGF1-2 1/1907 {w}x{h}x{s} scale {scale}");
+        } }
+    }
+    #[test] fn age_gate_faces_agf1_3_chip_x() {
+        for (w, h, s) in agl1_view() { for scale in agf1_scales() {
+            let mut app = agl1_app(w, h, s, scale); let rest = agf1_xs(app.world_mut());
+            agf1_put(&mut app, Some(12), Some(2026)); let wide = agf1_xs(app.world_mut());
+            agf1_put(&mut app, Some(1), Some(1907)); let narrow = agf1_xs(app.world_mut());
+            if std::env::var_os("AGF1_TRACE").is_some() { eprintln!("AGF1-3 {w}x{h}x{s} scale {scale} rest {rest:?} wide {wide:?} narrow {narrow:?}"); }
+            assert!(agf1_near(&rest, &wide) && agf1_near(&rest, &narrow), "AGF1-3 {w}x{h}x{s} scale {scale} rest {rest:?} 12/2026 {wide:?} 1/1907 {narrow:?}");
+        } }
+    }
+    fn agf1_dx(world: &mut World, month: bool) -> f32 {
+        let mut q = world.query::<(&ComputedNode, &bevy::text::TextLayoutInfo, Option<&MonthFace>, Option<&YearFace>)>();
+        let (node, info, _, _) = q.iter(world).find(|(_, _, m, y)| if month { m.is_some() } else { y.is_some() }).unwrap();
+        let (a, b) = info.run_geometry.iter().fold((f32::MAX, f32::MIN), |(a, b), run| (a.min(run.bounds.min.x), b.max(run.bounds.max.x)));
+        assert!(a < b, "AGF1-4 ink"); (node.content_box().min.x + (a + b) * 0.5) * node.inverse_scale_factor
+    }
+    #[test] fn age_gate_faces_agf1_4_centred() {
+        for (w, h, s) in agl1_view() { let mut app = agl1_app(w, h, s, 1.); for (m, y, label) in [(None, None, "rest"), (Some(12u8), Some(2026), "12/2026"), (Some(1), Some(1907), "1/1907")] {
+            agf1_put(&mut app, m, y); let (md, yd) = (agf1_dx(app.world_mut(), true), agf1_dx(app.world_mut(), false));
+            if std::env::var_os("AGF1_TRACE").is_some() { eprintln!("AGF1-4 {label} {w}x{h}x{s} month {md} year {yd}"); }
+            assert!(md.abs() <= 1. && yd.abs() <= 1., "AGF1-4 {label} {w}x{h}x{s} month {md} year {yd}");
+        } }
     }
 }
