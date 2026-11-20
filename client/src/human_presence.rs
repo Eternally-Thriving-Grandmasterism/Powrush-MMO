@@ -2170,7 +2170,7 @@ pub(crate) struct CloseUpGate<'w> {
 }
 
 impl CloseUpGate<'_> {
-    /// CARD CAMERA-UX-1b-0 — yard only (no reset on door change), and never while lifted. Not the keypress.
+    /// True when a K press would flip the mode (the toggle's guard, minus the keypress).
     pub(crate) fn k_toggles(&self) -> bool {
         !self.presence.as_deref().is_some_and(|p| presence_reads_ambrosian_lift(p.position)) && close_up_k_is_free(
             self.house.as_deref().is_some_and(|h| h.settings_open),
@@ -2181,7 +2181,13 @@ impl CloseUpGate<'_> {
     }
 }
 
-fn toggle_close_up(keyboard: Res<ButtonInput<KeyCode>>, mut mode: ResMut<CameraMode>, gate: CloseUpGate, offer: Option<ResMut<CloseUpOffer>>) {
+fn toggle_close_up(
+    keyboard: Res<ButtonInput<KeyCode>>,
+    mut mode: ResMut<CameraMode>,
+    gate: CloseUpGate,
+    offer: Option<ResMut<CloseUpOffer>>,
+) {
+    // CARD CAMERA-UX-1b-0 — yard only (no reset on door change), and never while lifted.
     if !keyboard.just_pressed(KeyCode::KeyK) || !gate.k_toggles() {
         return;
     }
