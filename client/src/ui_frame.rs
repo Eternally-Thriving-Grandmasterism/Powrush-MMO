@@ -8,6 +8,7 @@ use bevy::render::render_resource::{Extent3d, TextureDimension, TextureFormat};
 pub const FRAME_PX: u32 = 24;
 pub const FRAME_SLICE: f32 = 8.0;
 pub const FRAME_IMAGE: Handle<Image> = uuid_handle!("af3a9427-4150-46f7-aed8-987749def338");
+pub const FRAME_LIT_IMAGE: Handle<Image> = uuid_handle!("c4b7e2a1-8f63-4d15-9a70-6e1d4b8c2f59");
 
 pub struct UiFramePlugin;
 
@@ -22,6 +23,10 @@ pub fn frame_slicer() -> TextureSlicer {
 }
 
 pub fn plate_frame() -> ImageNode {
+    ImageNode { image: FRAME_IMAGE, image_mode: NodeImageMode::Sliced(frame_slicer()), visual_box: VisualBox::PaddingBox, ..default() }
+}
+
+pub fn button_frame() -> ImageNode {
     ImageNode { image: FRAME_IMAGE, image_mode: NodeImageMode::Sliced(frame_slicer()), visual_box: VisualBox::PaddingBox, ..default() }
 }
 
@@ -59,13 +64,41 @@ pub fn frame_rgba() -> Vec<u8> {
     buf
 }
 
+/// L3 lit frame: same geometry, bevel lifted by the active-button step, ornaments by the spark step.
+pub fn frame_lit_rgba() -> Vec<u8> {
+    let plate = bytes(crate::ui_kit::TITLE_PLATE_BG);
+    let gold = bytes(crate::ui_kit::TITLE_BORDER);
+    let btn = bytes(crate::ui_kit::TITLE_BTN_BG);
+    let active = bytes(crate::ui_kit::TITLE_BTN_ACTIVE_BG);
+    let bevel = [plate[0].saturating_sub(12), plate[1].saturating_sub(12), plate[2].saturating_sub(12)];
+    let ring = [active[0].saturating_sub(btn[0]), active[1].saturating_sub(btn[1]), active[2].saturating_sub(btn[2])];
+    let spark = [gold[0].saturating_add(28), gold[1].saturating_add(28), gold[2].saturating_add(18)];
+    let lift = [spark[0].saturating_sub(gold[0]), spark[1].saturating_sub(gold[1]), spark[2].saturating_sub(gold[2])];
+    let mut buf = frame_rgba();
+    for px in buf.chunks_exact_mut(4) {
+        if px[3] == 0 {
+            continue;
+        }
+        let add = if px[0] == bevel[0] && px[1] == bevel[1] && px[2] == bevel[2] { ring } else { lift };
+        px[0] = px[0].saturating_add(add[0]);
+        px[1] = px[1].saturating_add(add[1]);
+        px[2] = px[2].saturating_add(add[2]);
+    }
+    buf
+}
+
 fn frame_image() -> Image {
     Image::new(Extent3d { width: FRAME_PX, height: FRAME_PX, depth_or_array_layers: 1 }, TextureDimension::D2, frame_rgba(), TextureFormat::Rgba8UnormSrgb, RenderAssetUsages::RENDER_WORLD)
+}
+
+fn frame_lit_image() -> Image {
+    Image::new(Extent3d { width: FRAME_PX, height: FRAME_PX, depth_or_array_layers: 1 }, TextureDimension::D2, frame_lit_rgba(), TextureFormat::Rgba8UnormSrgb, RenderAssetUsages::RENDER_WORLD)
 }
 
 fn install_frame(images: Option<ResMut<Assets<Image>>>) {
     let Some(mut images) = images else { return };
     images.insert(FRAME_IMAGE.id(), frame_image()).expect("ui_frame");
+    images.insert(FRAME_LIT_IMAGE.id(), frame_lit_image()).expect("ui_frame");
 }
 
 #[cfg(test)]
@@ -163,5 +196,49 @@ mod tests {
         lic.update();
         assert!(lic.world_mut().query_filtered::<Entity, With<crate::licences_screen::LicencesRoot>>().iter(lic.world()).next().is_some());
         assert_eq!(lic.world_mut().query::<&ImageNode>().iter(lic.world()).count(), 0);
+    }
+
+    fn client_prod() -> Vec<(String, String)> {
+        let src = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        std::fs::read_dir(src).unwrap().flatten().filter_map(|ent| {
+            let name = ent.file_name().into_string().ok()?;
+            if !name.ends_with(".rs") { return None; }
+            let text = std::fs::read_to_string(ent.path()).unwrap();
+            Some((name, text.split("\n#[cfg(test)]\nmod tests {").next().unwrap().to_string()))
+        }).collect()
+    }
+    #[test]
+    fn button_frame_bf1_lit_variant_pin() {
+        let (rest, lit) = (frame_rgba(), frame_lit_rgba());
+        assert_eq!((lit.len(), lit == frame_lit_rgba(), fnv1a64(&rest)), ((FRAME_PX * FRAME_PX * 4) as usize, true, 0xd539683111b8e69d));
+        assert_eq!(fnv1a64(&lit), 0x62ea015a2591cd05);
+        let px = |b: &[u8], x: u32, y: u32| { let i = ((y * FRAME_PX + x) * 4) as usize; b[i..i + 4].to_vec() };
+        assert_eq!(px(&lit, 12, 12)[3], 0, "centre");
+        let up = |a: &[u8], b: &[u8]| a.iter().zip(b).any(|(p, q)| p > q) && a.iter().zip(b).all(|(p, q)| p >= q);
+        assert!(up(&px(&lit, 0, 12)[..3], &px(&rest, 0, 12)[..3]) && up(&px(&lit, 2, 2)[..3], &px(&rest, 2, 2)[..3]) && up(&px(&lit, 4, 4)[..3], &px(&rest, 4, 4)[..3]), "L3");
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<Image>().add_plugins(UiFramePlugin).update();
+        let images = app.world().resource::<Assets<Image>>();
+        assert_eq!((images.get(FRAME_IMAGE.id()).and_then(|i| i.data.as_deref()), images.get(FRAME_LIT_IMAGE.id()).and_then(|i| i.data.as_deref())), (Some(rest.as_slice()), Some(lit.as_slice())));
+        let node = button_frame();
+        assert_eq!((node.image.id(), node.color, node.visual_box), (FRAME_IMAGE.id(), Color::WHITE, VisualBox::PaddingBox));
+        assert_eq!(node.image_mode, NodeImageMode::Sliced(frame_slicer()));
+    }
+    #[test]
+    fn button_frame_bf8_out_of_scope_untouched() {
+        let kit = include_str!("ui_kit.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        assert!(kit.contains("pub fn button(bg: Color) -> (Button, Interaction, BorderColor, BackgroundColor) {\n    (Button, Interaction::default(), BorderColor::all(TITLE_BORDER), BackgroundColor(bg))\n}"));
+        let calls: Vec<_> = client_prod().into_iter().filter(|(n, _)| n != "ui_frame.rs").filter_map(|(n, p)| { let c = p.matches("button_frame()").count(); (c > 0).then(|| (n, c, p.split("fn spawn_title_plate_btn").nth(1).is_some_and(|b| b.contains("button_frame()")))) }).collect();
+        assert_eq!(calls, vec![("title_screen.rs".into(), 1, true)]);
+        let mut gate = App::new();
+        gate.insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).add_plugins((MinimalPlugins, bevy::input::InputPlugin, crate::age_gate::AgeGatePlugin)).add_message::<AppExit>().update();
+        assert_eq!(gate.world_mut().query::<&ImageNode>().iter(gate.world()).count(), 0, "age-gate chip");
+    }
+    #[test]
+    fn button_frame_bf9_one_image_writer() {
+        let found: Vec<_> = client_prod().into_iter().filter_map(|(n, p)| { let c = p.matches("&mut ImageNode").count(); (c > 0).then_some((n, c)) }).collect();
+        assert_eq!(found, vec![("launch_menu.rs".into(), 1)]);
+        let menu = include_str!("launch_menu.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        assert!(menu.contains("&mut ImageNode), With<LaunchRow>") && menu.matches("&mut BackgroundColor").count() == 2 && menu.matches("&mut BorderColor").count() == 0);
     }
 }

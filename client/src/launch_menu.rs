@@ -65,6 +65,7 @@ impl Plugin for LaunchMenuPlugin {
         app.init_resource::<LaunchFocus>()
             .add_systems(Update, (nav, launch_row_clicks).chain().run_if(age_gate_clear))
             .add_systems(Update, (paint_launch_focus.after(sync_title_visibility).after(launch_pad_nav), sync_title_scrim));
+        app.add_systems(Update, paint_launch_frame.after(launch_pad_nav));
         tag_title_rows(app);
     }
 }
@@ -172,6 +173,22 @@ fn paint_launch_focus(
             TITLE_BTN_BG
         };
         bg.set_if_neq(BackgroundColor(fill));
+    }
+}
+
+/// Hover, press, and pad focus share the lit frame. Fill and border stay with their owners.
+fn paint_launch_frame(
+    pads: Query<(), With<Gamepad>>,
+    focus: Res<LaunchFocus>,
+    label: Res<HouseLabel>,
+    mut rows: Query<(&LaunchRow, &Interaction, &mut ImageNode), With<LaunchRow>>,
+) {
+    for (row, interaction, mut image) in &mut rows {
+        let on = row.enabled(label.persist_present) && (*interaction != Interaction::None || (*row == focus.0 && !pads.is_empty()));
+        let want = if on { crate::ui_frame::FRAME_LIT_IMAGE } else { crate::ui_frame::FRAME_IMAGE };
+        if image.image.id() != want.id() {
+            image.image = want;
+        }
     }
 }
 
@@ -380,5 +397,115 @@ mod tests {
         assert_eq!(focus(&app), LaunchRow::Settings, "Continue without a save is skipped");
         assert_eq!(fill(&mut app, LaunchRow::Continue), TITLE_BTN_DISABLED_BG);
         assert_eq!(app.world_mut().query::<&LaunchRow>().iter(app.world()).count(), LaunchRow::ALL.len(), "Online carries no LaunchRow");
+    }
+
+    fn rows(world: &mut World) -> Vec<Entity> {
+        use bevy::ui_widgets::Button;
+        let plate = world.query_filtered::<&Children, With<TitleRoot>>().single(world).unwrap().to_vec().into_iter().find(|e| world.get::<Children>(*e).is_some_and(|c| c.iter().any(|k| world.get::<Button>(k).is_some()))).unwrap();
+        world.get::<Children>(plate).unwrap().iter().filter(|e| world.get::<Button>(*e).is_some()).collect()
+    }
+    fn shot(w: u32, h: u32, scale: f32) -> App {
+        use {bevy::camera::{ComputedCameraValues, RenderTargetInfo}, bevy::window::{PrimaryWindow, WindowResolution}};
+        let mut app = App::new();
+        app.insert_resource(LivedHourBind::default()).insert_resource(ActiveHudPreset::default())
+            .insert_resource(crate::net_mode::SessionNetMode::from_powrush_net(shared::hex_listen::PowrushNet::Off))
+            .add_message::<bevy::input::gamepad::GamepadRumbleRequest>()
+            .add_plugins((MinimalPlugins, bevy::camera::visibility::VisibilityPlugin, AssetPlugin::default(), bevy::input::InputPlugin, crate::input::InputPlugin, crate::local_settings::LocalSettingsPlugin, bevy::text::TextPlugin, bevy::ui::UiPlugin, crate::ui_font::UiFontPlugin))
+            .init_asset::<Image>().init_asset::<bevy::mesh::Mesh>().init_asset::<bevy::mesh::skinning::SkinnedMeshInverseBindposes>().init_asset::<TextureAtlasLayout>().add_message::<bevy::picking::pointer::PointerInput>().add_message::<bevy::picking::backend::PointerHits>().init_resource::<bevy::picking::hover::HoverMap>().init_resource::<bevy::picking::events::PointerState>()
+            .add_plugins((crate::title_screen::TitleScreenPlugin, LicencesScreenPlugin, LaunchMenuPlugin));
+        let info = Some(RenderTargetInfo { physical_size: UVec2::new(w, h), scale_factor: scale });
+        app.world_mut().spawn((Camera2d, Camera { computed: ComputedCameraValues { target_info: info, ..default() }, ..default() }));
+        app.world_mut().spawn((Window { resolution: WindowResolution::new(w, h).with_scale_factor_override(scale), ..default() }, PrimaryWindow));
+        (app.update(), app.update());
+        app
+    }
+    fn aim(app: &mut App, at: Option<Vec2>) {
+        app.world_mut().query_filtered::<&mut Window, With<bevy::window::PrimaryWindow>>().single_mut(app.world_mut()).unwrap().set_physical_cursor_position(at.map(|p| p.as_dvec2())); app.update();
+    }
+    fn centre(app: &mut App, row: LaunchRow) -> Vec2 {
+        let world = app.world_mut(); world.query::<(&LaunchRow, &bevy::ui::UiGlobalTransform)>().iter(world).find(|(r, _)| **r == row).unwrap().1.translation
+    }
+    fn lit_only(world: &World, rows: &[Entity], only: Option<Entity>) { for e in rows { assert_eq!(world.get::<ImageNode>(*e).expect("frame").image.id(), if Some(*e) == only { crate::ui_frame::FRAME_LIT_IMAGE.id() } else { crate::ui_frame::FRAME_IMAGE.id() }); } }
+    #[test]
+    fn button_frame_bf2_seven_rows_rest_on_frame_image() {
+        let (_lock, _dir) = (crate::test_env::lock(), scratch("bf2"));
+        let mut app = h1();
+        let found = rows(app.world_mut());
+        assert_eq!(found.len(), 7);
+        lit_only(app.world(), &found, None);
+        let node = app.world().get::<ImageNode>(found[0]).unwrap();
+        assert_eq!((node.visual_box, node.color, node.image_mode.clone()), (VisualBox::PaddingBox, Color::WHITE, NodeImageMode::Sliced(crate::ui_frame::frame_slicer())));
+    }
+    #[test]
+    fn button_frame_bf3_hover_uses_ui_focus_system() {
+        let (_lock, _dir) = (crate::test_env::lock(), scratch("bf3"));
+        let mut app = shot(1280, 720, 1.0);
+        let at = centre(&mut app, LaunchRow::Play);
+        aim(&mut app, Some(at));
+        let found = rows(app.world_mut());
+        let play = found.iter().copied().find(|e| app.world().get::<LaunchRow>(*e) == Some(&LaunchRow::Play)).unwrap();
+        assert_eq!(app.world().get::<Interaction>(play).copied(), Some(Interaction::Hovered), "ui_focus centre {at:?}");
+        lit_only(app.world(), &found, Some(play));
+        aim(&mut app, None);
+        lit_only(app.world(), &found, None);
+    }
+    #[test]
+    fn button_frame_bf4_pad_focus_lits_one_row() {
+        let (_lock, _dir) = (crate::test_env::lock(), scratch("bf4"));
+        let mut app = h1();
+        let found = rows(app.world_mut());
+        lit_only(app.world(), &found, None);
+        app.world_mut().resource_mut::<HouseLabel>().persist_present = true;
+        pad(&mut app, GamepadButton::DPadDown);
+        assert_eq!((focus(&app), fill(&mut app, LaunchRow::Continue)), (LaunchRow::Continue, TITLE_BTN_ACTIVE_BG));
+        let cont = found.iter().copied().find(|e| app.world().get::<LaunchRow>(*e) == Some(&LaunchRow::Continue)).unwrap();
+        lit_only(app.world(), &found, Some(cont));
+        let id = app.world_mut().query_filtered::<Entity, With<Gamepad>>().single(app.world()).unwrap();
+        app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Disconnected));
+        app.update();
+        lit_only(app.world(), &found, None);
+    }
+    #[test]
+    fn button_frame_bf5_online_stays_rest() {
+        let (_lock, _dir) = (crate::test_env::lock(), scratch("bf5"));
+        let mut app = shot(1280, 720, 1.0);
+        let online = *rows(app.world_mut()).last().unwrap();
+        let child = app.world().get::<Children>(online).unwrap()[0];
+        assert!(app.world().get::<LaunchRow>(online).is_none());
+        assert_eq!((app.world().get::<BackgroundColor>(online).unwrap().0, app.world().get::<TextColor>(child).unwrap().0), (TITLE_BTN_DISABLED_BG, crate::ui_kit::TITLE_BTN_DISABLED_FG));
+        let at = app.world().get::<bevy::ui::UiGlobalTransform>(online).unwrap().translation;
+        aim(&mut app, Some(at));
+        assert_eq!((app.world().get::<ImageNode>(online).unwrap().image.id(), app.world().get::<BackgroundColor>(online).unwrap().0), (crate::ui_frame::FRAME_IMAGE.id(), TITLE_BTN_DISABLED_BG));
+        app.world_mut().resource_mut::<HouseLabel>().persist_present = true;
+        (0..LaunchRow::ALL.len()).for_each(|_| pad(&mut app, GamepadButton::DPadDown));
+        let body = include_str!("peace_audio.rs").split("fn play_ui_click(").nth(1).unwrap().split("\n}\n").next().unwrap();
+        assert!(app.world().get::<LaunchRow>(online).is_none() && app.world().get::<ImageNode>(online).unwrap().image.id() == crate::ui_frame::FRAME_IMAGE.id() && app.world().get::<BackgroundColor>(online).unwrap().0 == TITLE_BTN_DISABLED_BG && body.contains("b.0 == crate::ui_kit::TITLE_BTN_DISABLED_BG"));
+    }
+    #[test]
+    fn button_frame_bf6_disabled_continue_never_lits() {
+        let (_lock, _dir) = (crate::test_env::lock(), scratch("bf6"));
+        let mut app = shot(1280, 720, 1.0);
+        assert!(!app.world().resource::<HouseLabel>().persist_present);
+        let at = centre(&mut app, LaunchRow::Continue);
+        aim(&mut app, Some(at));
+        let found = rows(app.world_mut());
+        lit_only(app.world(), &found, None);
+        assert_eq!(fill(&mut app, LaunchRow::Continue), TITLE_BTN_DISABLED_BG);
+    }
+    #[test]
+    fn button_frame_bf7_node_unchanged_at_720_and_2x() {
+        let (_lock, _dir) = (crate::test_env::lock(), scratch("bf7"));
+        let want = Node { padding: UiRect::axes(Val::Px(14.0), Val::Px(10.0)), justify_content: JustifyContent::Center, border: UiRect::all(Val::Px(1.0)), ..default() };
+        for (w, h, scale) in [(1280u32, 720u32, 1.0f32), (2560, 1440, 2.0)] {
+            let mut app = shot(w, h, scale);
+            let found = rows(app.world_mut());
+            let before: Vec<_> = found.iter().map(|e| (app.world().get::<Node>(*e).cloned(), app.world().get::<ComputedNode>(*e).unwrap().size(), app.world().get::<bevy::ui::UiGlobalTransform>(*e).unwrap().translation)).collect();
+            assert!(before.iter().all(|(n, ..)| n == &Some(want.clone())));
+            for e in &found { app.world_mut().entity_mut(*e).remove::<ImageNode>(); }
+            app.update();
+            for (e, (_, size, pos)) in found.iter().zip(&before) {
+                assert_eq!((app.world().get::<ComputedNode>(*e).unwrap().size(), app.world().get::<bevy::ui::UiGlobalTransform>(*e).unwrap().translation), (*size, *pos), "{w}x{h}");
+            }
+        }
     }
 }
