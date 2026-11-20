@@ -480,6 +480,7 @@ GlobalZIndex(PLACES_PLATE_Z),
             p.spawn((
 Text::new(PLACES_TITLE),
 crate::ui_kit::display_font(18.0),
+crate::ui_kit::display_title_shadow(),
 TextColor(TITLE_TEXT_PRIMARY),
 ));
             p.spawn((
@@ -2566,5 +2567,18 @@ mod tests {
         let (want, def) = (FontSource::from(crate::ui_font::DISPLAY_FONT), TextFont::default().font);
         let ok = app.world_mut().query::<(&Text, &TextFont)>().iter(app.world()).any(|(t, f)| t.0 == PLACES_TITLE && f.font == want && f.font != def);
         assert!(ok, "Places");
+    }
+
+    /// TEXT-EFFECT-1 TE2 — the Places title carries the gilt shadow and the plate body does not.
+    #[test]
+    fn text_effect_te2_places_title_carries_gilt_shadow() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).add_systems(Startup, spawn_places_plate).update();
+        let want = TextShadow { offset: crate::ui_kit::DISPLAY_SHADOW_OFFSET, color: crate::ui_kit::TITLE_DISPLAY_SHADOW };
+        let rows: Vec<_> = app.world_mut().query::<(&Text, Option<&TextShadow>)>().iter(app.world()).map(|(t, s)| (t.0.clone(), s.copied())).collect();
+        let titles: Vec<_> = rows.iter().filter(|(t, _)| t == PLACES_TITLE).collect();
+        assert_eq!(titles.len(), 1);
+        assert_eq!(titles[0].1, Some(want));
+        assert!(rows.iter().all(|(t, s)| t == PLACES_TITLE || s.is_none()));
     }
 }

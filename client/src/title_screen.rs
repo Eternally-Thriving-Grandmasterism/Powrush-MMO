@@ -1545,6 +1545,7 @@ GlobalZIndex(LIVED_UI_Z_TITLE),
                 p.spawn((
 Text::new("POWRUSH"),
 ui_kit::display_font(ui_kit::TYPE_DISPLAY),
+ui_kit::display_title_shadow(),
 TextColor(TITLE_TEXT_PRIMARY),
 ));
                 p.spawn((
@@ -2120,6 +2121,7 @@ GlobalZIndex(140),
                 p.spawn((
 Text::new("Name your House"),
 ui_kit::display_font(18.0),
+ui_kit::display_title_shadow(),
 TextColor(TITLE_TEXT_PRIMARY),
 ));
                 p.spawn((
@@ -2180,6 +2182,7 @@ GlobalZIndex(141),
                 p.spawn((
 Text::new("House seals · heritage"),
 ui_kit::display_font(18.0),
+ui_kit::display_title_shadow(),
 TextColor(TITLE_TEXT_PRIMARY),
 ));
                 p.spawn((
@@ -2326,6 +2329,7 @@ GlobalZIndex(142),
                 p.spawn((
 Text::new("Persona creator · optional"),
 ui_kit::display_font(18.0),
+ui_kit::display_title_shadow(),
 TextColor(TITLE_TEXT_PRIMARY),
 ));
                 p.spawn((
@@ -10694,5 +10698,38 @@ mod tests {
         let world = app.world_mut();
         assert_eq!(world.query::<&ImageNode>().iter(world).count(), 0);
         assert_eq!(world.query_filtered::<Entity, Or<(With<SettingsStubRoot>, With<NameHouseRoot>, With<HouseDressRoot>, With<PersonaCreatorRoot>)>>().iter(world).count(), 4);
+    }
+
+    fn te_gilt() -> TextShadow {
+        TextShadow { offset: ui_kit::DISPLAY_SHADOW_OFFSET, color: ui_kit::TITLE_DISPLAY_SHADOW }
+    }
+
+    /// TEXT-EFFECT-1 TE1 — S1–S4 display titles carry the gilt shadow.
+    #[test]
+    fn text_effect_te1_s1_s4_display_titles_carry_gilt_shadow() {
+        let mut app = fd_app();
+        let want = te_gilt();
+        let world = app.world_mut();
+        for s in ["POWRUSH", "Name your House", "House seals · heritage", "Persona creator · optional"] {
+            let hit = world.query::<(&Text, Option<&TextShadow>)>().iter(world).find(|(t, _)| t.0 == s);
+            assert_eq!(hit.unwrap_or_else(|| panic!("{s}")).1.copied(), Some(want), "{s}");
+        }
+    }
+
+    /// TEXT-EFFECT-1 TE4 — shadow set equals the display face (count 4). Fab, guide, pause, buttons, subtitle do not.
+    #[test]
+    fn text_effect_te4_only_display_face_is_shadowed() {
+        let mut app = fd_app();
+        let face = FontSource::from(crate::ui_font::DISPLAY_FONT);
+        let world = app.world_mut();
+        let rows: Vec<(String, bool, bool)> = world.query::<(&Text, &TextFont, Option<&TextShadow>)>().iter(world).map(|(t, f, s)| (t.0.clone(), f.font == face, s.is_some())).collect();
+        let (display, shadowed) = (rows.iter().filter(|r| r.1).count(), rows.iter().filter(|r| r.2).count());
+        assert!(world.query_filtered::<&TextShadow, With<crate::fabricator::FabSlabText>>().iter(world).next().is_none(), "fab");
+        assert!(world.query_filtered::<&TextShadow, With<crate::first_session_guidance::FirstSessionGuidanceText>>().iter(world).next().is_none(), "guide");
+        assert!(world.query_filtered::<&TextShadow, With<PauseCueText>>().iter(world).next().is_none(), "pause");
+        assert!(rows.iter().any(|(t, d, s)| t == "Steward House · offline first" && !d && !s), "subtitle");
+        assert!(rows.iter().any(|(t, d, s)| t == "Play — first Hands" && !d && !s), "button");
+        assert!(rows.iter().all(|(_, d, s)| d == s), "shadow set {shadowed} display set {display}");
+        assert_eq!((display, shadowed), (4, 4));
     }
 }
