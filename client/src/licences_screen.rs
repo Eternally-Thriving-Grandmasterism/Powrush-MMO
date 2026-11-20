@@ -13,10 +13,7 @@ pub const LICENCES_BUTTON: &str = "Licences";
 pub const LICENCES_TITLE: &str = "Third-party licences";
 pub const LICENCES_INTRO: &str = "Open-source software and fonts used in Powrush, with their licence texts.";
 pub const LICENCES_BACK_HINT: &str = "Esc / B · Back";
-pub const FIRA_SANS_HEADING: &str = "Fira Sans (SIL Open Font License 1.1)";
 pub const NOTICES: &str = include_str!("../../THIRD-PARTY-NOTICES.txt");
-/// Fira Sans is the face on screen; the notices only name Fira Mono.
-pub const FIRA_SANS_OFL: &str = include_str!("../assets/fonts/OFL.txt");
 
 const RULE_WIDTH: usize = 80;
 const PLATE_MAX_WIDTH: f32 = 760.0;
@@ -50,12 +47,11 @@ pub fn split_notices(text: &str) -> Vec<&str> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LicencePage { Notice(usize), FiraSans, Music }
+pub enum LicencePage { Notice(usize), Music }
 
-/// Notices, then Fira Sans, then Music only once a track is credited (MC5).
+/// Notices, then Music only once a track is credited (MC5).
 pub fn licence_pages(music_present: bool) -> Vec<LicencePage> {
     let mut pages: Vec<_> = (0..SECTIONS.len()).map(LicencePage::Notice).collect();
-    pages.push(LicencePage::FiraSans);
     if crate::title_screen::music_credits_unlocked(music_present) { pages.push(LicencePage::Music); }
     pages
 }
@@ -67,7 +63,6 @@ pub fn page_text(page: LicencePage) -> (&'static str, &'static str) {
             let (head, body) = SECTIONS[i].split_once('\n').unwrap_or((SECTIONS[i], ""));
             (head.trim_end(), body.trim_start_matches(['\r', '\n']))
         }
-        LicencePage::FiraSans => (FIRA_SANS_HEADING, FIRA_SANS_OFL),
         LicencePage::Music => ("Music", ""),
     }
 }
@@ -225,10 +220,14 @@ mod tests {
         assert_eq!(LICENCES_TITLE, "Third-party licences");
         assert_eq!(LICENCES_INTRO, "Open-source software and fonts used in Powrush, with their licence texts.");
         assert_eq!(LICENCES_BACK_HINT, "Esc / B · Back");
-        assert_eq!(FIRA_SANS_HEADING, "Fira Sans (SIL Open Font License 1.1)");
-        let (head, body) = page_text(LicencePage::FiraSans);
-        assert_eq!(head, FIRA_SANS_HEADING);
-        assert!(body.contains("SIL OPEN FONT LICENSE Version 1.1") && body.contains("Mozilla Foundation"));
+        let ofl = include_str!("../assets/fonts/OFL.txt").trim();
+        let pages = licence_pages(false);
+        let rules = NOTICES.lines().filter(|l| l.len() == 80 && l.bytes().all(|b| b == b'=')).count();
+        let hits: Vec<_> = pages.iter().copied().map(page_text).filter(|(h, b)| *h == "Fira Sans (SIL Open Font License 1.1)" && (b.trim() == ofl || b.trim().ends_with(ofl))).collect();
+        assert_eq!(pages.len(), rules + 1, "NF3");
+        assert!(pages.iter().all(|p| matches!(p, LicencePage::Notice(_))));
+        assert_eq!(hits.len(), 1);
+        assert!(hits[0].1.contains("SIL OPEN FONT LICENSE Version 1.1") && hits[0].1.contains("Mozilla Foundation"));
     }
 
     #[test]
@@ -238,8 +237,8 @@ mod tests {
         assert!(lines.next().is_some_and(|l| l.starts_with("Cargo.lock sha256: ")));
         let rules = NOTICES.lines().filter(|l| l.len() == 80 && l.bytes().all(|b| b == b'=')).count();
         assert_eq!(split_notices(NOTICES).len(), rules + 1);
-        assert_eq!(licence_pages(false).len(), rules + 2, "every notice section, then Fira Sans");
-        assert_eq!(licence_pages(false).last(), Some(&LicencePage::FiraSans));
+        assert_eq!(licence_pages(false).len(), 147);
+        assert_eq!(licence_pages(false).iter().filter(|p| matches!(p, LicencePage::Notice(_))).count(), split_notices(NOTICES).len());
         assert_eq!(page_text(LicencePage::Notice(0)).0, "Third-party notices for powrush-client");
     }
 
@@ -306,7 +305,7 @@ mod tests {
             let music: Vec<&String> = shown.iter().filter(|t| t.starts_with("Music: ")).collect();
             let want: &[&str] = if present { &[MUSIC_CREDITS[12].line] } else { &[] };
             assert_eq!(music, want, "only a credited track, on the last page");
-            assert_eq!(shown.iter().any(|t| t.ends_with(FIRA_SANS_HEADING)), !present);
+            assert_eq!(shown.iter().any(|t| t.ends_with("Cinzel Regular, Cinzel-Regular.ttf (embedded in the game program as the display face for plate headers)")), !present);
         }
     }
 
