@@ -42,7 +42,11 @@ pub const TITLE_BTN_ACTIVE_BG: Color = Color::srgb(0.32, 0.16, 0.48);
 pub const TITLE_BORDER_MUTED: Color = Color::srgb(0.66, 0.58, 0.36);
 /// CARD LAUNCH-MENU-1 — Medium and up: TITLE_DIM_BG at partial alpha, so the static yard reads behind the opaque plate.
 pub const TITLE_SCRIM_BG: Color = Color::srgba(0.04, 0.025, 0.05, 0.72);
+/// TEXT-EFFECT-1 gilt lift. TITLE_BORDER rgb at alpha 0.55.
+pub const TITLE_DISPLAY_SHADOW: Color = Color::srgba(0.84, 0.69, 0.32, 0.55);
 // </title-palette> — every colour literal in this file (outside tests) lives above.
+/// Display-title gilt offset, logical px, down and right.
+pub const DISPLAY_SHADOW_OFFSET: Vec2 = Vec2::new(1.5, 1.5);
 
 /// Type scale, logical px. Title wordmark.
 pub const TYPE_DISPLAY: f32 = 28.0;
@@ -95,6 +99,11 @@ pub fn display_font(logical_px: f32) -> TextFont {
     TextFont { font: crate::ui_font::DISPLAY_FONT.into(), ..font(logical_px) }
 }
 
+/// Gilt copy of a display title, one offset, no blur.
+pub fn display_title_shadow() -> TextShadow {
+    TextShadow { offset: DISPLAY_SHADOW_OFFSET, color: TITLE_DISPLAY_SHADOW }
+}
+
 /// Opaque plate fill and gold frame (Title contrast law), beside the plate's own `Node`.
 pub fn plate() -> (BackgroundColor, BorderColor) {
     (BackgroundColor(TITLE_PLATE_BG), BorderColor::all(TITLE_BORDER))
@@ -138,7 +147,7 @@ mod tests {
         assert_eq!(body.matches("// <title-palette>").count(), 1);
         let outside = format!("{}{}", &body[..open], &body[close..]);
         assert_eq!(colour_literals(&outside), 0, "colour literal outside the palette");
-        assert_eq!(body[open..close].matches("pub const TITLE_").count(), 12);
+        assert_eq!(body[open..close].matches("pub const TITLE_").count(), 13);
     }
 
     #[test]
@@ -226,5 +235,34 @@ mod tests {
             assert_eq!(face.font, crate::ui_font::DISPLAY_FONT.into());
             assert_ne!(face.font, font(px).font);
         }
+    }
+
+    /// TEXT-EFFECT-1 TE6 — helper returns the consts, palette is 13, six prod sites, no default shadow.
+    #[test]
+    fn text_effect_te6_shadow_helper_palette_and_six_sites() {
+        assert_eq!(display_title_shadow(), TextShadow { offset: DISPLAY_SHADOW_OFFSET, color: TITLE_DISPLAY_SHADOW });
+        let body = prod(include_str!("ui_kit.rs"));
+        let (open, close) = (body.find("// <title-palette>").expect("open"), body.find("// </title-palette>").expect("close"));
+        let palette = body[open..close].matches("pub const TITLE_").count();
+        let literals = colour_literals(&format!("{}{}", &body[..open], &body[close..]));
+        let wired = body.contains("pub const TITLE_DISPLAY_SHADOW: Color = Color::srgba(0.84, 0.69, 0.32, 0.55);")
+            && body.contains("pub const DISPLAY_SHADOW_OFFSET: Vec2 = Vec2::new(1.5, 1.5);")
+            && body.contains("fn display_title_shadow() -> TextShadow")
+            && body.contains("offset: DISPLAY_SHADOW_OFFSET, color: TITLE_DISPLAY_SHADOW");
+        let (mut calls, mut fonts, mut defaults) = (0usize, 0usize, 0usize);
+        for ent in std::fs::read_dir(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src")).unwrap().flatten() {
+            let path = ent.path();
+            if path.extension().and_then(|s| s.to_str()) != Some("rs") { continue; }
+            let text = std::fs::read_to_string(&path).unwrap();
+            let src = text.split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+            calls += src.matches("display_title_shadow()").count();
+            fonts += src.matches("display_font(").count();
+            if path.ends_with("ui_kit.rs") {
+                fonts -= src.matches("fn display_font(").count();
+                calls -= src.matches("fn display_title_shadow()").count();
+            }
+            defaults += src.matches("TextShadow::default()").count();
+        }
+        assert_eq!((palette, literals, calls, fonts, defaults, wired), (13, 0, 6, 6, 0, true), "TE6");
     }
 }

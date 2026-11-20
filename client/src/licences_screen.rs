@@ -167,7 +167,7 @@ fn spawn_licences(commands: &mut Commands, screen: &LicencesScreen, page: usize)
     let scroll = Node { flex_grow: 1.0, flex_basis: Val::Px(0.0), min_height: Val::Px(0.0), flex_direction: FlexDirection::Column, overflow: Overflow::scroll_y(), ..default() };
     commands.spawn((full, BackgroundColor(TITLE_DIM_BG), FocusPolicy::Block, GlobalZIndex(LIVED_UI_Z_PAUSE + 2), LicencesRoot, LivedUiPlate)).with_children(|root| {
         root.spawn((plate, ui_kit::plate())).with_children(|p| {
-            p.spawn((Text::new(LICENCES_TITLE), ui_kit::display_font(TITLE_PX), TextColor(TITLE_TEXT_PRIMARY)));
+            p.spawn((Text::new(LICENCES_TITLE), ui_kit::display_font(TITLE_PX), ui_kit::display_title_shadow(), TextColor(TITLE_TEXT_PRIMARY)));
             p.spawn(words(LICENCES_INTRO, INTRO_PX, TITLE_TEXT_SECONDARY));
             p.spawn(Node { column_gap: Val::Px(ui_kit::SPACE_M), align_items: AlignItems::Center, ..default() }).with_children(|row| {
                 spawn_btn(row, "LB · Prev", NavBtn::Prev, Val::Auto);
@@ -353,5 +353,20 @@ mod tests {
         let (want, def) = (FontSource::from(crate::ui_font::DISPLAY_FONT), TextFont::default().font);
         let hit = app.world_mut().query::<(&Text, &TextFont)>().iter(app.world()).any(|(t, f)| t.0 == LICENCES_TITLE && f.font == want && f.font != def);
         assert!(hit, "licences title");
+    }
+
+    /// TEXT-EFFECT-1 TE3 — title shadow is on the first page and after Next respawns it.
+    #[test]
+    fn text_effect_te3_licences_title_shadow_survives_page() {
+        let want = TextShadow { offset: ui_kit::DISPLAY_SHADOW_OFFSET, color: ui_kit::TITLE_DISPLAY_SHADOW };
+        let mut app = h1(LaunchDoor::Title);
+        for pass in 0..2 {
+            if pass == 0 { press_entry(&mut app); } else { pad(&mut app, GamepadButton::RightTrigger, true); }
+            let rows: Vec<_> = app.world_mut().query::<(&Text, Option<&TextShadow>)>().iter(app.world()).map(|(t, s)| (t.0.clone(), s.copied())).collect();
+            let titles: Vec<_> = rows.iter().filter(|(t, _)| t == LICENCES_TITLE).collect();
+            assert_eq!(titles.len(), 1, "page {pass}");
+            assert_eq!(titles[0].1, Some(want), "page {pass}");
+            assert!(rows.iter().all(|(t, s)| t == LICENCES_TITLE || s.is_none()), "page {pass}");
+        }
     }
 }
