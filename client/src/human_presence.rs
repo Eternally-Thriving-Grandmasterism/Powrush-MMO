@@ -772,6 +772,7 @@ impl Plugin for HumanPresencePlugin {
             .init_resource::<PersonRhythm>()
             .init_resource::<FollowOrbit>()
             .init_resource::<CameraMode>()
+            .init_resource::<CloseUpOffer>()
             .init_resource::<ControlPreset>()
             .init_resource::<BodyFacing>()
             .init_resource::<MoveKeySnapshot>()
@@ -800,7 +801,7 @@ impl Plugin for HumanPresencePlugin {
                     )
                         .chain(),
                     pull_camera_from_walls.after(follow_camera),
-                    toggle_close_up.before(follow_camera),
+                    toggle_close_up.before(follow_camera).before(crate::first_harvest_epiphany::update_world_care_prompt),
                     (
                         setup_ual1_animation_graph,
                         attach_ual1_animation_player,
@@ -2139,7 +2140,13 @@ fn close_up_offset_scale(mode: Option<&CameraMode>) -> f32 {
     }
 }
 
-fn peace_key_k_is_bound(s: &LocalSettings) -> bool {
+/// CARD CAMERA-UX-1b — the K offer is spent by the first K that toggles. Session only.
+#[derive(Resource, Debug, Default)]
+pub(crate) struct CloseUpOffer {
+    pub(crate) spent: bool,
+}
+
+pub(crate) fn peace_key_k_is_bound(s: &LocalSettings) -> bool {
     [s.key_move_up, s.key_move_down, s.key_move_left, s.key_move_right, s.key_jump, s.key_sprint, s.key_use, s.key_satchel, s.key_hide, s.key_allocate]
         .into_iter()
         .any(|k| k == PeaceKey::K)
@@ -2160,6 +2167,7 @@ fn toggle_close_up(
     hud_edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
     settings: Option<Res<LocalSettingsState>>,
     presence: Option<Res<SoftPresence>>,
+    offer: Option<ResMut<CloseUpOffer>>,
 ) {
     // CARD CAMERA-UX-1b-0 — yard only (no reset on door change), and never while lifted.
     if !keyboard.just_pressed(KeyCode::KeyK) || presence.is_some_and(|p| presence_reads_ambrosian_lift(p.position)) || !close_up_k_is_free(
@@ -2174,6 +2182,9 @@ fn toggle_close_up(
         CameraMode::Walk => CameraMode::CloseUp,
         CameraMode::CloseUp => CameraMode::Walk,
     };
+    if let Some(mut offer) = offer {
+        offer.spent = true;
+    }
 }
 
 fn follow_camera(
@@ -6927,5 +6938,156 @@ mod tests {
             cux_tap_k(&mut app);
             assert_eq!(*app.world().resource::<CameraMode>(), want, "lifted K, start close-up {start_close_up}");
         }
+    }
+
+    // CARD CAMERA-UX-1b — K close-up offer on the CarePrompt line. Real FHE, HudLayout and
+    // HumanPresence plugins; behaviour only (the rendered Text and root Visibility).
+    const OFFER_TAIL: &str = "  ·  K look closer";
+
+    fn offer_world(pre: impl FnOnce(&mut App)) -> App {
+        use crate::first_harvest_epiphany::{FirstHarvestEpiphany, FirstHarvestEpiphanyPlugin};
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default()))
+            .set_error_handler(bevy::ecs::error::ignore)
+            .init_asset::<Mesh>()
+            .init_asset::<StandardMaterial>()
+            .add_plugins((FirstHarvestEpiphanyPlugin, crate::hud_presets::HudLayoutPlugin, crate::ui_font::UiFontPlugin, HumanPresencePlugin))
+            .insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(crate::hud_presets::HudPresetId::Classic) })
+            .insert_resource(LaunchDoor::InYard)
+            .insert_resource(quiet_house(false))
+            .insert_resource(LocalSettingsState { inner: LocalSettings::default(), dirty: false })
+            .init_resource::<ButtonInput<KeyCode>>()
+            .init_resource::<LocalLookFeel>()
+            .insert_resource(LocalFeedbackFeel::default())
+            .init_resource::<crate::first_session_guidance::FirstSessionGuidance>()
+            .insert_resource(crate::mercy_harvest_nodes::NearbyMercyNode { distance: 1.0, in_range: true, nodes_exist: true, ..default() })
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(Duration::from_millis(100)));
+        app.world_mut().resource_mut::<Time<Virtual>>().set_max_delta(Duration::from_secs(10));
+        app.world_mut().resource_mut::<FirstHarvestEpiphany>().first_harvest_lived = true;
+        pre(&mut app);
+        app.update();
+        app.update();
+        app
+    }
+
+    fn offer_step(app: &mut App, secs: f64) {
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(Duration::from_secs_f64(secs)));
+        app.update();
+    }
+
+    fn offer_at(app: &mut App, distance: f32) {
+        let mut n = app.world_mut().resource_mut::<crate::mercy_harvest_nodes::NearbyMercyNode>();
+        n.distance = distance;
+        n.in_range = distance <= crate::mercy_harvest_nodes::HARVEST_REACH;
+        offer_step(app, 0.1);
+    }
+
+    fn care_line(app: &mut App) -> String {
+        let mut q = app.world_mut().query_filtered::<&Text, With<crate::first_harvest_epiphany::WorldCarePromptText>>();
+        q.single(app.world()).expect("care text").as_str().to_string()
+    }
+
+    fn care_visible(app: &mut App) -> bool {
+        let mut q = app.world_mut().query_filtered::<&Visibility, With<crate::first_harvest_epiphany::WorldCarePromptRoot>>();
+        *q.single(app.world()).expect("care root") == Visibility::Visible
+    }
+
+    fn offered(app: &mut App) -> bool {
+        care_line(app).ends_with(OFFER_TAIL)
+    }
+
+    #[test]
+    fn cux1b_o1_offer_suffix_visible_classic_in_yard() {
+        let mut app = offer_world(|_| {});
+        assert!(care_visible(&mut app), "CarePrompt root hidden");
+        assert!(offered(&mut app), "no offer: {:?}", care_line(&mut app));
+    }
+
+    #[test]
+    fn cux1b_o2_gated_visit_latches_until_walk_out() {
+        let mut app = offer_world(|app| {
+            app.world_mut().resource_mut::<crate::first_harvest_epiphany::FirstHarvestEpiphany>().first_harvest_lived = false;
+        });
+        assert!(!offered(&mut app), "gated offer");
+        app.world_mut().resource_mut::<crate::first_harvest_epiphany::FirstHarvestEpiphany>().first_harvest_lived = true;
+        offer_step(&mut app, 0.1);
+        assert!(!offered(&mut app), "gate opened mid-visit");
+        offer_at(&mut app, 3.4);
+        offer_at(&mut app, 1.0);
+        assert!(offered(&mut app), "next approach offers");
+    }
+
+    #[test]
+    fn cux1b_o3_offer_shows_at_5_9_and_expires_by_6_1() {
+        let mut app = offer_world(|app| {
+            app.world_mut().resource_mut::<crate::mercy_harvest_nodes::NearbyMercyNode>().in_range = false;
+            app.world_mut().resource_mut::<crate::mercy_harvest_nodes::NearbyMercyNode>().distance = 5.0;
+        });
+        offer_at(&mut app, 1.0);
+        assert!(offered(&mut app), "armed");
+        offer_step(&mut app, 5.9);
+        assert!(offered(&mut app), "5.9 s");
+        offer_step(&mut app, 0.2);
+        assert!(!offered(&mut app), "6.1 s");
+        assert!(care_visible(&mut app), "quiet expiry keeps the care line");
+    }
+
+    #[test]
+    fn cux1b_o4_rearm_needs_reach_plus_pad() {
+        let mut app = offer_world(|_| {});
+        assert!(offered(&mut app));
+        offer_step(&mut app, 6.1);
+        offer_at(&mut app, 3.0);
+        offer_at(&mut app, 1.0);
+        assert!(!offered(&mut app), "3.0 m re-armed");
+        offer_at(&mut app, 3.4);
+        offer_at(&mut app, 1.0);
+        assert!(offered(&mut app), "3.4 m did not re-arm");
+    }
+
+    #[test]
+    fn cux1b_o5_real_k_spends_same_frame_blocked_k_does_not() {
+        let mut app = offer_world(|_| {});
+        app.insert_resource(quiet_house(true));
+        cux_tap_k(&mut app);
+        assert!(offered(&mut app), "blocked K spent the offer");
+        assert_eq!(*app.world().resource::<CameraMode>(), CameraMode::Walk);
+        app.insert_resource(quiet_house(false));
+        assert!(offered(&mut app), "offer before K");
+        cux_tap_k(&mut app);
+        assert_eq!(*app.world().resource::<CameraMode>(), CameraMode::CloseUp);
+        assert!(!offered(&mut app), "K frame still offers");
+        cux_tap_k(&mut app);
+        offer_at(&mut app, 3.4);
+        offer_at(&mut app, 1.0);
+        assert!(!offered(&mut app), "spent offer came back");
+    }
+
+    #[test]
+    fn cux1b_o6_camera_mode_has_one_writer() {
+        let src = include_str!("human_presence.rs");
+        let prod = src.split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        assert_eq!(prod.matches("ResMut<CameraMode>").count(), 1);
+        let body = &prod[prod.find("fn toggle_close_up(").unwrap()..];
+        assert!(body[..body.find("\n}\n").unwrap()].contains("ResMut<CameraMode>"));
+    }
+
+    #[test]
+    fn cux1b_o7_k_bound_to_jump_shows_no_offer() {
+        let mut app = offer_world(|app| {
+            app.world_mut().resource_mut::<LocalSettingsState>().inner.key_jump = PeaceKey::K;
+        });
+        assert!(!offered(&mut app), "offer names a bound K");
+        app.world_mut().resource_mut::<LocalSettingsState>().inner.key_jump = LocalSettings::default().key_jump;
+        offer_step(&mut app, 0.1);
+        assert!(offered(&mut app), "K free again offers");
+    }
+
+    #[test]
+    fn cux1b_o8_rendered_line_has_no_slots_and_ends_with_key() {
+        let mut app = offer_world(|_| {});
+        let line = care_line(&mut app);
+        assert!(!line.contains("[[") && !line.contains("]]") && !line.contains("{key}"), "{line}");
+        assert_eq!(line, format!("{}{OFFER_TAIL}", crate::first_harvest_epiphany::tap_vs_hold_prompt()));
     }
 }

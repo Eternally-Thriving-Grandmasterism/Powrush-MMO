@@ -197,6 +197,25 @@ pub fn tap_vs_hold_prompt() -> &'static str {
     "tap E take  ·  hold E tend"
 }
 
+/// CARD CAMERA-UX-1b — close-up offer suffix on the in-range care line (copy ruling 7051808825).
+pub const CLOSE_UP_JOINER: &'static str = "  ·  ";
+pub const CLOSE_UP_OFFER_LINE: &'static str = "{key} look closer";
+const CLOSE_UP_OFFER_SECS: f64 = 6.0;
+const CLOSE_UP_REARM_PAD: f32 = 0.5;
+
+/// The one `{key}` substitution: the close-up key's label.
+fn close_up_offer_suffix() -> String {
+    let key = shared::local_settings::PeaceKey::K.display_label();
+    format!("{CLOSE_UP_JOINER}{}", CLOSE_UP_OFFER_LINE.replace("{key}", key))
+}
+
+/// Arm, latch and expiry for one visit. Re-arms past `HARVEST_REACH + CLOSE_UP_REARM_PAD`.
+#[derive(Default)]
+pub(crate) struct CloseUpOfferArm {
+    latched: bool,
+    until: f64,
+}
+
 pub fn tend_breathe_answer() -> &'static str {
     "tended — the node breathes"
 }
@@ -773,6 +792,8 @@ pub(crate) fn update_world_care_prompt(
     bind: Option<Res<LivedHourBind>>,
     mut root: Query<&mut Visibility, With<WorldCarePromptRoot>>,
     mut text_q: Query<&mut Text, With<WorldCarePromptText>>,
+    (offer, settings): (Option<Res<crate::human_presence::CloseUpOffer>>, Option<Res<crate::local_settings::LocalSettingsState>>),
+    mut arm: Local<CloseUpOfferArm>,
 ) {
     let now = time.elapsed_secs_f64();
     let guidance_hidden = bind.as_ref().is_some_and(|bind| bind.guidance_hidden);
@@ -796,9 +817,19 @@ pub(crate) fn update_world_care_prompt(
         nearby.nodes_exist,
         state.first_harvest_lived,
     );
+    if nearby.distance > crate::mercy_harvest_nodes::HARVEST_REACH + CLOSE_UP_REARM_PAD {
+        arm.latched = false;
+    }
+    if nearby.in_range && !arm.latched {
+        // A gated visit latches with no window, so the offer never flashes over the epiphany.
+        (arm.latched, arm.until) = (true, if state.first_harvest_lived { now + CLOSE_UP_OFFER_SECS } else { 0.0 });
+    }
+    let k_bound = settings.is_some_and(|s| crate::human_presence::peace_key_k_is_bound(&s.inner));
+    let live = nearby.in_range && nearby.nodes_exist && state.first_harvest_lived && now < arm.until && !k_bound && !offer.is_some_and(|o| o.spent);
+    let line = if live { format!("{line}{}", close_up_offer_suffix()) } else { line.to_string() };
     for mut text in &mut text_q {
         if text.as_str() != line {
-            **text = line.to_string();
+            **text = line.clone();
         }
     }
 }
