@@ -772,6 +772,7 @@ impl Plugin for HumanPresencePlugin {
             .init_resource::<PersonRhythm>()
             .init_resource::<FollowOrbit>()
             .init_resource::<CameraMode>()
+            .init_resource::<CloseUpOffer>()
             .init_resource::<ControlPreset>()
             .init_resource::<BodyFacing>()
             .init_resource::<MoveKeySnapshot>()
@@ -800,7 +801,7 @@ impl Plugin for HumanPresencePlugin {
                     )
                         .chain(),
                     pull_camera_from_walls.after(follow_camera),
-                    toggle_close_up.before(follow_camera),
+                    toggle_close_up.before(follow_camera).before(crate::first_harvest_epiphany::update_world_care_prompt),
                     (
                         setup_ual1_animation_graph,
                         attach_ual1_animation_player,
@@ -2139,7 +2140,13 @@ fn close_up_offset_scale(mode: Option<&CameraMode>) -> f32 {
     }
 }
 
-fn peace_key_k_is_bound(s: &LocalSettings) -> bool {
+/// CARD CAMERA-UX-1b — the K offer is spent by the first K that toggles. Session only.
+#[derive(Resource, Debug, Default)]
+pub(crate) struct CloseUpOffer {
+    pub(crate) spent: bool,
+}
+
+pub(crate) fn peace_key_k_is_bound(s: &LocalSettings) -> bool {
     [s.key_move_up, s.key_move_down, s.key_move_left, s.key_move_right, s.key_jump, s.key_sprint, s.key_use, s.key_satchel, s.key_hide, s.key_allocate]
         .into_iter()
         .any(|k| k == PeaceKey::K)
@@ -2160,6 +2167,7 @@ fn toggle_close_up(
     hud_edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
     settings: Option<Res<LocalSettingsState>>,
     presence: Option<Res<SoftPresence>>,
+    offer: Option<ResMut<CloseUpOffer>>,
 ) {
     // CARD CAMERA-UX-1b-0 — yard only (no reset on door change), and never while lifted.
     if !keyboard.just_pressed(KeyCode::KeyK) || presence.is_some_and(|p| presence_reads_ambrosian_lift(p.position)) || !close_up_k_is_free(
@@ -2174,6 +2182,9 @@ fn toggle_close_up(
         CameraMode::Walk => CameraMode::CloseUp,
         CameraMode::CloseUp => CameraMode::Walk,
     };
+    if let Some(mut offer) = offer {
+        offer.spent = true;
+    }
 }
 
 fn follow_camera(
