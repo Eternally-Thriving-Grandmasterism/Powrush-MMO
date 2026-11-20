@@ -130,6 +130,7 @@ fn spawn_inventory_surfaces(mut commands: Commands) {
                     ..default()
                 },
                 ui_kit::plate(),
+                crate::ui_frame::plate_frame(),
                 Visibility::Hidden,
             ),
             WatchStripRoot,

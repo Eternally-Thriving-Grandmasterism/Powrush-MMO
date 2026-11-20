@@ -302,6 +302,7 @@ fn spawn_climate_state_slab(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)),
+                crate::ui_frame::plate_frame(),
                 BorderColor::all(TITLE_BORDER.with_alpha(1.0)),
                 Visibility::Hidden,
             ),

@@ -219,6 +219,7 @@ fn spawn_practice_strip(mut commands: Commands) {
                     ..default()
                 },
                 BackgroundColor(TITLE_PLATE_BG),
+                crate::ui_frame::plate_frame(),
                 BorderColor::all(TITLE_BORDER),
                 Visibility::Hidden,
             ),
