@@ -7063,9 +7063,10 @@ mod tests {
         let mut app = offer_world(|_| {});
         app.insert_resource(quiet_house(true));
         cux_tap_k(&mut app);
-        assert!(offered(&mut app), "blocked K spent the offer");
+        assert!(!app.world().resource::<CloseUpOffer>().spent, "blocked K spent the offer");
         assert_eq!(*app.world().resource::<CameraMode>(), CameraMode::Walk);
         app.insert_resource(quiet_house(false));
+        offer_step(&mut app, 0.1);
         assert!(offered(&mut app), "offer before K");
         cux_tap_k(&mut app);
         assert_eq!(*app.world().resource::<CameraMode>(), CameraMode::CloseUp);
