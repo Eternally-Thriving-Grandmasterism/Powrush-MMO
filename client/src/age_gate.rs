@@ -58,8 +58,8 @@ fn spawn_age_gate(commands: &mut Commands) {
             pane.spawn(words(AGE_GATE_HEADING, 22.0, TITLE_TEXT_PRIMARY));
             pane.spawn(words(AGE_GATE_ASK, 15.0, TITLE_TEXT_SECONDARY));
             pane.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(ui_kit::SPACE_M), align_items: AlignItems::Center, ..default() }).with_children(|row| {
-                chip(row, "-", AgeBtn::MonthDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), MonthFace)); chip(row, "+", AgeBtn::MonthInc);
-                chip(row, "-", AgeBtn::YearDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), YearFace)); chip(row, "+", AgeBtn::YearInc);
+                chip(row, "-", AgeBtn::MonthDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), Node { min_width: Val::Px(21.0), justify_content: JustifyContent::Center, ..default() }, MonthFace)); chip(row, "+", AgeBtn::MonthInc);
+                chip(row, "-", AgeBtn::YearDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), Node { min_width: Val::Px(45.0), justify_content: JustifyContent::Center, ..default() }, YearFace)); chip(row, "+", AgeBtn::YearInc);
             });
             chip(pane, AGE_GATE_CONTINUE, AgeBtn::Continue);
             pane.spawn(words(AGE_GATE_NOTE, 13.0, TITLE_TEXT_SECONDARY));
@@ -129,7 +129,7 @@ fn age_gate_sync(
     gate: Res<AgeGate>, entry: Option<Res<AgeEntry>>,
     mut roots: Query<&mut Visibility, (With<AgeRoot>, Without<Pane>)>,
     mut panes: Query<(&Pane, &mut Visibility), Without<AgeRoot>>,
-    mut month: Query<&mut Text, With<MonthFace>>, mut year: Query<&mut Text, (With<YearFace>, Without<MonthFace>)>,
+    mut month: Query<(&mut Text, &mut TextColor), With<MonthFace>>, mut year: Query<(&mut Text, &mut TextColor), (With<YearFace>, Without<MonthFace>)>,
     mut buttons: Query<(&AgeBtn, &mut BackgroundColor)>,
     pads: Query<(), With<Gamepad>>,
 ) {
@@ -138,10 +138,10 @@ fn age_gate_sync(
     let show = |on: bool| if on { Visibility::Visible } else { Visibility::Hidden };
     for mut root in &mut roots { *root = show(gate.open); }
     for (pane, mut vis) in &mut panes { *vis = show(gate.open && (*pane == Pane::Denied) == denied); }
-    let month_s = entry.as_ref().and_then(|e| e.month).map(|m| m.to_string()).unwrap_or_default();
-    let year_s = entry.as_ref().and_then(|e| e.year).map(|y| y.to_string()).unwrap_or_default();
-    for mut text in &mut month { if text.as_str() != month_s { **text = month_s.clone(); } }
-    for mut text in &mut year { if text.as_str() != year_s { **text = year_s.clone(); } }
+    let month_s = entry.as_ref().and_then(|e| e.month).map(|m| m.to_string()).unwrap_or_else(|| "--".into());
+    let year_s = entry.as_ref().and_then(|e| e.year).map(|y| y.to_string()).unwrap_or_else(|| "----".into());
+    for (mut text, mut color) in &mut month { if text.as_str() != month_s { **text = month_s.clone(); } color.set_if_neq(TextColor(if entry.as_ref().and_then(|e| e.month).is_some() { TITLE_TEXT_PRIMARY } else { TITLE_TEXT_SECONDARY })); }
+    for (mut text, mut color) in &mut year { if text.as_str() != year_s { **text = year_s.clone(); } color.set_if_neq(TextColor(if entry.as_ref().and_then(|e| e.year).is_some() { TITLE_TEXT_PRIMARY } else { TITLE_TEXT_SECONDARY })); }
     // The focused field shows only while a pad is connected; a not-ready Continue stays grey.
     let focus = entry.as_ref().filter(|_| !pads.is_empty()).map(|entry| entry.focus);
     for (btn, mut bg) in &mut buttons {
