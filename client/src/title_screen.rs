@@ -1783,6 +1783,7 @@ pub(crate) fn spawn_title_plate_btn<C: Component>(
     p.spawn((
         (
             ui_kit::button(bg),
+            crate::ui_frame::button_frame(),
             Node {
                 padding: UiRect::axes(Val::Px(TITLE_MENU_BTN_PAD_X), Val::Px(TITLE_MENU_BTN_PAD_Y)),
                 justify_content: JustifyContent::Center,
@@ -10687,7 +10688,7 @@ mod tests {
             let word = world.query::<(&Text, &TextFont, &TextLayout, &Node, Option<&ImageNode>)>().iter(world).find(|(t, ..)| t.0 == "POWRUSH").unwrap();
             let (face, plain) = (ui_kit::display_font(ui_kit::TYPE_DISPLAY), TextLayout::default());
             assert_eq!((word.1.font.clone(), word.1.font_size, word.2.justify, word.2.linebreak, word.3.clone(), word.4.is_none()), (face.font, face.font_size, plain.justify, plain.linebreak, Node::default(), true));
-            assert_eq!(world.query::<&ImageNode>().iter(world).count(), 1);
+            assert_eq!(world.query::<&ImageNode>().iter(world).count(), 6);
         }
     }
     #[test]
