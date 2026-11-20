@@ -7090,4 +7090,65 @@ mod tests {
         assert!(!line.contains("[[") && !line.contains("]]") && !line.contains("{key}"), "{line}");
         assert_eq!(line, format!("{}{OFFER_TAIL}", crate::first_harvest_epiphany::tap_vs_hold_prompt()));
     }
+
+    // CARD CAMERA-UX-1c — the offer shows only when a K press would toggle.
+    #[test]
+    fn cux1c_x1_blocked_k_hides_tail_keeps_line_and_window() {
+        // Root visibility per row is today's R5 modal yield (hud_presets.rs): places, settings and
+        // persona hide the HUD band; HUD edit keeps it. The Text must carry no tail on every row.
+        let rows: [(&str, bool, fn(&mut App, bool)); 4] = [
+            ("places", false, |app, on| app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = on),
+            ("hud_edit", true, |app, on| app.world_mut().resource_mut::<crate::hud_edit_mode::HudEditMode>().active = on),
+            ("settings", false, |app, on| { app.insert_resource(quiet_house(on)); }),
+            ("persona", false, |app, on| app.world_mut().resource_mut::<crate::title_screen::PersonaCreatorState>().open = on),
+        ];
+        let mut red = Vec::new();
+        for (name, visible, set) in rows {
+            let mut app = offer_world(|app| {
+                app.init_resource::<crate::hex_travel::PlacesPlate>()
+                    .init_resource::<crate::hud_edit_mode::HudEditMode>()
+                    .init_resource::<crate::title_screen::PersonaCreatorState>();
+            });
+            assert!(offered(&mut app), "{name}: armed");
+            set(&mut app, true);
+            offer_step(&mut app, 0.1);
+            if care_visible(&mut app) != visible || care_line(&mut app) != crate::first_harvest_epiphany::tap_vs_hold_prompt() {
+                red.push(format!("{name}: visible {} line {:?}", care_visible(&mut app), care_line(&mut app)));
+                continue;
+            }
+            cux_tap_k(&mut app);
+            assert!(!app.world().resource::<CloseUpOffer>().spent, "{name}: blocked K spent");
+            assert_eq!(*app.world().resource::<CameraMode>(), CameraMode::Walk, "{name}");
+            set(&mut app, false);
+            offer_step(&mut app, 0.1);
+            assert!(offered(&mut app), "{name}: cleared blocker inside 6 s brings the tail back");
+        }
+        assert!(red.is_empty(), "tail shown while K is blocked: {red:?}");
+    }
+
+    #[test]
+    fn cux1c_x2_lifted_shows_no_tail() {
+        let mut app = offer_world(|_| {});
+        assert!(offered(&mut app), "armed");
+        let ground = app.world().resource::<SoftPresence>().position.y;
+        app.world_mut().resource_mut::<SoftPresence>().position.y = sanctuary_yard_wake().y + AMBROSIAN_LIFT_DETECT + 1.0;
+        offer_step(&mut app, 0.001);
+        assert!(presence_reads_ambrosian_lift(app.world().resource::<SoftPresence>().position));
+        assert_eq!(care_line(&mut app), crate::first_harvest_epiphany::tap_vs_hold_prompt(), "lifted tail");
+        app.world_mut().resource_mut::<SoftPresence>().position.y = ground;
+        offer_step(&mut app, 0.001);
+        assert!(offered(&mut app), "back on the ground inside 6 s");
+    }
+
+    #[test]
+    fn cux1c_x3_gate_is_read_only_and_writers_stay_single() {
+        let src = include_str!("human_presence.rs");
+        let prod = src.split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        let gate = &prod[prod.find("struct CloseUpGate<").expect("CloseUpGate")..];
+        assert!(!gate[..gate.find("\n}\n").unwrap()].contains("ResMut"));
+        assert_eq!(prod.matches("ResMut<CameraMode>").count(), 1);
+        assert_eq!(prod.matches("ResMut<CloseUpOffer>").count(), 1);
+        let fhe = include_str!("first_harvest_epiphany.rs");
+        assert!(!fhe.split("#[cfg(test)]").next().unwrap().contains("ResMut<crate::human_presence::CloseUpOffer>"));
+    }
 }
