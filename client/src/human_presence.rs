@@ -2157,25 +2157,32 @@ fn close_up_k_is_free(settings_open: bool, text_entry: bool, panel_open: bool, k
     !settings_open && !text_entry && !panel_open && !k_peace_bound
 }
 
-fn toggle_close_up(
-    keyboard: Res<ButtonInput<KeyCode>>,
-    mut mode: ResMut<CameraMode>,
-    house: Option<Res<HouseLabel>>,
-    door: Option<Res<LaunchDoor>>,
-    persona: Option<Res<crate::title_screen::PersonaCreatorState>>,
-    places: Option<Res<crate::hex_travel::PlacesPlate>>,
-    hud_edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
-    settings: Option<Res<LocalSettingsState>>,
-    presence: Option<Res<SoftPresence>>,
-    offer: Option<ResMut<CloseUpOffer>>,
-) {
-    // CARD CAMERA-UX-1b-0 — yard only (no reset on door change), and never while lifted.
-    if !keyboard.just_pressed(KeyCode::KeyK) || presence.is_some_and(|p| presence_reads_ambrosian_lift(p.position)) || !close_up_k_is_free(
-        house.as_deref().is_some_and(|h| h.settings_open),
-        door.as_deref().is_some_and(|d| *d != LaunchDoor::InYard) || persona.as_deref().is_some_and(|p| p.open),
-        places.as_deref().is_some_and(|p| p.open) || hud_edit.as_deref().is_some_and(|h| h.active),
-        settings.as_deref().is_some_and(|s| peace_key_k_is_bound(&s.inner)),
-    ) {
+/// CARD CAMERA-UX-1c — the K guard's read-only inputs, shared by the toggle and the offer.
+#[derive(SystemParam)]
+pub(crate) struct CloseUpGate<'w> {
+    house: Option<Res<'w, HouseLabel>>,
+    door: Option<Res<'w, LaunchDoor>>,
+    persona: Option<Res<'w, crate::title_screen::PersonaCreatorState>>,
+    places: Option<Res<'w, crate::hex_travel::PlacesPlate>>,
+    hud_edit: Option<Res<'w, crate::hud_edit_mode::HudEditMode>>,
+    settings: Option<Res<'w, LocalSettingsState>>,
+    presence: Option<Res<'w, SoftPresence>>,
+}
+
+impl CloseUpGate<'_> {
+    /// CARD CAMERA-UX-1b-0 — yard only (no reset on door change), and never while lifted. Not the keypress.
+    pub(crate) fn k_toggles(&self) -> bool {
+        !self.presence.as_deref().is_some_and(|p| presence_reads_ambrosian_lift(p.position)) && close_up_k_is_free(
+            self.house.as_deref().is_some_and(|h| h.settings_open),
+            self.door.as_deref().is_some_and(|d| *d != LaunchDoor::InYard) || self.persona.as_deref().is_some_and(|p| p.open),
+            self.places.as_deref().is_some_and(|p| p.open) || self.hud_edit.as_deref().is_some_and(|h| h.active),
+            self.settings.as_deref().is_some_and(|s| peace_key_k_is_bound(&s.inner)),
+        )
+    }
+}
+
+fn toggle_close_up(keyboard: Res<ButtonInput<KeyCode>>, mut mode: ResMut<CameraMode>, gate: CloseUpGate, offer: Option<ResMut<CloseUpOffer>>) {
+    if !keyboard.just_pressed(KeyCode::KeyK) || !gate.k_toggles() {
         return;
     }
     *mode = match *mode {
