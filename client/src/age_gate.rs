@@ -58,8 +58,8 @@ fn spawn_age_gate(commands: &mut Commands) {
             pane.spawn(words(AGE_GATE_HEADING, 22.0, TITLE_TEXT_PRIMARY));
             pane.spawn(words(AGE_GATE_ASK, 15.0, TITLE_TEXT_SECONDARY));
             pane.spawn(Node { flex_direction: FlexDirection::Row, column_gap: Val::Px(ui_kit::SPACE_M), align_items: AlignItems::Center, ..default() }).with_children(|row| {
-                chip(row, "-", AgeBtn::MonthDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), Node { min_width: Val::Px(21.0), justify_content: JustifyContent::Center, ..default() }, MonthFace)); chip(row, "+", AgeBtn::MonthInc);
-                chip(row, "-", AgeBtn::YearDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), Node { min_width: Val::Px(45.0), justify_content: JustifyContent::Center, ..default() }, YearFace)); chip(row, "+", AgeBtn::YearInc);
+                chip(row, "-", AgeBtn::MonthDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), TextLayout::justify(Justify::Center), Node { min_width: Val::Px(21.0), justify_content: JustifyContent::Center, ..default() }, MonthFace)); chip(row, "+", AgeBtn::MonthInc);
+                chip(row, "-", AgeBtn::YearDec); row.spawn((words("", 16.0, TITLE_TEXT_PRIMARY), TextLayout::justify(Justify::Center), Node { min_width: Val::Px(45.0), justify_content: JustifyContent::Center, ..default() }, YearFace)); chip(row, "+", AgeBtn::YearInc);
             });
             chip(pane, AGE_GATE_CONTINUE, AgeBtn::Continue);
             pane.spawn(words(AGE_GATE_NOTE, 13.0, TITLE_TEXT_SECONDARY));
@@ -402,17 +402,14 @@ mod tests {
     fn agf1_dx(world: &mut World, month: bool) -> f32 {
         let mut q = world.query::<(&ComputedNode, &bevy::text::TextLayoutInfo, Option<&MonthFace>, Option<&YearFace>)>();
         let (node, info, _, _) = q.iter(world).find(|(_, _, m, y)| if month { m.is_some() } else { y.is_some() }).unwrap();
-        assert!(!info.run_geometry.is_empty(), "AGF1-4 ink");
         let (a, b) = info.run_geometry.iter().fold((f32::MAX, f32::MIN), |(a, b), run| (a.min(run.bounds.min.x), b.max(run.bounds.max.x)));
-        (node.content_box().min.x + (a + b) * 0.5) * node.inverse_scale_factor
+        assert!(a < b, "AGF1-4 ink"); (node.content_box().min.x + (a + b) * 0.5) * node.inverse_scale_factor
     }
     #[test] fn age_gate_faces_agf1_4_centred() {
-        for (w, h, s) in agl1_view() { let mut app = agl1_app(w, h, s, 1.);
-            for (m, y, label) in [(None, None, "rest"), (Some(12u8), Some(2026), "12/2026"), (Some(1), Some(1907), "1/1907")] {
-                agf1_put(&mut app, m, y); let (md, yd) = (agf1_dx(app.world_mut(), true), agf1_dx(app.world_mut(), false));
-                if std::env::var_os("AGF1_TRACE").is_some() { eprintln!("AGF1-4 {label} {w}x{h}x{s} month {md} year {yd}"); }
-                assert!(md.abs() <= 1. && yd.abs() <= 1., "AGF1-4 {label} {w}x{h}x{s} month {md} year {yd}");
-            }
-        }
+        for (w, h, s) in agl1_view() { let mut app = agl1_app(w, h, s, 1.); for (m, y, label) in [(None, None, "rest"), (Some(12u8), Some(2026), "12/2026"), (Some(1), Some(1907), "1/1907")] {
+            agf1_put(&mut app, m, y); let (md, yd) = (agf1_dx(app.world_mut(), true), agf1_dx(app.world_mut(), false));
+            if std::env::var_os("AGF1_TRACE").is_some() { eprintln!("AGF1-4 {label} {w}x{h}x{s} month {md} year {yd}"); }
+            assert!(md.abs() <= 1. && yd.abs() <= 1., "AGF1-4 {label} {w}x{h}x{s} month {md} year {yd}");
+        } }
     }
 }
