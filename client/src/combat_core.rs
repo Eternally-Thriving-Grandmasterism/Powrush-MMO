@@ -976,11 +976,11 @@ fn spawn_ability_tip(mut commands: Commands) {
         tip.spawn((Text::new(slot_tooltip(1).unwrap_or_default()), TextFont { font_size: FontSize::Px(15.5 / 1.2), ..default() }, TextColor(TITLE_TEXT_PRIMARY)));
     });
 }
-/// ABILITY-TOOLTIP-SHOW-1 A2 (T1 + Shell gate) — the tip's own Visibility, written outright each frame after `combat_fire`:
+/// ABILITY-TOOLTIP-SHOW-1 A2 (T1 + Shell gate) — the tip's own Visibility, set each frame after `combat_fire` (`set_if_neq`, TIP-NEQ-1):
 /// Visible only with the Shell ward equipped and the fight in reach at this place, so it never offers Plate when Plate can't arm.
 fn ability_tip_show(combat: Res<CombatState>, finds: Option<Res<FoundFinds>>, (travel, presence): (Option<Res<HexTravelState>>, Option<Res<SoftPresence>>), mut slabs: Query<(&crate::hud_anchor_registry::HudSlab, &mut Visibility)>) {
     let show = shell_equipped(finds.as_deref()) && travel.zip(presence).is_some_and(|(t, p)| in_reach(t.current, &combat, p.position.x, p.position.z));
-    for (_, mut vis) in slabs.iter_mut().filter(|(s, _)| s.0 == crate::hud_anchor_registry::ID_ABILITY_TIP) { *vis = if show { Visibility::Visible } else { Visibility::Hidden }; }
+    for (_, mut vis) in slabs.iter_mut().filter(|(s, _)| s.0 == crate::hud_anchor_registry::ID_ABILITY_TIP) { vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden }); }
 }
 
 #[cfg(test)]
@@ -2917,5 +2917,21 @@ mod tests {
             tick(app, 0.0);
             assert!(ats_all(app, Visibility::Hidden), "Shell, predator down");
         });
+    }
+
+    // TIP-NEQ-1 N1 — CUT 7066705477: a steady, unyielded tip is not re-marked Changed each frame (Last-schedule tape on the tip).
+    #[derive(Resource, Default)] struct TnTape(Vec<bool>);
+    fn tn_tape(q: Query<(&HudSlab, Ref<Visibility>)>, mut tape: ResMut<TnTape>) { tape.0.extend(q.iter().filter(|(s, _)| s.0 == ID_ABILITY_TIP).map(|(_, v)| v.is_changed())); }
+    #[test]
+    fn tn1_n1_steady_tip_is_not_marked_changed() {
+        for (tag, shell, want) in [("tn1a", true, Visibility::Visible), ("tn1b", false, Visibility::Hidden)] {
+            ats(tag, shell, |app| {
+                app.init_resource::<TnTape>().add_systems(Last, tn_tape);
+                tick(app, 0.0); tick(app, 0.0); app.world_mut().resource_mut::<TnTape>().0.clear(); // warm-up: first run and Added read as changed
+                tick(app, 0.0); tick(app, 0.0);
+                assert!(ats_all(app, want) && !ats_yielded(app), "{tag}: steady and not yielded");
+                assert_eq!(app.world().resource::<TnTape>().0, [false, false], "{tag}");
+            });
+        }
     }
 }
