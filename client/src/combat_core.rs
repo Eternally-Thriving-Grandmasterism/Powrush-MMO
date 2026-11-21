@@ -77,6 +77,23 @@ pub struct CombatState {
     pub down_secs: f32,
     /// COMBAT-FEEL-LOOK-1 — landed lunges so far (wrapping); `hit_flash` kicks on a rise.
     pub hurt: u32,
+    /// COMBAT-CORE-2a — seconds of Plate left; up while > 0. Armed by key 2, decays in `predator_lunge`.
+    pub plate_secs: f32,
+    /// COMBAT-CORE-2a — Plate already armed this lunge; clears on the timer wrap or reset and in `reseat_at`.
+    pub plate_armed: bool,
+}
+
+/// COMBAT-CORE-2a — COMBAT_AND_PVP.md:456 "Plate, 3 s, incoming damage reduced by 30%".
+pub const PLATE_SECS: f32 = 3.0;
+/// COMBAT-CORE-2a — a lunge under Plate: ×0.7, integer half-up like `enemy_hit` (15→11, 17→12).
+pub fn plate_hit(hit: u32) -> u32 { (hit * 70 + 50) / 100 }
+/// COMBAT-CORE-2a — the equipped owned find carries the Shell ward.
+pub fn shell_equipped(finds: Option<&FoundFinds>) -> bool { finds.and_then(FoundFinds::equipped_find).is_some_and(|f| f.ward == Some(shared::temper::WardKind::Shell)) }
+/// COMBAT-CORE-2a — key 2 raises Plate only inside the visible tell, once per lunge, never while it is up. True when it armed.
+pub fn plate_arm(combat: &mut CombatState, reach: bool, shell: bool) -> bool {
+    let arm = shell && tell_visible(combat.lunge_timer, reach) && !combat.plate_armed && combat.plate_secs <= 0.0;
+    if arm { (combat.plate_secs, combat.plate_armed) = (PLATE_SECS, true); }
+    arm
 }
 
 #[derive(Component)]
@@ -341,11 +358,18 @@ pub fn ground_shot_connects(grounded: bool) -> bool {
 /// One lunge per 0.6 s in reach. True when the player is defeated.
 /// The clock, tell, and defeat return advance either way; damage is the due wrap only while grounded.
 pub fn predator_tick(combat: &mut CombatState, dt: f32, reach: bool, grounded: bool, tier: DifficultyTier) -> bool {
+    let plate = combat.plate_secs > 0.0; // COMBAT-CORE-2a: Plate-off (every existing caller) is unchanged
+    predator_tick_plated(combat, dt, reach, grounded, tier, plate)
+}
+/// COMBAT-CORE-2a — `predator_tick` with Plate: a due wrap lands `plate_hit` while `plate`. A wrap or reset ends the lunge's arm.
+pub fn predator_tick_plated(combat: &mut CombatState, dt: f32, reach: bool, grounded: bool, tier: DifficultyTier, plate: bool) -> bool {
     combat.lunge_timer = if reach { combat.lunge_timer + dt.max(0.0) } else { 0.0 };
+    combat.plate_armed &= reach && combat.lunge_timer < LUNGE_SECS;
     while combat.lunge_timer >= LUNGE_SECS {
         combat.lunge_timer -= LUNGE_SECS;
         if ground_shot_connects(grounded) {
-            combat.player_taken = combat.player_taken.saturating_add(enemy_hit(tier, HIT)).min(HEALTH);
+            let hit = enemy_hit(tier, HIT);
+            combat.player_taken = combat.player_taken.saturating_add(if plate { plate_hit(hit) } else { hit }).min(HEALTH);
         }
     }
     combat.player_taken >= HEALTH
@@ -379,7 +403,7 @@ pub fn reseat_at(place: PlaceId, combat: &mut CombatState, presence: &mut SoftPr
     let [x, z] = if place == PlaceId::Sanctuary { STAVEHOLD_GATE_SPOT } else { heartwood_bath_return(PlaceId::Heartwood, px, pz).unwrap_or(HEARTWOOD_ENTRANCE) };
     (presence.position, presence.velocity) = (Vec3::new(x, STAND_HEIGHT, z), Vec3::ZERO);
     presence.grounded = true;
-    (combat.player_taken, combat.lunge_timer) = (0, 0.0);
+    (combat.player_taken, combat.lunge_timer, combat.plate_secs, combat.plate_armed) = (0, 0.0, 0.0, false);
 }
 
 /// FEEL-PASS-1 — the line for one FIRE that passed `fire_allowed`. `gained` is the real XP change.
@@ -551,8 +575,10 @@ pub fn combat_fire(
         satchel.is_some_and(|i| i.open),
         realm.is_some_and(|r| r.realm_open),
     );
+    let plate_key = gate && input.as_deref().and_then(|i| i.ability_slot) == Some(1); // COMBAT-CORE-2a: key 2, digit path only
     let pressed = strike_pressed(fire, input.and_then(|i| i.ability_slot), gate);
     let pulse = buffer.as_ref().is_some_and(|b| b.fire);
+    let pulse = pulse || plate_key; // key 2 also wakes the fire path; the strike below re-reads the buffer
     let (true, Some(travel), Some(presence), Some(mut skills)) = (pressed || pulse, travel, presence, skills) else {
         return;
     };
@@ -571,6 +597,8 @@ pub fn combat_fire(
     let plate_open = plate.as_deref().is_some_and(places_plate_open);
     let allowed = fire_allowed(grab, plate_open, ui.iter().any(|i| *i != Interaction::None), prompts);
     let reach = in_reach(travel.current, &combat, presence.position.x, presence.position.z);
+    if plate_key && allowed { plate_arm(&mut combat, reach, shell_equipped(finds.as_deref())); }
+    if !(pressed || buffer.as_ref().is_some_and(|b| b.fire)) { return; }
     // COMBAT-FEEL-1: the hit lands here in Update; only expiry and reach run on the fixed tick.
     let now_fixed = fixed.map_or(0.0, |t| t.elapsed_secs_f64());
     let run = match buffer {
@@ -628,7 +656,7 @@ fn hold_strike_buffer(
 }
 
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn predator_lunge(
+pub(crate) fn predator_lunge(
     time: Res<Time>,
     door: Option<Res<LaunchDoor>>,
     travel: Option<Res<HexTravelState>>,
@@ -663,6 +691,7 @@ fn predator_lunge(
     let before = combat.player_taken; // CL-C1: one edge per frame, read before the reseat
     let t0 = combat.lunge_timer;
     let defeated = predator_tick(&mut combat, time.delta_secs(), reach, grounded, tier);
+    combat.plate_secs = (combat.plate_secs - time.delta_secs()).max(0.0);
     crate::combat_text::hook_after_lunge(&mut cmd, t0, before, time.delta_secs(), reach, grounded, combat.player_taken, presence.position);
     if hurt_edge(before, combat.player_taken) {
         combat.hurt = combat.hurt.wrapping_add(1);
