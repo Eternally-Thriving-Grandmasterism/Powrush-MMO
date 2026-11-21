@@ -77,7 +77,7 @@ pub struct PlayerLineagePlugin;
 impl Plugin for PlayerLineagePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PlayerLineage>()
-            .add_systems(Update, (cycle_lineage, paint_body, lineage_care));
+            .add_systems(Update, (cycle_lineage, paint_body.after(crate::combat_core::predator_lunge), lineage_care));
     }
 }
 
@@ -111,8 +111,12 @@ fn cycle_lineage(
     info!(target: "powrush::lineage", race = lineage.current.name(), "C cycled");
 }
 
+/// COMBAT-CORE-2a — the player body while Shell Plate is up. A look call; Sherif may veto at playtest.
+pub const PLATE_TINT: Color = Color::srgb(0.86, 0.60, 0.22);
+
 fn paint_body(
     lineage: Res<PlayerLineage>,
+    (combat, mut was_plate): (Option<Res<crate::combat_core::CombatState>>, Local<bool>),
     mut materials: ResMut<Assets<StandardMaterial>>,
     q: Query<&MeshMaterial3d<StandardMaterial>, With<HumanPresence>>,
     roots: Query<Entity, (With<HumanPresence>, Without<Mesh3d>)>,
@@ -120,7 +124,10 @@ fn paint_body(
     scene_mats: Query<&MeshMaterial3d<StandardMaterial>>,
 ) {
     let tint = lineage.current.tint();
-    let lineage_changed = lineage.is_changed();
+    let plate = combat.is_some_and(|c| c.plate_secs > 0.0);
+    let tint = if plate { PLATE_TINT } else { tint };
+    // COMBAT-CORE-2a: a Plate edge repaints both lanes like a lineage change; no Plate, no edge, no write.
+    let lineage_changed = lineage.is_changed() || plate != std::mem::replace(&mut *was_plate, plate);
     // Primitive lane: one shared root handle paints the whole stacked person.
     if lineage_changed {
         for handle in &q {
@@ -217,5 +224,10 @@ mod tests {
         assert!(!lineage_c_is_free(false, false, false, peace_key_c_is_bound(&s)));
         s = LocalSettings::peace_defaults();
         assert!(lineage_c_is_free(false, false, false, peace_key_c_is_bound(&s)));
+    }
+
+    #[test]
+    fn cc2a_plate_tint_is_the_pinned_amber_off_every_lineage() {
+        assert!(PLATE_TINT == Color::srgb(0.86, 0.60, 0.22) && [Lineage::Human, Lineage::Cydruid, Lineage::Quellorian, Lineage::Draek, Lineage::Ambrosian].iter().all(|l| l.tint() != PLATE_TINT));
     }
 }

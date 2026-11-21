@@ -77,6 +77,23 @@ pub struct CombatState {
     pub down_secs: f32,
     /// COMBAT-FEEL-LOOK-1 — landed lunges so far (wrapping); `hit_flash` kicks on a rise.
     pub hurt: u32,
+    /// COMBAT-CORE-2a — seconds of Plate left; up while > 0. Armed by key 2, decays in `predator_lunge`.
+    pub plate_secs: f32,
+    /// COMBAT-CORE-2a — Plate already armed this lunge; clears on the timer wrap or reset and in `reseat_at`.
+    pub plate_armed: bool,
+}
+
+/// COMBAT-CORE-2a — COMBAT_AND_PVP.md:456 "Plate, 3 s, incoming damage reduced by 30%".
+pub const PLATE_SECS: f32 = 3.0;
+/// COMBAT-CORE-2a — a lunge under Plate: ×0.7, integer half-up like `enemy_hit` (15→11, 17→12).
+pub fn plate_hit(hit: u32) -> u32 { (hit * 70 + 50) / 100 }
+/// COMBAT-CORE-2a — the equipped owned find carries the Shell ward.
+pub fn shell_equipped(finds: Option<&FoundFinds>) -> bool { finds.and_then(FoundFinds::equipped_find).is_some_and(|f| f.ward == Some(shared::temper::WardKind::Shell)) }
+/// COMBAT-CORE-2a — key 2 raises Plate only inside the visible tell, once per lunge, never while it is up. True when it armed.
+pub fn plate_arm(combat: &mut CombatState, reach: bool, shell: bool) -> bool {
+    let arm = shell && tell_visible(combat.lunge_timer, reach) && !combat.plate_armed && combat.plate_secs <= 0.0;
+    if arm { (combat.plate_secs, combat.plate_armed) = (PLATE_SECS, true); }
+    arm
 }
 
 #[derive(Component)]
@@ -341,11 +358,18 @@ pub fn ground_shot_connects(grounded: bool) -> bool {
 /// One lunge per 0.6 s in reach. True when the player is defeated.
 /// The clock, tell, and defeat return advance either way; damage is the due wrap only while grounded.
 pub fn predator_tick(combat: &mut CombatState, dt: f32, reach: bool, grounded: bool, tier: DifficultyTier) -> bool {
+    let plate = combat.plate_secs > 0.0; // COMBAT-CORE-2a: Plate-off (every existing caller) is unchanged
+    predator_tick_plated(combat, dt, reach, grounded, tier, plate)
+}
+/// COMBAT-CORE-2a — `predator_tick` with Plate: a due wrap lands `plate_hit` while `plate`. A wrap or reset ends the lunge's arm.
+pub fn predator_tick_plated(combat: &mut CombatState, dt: f32, reach: bool, grounded: bool, tier: DifficultyTier, plate: bool) -> bool {
     combat.lunge_timer = if reach { combat.lunge_timer + dt.max(0.0) } else { 0.0 };
+    combat.plate_armed &= reach && combat.lunge_timer < LUNGE_SECS;
     while combat.lunge_timer >= LUNGE_SECS {
         combat.lunge_timer -= LUNGE_SECS;
         if ground_shot_connects(grounded) {
-            combat.player_taken = combat.player_taken.saturating_add(enemy_hit(tier, HIT)).min(HEALTH);
+            let hit = enemy_hit(tier, HIT);
+            combat.player_taken = combat.player_taken.saturating_add(if plate { plate_hit(hit) } else { hit }).min(HEALTH);
         }
     }
     combat.player_taken >= HEALTH
@@ -379,7 +403,7 @@ pub fn reseat_at(place: PlaceId, combat: &mut CombatState, presence: &mut SoftPr
     let [x, z] = if place == PlaceId::Sanctuary { STAVEHOLD_GATE_SPOT } else { heartwood_bath_return(PlaceId::Heartwood, px, pz).unwrap_or(HEARTWOOD_ENTRANCE) };
     (presence.position, presence.velocity) = (Vec3::new(x, STAND_HEIGHT, z), Vec3::ZERO);
     presence.grounded = true;
-    (combat.player_taken, combat.lunge_timer) = (0, 0.0);
+    (combat.player_taken, combat.lunge_timer, combat.plate_secs, combat.plate_armed) = (0, 0.0, 0.0, false);
 }
 
 /// FEEL-PASS-1 — the line for one FIRE that passed `fire_allowed`. `gained` is the real XP change.
@@ -551,8 +575,10 @@ pub fn combat_fire(
         satchel.is_some_and(|i| i.open),
         realm.is_some_and(|r| r.realm_open),
     );
+    let plate_key = gate && input.as_deref().and_then(|i| i.ability_slot) == Some(1); // COMBAT-CORE-2a: key 2, digit path only
     let pressed = strike_pressed(fire, input.and_then(|i| i.ability_slot), gate);
     let pulse = buffer.as_ref().is_some_and(|b| b.fire);
+    let pulse = pulse || plate_key; // key 2 also wakes the fire path; the strike below re-reads the buffer
     let (true, Some(travel), Some(presence), Some(mut skills)) = (pressed || pulse, travel, presence, skills) else {
         return;
     };
@@ -571,6 +597,8 @@ pub fn combat_fire(
     let plate_open = plate.as_deref().is_some_and(places_plate_open);
     let allowed = fire_allowed(grab, plate_open, ui.iter().any(|i| *i != Interaction::None), prompts);
     let reach = in_reach(travel.current, &combat, presence.position.x, presence.position.z);
+    if plate_key && allowed { plate_arm(&mut combat, reach, shell_equipped(finds.as_deref())); }
+    if !(pressed || buffer.as_ref().is_some_and(|b| b.fire)) { return; }
     // COMBAT-FEEL-1: the hit lands here in Update; only expiry and reach run on the fixed tick.
     let now_fixed = fixed.map_or(0.0, |t| t.elapsed_secs_f64());
     let run = match buffer {
@@ -628,7 +656,7 @@ fn hold_strike_buffer(
 }
 
 #[allow(clippy::too_many_arguments, clippy::type_complexity)]
-fn predator_lunge(
+pub(crate) fn predator_lunge(
     time: Res<Time>,
     door: Option<Res<LaunchDoor>>,
     travel: Option<Res<HexTravelState>>,
@@ -663,6 +691,7 @@ fn predator_lunge(
     let before = combat.player_taken; // CL-C1: one edge per frame, read before the reseat
     let t0 = combat.lunge_timer;
     let defeated = predator_tick(&mut combat, time.delta_secs(), reach, grounded, tier);
+    combat.plate_secs = (combat.plate_secs - time.delta_secs()).max(0.0);
     crate::combat_text::hook_after_lunge(&mut cmd, t0, before, time.delta_secs(), reach, grounded, combat.player_taken, presence.position);
     if hurt_edge(before, combat.player_taken) {
         combat.hurt = combat.hurt.wrapping_add(1);
@@ -2431,5 +2460,220 @@ mod tests {
     fn r2_tell_leaves_other_top_toast_occupants_hidden() {
         let ids = [ID_PICKUP, ID_THRIVING, ID_SOVEREIGN, ID_WHISPER, ID_WELCOME];
         yard("r2", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sworn, PREDATOR_HOME, |app| { let spawned: Vec<_> = ids.into_iter().map(|id| (id, app.world_mut().spawn((Node::default(), Visibility::Visible, HudSlab(id))).id())).collect(); let (_, _, text, vis) = open_lunge(app); assert_eq!((text.as_str(), vis), (LUNGE_TELL_TEXT, Visibility::Visible)); for (id, entity) in spawned { assert_eq!(*app.world().get::<Visibility>(entity).unwrap(), Visibility::Hidden, "{id}"); } let yielded = &app.world().resource::<HudYielded>().0; assert!(ids.into_iter().all(|id| yielded.contains(&id)) && !yielded.contains(&ID_PULSE)); });
+    }
+
+    // CARD COMBAT-CORE-2a SHELL-PLATE — key 2 raises Plate (×0.7 lunge, 3 s) inside the visible tell with a Shell find.
+    const CC2A_PLATE_TINT: Color = Color::srgb(0.86, 0.60, 0.22);
+    fn cc2a<R>(tag: &str, tier: DifficultyTier, shell: Option<usize>, body: impl FnOnce(&mut App) -> R) -> R {
+        yard(tag, HudPresetId::Classic, PlaceId::Heartwood, tier, PREDATOR_HOME, |app| {
+            let mut f = app.world_mut().resource_mut::<FoundFinds>();
+            f.names = shared::temper::NAMED_FINDS.iter().map(|n| n.name).collect();
+            if let Some(i) = shell { for _ in 0..=i { assert!(f.cycle_equipped()); } } // GEAR-EQUIP-1: what satchel + 4 runs
+            drop(f);
+            app.add_plugins(crate::player_lineage::PlayerLineagePlugin);
+            let mat = app.world_mut().resource_mut::<Assets<StandardMaterial>>().add(Color::WHITE);
+            let (prim, leaf) = (mat.clone(), app.world_mut().resource_mut::<Assets<StandardMaterial>>().add(Color::WHITE));
+            app.world_mut().spawn((crate::human_presence::HumanPresence, Mesh3d::default(), MeshMaterial3d(prim)));
+            app.world_mut().spawn(crate::human_presence::HumanPresence).with_child(MeshMaterial3d(leaf));
+            tick(app, 0.0);
+            body(app)
+        })
+    }
+    /// The primitive root's material and the authored leaf's material, in that order.
+    fn cc2a_lanes(app: &App) -> Vec<Color> {
+        let (w, mats) = (app.world(), app.world().resource::<Assets<StandardMaterial>>());
+        let mut q = w.try_query::<(&MeshMaterial3d<StandardMaterial>, Option<&ChildOf>, Has<crate::human_presence::HumanPresence>)>().unwrap();
+        q.iter(w).filter(|(_, up, own)| *own || up.is_some_and(|c| w.get::<crate::human_presence::HumanPresence>(c.parent()).is_some())).map(|(m, _, own)| (!own, mats.get(&m.0).unwrap().base_color)).collect::<std::collections::BTreeMap<_, _>>().into_values().collect()
+    }
+    fn cc2a_tints(app: &App) -> Vec<Color> { let mut v = cc2a_lanes(app); v.dedup(); v }
+    fn cc2a_keys(app: &mut App, keys: &[KeyCode]) {
+        keys.iter().for_each(|k| app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(*k));
+        tick(app, 0.0);
+        keys.iter().for_each(|k| app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset(*k));
+    }
+    fn cc2a_press_at(app: &mut App, timer: f32) {
+        app.world_mut().resource_mut::<CombatState>().lunge_timer = timer;
+        cc2a_keys(app, &[KeyCode::Digit2]);
+    }
+    /// Steps 1/60 s for `secs`; returns each landed lunge's damage in order.
+    fn cc2a_hits(app: &mut App, secs: f32) -> Vec<u32> {
+        (0..(secs * 60.0).round() as usize).filter_map(|_| { let b = app.world().resource::<CombatState>().player_taken; tick(app, 1.0 / 60.0); Some(app.world().resource::<CombatState>().player_taken.saturating_sub(b)).filter(|d| *d > 0) }).collect()
+    }
+    const CC2A_TELL: f32 = LUNGE_SECS - LUNGE_TELL_SECS;
+
+    #[test]
+    fn cc2a_s1_shell_key2_in_tell_plates_lunges_for_three_seconds() {
+        cc2a("cc2a1", DifficultyTier::Sheltered, Some(0), |app| {
+            cc2a_press_at(app, CC2A_TELL);
+            assert_eq!(cc2a_hits(app, 3.4), [11, 11, 11, 11, 11, 15], "plated wraps at +0.35 .. +2.75 s, plain at +3.35 s");
+        });
+    }
+
+    #[test]
+    fn cc2a_s2_unbroken_17_to_12_and_sworn_to_11() {
+        for (tier, want) in [(DifficultyTier::Unbroken, [12, 17]), (DifficultyTier::Sworn, [11, 15]), (DifficultyTier::Steady, [11, 15])] {
+            cc2a("cc2a2", tier, Some(0), |app| {
+                assert_eq!(enemy_hit(tier, HIT), want[1]);
+                cc2a_press_at(app, CC2A_TELL);
+                assert_eq!(cc2a_hits(app, 0.4), [want[0]], "{tier:?}");
+            });
+        }
+    }
+
+    #[test]
+    fn cc2a_s3_outside_the_visible_tell_no_plate() {
+        for (tag, timer, at, down) in [("cc2a3a", 0.24, PREDATOR_HOME, false), ("cc2a3b", CC2A_TELL - 1e-3, PREDATOR_HOME, false), ("cc2a3c", 0.0, PREDATOR_HOME, false), ("cc2a3d", 0.4, [PREDATOR_HOME[0] + REACH + 1.0, PREDATOR_HOME[1]], false), ("cc2a3e", 0.4, PREDATOR_HOME, true)] {
+            cc2a(tag, DifficultyTier::Sheltered, Some(0), |app| {
+                app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(at[0], 0.9, at[1]);
+                if down { app.world_mut().resource_mut::<CombatState>().predator_taken = HEALTH; }
+                cc2a_press_at(app, timer);
+                let c = app.world().resource::<CombatState>();
+                assert_eq!((c.player_taken, c.strikes, c.predator_taken == HEALTH, cc2a_tints(app)), (0, 0, down, vec![crate::player_lineage::Lineage::Human.tint()]), "{tag}");
+                if !down && at == PREDATOR_HOME { assert_eq!(cc2a_hits(app, 0.62), [15], "{tag}"); }
+            });
+        }
+    }
+
+    #[test]
+    fn cc2a_s4_no_shell_find_no_plate() {
+        let rows: Vec<(String, Option<usize>)> = std::iter::once(("none".to_string(), None)).chain((1..shared::temper::NAMED_FINDS.len()).map(|i| (format!("find{i}"), Some(i)))).collect();
+        for (tag, eq) in rows {
+            cc2a(&format!("cc2a4{tag}"), DifficultyTier::Sheltered, eq, |app| {
+                if let Some(i) = eq { assert_ne!(app.world().resource::<FoundFinds>().equipped_find().unwrap().ward, Some(shared::temper::WardKind::Shell), "{i}"); }
+                cc2a_press_at(app, CC2A_TELL);
+                assert_eq!(cc2a_hits(app, 0.4), [15], "{tag}");
+            });
+        }
+        cc2a("cc2a4owned", DifficultyTier::Sheltered, None, |app| {
+            app.world_mut().resource_mut::<FoundFinds>().names = vec![shared::temper::NAMED_FINDS[0].name];
+            cc2a_press_at(app, CC2A_TELL);
+            assert_eq!(cc2a_hits(app, 0.4), [15], "owned but not equipped");
+        });
+    }
+
+    #[test]
+    fn cc2a_s5_once_per_lunge_then_next_lunge_after_expiry_arms_again() {
+        cc2a("cc2a5", DifficultyTier::Sheltered, Some(0), |app| {
+            cc2a_press_at(app, CC2A_TELL);
+            cc2a_keys(app, &[KeyCode::Digit2]);
+            assert_eq!(cc2a_hits(app, 3.4), [11, 11, 11, 11, 11, 15], "the same-lunge press changes nothing");
+            let t = app.world().resource::<CombatState>().lunge_timer;
+            assert!(t < CC2A_TELL, "{t}");
+            tick(app, CC2A_TELL + 0.01 - t);
+            cc2a_keys(app, &[KeyCode::Digit2]);
+            assert_eq!(cc2a_hits(app, 0.4), [11], "a later lunge arms again");
+        });
+    }
+
+    #[test]
+    fn cc2a_s6_repress_while_up_is_ignored_no_refresh() {
+        cc2a("cc2a6", DifficultyTier::Sheltered, Some(0), |app| {
+            cc2a_press_at(app, CC2A_TELL);
+            assert_eq!(cc2a_hits(app, 1.8), [11, 11, 11]);
+            assert!(app.world().resource::<CombatState>().lunge_timer >= CC2A_TELL);
+            cc2a_keys(app, &[KeyCode::Digit2]);
+            assert_eq!(cc2a_hits(app, 1.6), [11, 11, 15], "Plate still ends 3 s after the first arm");
+        });
+    }
+
+    #[test]
+    fn cc2a_s7_jump_dodge_under_plate_takes_nothing_and_plate_decays() {
+        cc2a("cc2a7", DifficultyTier::Sheltered, Some(0), |app| {
+            cc2a_press_at(app, CC2A_TELL);
+            app.world_mut().resource_mut::<SoftPresence>().grounded = false;
+            assert_eq!(cc2a_hits(app, 3.1), Vec::<u32>::new());
+            app.world_mut().resource_mut::<SoftPresence>().grounded = true;
+            assert_eq!(cc2a_hits(app, 0.6), [15]);
+        });
+    }
+
+    #[test]
+    fn cc2a_s8_defeat_clears_plate_and_tint_reverts_at_three_seconds() {
+        cc2a("cc2a8a", DifficultyTier::Sheltered, Some(0), |app| {
+            let human = crate::player_lineage::Lineage::Human.tint();
+            app.world_mut().resource_mut::<CombatState>().player_taken = HEALTH - 1;
+            cc2a_press_at(app, CC2A_TELL);
+            assert_eq!(cc2a_tints(app), [CC2A_PLATE_TINT]);
+            assert_eq!(cc2a_hits(app, 0.4), Vec::<u32>::new(), "defeat reseats");
+            assert_eq!((app.world().resource::<CombatState>().player_taken, cc2a_tints(app)), (0, vec![human]));
+            app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(PREDATOR_HOME[0], 0.9, PREDATOR_HOME[1]);
+            assert_eq!(cc2a_hits(app, 0.62), [15], "no Plate after the wake");
+        });
+        cc2a("cc2a8b", DifficultyTier::Sheltered, Some(0), |app| {
+            cc2a_press_at(app, CC2A_TELL);
+            app.insert_resource(HexTravelState { current: PlaceId::Sanctuary });
+            let _ = cc2a_hits(app, 178.0 / 60.0);
+            assert_eq!(cc2a_tints(app), [CC2A_PLATE_TINT], "up after 178 ticks");
+            let _ = cc2a_hits(app, 3.0 / 60.0);
+            assert_eq!(cc2a_tints(app), [crate::player_lineage::Lineage::Human.tint()], "down by 181 ticks");
+        });
+    }
+
+    #[test]
+    fn cc2a_s9_gates_block_arming() {
+        for tag in ["settings", "places", "satchel", "title"] {
+            cc2a(&format!("cc2a9{tag}"), DifficultyTier::Sheltered, Some(0), |app| {
+                match tag { "settings" => app.world_mut().resource_mut::<HouseLabel>().settings_open = true, "places" => app.world_mut().resource_mut::<PlacesPlate>().open = true, "satchel" => { app.insert_resource(HumanInventory { open: true, ..default() }); } _ => { app.insert_resource(LaunchDoor::Title); } }
+                cc2a_press_at(app, CC2A_TELL);
+                assert_eq!(cc2a_tints(app), [crate::player_lineage::Lineage::Human.tint()], "{tag}");
+                app.insert_resource(LaunchDoor::InYard);
+                assert_eq!(cc2a_hits(app, 0.62), [15], "{tag}");
+            });
+        }
+    }
+
+    #[test]
+    fn cc2a_s10_lunge_only_droid_shot_unchanged_and_reaches_apart() {
+        cc2a("cc2a10", DifficultyTier::Sheltered, Some(0), |app| {
+            cc2a_press_at(app, CC2A_TELL);
+            let (mut state, mut taken) = (crate::droid::DroidState { shot_timer: crate::droid::DROID_SHOT_SECS - 1e-3, ..default() }, 0u32);
+            crate::droid::shot_step(&mut state, &mut taken, 0.01, true, true, true, DifficultyTier::Sheltered);
+            assert_eq!(taken, enemy_hit(DifficultyTier::Sheltered, crate::droid::DROID_HIT));
+        });
+        let gap = Vec2::from(PREDATOR_HOME).distance(Vec2::from(crate::droid::DROID_HOME)) - REACH - crate::droid::DROID_REACH;
+        assert!(gap > 5.4 * 3.0, "SPRINT (human_presence.rs:141) for 3 s can't bridge {gap}");
+    }
+
+    #[test]
+    fn cc2a_s11_slot_zero_untouched_and_key1_wins_the_frame() {
+        cc2a("cc2a11", DifficultyTier::Sheltered, Some(0), |app| {
+            app.world_mut().resource_mut::<CombatState>().lunge_timer = CC2A_TELL;
+            cc2a_keys(app, &[KeyCode::Digit1, KeyCode::Digit2]);
+            let c = app.world().resource::<CombatState>();
+            assert_eq!((c.strikes, c.predator_taken, cc2a_tints(app)), (1, HIT + 1, vec![crate::player_lineage::Lineage::Human.tint()]));
+            cc2a_keys(app, &[KeyCode::Digit2]);
+            let (c, buf) = (app.world().resource::<CombatState>(), app.world().resource::<StrikeBuffer>());
+            assert_eq!((c.strikes, c.predator_taken, buf.fire, buf.until), (1, HIT + 1, false, None));
+        });
+    }
+
+    #[test]
+    fn cc2a_s12_plate_tint_both_lanes_on_the_arm_frame() {
+        cc2a("cc2a12", DifficultyTier::Sheltered, Some(0), |app| {
+            let human = crate::player_lineage::Lineage::Human.tint();
+            assert_eq!(cc2a_tints(app), [human]);
+            cc2a_press_at(app, CC2A_TELL);
+            assert_eq!(cc2a_lanes(app), [CC2A_PLATE_TINT; 2], "both lanes the arm frame");
+            let lin = |c: Color| c.to_linear().to_vec3();
+            for l in [crate::player_lineage::Lineage::Human, crate::player_lineage::Lineage::Cydruid, crate::player_lineage::Lineage::Quellorian, crate::player_lineage::Lineage::Draek, crate::player_lineage::Lineage::Ambrosian] {
+                assert!(lin(CC2A_PLATE_TINT).distance(lin(l.tint())) > 0.2, "{l:?}");
+            }
+        });
+    }
+
+    #[test]
+    fn cc2a_s13_s14_no_reused_cue_no_copy_no_cooldown() {
+        cc2a("cc2a13", DifficultyTier::Sheltered, Some(0), |app| {
+            let epi = app.world().resource::<FirstHarvestEpiphany>().pulse_line.clone();
+            let audio = app.world_mut().query::<&AudioPlayer>().iter(app.world()).count();
+            cc2a_press_at(app, CC2A_TELL);
+            let c = app.world().resource::<CombatState>();
+            assert_eq!((c.hurt, c.player_taken, app.world().resource::<FirstHarvestEpiphany>().pulse_line.clone()), (0, 0, epi));
+            assert_eq!(app.world_mut().query::<&AudioPlayer>().iter(app.world()).count(), audio);
+        });
+        assert!(slot_tooltip(1).is_none() && !slot_strikes(Some(1)));
+        let prod = include_str!("combat_core.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        let state = &prod[prod.find("pub struct CombatState {").unwrap()..];
+        assert!(!state[..state.find("\n}").unwrap()].to_lowercase().contains("cooldown"));
     }
 }
