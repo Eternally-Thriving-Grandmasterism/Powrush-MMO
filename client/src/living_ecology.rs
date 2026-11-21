@@ -84,7 +84,7 @@ impl Default for EcologyState {
     }
 }
 
-#[derive(Resource, Debug)]
+#[derive(Resource, Debug, PartialEq)]
 pub struct BiomeFeel {
     pub regen_mul: f32,
     /// Place-honest climate label the greet may rhyme with.
@@ -491,14 +491,16 @@ fn dress_for_climate(
 ) {
     let id = realm.current.unwrap_or(0);
     let place = place_for_realm(realm.current);
-    feel.place = place;
-    feel.name = place_dress_name(place);
-    feel.regen_mul = match id {
-        4 | 1 => 1.6,
-        3 => 1.9,
-        2 => 1.0,
-        _ => 1.0,
-    };
+    feel.set_if_neq(BiomeFeel {
+        place,
+        name: place_dress_name(place),
+        regen_mul: match id {
+            4 | 1 => 1.6,
+            3 => 1.9,
+            2 => 1.0,
+            _ => 1.0,
+        },
+    });
     for (prop, mut vis) in &mut q {
         let show = match prop.kind {
             PropKind::Tree => yard_trees_shown(realm.current),
