@@ -7165,4 +7165,87 @@ mod tests {
         let fhe = include_str!("first_harvest_epiphany.rs");
         assert!(!fhe.split("#[cfg(test)]").next().unwrap().contains("ResMut<crate::human_presence::CloseUpOffer>"));
     }
+
+    // CARD CAMERA-UX-1d — raw look eases only the close-up zoom scale; raw off is today's.
+    fn cux_raw_world() -> App {
+        cux_world(|app| {
+            app.insert_resource(LocalLookFeel { raw_look: true, ..default() });
+        })
+    }
+
+    /// Frame 0 is the K frame. Ratios over `frames` more frames after it.
+    fn cux_ease(app: &mut App, frames: usize) -> (f32, Vec<f32>) {
+        cux_tap_k(app);
+        let first = cux_ratio(app);
+        let rest = (0..frames).map(|_| { app.update(); cux_ratio(app) }).collect();
+        (first, rest)
+    }
+
+    #[test]
+    fn cux1d_z1_raw_k_eases_in_without_undershoot() {
+        let mut app = cux_raw_world();
+        let (first, rest) = cux_ease(&mut app, 120);
+        assert!(first > 0.85, "K frame landed {first}");
+        let mut prev = first;
+        for (i, r) in rest.iter().enumerate() {
+            assert!(*r <= prev + 1e-6 && *r >= 0.55 - 1e-4, "frame {} ratio {r} after {prev}", i + 1);
+            prev = *r;
+        }
+        assert!((rest[59] - 0.55).abs() < 1e-3, "1.0 s ratio {}", rest[59]);
+        let settled = cux_transform(&mut app);
+        app.update();
+        assert_eq!(cux_transform(&mut app).translation.to_array().map(f32::to_bits), settled.translation.to_array().map(f32::to_bits));
+    }
+
+    #[test]
+    fn cux1d_z2_raw_second_k_eases_out_without_overshoot() {
+        let mut app = cux_raw_world();
+        cux_ease(&mut app, 120);
+        let (first, rest) = cux_ease(&mut app, 60);
+        assert!(first < 0.70, "second K frame landed {first}");
+        let mut prev = first;
+        for (i, r) in rest.iter().enumerate() {
+            assert!(*r >= prev - 1e-6 && *r <= 1.0 + 1e-4, "frame {} ratio {r} after {prev}", i + 1);
+            prev = *r;
+        }
+        assert!((rest[59] - 1.0).abs() < 1e-3, "1.0 s ratio {}", rest[59]);
+    }
+
+    #[test]
+    fn cux1d_z3_raw_orbit_stays_one_to_one_in_close_up() {
+        let mut app = cux_raw_world();
+        cux_ease(&mut app, 120);
+        app.world_mut().resource_mut::<ButtonInput<MouseButton>>().press(MouseButton::Right);
+        app.world_mut().resource_mut::<AccumulatedMouseMotion>().delta = Vec2::new(40.0, 0.0);
+        let yaw = app.world().resource::<FollowOrbit>().yaw;
+        app.update();
+        let orbit = *app.world().resource::<FollowOrbit>();
+        assert!(orbit.yaw != yaw, "yaw did not move");
+        let dir = (cam_translation(&mut app) - app.world().resource::<SoftPresence>().position).normalize();
+        assert!(dir.distance(orbit.offset().normalize()) < 1e-4, "{dir:?} vs {:?}", orbit.offset().normalize());
+        assert!((cux_ratio(&mut app) - 0.55).abs() < 1e-3);
+    }
+
+    #[test]
+    fn cux1d_z4_raw_off_k_frame_is_todays_lerp() {
+        let mut app = cux_world(|_| {});
+        let prev = cam_translation(&mut app);
+        cux_tap_k(&mut app);
+        let pos = app.world().resource::<SoftPresence>().position;
+        let off = app.world().resource::<FollowOrbit>().offset();
+        let dt = app.world().resource::<Time>().delta_secs();
+        let want = prev.lerp(pos + off * 0.55 + presence_punch_camera_delta(0.0, 1.0), follow_lerp_t(dt));
+        assert_eq!(cam_translation(&mut app).to_array().map(f32::to_bits), want.to_array().map(f32::to_bits));
+    }
+
+    #[test]
+    fn cux1d_z5_one_mode_writer_16_params_read_only_pads() {
+        let src = include_str!("human_presence.rs");
+        let prod = src.split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        assert_eq!(prod.matches("ResMut<CameraMode>").count(), 1);
+        let sig = &prod[prod.find("fn follow_camera(").unwrap()..];
+        assert_eq!(sig[..sig.find("\n) {").unwrap()].lines().skip(1).count(), 16);
+        let pads = &prod[prod.find("struct FollowTimePads<").unwrap()..];
+        assert!(!pads[..pads.find("\n}\n").unwrap()].contains("ResMut"));
+    }
 }
