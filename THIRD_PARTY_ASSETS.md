@@ -1,6 +1,6 @@
 # Third-party assets
 
-Third-party files in this repository and where their licence is recorded. Everything else is covered by [LICENSE](LICENSE) (AG-SML v1.1).
+Third-party files in this repository and where their licence is recorded. For this repository's own licence, see [LICENSE](LICENSE).
 
 | Asset | Source | Licence (as stated in the file) | Provenance file |
 |---|---|---|---|
