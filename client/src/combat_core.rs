@@ -43,8 +43,10 @@ pub const FIND_GAIN: f32 = 0.05; // peak −14.6 dBFS; same ceiling as hit
 
 pub const PREDATOR_NAME: &str = "Heartwood Prowler";
 pub const HEALTH: u32 = 200; // player and predator pools, per CUT A1
-/// COMBAT_AND_PVP.md:486 — Predator "Lunge, 0.6 s" hits 15. Fire lands the same 15.
-pub const HIT: u32 = 15;
+/// COMBAT_AND_PVP.md:435/:676 — the basic player strike lands 8 (predator and droid alike). Gear adds on top; no tier scaling.
+pub const HIT: u32 = 8;
+/// COMBAT_AND_PVP.md:486/:678 — Predator "Lunge, 0.6 s" hits 15, before `enemy_hit` tier scaling and Plate.
+pub const LUNGE_HIT: u32 = 15;
 pub const LUNGE_SECS: f32 = 0.6;
 pub const REACH: f32 = HARVEST_REACH; // both sides reuse the harvest reach
 pub const XP_PER_LANDED_HIT: u32 = 10; // tuning value, set in playtest
@@ -368,7 +370,7 @@ pub fn predator_tick_plated(combat: &mut CombatState, dt: f32, reach: bool, grou
     while combat.lunge_timer >= LUNGE_SECS {
         combat.lunge_timer -= LUNGE_SECS;
         if ground_shot_connects(grounded) {
-            let hit = enemy_hit(tier, HIT);
+            let hit = enemy_hit(tier, LUNGE_HIT);
             combat.player_taken = combat.player_taken.saturating_add(if plate { plate_hit(hit) } else { hit }).min(HEALTH);
         }
     }
@@ -1106,7 +1108,7 @@ mod tests {
 
     #[test]
     fn combat_feel_look_damage_and_timing_unchanged() {
-        assert!(HEALTH == 200 && HIT == 15 && LUNGE_SECS == 0.6 && LUNGE_TELL_SECS == 0.35 && REACH == HARVEST_REACH && HIT_KICK == 0.35);
+        assert!(HEALTH == 200 && HIT == 8 && LUNGE_HIT == 15 && LUNGE_SECS == 0.6 && LUNGE_TELL_SECS == 0.35 && REACH == HARVEST_REACH && HIT_KICK == 0.35);
         assert!(HURT_SPEED != 1.0 && hit_volume(true, None) == Some(HIT_GAIN));
     }
 
@@ -1118,7 +1120,7 @@ mod tests {
     #[test]
     fn tell_cadence_sting_once_per_entry() {
         let (mut c, mut armed) = (CombatState::default(), false);
-        assert!((0..15).filter(|_| cadence(&mut c, &mut armed, true, 0.125).0).count() == 1 && !cadence(&mut c, &mut armed, true, 0.0).0 && c.player_taken == 3 * HIT, "3 wraps, one sting");
+        assert!((0..15).filter(|_| cadence(&mut c, &mut armed, true, 0.125).0).count() == 1 && !cadence(&mut c, &mut armed, true, 0.0).0 && c.player_taken == 3 * LUNGE_HIT, "3 wraps, one sting");
     }
     #[test]
     fn tell_cadence_rearms_on_exit() {
@@ -1159,7 +1161,7 @@ mod tests {
         let step = |c: &mut CombatState, dt: f32| { let before = c.player_taken; predator_tick(c, dt, true, true, DifficultyTier::Sheltered); hurt_edge(before, c.player_taken) };
         assert!((0..4).all(|_| !step(&mut c, 0.125)), "no edge before the strike");
         assert!(step(&mut c, 0.125) && !step(&mut c, 0.0), "once on the wrap, not on an unchanged frame");
-        assert!(step(&mut c, 1.25) && c.player_taken == 3 * enemy_hit(DifficultyTier::Sheltered, HIT), "two wraps, one edge");
+        assert!(step(&mut c, 1.25) && c.player_taken == 3 * enemy_hit(DifficultyTier::Sheltered, LUNGE_HIT), "two wraps, one edge");
     }
 
     fn clock_after(start: f32, dt: f32, reach: bool) -> (f32, u32) {
@@ -1174,7 +1176,7 @@ mod tests {
     fn due_taken(start: u32, wraps: u32, tier: DifficultyTier) -> u32 {
         let mut taken = start;
         for _ in 0..wraps {
-            taken = taken.saturating_add(enemy_hit(tier, HIT)).min(HEALTH);
+            taken = taken.saturating_add(enemy_hit(tier, LUNGE_HIT)).min(HEALTH);
         }
         taken
     }
@@ -1208,7 +1210,7 @@ mod tests {
         assert_eq!(lean_at(air.lunge_timer, true), lean_at(ground.lunge_timer, true));
         assert_eq!(tell_visible(air.lunge_timer, true), tell_visible(ground.lunge_timer, true));
         assert_eq!(air.player_taken, 0);
-        assert_eq!(ground.player_taken, HIT);
+        assert_eq!(ground.player_taken, LUNGE_HIT);
         let mut one = CombatState { player_taken: 11, hurt: 2, ..Default::default() };
         assert!(!predator_tick(&mut one, LUNGE_SECS, true, false, tier));
         assert_eq!((one.player_taken, one.lunge_timer, one.hurt), (11, 0.0, 2));
@@ -1240,12 +1242,12 @@ mod tests {
 
     #[test]
     fn jump_dodge_grounded_lunge_keeps_tier_saturation_and_clock() {
-        assert_eq!((enemy_hit(DifficultyTier::Sheltered, HIT), enemy_hit(DifficultyTier::Steady, HIT), enemy_hit(DifficultyTier::Sworn, HIT), enemy_hit(DifficultyTier::Unbroken, HIT)), (HIT, HIT, HIT, 17));
+        assert_eq!((enemy_hit(DifficultyTier::Sheltered, LUNGE_HIT), enemy_hit(DifficultyTier::Steady, LUNGE_HIT), enemy_hit(DifficultyTier::Sworn, LUNGE_HIT), enemy_hit(DifficultyTier::Unbroken, LUNGE_HIT)), (LUNGE_HIT, LUNGE_HIT, LUNGE_HIT, 17));
         let mut shel = CombatState::default();
-        assert!(!predator_tick(&mut shel, LUNGE_SECS, true, true, DifficultyTier::Sheltered) && shel.player_taken == HIT && shel.lunge_timer == 0.0);
+        assert!(!predator_tick(&mut shel, LUNGE_SECS, true, true, DifficultyTier::Sheltered) && shel.player_taken == LUNGE_HIT && shel.lunge_timer == 0.0);
         let mut steady = CombatState::default();
         predator_tick(&mut steady, LUNGE_SECS, true, true, DifficultyTier::Steady);
-        assert_eq!((steady.player_taken, steady.lunge_timer), (HIT, 0.0));
+        assert_eq!((steady.player_taken, steady.lunge_timer), (LUNGE_HIT, 0.0));
         let mut unbroken = CombatState::default();
         predator_tick(&mut unbroken, LUNGE_SECS, true, true, DifficultyTier::Unbroken);
         assert_eq!(unbroken.player_taken, 17);
@@ -1253,7 +1255,7 @@ mod tests {
         for _ in 0..13 {
             assert!(!predator_tick(&mut sat, LUNGE_SECS, true, true, DifficultyTier::Sheltered));
         }
-        assert_eq!(sat.player_taken, 13 * HIT);
+        assert_eq!(sat.player_taken, 13 * LUNGE_HIT);
         assert!(predator_tick(&mut sat, LUNGE_SECS, true, true, DifficultyTier::Sheltered));
         assert_eq!(sat.player_taken, HEALTH);
         let (start, dt) = (0.05f32, 3.7f32);
@@ -1297,22 +1299,22 @@ mod tests {
         assert!(!predator_tick(&mut c, half, true, true, DifficultyTier::Sheltered));
         assert_eq!((c.player_taken, c.lunge_timer), (0, half));
         assert!(!predator_tick(&mut c, LUNGE_SECS - half, true, true, DifficultyTier::Sheltered));
-        assert_eq!((c.player_taken, c.lunge_timer), (HIT, 0.0), "jump avoids due damage but no future immune");
+        assert_eq!((c.player_taken, c.lunge_timer), (LUNGE_HIT, 0.0), "jump avoids due damage but no future immune");
         let mut mid = CombatState { lunge_timer: 0.4, player_taken: 10, ..Default::default() };
         predator_tick(&mut mid, 0.1, true, false, DifficultyTier::Sheltered);
         assert_eq!((mid.player_taken, mid.lunge_timer), (10, 0.5));
         assert!(!hurt_edge(10, mid.player_taken));
         predator_tick(&mut mid, 0.1, true, true, DifficultyTier::Sheltered);
-        assert_eq!((mid.player_taken, mid.lunge_timer), (10 + HIT, 0.0));
+        assert_eq!((mid.player_taken, mid.lunge_timer), (10 + LUNGE_HIT, 0.0));
         assert!(hurt_edge(10, mid.player_taken));
     }
 
     #[test]
     fn jump_dodge_already_dead_stays_defeated_and_near_dead_airborne_does_not() {
-        let mut near = CombatState { player_taken: HEALTH - HIT, hurt: 4, ..Default::default() };
+        let mut near = CombatState { player_taken: HEALTH - LUNGE_HIT, hurt: 4, ..Default::default() };
         assert!(!predator_tick(&mut near, LUNGE_SECS * 4.0, true, false, DifficultyTier::Sheltered));
-        assert_eq!((near.player_taken, near.lunge_timer, near.hurt), (HEALTH - HIT, 0.0, 4));
-        let mut grounded_near = CombatState { player_taken: HEALTH - HIT, ..Default::default() };
+        assert_eq!((near.player_taken, near.lunge_timer, near.hurt), (HEALTH - LUNGE_HIT, 0.0, 4));
+        let mut grounded_near = CombatState { player_taken: HEALTH - LUNGE_HIT, ..Default::default() };
         assert!(predator_tick(&mut grounded_near, LUNGE_SECS, true, true, DifficultyTier::Sheltered));
         assert_eq!(grounded_near.player_taken, HEALTH);
         let mut dead = CombatState { player_taken: HEALTH, hurt: 1, lunge_timer: 0.2, ..Default::default() };
@@ -1332,7 +1334,7 @@ mod tests {
         assert!(!hurt_edge(before, c.player_taken));
         let before = c.player_taken;
         predator_tick(&mut c, LUNGE_SECS, true, true, DifficultyTier::Sheltered);
-        assert!(hurt_edge(before, c.player_taken) && c.player_taken == HIT);
+        assert!(hurt_edge(before, c.player_taken) && c.player_taken == LUNGE_HIT);
         let before = c.player_taken;
         predator_tick(&mut c, 0.0, true, true, DifficultyTier::Sheltered);
         assert!(!hurt_edge(before, c.player_taken));
@@ -1368,15 +1370,15 @@ mod tests {
         assert!(!air.is_resource_changed::<SoftPresence>() && !air.is_resource_changed::<FirstHarvestEpiphany>());
         let high = run_predator_lunge(6.0, true, 0, 0.0, LUNGE_SECS, 0);
         let c = high.resource::<CombatState>();
-        assert_eq!((c.player_taken, c.hurt), (HIT, 1));
+        assert_eq!((c.player_taken, c.hurt), (LUNGE_HIT, 1));
         let p = high.resource::<SoftPresence>();
         assert!(p.grounded && p.position == Vec3::new(PREDATOR_HOME[0], 6.0, PREDATOR_HOME[1]) && p.velocity == Vec3::ZERO);
         let epi = high.resource::<FirstHarvestEpiphany>();
-        assert_eq!(epi.pulse_line, hurt_line(HIT));
+        assert_eq!(epi.pulse_line, hurt_line(LUNGE_HIT));
         assert_eq!(epi.pulse_until, high.resource::<Time>().elapsed_secs_f64() + CUE_SECS);
-        let mut near = run_predator_lunge(1.5, false, HEALTH - HIT, 0.0, LUNGE_SECS * 4.0, 0);
+        let mut near = run_predator_lunge(1.5, false, HEALTH - LUNGE_HIT, 0.0, LUNGE_SECS * 4.0, 0);
         let c = near.resource::<CombatState>();
-        assert_eq!((c.player_taken, c.hurt, c.lunge_timer), (HEALTH - HIT, 0, 0.0));
+        assert_eq!((c.player_taken, c.hurt, c.lunge_timer), (HEALTH - LUNGE_HIT, 0, 0.0));
         let p = near.resource::<SoftPresence>();
         assert!(!p.grounded && p.position == Vec3::new(PREDATOR_HOME[0], 1.5, PREDATOR_HOME[1]));
         assert!(near.resource::<FirstHarvestEpiphany>().pulse_line.is_empty());
@@ -1422,7 +1424,7 @@ mod tests {
         let inv = HumanInventory::default();
         let (slot, seen) = (inv.selected, inv.last_seen_harvests);
         let mut c = CombatState::default();
-        assert!(!predator_tick(&mut c, LUNGE_SECS, true, true, DifficultyTier::Sheltered) && c.player_taken == HIT);
+        assert!(!predator_tick(&mut c, LUNGE_SECS, true, true, DifficultyTier::Sheltered) && c.player_taken == LUNGE_HIT);
         assert!(predator_tick(&mut c, LUNGE_SECS * 14.0, true, true, DifficultyTier::Sheltered), "200 health, 15 per lunge");
         let (position, velocity) = (Vec3::new(-18.0, STAND_HEIGHT, -18.0), Vec3::X);
         let (prev_tick, curr_tick) = (None, None);
@@ -1495,7 +1497,7 @@ mod tests {
         world.insert_resource(LaunchDoor::InYard);
         let [x, z] = PREDATOR_HOME;
         world.insert_resource(SoftPresence { position: Vec3::new(x, STAND_HEIGHT, z), ..Default::default() });
-        world.insert_resource(CombatState { player_taken: HEALTH - HIT, ..Default::default() });
+        world.insert_resource(CombatState { player_taken: HEALTH - LUNGE_HIT, ..Default::default() });
         world.insert_resource(FirstHarvestEpiphany::default());
         world.run_system_once(predator_lunge).unwrap();
         assert_eq!(world.resource::<FirstHarvestEpiphany>().pulse_line, wake_cue());
@@ -1538,18 +1540,18 @@ mod tests {
     }
     #[test]
     fn hurt_readout_line_and_matcher() {
-        assert!(hurt_line(HIT) == "You 185 / 200" && hurt_line(enemy_hit(DifficultyTier::Unbroken, HIT)) == "You 183 / 200" && hurt_line(HEALTH + 5) == "You 0 / 200");
-        assert!([hurt_line(HIT), hurt_line(HEALTH + 5)].iter().all(|l| is_hurt_line(l) && ["loot", "instance", "heroic", "mythic", "rebirth", "outrider", "online"].iter().all(|w| !l.to_lowercase().contains(w))));
+        assert!(hurt_line(LUNGE_HIT) == "You 185 / 200" && hurt_line(enemy_hit(DifficultyTier::Unbroken, LUNGE_HIT)) == "You 183 / 200" && hurt_line(HEALTH + 5) == "You 0 / 200");
+        assert!([hurt_line(LUNGE_HIT), hurt_line(HEALTH + 5)].iter().all(|l| is_hurt_line(l) && ["loot", "instance", "heroic", "mythic", "rebirth", "outrider", "online"].iter().all(|w| !l.to_lowercase().contains(w))));
         assert!([wake_cue(), wake_cue_at(PlaceId::Sanctuary), fire_cue(PlaceId::Heartwood, &CombatState::default(), true, 0).unwrap(), LUNGE_TELL_TEXT.into(), "You +5 / 200".into(), "You 1x / 200".into(), String::new()].iter().all(|l| !is_hurt_line(l)));
     }
     #[test]
     fn hurt_readout_only_on_a_free_slot() {
         let (s, fire) = (DifficultyTier::Sheltered, format!("{PREDATOR_NAME} 185 / 200"));
-        assert!(hurt_pulse(s, "", 0.25, 0.25, HIT).as_deref() == Some("You 185 / 200") && hurt_pulse(s, &fire, 0.5, 0.25, HIT).is_none() && hurt_pulse(s, &wake_cue(), 0.5, 0.25, HIT).is_none() && hurt_pulse(s, &fire, 0.5, 0.5, HIT).is_some(), "a live wake line is kept");
-        assert_eq!(hurt_pulse(s, &hurt_line(HIT), 0.5, 0.25, 2 * HIT).as_deref(), Some("You 170 / 200"), "a hurt line replaces a hurt line");
+        assert!(hurt_pulse(s, "", 0.25, 0.25, LUNGE_HIT).as_deref() == Some("You 185 / 200") && hurt_pulse(s, &fire, 0.5, 0.25, LUNGE_HIT).is_none() && hurt_pulse(s, &wake_cue(), 0.5, 0.25, LUNGE_HIT).is_none() && hurt_pulse(s, &fire, 0.5, 0.5, LUNGE_HIT).is_some(), "a live wake line is kept");
+        assert_eq!(hurt_pulse(s, &hurt_line(LUNGE_HIT), 0.5, 0.25, 2 * LUNGE_HIT).as_deref(), Some("You 170 / 200"), "a hurt line replaces a hurt line");
     }
     #[test]
-    fn hurt_readout_hidden_on_sworn_and_unbroken() { assert!(crate::difficulty::TIERS.iter().all(|t| hurt_pulse(*t, "", 0.0, 0.25, HIT).is_some() != hides_cues(*t))); }
+    fn hurt_readout_hidden_on_sworn_and_unbroken() { assert!(crate::difficulty::TIERS.iter().all(|t| hurt_pulse(*t, "", 0.0, 0.25, LUNGE_HIT).is_some() != hides_cues(*t))); }
     #[test]
     fn hurt_frame_writes_the_readout() {
         use bevy::ecs::system::RunSystemOnce;
@@ -1563,7 +1565,7 @@ mod tests {
         world.insert_resource(CombatState { lunge_timer: 0.5, ..Default::default() });
         world.insert_resource(FirstHarvestEpiphany::default());
         world.run_system_once(predator_lunge).unwrap();
-        let (epi, c) = (world.resource::<FirstHarvestEpiphany>(), world.resource::<CombatState>()); assert!(c.player_taken == HIT && epi.pulse_line == "You 185 / 200" && epi.pulse_until == 0.125 + CUE_SECS);
+        let (epi, c) = (world.resource::<FirstHarvestEpiphany>(), world.resource::<CombatState>()); assert!(c.player_taken == LUNGE_HIT && epi.pulse_line == "You 185 / 200" && epi.pulse_until == 0.125 + CUE_SECS);
     }
 
     #[test]
@@ -1905,7 +1907,7 @@ mod tests {
         let (mut c, mut s) = (CombatState { respawned: true, ..Default::default() }, SkillXp::default());
         let xp = s.xp[COMBAT];
         let place = PlaceId::Heartwood;
-        let (mut paid, mut lives, cap) = (0, 3, crate::skill_xp::COMBAT_PAYING_HITS_PER_DAY); // 14 hits a life: 3 lives cross the cap
+        let (mut paid, mut lives, cap) = (0, 3, crate::skill_xp::COMBAT_PAYING_HITS_PER_DAY); // 25 hits a life: 3 lives cross the cap
         while c.predator_taken < HEALTH {
             let before = c.predator_taken;
             let paid_before = s.xp[COMBAT];
@@ -2026,7 +2028,7 @@ mod tests {
             assert!(tell_onset(&mut was, tell) && !tell_onset(&mut was, tell), "tell fires once on {t:?}");
             assert_eq!(tell && !hides_cues(t), t <= DifficultyTier::Steady, "ring shows on tiers 1-2 only");
             predator_tick(&mut c, LUNGE_TELL_SECS, true, true, t);
-            assert_eq!(c.player_taken, if t == DifficultyTier::Unbroken { 17 } else { HIT });
+            assert_eq!(c.player_taken, if t == DifficultyTier::Unbroken { 17 } else { LUNGE_HIT });
         }
         let low = LUNGE_TELL_TEXT.to_lowercase();
         assert!(["loot", "instance", "heroic", "mythic", "rebirth", "outrider", "online"].iter().all(|w| !low.contains(w)));
@@ -2227,7 +2229,7 @@ mod tests {
             let geared = FoundFinds { equipped: Some(name), ..all.clone() };
             assert_eq!((f.name, f.standing()), (name, standing));
             assert_eq!(strike(Some(&geared), 0), ((true, None), HIT + bonus, XP_PER_LANDED_HIT), "{name}");
-            assert!(HIT + bonus <= 18 && strike(Some(&geared), HEALTH - 10).1 == HEALTH, "{name} clamps at HEALTH");
+            assert!(HIT + bonus <= 18 && strike(Some(&geared), HEALTH - HIT).1 == HEALTH, "{name} clamps at HEALTH");
         }
         let unowned = FoundFinds { names: vec![NAMED_FINDS[0].name], equipped: Some(NAMED_FINDS[5].name), ..Default::default() };
         let (unknown, mut cleared) = (FoundFinds { equipped: Some("no such find"), ..all.clone() }, FoundFinds { equipped: Some(NAMED_FINDS[5].name), ..all.clone() });
@@ -2240,7 +2242,7 @@ mod tests {
         assert_eq!([fire(None), fire(Some(all.clone())), fire(Some(storied.clone()))], [(HIT, XP_PER_LANDED_HIT), (HIT, XP_PER_LANDED_HIT), (HIT + 3, XP_PER_LANDED_HIT)]);
         for t in crate::difficulty::TIERS {
             let hurt = |f| home_frame(predator_lunge, f, CombatState::default(), t).resource::<CombatState>().player_taken;
-            assert_eq!([hurt(None), hurt(Some(storied.clone()))], [enemy_hit(t, HIT); 2], "{t:?} lunge ignores the slot");
+            assert_eq!([hurt(None), hurt(Some(storied.clone()))], [enemy_hit(t, LUNGE_HIT); 2], "{t:?} lunge ignores the slot");
         }
     }
     use bevy::ecs::system::RunSystemOnce;
@@ -2513,7 +2515,7 @@ mod tests {
     fn cc2a_s2_unbroken_17_to_12_and_sworn_to_11() {
         for (tier, want) in [(DifficultyTier::Unbroken, [12, 17]), (DifficultyTier::Sworn, [11, 15]), (DifficultyTier::Steady, [11, 15])] {
             cc2a("cc2a2", tier, Some(0), |app| {
-                assert_eq!(enemy_hit(tier, HIT), want[1]);
+                assert_eq!(enemy_hit(tier, LUNGE_HIT), want[1]);
                 cc2a_press_at(app, CC2A_TELL);
                 assert_eq!(cc2a_hits(app, 0.4), [want[0]], "{tier:?}");
             });
@@ -2675,5 +2677,52 @@ mod tests {
         let prod = include_str!("combat_core.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
         let state = &prod[prod.find("pub struct CombatState {").unwrap()..];
         assert!(!state[..state.find("\n}").unwrap()].to_lowercase().contains("cooldown"));
+    }
+
+    // STRIKE-CANON-1 — COMBAT_AND_PVP.md:435/:676 the player strike lands 8; the lunge stays 15 (:486/:678).
+    fn sc1_kill(finds: Option<&FoundFinds>) -> (u32, u32) {
+        let (mut c, mut s, mut n) = (CombatState::default(), SkillXp::default(), 0);
+        while c.predator_taken < HEALTH { assert!(land_hit_paid(&mut c, &mut s, true, DifficultyTier::Sheltered, None, finds).0); n += 1; } (n, s.xp[COMBAT])
+    }
+    #[test] fn sc1_s1_one_strike_lands_8_on_every_tier() { assert_eq!(crate::difficulty::TIERS.map(|t| { let mut c = CombatState::default(); assert!(land_hit_on(&mut c, &mut SkillXp::default(), true, t).0); c.predator_taken }), [8; 4]); }
+    #[test] fn sc1_s2_24_strikes_leave_192_the_25th_downs_and_the_kill_pays_200() {
+        let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+        assert!((0..24).all(|_| land_hit(&mut c, &mut s, true)) && c.predator_taken == 192 && land_hit(&mut c, &mut s, true) && c.predator_taken == HEALTH && sc1_kill(None) == (25, 200));
+    }
+    #[test] fn sc1_s3_kept_proven_storied_land_9_10_11_and_kill_in_23_20_19() {
+        let all = FoundFinds { names: shared::temper::NAMED_FINDS.iter().map(|f| f.name).collect(), ..Default::default() };
+        for (i, want) in [(0, (9, 23)), (2, (10, 20)), (4, (11, 19))] {
+            let (geared, mut c) = (FoundFinds { equipped: Some(all.names[i]), ..all.clone() }, CombatState::default()); land_hit_paid(&mut c, &mut SkillXp::default(), true, DifficultyTier::Sheltered, None, Some(&geared));
+            assert_eq!((c.predator_taken, sc1_kill(Some(&geared)).0), want, "{}", all.names[i]);
+        }
+    }
+    #[test] fn sc1_s4_lunge_stays_15_and_the_hurt_lines_hold() {
+        assert_eq!(crate::difficulty::TIERS.map(|t| { let mut c = CombatState::default(); predator_tick(&mut c, LUNGE_SECS, true, true, t); c.player_taken }), [15, 15, 15, 17]); assert!(hurt_line(15) == "You 185 / 200" && hurt_line(enemy_hit(DifficultyTier::Unbroken, 15)) == "You 183 / 200");
+    }
+    #[test] fn sc1_s5_the_droid_takes_8_and_its_shot_still_lands_25() {
+        use crate::droid::{shot_step, strike_step, DroidState, DROID_SHOT_SECS};
+        let (mut d, mut last, mut p) = (DroidState::default(), 0, 0);
+        shot_step(&mut DroidState::default(), &mut p, DROID_SHOT_SECS, true, true, true, DifficultyTier::Sheltered);
+        assert!(strike_step(&mut d, &mut last, 1, true, true).is_some() && (d.taken, p) == (8, 25));
+    }
+    #[test] fn sc1_s6_slot_tooltip_reads_8_and_reach() {
+        let text = slot_tooltip(0).unwrap(); assert!(text.contains("for 8 when") && text.contains(&REACH.to_string()) && ["class", "soon", "coming", "unlock", "cooldown"].iter().all(|b| !text.to_lowercase().contains(b)), "{text}");
+    }
+    #[test] fn sc1_s7_ten_xp_a_landed_hit_and_hits_21_to_25_pay_nothing() {
+        let (mut c, mut s, mut paid) = (CombatState::default(), SkillXp::default(), vec![]); for _ in 0..25 { if c.predator_taken >= HEALTH { c.predator_taken = 0 } let xp = s.xp[COMBAT]; assert!(land_hit(&mut c, &mut s, true)); paid.push(s.xp[COMBAT] - xp); }
+        assert_eq!((XP_PER_LANDED_HIT, s.xp[COMBAT], &paid[..20], &paid[20..]), (10, 200, &[10; 20][..], &[0; 5][..]));
+    }
+    #[test] fn sc1_s8_a_25_strike_first_kill_finds_the_tend_hook() {
+        let find = |n| { let mut f = FoundFinds::default(); assert!(f.first_find(n, PlaceId::Sanctuary as u32)); f.names[0] };
+        assert_eq!((find(sc1_kill(None).0), find(14)), ("Yard-Worn Tend Hook", "Steady Climate Pick"));
+    }
+    #[test] fn sc1_s9_an_8_rise_flashes_and_reads_8_in_combat_text() {
+        let ((mut app, _), mut q) = (flash_app(), crate::combat_text::CombatTextQueue::default());
+        app.world_mut().resource_mut::<CombatState>().predator_taken = 8; crate::combat_text::hook_player_strike(&mut q, PlaceId::Heartwood, 0, 8, true, Vec3::ZERO);
+        assert!(step(&mut app, 0.0) == (HIT_KICK, 1) && q.events.len() == 1 && (q.events[0].amount, q.events[0].kind) == (8, crate::combat_text::CombatTextKind::Dealt));
+    }
+    #[test] fn sc1_plate_pin_plated_lunge_11_and_12_on_unbroken() {
+        let plated = |t| { let mut c = CombatState::default(); predator_tick_plated(&mut c, LUNGE_SECS, true, true, t, true); c.player_taken };
+        assert_eq!((plate_hit(15), crate::difficulty::TIERS.map(plated)), (11, [11, 11, 11, 12]));
     }
 }
