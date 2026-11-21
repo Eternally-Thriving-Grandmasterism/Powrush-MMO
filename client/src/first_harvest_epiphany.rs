@@ -792,7 +792,7 @@ pub(crate) fn update_world_care_prompt(
     bind: Option<Res<LivedHourBind>>,
     mut root: Query<&mut Visibility, With<WorldCarePromptRoot>>,
     mut text_q: Query<&mut Text, With<WorldCarePromptText>>,
-    (offer, settings): (Option<Res<crate::human_presence::CloseUpOffer>>, Option<Res<crate::local_settings::LocalSettingsState>>),
+    (offer, gate): (Option<Res<crate::human_presence::CloseUpOffer>>, crate::human_presence::CloseUpGate),
     mut arm: Local<CloseUpOfferArm>,
 ) {
     let now = time.elapsed_secs_f64();
@@ -824,7 +824,7 @@ pub(crate) fn update_world_care_prompt(
         // A gated visit latches with no window, so the offer never flashes over the epiphany.
         (arm.latched, arm.until) = (true, if state.first_harvest_lived { now + CLOSE_UP_OFFER_SECS } else { 0.0 });
     }
-    let k_bound = settings.is_some_and(|s| crate::human_presence::peace_key_k_is_bound(&s.inner));
+    let k_bound = !gate.k_toggles();
     let live = nearby.in_range && nearby.nodes_exist && state.first_harvest_lived && now < arm.until && !k_bound && !offer.is_some_and(|o| o.spent);
     let line = if live { format!("{line}{}", close_up_offer_suffix()) } else { line.to_string() };
     for mut text in &mut text_q {
