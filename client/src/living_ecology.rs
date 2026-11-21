@@ -225,6 +225,10 @@ pub const fn yard_trees_shown(realm: Option<u8>) -> bool {
 pub const YARD_ROCK_SPOTS: [Vec3; 3] = [Vec3::new(4.2, 0.22, -5.5), Vec3::new(-4.8, 0.22, -5.0), Vec3::new(7.0, 0.22, 0.4)];
 pub const YARD_ROCK_R: f32 = 0.42 * 1.4 * 1.06;
 pub const fn yard_rocks_shown(realm: Option<u8>) -> bool { matches!(realm, Some(1) | Some(4)) }
+/// CARD CRYSTAL-SOLID-1 — the four spire spots and radius (the spire `Cylinder`). Spawn, dress and push-out read these.
+pub const YARD_CRYSTAL_SPOTS: [Vec3; 4] = [Vec3::new(5.0, 1.8, -6.2), Vec3::new(-5.4, 1.8, -6.8), Vec3::new(7.4, 1.8, 1.6), Vec3::new(-7.2, 1.8, 2.2)];
+pub const YARD_CRYSTAL_R: f32 = 0.16;
+pub const fn crystals_shown(realm: Option<u8>) -> bool { matches!(realm, Some(1) | Some(4)) }
 /// CARD ROCK-SHAPE-1 — rock sphere radius, PROC-KIT-2 jitter and scale. Spawn and the rock push-out both read these.
 pub const YARD_ROCK_MESH_R: f32 = 0.42;
 pub const YARD_ROCK_JITTER: f32 = 0.06;
@@ -392,14 +396,8 @@ fn spawn_ecology(
         Name::new("ResonantDeer"),
     ));
 
-    let spire = meshes.add(Cylinder::new(0.16, 3.6));
-    let crystal_spots = [
-        Vec3::new(5.0, 1.8, -6.2),
-        Vec3::new(-5.4, 1.8, -6.8),
-        Vec3::new(7.4, 1.8, 1.6),
-        Vec3::new(-7.2, 1.8, 2.2),
-    ];
-    for pos in crystal_spots {
+    let spire = meshes.add(Cylinder::new(YARD_CRYSTAL_R, 3.6));
+    for pos in YARD_CRYSTAL_SPOTS {
         let handle = materials.add(StandardMaterial {
             base_color: Color::srgb(0.55, 0.78, 0.95),
             emissive: LinearRgba::new(0.25, 0.45, 0.70, 1.0),
@@ -506,7 +504,7 @@ fn dress_for_climate(
             PropKind::Tree => yard_trees_shown(realm.current),
             PropKind::Stone => yard_rocks_shown(realm.current),
             PropKind::Deer => matches!(id, 0 | 2),
-            PropKind::Crystal => matches!(id, 1 | 4),
+            PropKind::Crystal => crystals_shown(realm.current),
             PropKind::Mycelium => id == 3,
         };
         vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });

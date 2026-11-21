@@ -66,10 +66,13 @@ pub(crate) fn push_out_of_rock(pos: &mut Vec3, vel: &mut Vec3, spot: Vec3, stand
 }
 
 /// CARD COLLIDE-SPLIT-1 — Heartwood ward posts push as their footprint disk, only where they spawn.
-pub(crate) fn prop_solids(place: Option<shared::hex_travel::PlaceId>) -> impl Iterator<Item = (Vec2, f32)> {
+/// CARD CRYSTAL-SOLID-1 — yard crystal spires push as their spire disk, only where they show (realm 1/4).
+pub(crate) fn prop_solids(place: Option<shared::hex_travel::PlaceId>, realm: Option<u8>) -> impl Iterator<Item = (Vec2, f32)> {
+    use crate::living_ecology::{crystals_shown, YARD_CRYSTAL_R, YARD_CRYSTAL_SPOTS};
     use shared::{heartwood_wards::WARD_POST_CENTERS, hex_travel::PlaceId};
     (place == Some(PlaceId::Heartwood)).then_some(WARD_POST_CENTERS).into_iter().flatten()
         .map(|c| (Vec2::new(c[0], c[2]), shared::heartwood_wards::WARD_FOOTPRINT_RADIUS))
+        .chain(crystals_shown(realm).then_some(YARD_CRYSTAL_SPOTS).into_iter().flatten().map(|s| (s.xz(), YARD_CRYSTAL_R)))
 }
 
 /// CARD CONTACT-RUMBLE-1 — ruling 7059724016: fire at a gap at or under ε_in, re-arm only above ε_out (metres).
@@ -93,7 +96,7 @@ fn rumble_static_contact(presence: Res<crate::human_presence::SoftPresence>, fee
     let (realm, place, at) = (trees.0.as_ref().and_then(|r| r.current), trees.3.as_ref().map(|t| t.current), presence.position);
     let yard = yard_trees_shown(realm).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|s| (s.xz(), YARD_TRUNK_R));
     let owned = crate::wood_expedition::owned_blocker(trees.2.as_deref(), place, realm);
-    let discs: Vec<_> = yard.chain(trees.1.iter().flat_map(|f| f.0.iter().copied())).chain(owned).chain(prop_solids(place)).collect();
+    let discs: Vec<_> = yard.chain(trees.1.iter().flat_map(|f| f.0.iter().copied())).chain(owned).chain(prop_solids(place, realm)).collect();
     let near = |eps| static_within(at, realm, &discs, eps);
     let armed = match *seat { Some((armed, last, p, r)) if (p, r) == (place, realm) && presence.prev_tick.is_some_and(|t| t.xz().distance(last.xz()) <= CONTACT_IN) => armed, _ => !near(CONTACT_IN) };
     let fire = armed && near(CONTACT_IN);
@@ -148,7 +151,7 @@ fn push_player_from_creature_bodies(input: Res<crate::input::PlayerInput>, mut p
     let yard = yard_trees_shown(realm).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|s| (s.xz(), YARD_TRUNK_R));
     let field = trees.1.iter().flat_map(|f| f.0.iter().copied());
     let owned = crate::wood_expedition::owned_blocker(trees.2.as_deref(), trees.3.as_ref().map(|t| t.current), realm);
-    let statics: Vec<_> = yard.chain(field).chain(owned).chain(prop_solids(trees.3.as_ref().map(|t| t.current))).collect();
+    let statics: Vec<_> = yard.chain(field).chain(owned).chain(prop_solids(trees.3.as_ref().map(|t| t.current), realm)).collect();
     let before = squeeze_depth(presence.position, realm, &statics);
     let y0 = presence.position.y;
     let (mut pos, mut vel) = (presence.position, presence.velocity);
@@ -395,7 +398,7 @@ mod tests {
         let (prev, mut pos, mut vel) = (p.position, to, (to - p.position) * 60.0);
         push_out_clear(&mut pos, &mut vel, yard_trees_shown(realm).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|s| (s.xz(), YARD_TRUNK_R)));
         for spot in yard_rocks_shown(realm).then_some(YARD_ROCK_SPOTS).into_iter().flatten() { push_out_of_rock(&mut pos, &mut vel, spot, 0.9, crate::human_presence::silhouette().feet); }
-        push_out_clear(&mut pos, &mut vel, field.into_iter().chain(prop_solids(place)));
+        push_out_clear(&mut pos, &mut vel, field.into_iter().chain(prop_solids(place, realm)));
         (p.position, p.velocity, p.prev_tick, p.curr_tick) = (pos, vel, Some(prev), Some(pos));
         drop(p); app.world_mut().run_schedule(FixedPostUpdate);
         app.world_mut().resource_mut::<Messages<Rq>>().drain().map(|q| match q { Rq::Add { intensity: Gi { strong_motor, weak_motor }, duration, .. } => assert_eq!((strong_motor, weak_motor, duration.as_millis()), (0.12, 0.28, 90)), Rq::Stop { .. } => panic!("contact never stops a pad") }).count()
@@ -403,11 +406,11 @@ mod tests {
     fn cr_walk(app: &mut App, dir: Vec2, ticks: usize) -> usize { (0..ticks).map(|_| { let p = app.world().resource::<crate::human_presence::SoftPresence>().position; cr_to(app, p + Vec3::new(dir.x, 0.0, dir.y).normalize() * 0.06) }).sum() }
     /// (place, realm, start, walk dir): Heartwood ward post, yard trunk (-5.2, -2.4), yard rock (7.0, 0.4), all real spots.
     const CR_POST: (Option<PlaceId>, Option<u8>, Vec3, Vec2) = (Some(PlaceId::Heartwood), Some(2), Vec3::new(8.0, 0.9, 5.5), Vec2::NEG_Y);
-    const CR_SOLIDS: [(Option<PlaceId>, Option<u8>, Vec3, Vec2); 3] = [CR_POST, (None, Some(0), Vec3::new(-5.2, 0.9, -0.9), Vec2::NEG_Y), (None, Some(1), Vec3::new(7.0, 0.9, 2.2), Vec2::NEG_Y)];
+    const CR_SOLIDS: [(Option<PlaceId>, Option<u8>, Vec3, Vec2); 3] = [CR_POST, (None, Some(0), Vec3::new(-5.2, 0.9, -0.9), Vec2::NEG_Y), (None, Some(1), Vec3::new(7.0, 0.9, -1.4), Vec2::Y)];
     fn cr_run(case: (Option<PlaceId>, Option<u8>, Vec3, Vec2), feel: Option<LocalSettings>, pad: bool, ticks: usize) -> (App, usize) {
         let mut app = cr_app(case.0, case.1, feel, pad); cr_seat(&mut app, case.2); let n = cr_walk(&mut app, case.3, ticks); (app, n)
     }
-    fn cr_gap(app: &App) -> bool { let p = app.world().resource::<crate::human_presence::SoftPresence>().position.xz(); prop_solids(Some(PlaceId::Heartwood)).any(|(c, r)| p.distance(c) <= r + PLAYER_TRUNK_RADIUS + 0.01) }
+    fn cr_gap(app: &App) -> bool { let p = app.world().resource::<crate::human_presence::SoftPresence>().position.xz(); prop_solids(Some(PlaceId::Heartwood), Some(2)).any(|(c, r)| p.distance(c) <= r + PLAYER_TRUNK_RADIUS + 0.01) }
 
     #[test]
     fn contact_rumble_1_f1_walk_into_post_trunk_rock_one_add_each() {
@@ -415,6 +418,12 @@ mod tests {
             let (app, n) = cr_run(case, Some(LocalSettings::peace_defaults()), true, 40);
             assert!(n == 1 && (i == 1 || i == 2 || cr_gap(&app)), "solid {i} (3 = airborne post): {n} Adds; one on the contact tick");
         }
+    }
+    /// CARD CRYSTAL-SOLID-1 — R4: walking into the shown spire (-7.2, 2.2) is one existing Add, and nothing with rumble off.
+    #[test]
+    fn crystal_solid_1_r4_spire_contact_one_add_silent_with_rumble_off() {
+        let run = |realm, rumble| cr_run((None, Some(realm), Vec3::new(-5.2, 0.9, 2.2), Vec2::NEG_X), Some(LocalSettings { rumble, ..LocalSettings::peace_defaults() }), true, 40).1;
+        assert_eq!([1, 4].map(|r| (run(r, true), run(r, false))), [(1, 0); 2], "realm 1 / 4: one Add on the contact tick, none with rumble off");
     }
     #[test]
     fn contact_rumble_1_f2_hold_and_slide_along_stays_one() {

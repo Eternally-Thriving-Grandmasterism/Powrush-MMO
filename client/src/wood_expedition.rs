@@ -1976,7 +1976,7 @@ pub(crate) mod tests {
         );
         assert!(
             ecology.contains("Capsule3d::new(0.16, 0.55)")
-                && ecology.contains("Cylinder::new(0.16, 3.6)")
+                && ecology.contains("YARD_CRYSTAL_R: f32 = 0.16") && ecology.contains("Cylinder::new(YARD_CRYSTAL_R, 3.6)")
                 && mercy.contains("Sphere::new(0.48)")
         );
         assert!(

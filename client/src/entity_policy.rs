@@ -16,7 +16,7 @@ use crate::{
     heartwood_wards::HeartwoodWardsPlugin,
     hex_travel::HexTravelState,
     human_presence::{HumanPresence, HumanPresencePlugin, SoftPresence},
-    living_ecology::{EcologyProp, LivingEcologyPlugin, PropKind, YARD_ROCK_R, YARD_TRUNK_R},
+    living_ecology::{EcologyProp, LivingEcologyPlugin, PropKind, YARD_CRYSTAL_R, YARD_ROCK_R, YARD_TRUNK_R},
     living_practice_loop::SoftPlayerRealm,
     local_human_sim::{LocalHumanSim, LocalHumanSimPlugin},
     mercy_harvest_nodes::{MercyHarvestNode, MercyHarvestNodesPlugin, HARVEST_REACH},
@@ -35,12 +35,12 @@ const STEP: f32 = 0.1;
 const CELLS: usize = (2.0 * PLAY_HALF / STEP + 0.5) as usize + 1;
 /// (place, dress realm, shown solids, C5 uses). Sanctuary rows pick the realm; Heartwood and Depths assert the travel sync's.
 const PLACES: [(PlaceId, Option<u8>, usize, usize); 7] = [
-    (PlaceId::Sanctuary, None, 11, 7), (PlaceId::Sanctuary, Some(0), 11, 7), (PlaceId::Sanctuary, Some(1), 3, 7),
-    (PlaceId::Sanctuary, Some(2), 5, 7), (PlaceId::Sanctuary, Some(4), 3, 7), (PlaceId::Heartwood, Some(2), 8, 8), (PlaceId::Depths, Some(3), 0, 4),
+    (PlaceId::Sanctuary, None, 11, 7), (PlaceId::Sanctuary, Some(0), 11, 7), (PlaceId::Sanctuary, Some(1), 7, 7),
+    (PlaceId::Sanctuary, Some(2), 5, 7), (PlaceId::Sanctuary, Some(4), 7, 7), (PlaceId::Heartwood, Some(2), 8, 8), (PlaceId::Depths, Some(3), 0, 4),
 ];
 /// Owning card per walk-through. The row is that mesh's only declaration.
 const KNOWN_GAPS: &[(&str, &str)] = &[
-    ("deer", "CREATURE-BODY-1"), ("crystal", "PROP-COLLIDE-1"), ("traveler", "CREATURE-BODY-1"), ("travelerdress", "CHAR-MODEL-1a"),
+    ("deer", "CREATURE-BODY-1"), ("traveler", "CREATURE-BODY-1"), ("travelerdress", "CHAR-MODEL-1a"),
     ("predator", "CREATURE-BODY-1"), ("droid", "CREATURE-BODY-1"), ("grazer", "CREATURE-BODY-1"),
     ("walkway", "PROP-COLLIDE-1"), ("rib", "PROP-COLLIDE-1"), ("shelf", "PROP-COLLIDE-1"),
 ];
@@ -90,7 +90,7 @@ fn policy(world: &World, id: Entity) -> Result<Policy, String> {
             PropKind::Tree | PropKind::Mycelium => Ok(Policy::NoCollide),
             PropKind::Stone => Ok(Policy::Solid(YARD_ROCK_R)),
             PropKind::Deer => gap("deer"),
-            PropKind::Crystal => gap("crystal"),
+            PropKind::Crystal => Ok(Policy::Solid(YARD_CRYSTAL_R)),
         };
     }
     let has = |id: Entity| {

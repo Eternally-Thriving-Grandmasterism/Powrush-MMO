@@ -1436,7 +1436,7 @@ fn apply_locomotion(
     for spot in yard_rocks_shown(realm).then_some(YARD_ROCK_SPOTS).into_iter().flatten() {
         crate::collide::push_out_of_rock(&mut presence.position, &mut vel, spot, STAND, feet);
     }
-    crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned).chain(crate::collide::prop_solids(trees.3.as_ref().map(|s| s.current))));
+    crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned).chain(crate::collide::prop_solids(trees.3.as_ref().map(|s| s.current), realm)));
     push_out_of_moat(&mut presence.position, &mut vel);
     push_out_of_riser_lips(&mut presence.position, &mut vel);
     presence.velocity = vel;
@@ -6563,6 +6563,7 @@ mod tests {
         for spot in crate::living_ecology::YARD_ROCK_SPOTS {
             let (u, w) = rs_axes(spot);
             for (name, dir) in [("long", u), ("short", w), ("45deg", (u + w).normalize())] {
+                let dir = if crate::living_ecology::YARD_CRYSTAL_SPOTS.iter().any(|c| (c.xz() - spot.xz()).dot(dir) > 0.0 && (c.xz() - spot.xz()).perp_dot(dir).abs() < 0.5) { -dir } else { dir }; // CRYSTAL-SOLID-1: mirrored side when a spire is in the approach
                 let mut app = rock_collide_1_app(Some(4), spot);
                 let s = spot.xz() + dir * 2.5;
                 app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(s.x, STAND, s.y);
@@ -6582,7 +6583,8 @@ mod tests {
             for dir in [u, w] {
                 let mut app = mf_fresh();
                 app.insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(4) });
-                let s = spot.xz() + dir * (23.0 * 5.4 / 60.0);
+                let c = spot.xz() + crate::living_ecology::YARD_CRYSTAL_SPOTS.map(|k| ((k.xz() - spot.xz()).perp_dot(dir), (k.xz() - spot.xz()).dot(dir))).into_iter().filter(|(p, a)| p.abs() < 0.5 && a.abs() < 2.6).fold(Vec2::ZERO, |o, (p, _)| o + dir.perp() * (p.signum() * 0.5 - p)); // CRYSTAL-SOLID-1: line shifted clear of a spire
+                let s = c + dir * (23.0 * 5.4 / 60.0);
                 let mut p = app.world_mut().resource_mut::<SoftPresence>();
                 p.position = Vec3::new(s.x, STAND, s.y);
                 (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
@@ -6600,7 +6602,7 @@ mod tests {
                     if p.position.y > apex.y { apex = p.position; }
                     if p.grounded { break; }
                 }
-                assert!(apex.y - STAND + silhouette().feet > top && apex.xz().distance(spot.xz()) < 0.1, "{spot} {apex}");
+                assert!(apex.y - STAND + silhouette().feet > top && apex.xz().distance(c) < 0.1, "{spot} {apex}");
             }
         }
     }
@@ -6617,6 +6619,60 @@ mod tests {
                 for _ in 0..120 { app.update(); }
                 let at = app.world().resource::<SoftPresence>().position;
                 assert!(at.y == STAND && rs_gap(spot, at).abs() <= 0.05, "{spot} {at}");
+            }
+        }
+    }
+
+    // CARD CRYSTAL-SOLID-1 — real locomotion plus the spawned ecology under dress_for_climate. The four spires as (spot,
+    // visible, axis away from the nearest yard rock), by x. `sp_walk` holds the stick along `dir`, one position per fixed tick.
+    fn sp_app(realm: Option<u8>) -> (App, Vec<(Vec3, bool, Vec2)>) {
+        use crate::living_ecology::{EcologyProp, PropKind, YARD_ROCK_SPOTS};
+        let mut app = rock_collide_1_app(realm, Vec3::ZERO);
+        app.add_plugins(AssetPlugin::default()).init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>().init_resource::<crate::world_answer::WorldAnswer>().add_plugins(crate::living_ecology::LivingEcologyPlugin).update();
+        let ids: Vec<Entity> = app.world_mut().query_filtered::<Entity, With<EcologyProp>>().iter(app.world()).collect();
+        for e in ids { app.world_mut().entity_mut(e).insert(Visibility::Inherited); } app.update();
+        let away = |s: Vec3| YARD_ROCK_SPOTS.map(|r| s.xz() - r.xz()).into_iter().min_by(|a, b| a.length().total_cmp(&b.length())).unwrap().normalize();
+        let mut spires: Vec<_> = app.world_mut().query::<(&EcologyProp, &Transform, &Visibility)>().iter(app.world()).filter(|p| p.0.kind == PropKind::Crystal).map(|(_, t, v)| (t.translation, *v == Visibility::Visible, away(t.translation))).collect();
+        spires.sort_by(|a, b| a.0.x.total_cmp(&b.0.x)); assert_eq!(spires.len(), 4); (app, spires)
+    }
+    fn sp_walk(app: &mut App, from: Vec2, dir: Vec2, ticks: usize) -> Vec<Vec3> {
+        app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(from.x, STAND, from.y); mf_stick(app, dir.x, -dir.y, false);
+        (0..ticks).map(|_| { app.update(); app.world().resource::<SoftPresence>().position }).collect()
+    }
+    #[test]
+    fn crystal_solid_1_r1_walk_stops_at_each_spire_in_realm_1_and_4() {
+        for (realm, (mut app, spires)) in [Some(1), Some(4)].map(|r| (r, sp_app(r))) {
+            for (spot, _, dir) in spires { let at = sp_walk(&mut app, spot.xz() + dir * 2.0, -dir, 90)[89]; assert!((at.xz().distance(spot.xz()) - 0.16 - PLAYER_TRUNK_RADIUS).abs() <= 0.02 && (at.xz() - spot.xz()).dot(dir) > 0.0, "{realm:?} {spot} {at}"); }
+        }
+    }
+    #[test]
+    fn crystal_solid_1_r2_walk_passes_through_spire_spots_in_realms_none_0_2_3() {
+        for (realm, (mut app, spires)) in [None, Some(0), Some(2), Some(3)].map(|r| (r, sp_app(r))) {
+            for (spot, _, dir) in spires { let at = sp_walk(&mut app, spot.xz() + dir * 2.0, -dir, 90)[89]; assert!((at.xz() - spot.xz()).dot(dir) < -1.0, "{realm:?} {spot} {at}"); }
+        }
+    }
+    #[test]
+    fn crystal_solid_1_r3_spire_visible_equals_solid_every_realm() {
+        for (realm, (mut app, spires)) in [None, Some(0), Some(1), Some(2), Some(3), Some(4)].map(|r| (r, sp_app(r))) {
+            for (spot, visible, dir) in spires { let at = sp_walk(&mut app, spot.xz() + dir * 0.4, Vec2::ZERO, 1)[0]; assert_eq!(at.xz().distance(spot.xz()) >= 0.16 + PLAYER_TRUNK_RADIUS - 0.005, visible, "{realm:?} {spot} {at}"); }
+        }
+    }
+    /// R6 (7068905925, 7068990896, 7069041675): each rock-to-spire crease, both sides, stick at the crease point 0.36 m off the spire. From contact
+    /// (both push): rest in 60 ticks, held 0.5 mm 10 more; per axis <= 2 sign flips in ticks 0-10, none after; spire overlap 0; rock <= 0.045, <= 0.025 at rest.
+    #[test]
+    fn crystal_solid_1_r6_rock_spire_creases_settle_within_60_ticks() {
+        for (realm, (mut app, spires)) in [Some(1), Some(4)].map(|r| (r, sp_app(r))) {
+            let creases: Vec<_> = spires.iter().flat_map(|s| crate::living_ecology::YARD_ROCK_SPOTS.map(|r| (s.0, r))).filter(|(s, r)| s.xz().distance(r.xz()) < 1.5).collect();
+            assert_eq!(creases.len(), 2, "{realm:?}");
+            for ((spot, rock), side) in creases.into_iter().flat_map(|(s, r)| [1.0, -1.0].map(|k| ((s, r), (s.xz() - r.xz()).perp().normalize() * k))) {
+                let (k, rk, sp) = (spot.xz() + (rock.xz() - spot.xz()).normalize() * 0.36, |a: &Vec3| -rs_gap(rock, *a), |a: &Vec3| 0.16 + PLAYER_TRUNK_RADIUS - a.xz().distance(spot.xz()));
+                let mut path = vec![(k + side * 1.5).extend(STAND).xzy()];
+                for _ in 0..140 { let at = path.last().unwrap().xz(); path.extend(sp_walk(&mut app, at, (k - at).normalize_or_zero(), 1)); }
+                let c = path.iter().position(|a| sp(a) >= -0.001 && rk(a) >= -0.005).unwrap();
+                let rest = (c..path.len() - 10).find(|&t| path[t..=t + 10].iter().all(|p| p.distance(path[t]) <= 0.0005)).unwrap();
+                let flips = |r: std::ops::Range<usize>, i: usize| path[r].windows(2).map(|w| (w[1] - w[0])[i]).filter(|d| d.abs() > 1e-5).collect::<Vec<_>>().windows(2).filter(|s| s[0].signum() != s[1].signum()).count();
+                assert!(rest <= c + 60 && [0, 2].iter().all(|&i| flips(c..c + 11, i) <= 2 && flips(c + 10..rest + 11, i) == 0), "{realm:?} {spot} {side} contact t{c} rest t{rest}");
+                assert!(path.iter().all(|a| a.is_finite() && sp(a) <= 1e-4 && rk(a) <= 0.045) && path[rest..=rest + 10].iter().all(|a| rk(a) <= 0.025), "{realm:?} {spot} {side} overlap");
             }
         }
     }
