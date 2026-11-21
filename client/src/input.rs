@@ -380,7 +380,7 @@ pub(crate) fn handle_player_input(
     // Ability slots 1–4
     player_input.ability_slot = if keyboard.just_pressed(KeyCode::Digit1) {
         Some(0)
-    } else if keyboard.just_pressed(KeyCode::Digit2) {
+    } else if keyboard.just_pressed(KeyCode::Digit2) || pad.is_some_and(|g| g.just_pressed(GamepadButton::RightTrigger)) {
         Some(1)
     } else if keyboard.just_pressed(KeyCode::Digit3) {
         Some(2)
@@ -1668,5 +1668,90 @@ mod tests {
         fn enter(&self, _span: &tracing::span::Id) {}
 
         fn exit(&self, _span: &tracing::span::Id) {}
+    }
+
+    // PLATE-PAD-1 — CUT 7058448088: RB (`GamepadButton::RightTrigger`) on the first pad is ability slot 1, the key 2 Plate path.
+    use crate::combat_core::{CombatState, LUNGE_SECS, LUNGE_TELL_SECS};
+    const PP1_TELL: f32 = LUNGE_SECS - LUNGE_TELL_SECS;
+    const RB: GamepadButton = GamepadButton::RightTrigger;
+    fn pp1_tick(app: &mut App, dt: f32) { app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(dt))); app.update(); }
+    /// The combat_core `cc2a` yard (Heartwood, at the predator, Classic HUD), plus one connected pad; `shell` cycles the slot like the satchel.
+    fn pp1<R>(tag: &str, shell: Option<usize>, body: impl FnOnce(&mut App) -> R) -> R {
+        use crate::{difficulty::*, first_harvest_epiphany::*, hex_travel::*, hud_presets::*, title_screen::*};
+        crate::loot_drops::tests::in_user_dir(tag, |_| {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default(), InputPlugin, crate::first_session_guidance::FirstSessionGuidancePlugin, FirstHarvestEpiphanyPlugin, HudLayoutPlugin, crate::ui_font::UiFontPlugin, crate::combat_core::CombatCorePlugin)).init_asset::<Mesh>().init_asset::<StandardMaterial>().insert_resource(ActiveHudPreset { id: Some(HudPresetId::Classic) }).insert_resource(LaunchDoor::InYard).insert_resource(HouseLabel::default()).insert_resource(PlacesPlate::default()).insert_resource(CalmQueue::default()).insert_resource(HexTravelState { current: shared::hex_travel::PlaceId::Heartwood }).insert_resource(ButtonInput::<KeyCode>::default());
+            let [x, z] = crate::combat_core::PREDATOR_HOME;
+            app.insert_resource(crate::human_presence::SoftPresence { position: Vec3::new(x, 0.9, z), grounded: true, ..default() }).insert_resource(AreaDifficulty { default: DifficultyTier::Sheltered, ..Default::default() }).init_resource::<crate::skill_xp::SkillXp>().insert_resource(LocalSettingsState { inner: LocalSettings::default(), dirty: false }).init_resource::<crate::hour_sacred::HourSacred>().init_resource::<crate::thriving_moments::ThrivingMoments>().init_resource::<crate::abundance_journey_echo::AbundanceJourneyEcho>().init_resource::<crate::mercy_harvest_nodes::NearbyMercyNode>().init_resource::<crate::harvest_feel::SoftRbePool>().init_resource::<crate::world_answer::WorldAnswer>().add_message::<KeyboardInput>().add_message::<MouseButtonInput>().add_message::<TouchInput>().add_message::<bevy::input::gamepad::GamepadRumbleRequest>();
+            app.world_mut().spawn((Window { focused: true, ..default() }, bevy::window::PrimaryWindow));
+            app.world_mut().spawn(Gamepad::default());
+            pp1_tick(&mut app, 0.0);
+            let mut f = app.world_mut().resource_mut::<crate::loot_drops::FoundFinds>(); f.names = shared::temper::NAMED_FINDS.iter().map(|n| n.name).collect();
+            if let Some(i) = shell { for _ in 0..=i { assert!(f.cycle_equipped()); } } drop(f);
+            body(&mut app)
+        })
+    }
+    /// One frame with `keys` and pad `buttons` just pressed, then both released (the pad edge is cleared by hand, as in the South test).
+    fn pp1_press(app: &mut App, keys: &[KeyCode], buttons: &[GamepadButton]) {
+        keys.iter().for_each(|k| app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(*k));
+        { let mut q = app.world_mut().query::<&mut Gamepad>(); let mut pad = q.single_mut(app.world_mut()).unwrap(); buttons.iter().for_each(|b| pad.digital_mut().press(*b)); }
+        pp1_tick(app, 0.0); keys.iter().for_each(|k| app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset(*k));
+        let mut q = app.world_mut().query::<&mut Gamepad>(); let mut pad = q.single_mut(app.world_mut()).unwrap(); buttons.iter().for_each(|b| pad.digital_mut().release(*b)); pad.digital_mut().clear();
+    }
+    fn pp1_rb_at(app: &mut App, timer: f32) -> (bool, f32, u32) {
+        app.world_mut().resource_mut::<CombatState>().lunge_timer = timer; pp1_press(app, &[], &[RB]);
+        let c = app.world().resource::<CombatState>(); (c.plate_armed, c.plate_secs, c.strikes)
+    }
+    fn pp1_hits(app: &mut App, secs: f32) -> Vec<u32> {
+        (0..(secs * 60.0).round() as usize).filter_map(|_| { let b = app.world().resource::<CombatState>().player_taken; pp1_tick(app, 1.0 / 60.0); Some(app.world().resource::<CombatState>().player_taken.saturating_sub(b)).filter(|d| *d > 0) }).collect()
+    }
+    #[test] fn pp1_s1_rb_in_the_tell_with_shell_plates_lunges_for_three_seconds() {
+        pp1("pp1s1", Some(0), |app| { pp1_rb_at(app, PP1_TELL); assert_eq!(pp1_hits(app, 3.4), [11, 11, 11, 11, 11, 15], "plated wraps, then plain 15"); });
+    }
+    #[test] fn pp1_s2_rb_edge_is_slot_one_and_a_held_rb_is_not() {
+        let mut app = input_app();
+        let mut pad = Gamepad::default(); pad.digital_mut().press(RB); app.world_mut().spawn(pad);
+        app.update(); assert_eq!(app.world().resource::<PlayerInput>().ability_slot, Some(1));
+        app.world_mut().query::<&mut Gamepad>().single_mut(app.world_mut()).unwrap().digital_mut().clear(); app.update(); assert_eq!(app.world().resource::<PlayerInput>().ability_slot, None, "RB still down, no new edge");
+    }
+    #[test] fn pp1_s3_rb_and_rt2_same_frame_arm_plate_and_strike_once() {
+        pp1("pp1s3", Some(0), |app| { app.world_mut().resource_mut::<CombatState>().lunge_timer = PP1_TELL; pp1_press(app, &[], &[RB, crate::soft_play_bindings::FIRE_PAD]); let c = app.world().resource::<CombatState>(); assert!(c.plate_armed && c.plate_secs > 0.0 && c.strikes == 1, "{c:?}"); });
+    }
+    #[test] fn pp1_s4_key1_with_rb_is_a_strike_and_no_plate() {
+        pp1("pp1s4", Some(0), |app| {
+            app.world_mut().resource_mut::<CombatState>().lunge_timer = PP1_TELL; pp1_press(app, &[KeyCode::Digit1], &[RB]); let c = app.world().resource::<CombatState>();
+            assert!(app.world().resource::<PlayerInput>().ability_slot == Some(0) && c.strikes == 1 && c.predator_taken > 0 && !c.plate_armed && c.plate_secs == 0.0, "{c:?}");
+        });
+    }
+    #[test] fn pp1_s5_rb_arms_nothing_behind_pause_hud_edit_places_or_satchel() {
+        for gate in 0..4 {
+            pp1(&format!("pp1s5{gate}"), Some(0), |app| {
+                let w = app.world_mut();
+                match gate { 0 => w.resource_mut::<crate::title_screen::HouseLabel>().settings_open = true, 1 => w.get_resource_or_init::<crate::hud_edit_mode::HudEditMode>().active = true, 2 => w.resource_mut::<crate::hex_travel::PlacesPlate>().open = true, _ => w.get_resource_or_init::<crate::human_inventory::HumanInventory>().open = true }
+                assert_eq!(pp1_rb_at(app, PP1_TELL), (false, 0.0, 0), "gate {gate}");
+            });
+        }
+    }
+    #[test] fn pp1_s6_rb_outside_the_tell_or_without_shell_arms_nothing() {
+        pp1("pp1s6a", Some(0), |app| assert_eq!(pp1_rb_at(app, 0.0), (false, 0.0, 0)));
+        pp1("pp1s6b", None, |app| assert_eq!(pp1_rb_at(app, PP1_TELL), (false, 0.0, 0)));
+    }
+    #[test] fn pp1_s7_other_pad_buttons_unchanged_and_rb_sets_no_other_verb() {
+        let read = |mode: &str, b: GamepadButton| {
+            let mut app = input_app();
+            app.world_mut().resource_mut::<LocalSettingsState>().inner.sprint_mode = mode.into();
+            let mut pad = Gamepad::default(); pad.digital_mut().press(b); app.world_mut().spawn(pad); app.update();
+            let i = app.world().resource::<PlayerInput>(); [i.interact, i.jump, i.sheet_q, i.sheet_l, i.pause_toggle, i.sprint]
+        };
+        let want = |n: usize| std::array::from_fn::<bool, 6, _>(|j| j == n);
+        for (b, n) in [(GamepadButton::South, 0), (GamepadButton::LeftTrigger, 1), (GamepadButton::West, 2), (GamepadButton::North, 3), (GamepadButton::Start, 4)] { assert_eq!(read("key", b), want(n), "{b:?}"); }
+        assert!(read("stick", GamepadButton::LeftThumb)[5] && read("trigger", GamepadButton::LeftTrigger2)[5]);
+        for mode in ["key", "stick", "trigger"] { assert_eq!(read(mode, RB), [false; 6], "{mode}"); }
+    }
+    #[test] fn pp1_s8_source_one_slot_writer_one_rb_edge_and_combat_fire_unchanged() {
+        let prod = include_str!("input.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        assert!(prod.matches("player_input.ability_slot =").count() == 1 && prod.matches("just_pressed(GamepadButton::RightTrigger)").count() <= 1);
+        let combat = include_str!("combat_core.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        assert!(combat.contains("let plate_key = gate && input.as_deref().and_then(|i| i.ability_slot) == Some(1);") && combat.contains("if plate_key && allowed { plate_arm(&mut combat, reach, shell_equipped(finds.as_deref())); }"));
     }
 }
