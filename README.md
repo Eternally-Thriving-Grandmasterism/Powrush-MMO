@@ -56,6 +56,7 @@ Workspace Core members: `shared`, `crates/rsil-identity`, `client`. Parked on di
 
 | Use | Path |
 |-----|------|
+| This repository's licence | [AG-SML v1.1](LICENSE) — Autonomicity Games Sovereign Mercy License |
 | Personal / research / evaluation play | Contact for terms; constellation governed with Ra-Thor under PATSAGi / TOLC 8 |
 | **Commercial / organizational / revenue use** | Paid arrangement — see [Ra-Thor COMMERCIAL_LICENSE](https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor/blob/main/COMMERCIAL_LICENSE.md) and [Constellation commercial map](https://github.com/Eternally-Thriving-Grandmasterism/Ra-Thor/blob/main/docs/CONSTELLATION_COMMERCIAL.md) |
 | Pilots | Fixed-fee pilots via the same path |

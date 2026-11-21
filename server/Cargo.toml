@@ -3,7 +3,7 @@ name = "powrush-mmo-server"
 version = "0.1.0"
 edition = "2021"
 authors = ["Sherif Samy Botros <info@Rathor.ai>"]
-license = "AG-SML-1.0"
+license = "AG-SML-1.1"
 
 [features]
 default = []
