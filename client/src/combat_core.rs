@@ -252,9 +252,10 @@ pub fn slot_strikes(slot: Option<u32>) -> bool {
     slot == Some(0)
 }
 
-/// ABILITY-TOOLTIP-1 — inactive tooltip text for an ability slot; nothing outside tests reads it.
-/// Council wording, not Sherif's; Sherif may veto. Slots with no kit get no text.
+/// ABILITY-TOOLTIP-1 — tooltip text for an ability slot. Slot 0 is council wording (Sherif may veto) and stays test-only.
+/// ABILITY-TOOLTIP-SHOW-1 A1 — slot 1 (Plate) is COMBAT_AND_PVP.md:456 verbatim, shown on the AbilityTip slab. Slots 2-3 get none.
 pub fn slot_tooltip(slot: u32) -> Option<String> {
+    if slot == 1 { return Some("Plate, 3 s, incoming damage reduced by 30%.".into()); }
     slot_strikes(Some(slot)).then(|| format!(
         "Strike (left click, right trigger, or key 1 while no panel is open): hits the predator for {HIT} when it is within {REACH} of you."
     ))
@@ -469,7 +470,8 @@ impl Plugin for CombatCorePlugin {
             .add_systems(Update, (show_find, music_bed).after(predator_lunge))
             .add_systems(Startup, spawn_predator)
             .add_systems(Startup, spawn_lunge_tell)
-            .add_systems(Startup, (spawn_rise_tell, spawn_cleared_tell))
+            .add_systems(Startup, (spawn_rise_tell, spawn_cleared_tell, spawn_ability_tip))
+            .add_systems(Update, ability_tip_show.after(combat_fire))
             .add_systems(Update, (rise_tell_show, cleared_show).after(predator_respawn))
             .add_systems(Update, (combat_fire, predator_lunge, lunge_tell).chain().after(InputMapSet))
             .add_systems(Update, hit_flash.after(combat_fire))
@@ -965,6 +967,22 @@ fn cleared_show(travel: Option<Res<HexTravelState>>, combat: Option<Res<CombatSt
     disc.iter_mut().for_each(|mut vis| { vis.set_if_neq(if on { Visibility::Visible } else { Visibility::Hidden }); });
 }
 
+/// ABILITY-TOOLTIP-SHOW-1 — the AbilityTip slab (registry ACTION_BAR occupant, rank 5, class 3, 240 px) holding slot 1's text,
+/// in the Practice strip's existing plate style. Spawns Hidden; the active preset places it and applies R5/R2/§6.3.
+fn spawn_ability_tip(mut commands: Commands) {
+    use crate::{hud_anchor_registry::{HudSlab, ACTION_BAR, ID_ABILITY_TIP}, ui_kit::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY}};
+    let node = Node { position_type: PositionType::Absolute, bottom: ACTION_BAR.bottom(), right: ACTION_BAR.right(), width: Val::Px(240.0), padding: UiRect::axes(Val::Px(18.0), Val::Px(12.0)), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(1.5)), ..default() };
+    commands.spawn((node, BackgroundColor(TITLE_PLATE_BG), crate::ui_frame::plate_frame(), BorderColor::all(TITLE_BORDER), Visibility::Hidden, HudSlab(ID_ABILITY_TIP))).with_children(|tip| {
+        tip.spawn((Text::new(slot_tooltip(1).unwrap_or_default()), TextFont { font_size: FontSize::Px(15.5 / 1.2), ..default() }, TextColor(TITLE_TEXT_PRIMARY)));
+    });
+}
+/// ABILITY-TOOLTIP-SHOW-1 A2 (T1 + Shell gate) — the tip's own Visibility, written outright each frame after `combat_fire`:
+/// Visible only with the Shell ward equipped and the fight in reach at this place, so it never offers Plate when Plate can't arm.
+fn ability_tip_show(combat: Res<CombatState>, finds: Option<Res<FoundFinds>>, (travel, presence): (Option<Res<HexTravelState>>, Option<Res<SoftPresence>>), mut slabs: Query<(&crate::hud_anchor_registry::HudSlab, &mut Visibility)>) {
+    let show = shell_equipped(finds.as_deref()) && travel.zip(presence).is_some_and(|(t, p)| in_reach(t.current, &combat, p.position.x, p.position.z));
+    for (_, mut vis) in slabs.iter_mut().filter(|(s, _)| s.0 == crate::hud_anchor_registry::ID_ABILITY_TIP) { *vis = if show { Visibility::Visible } else { Visibility::Hidden }; }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1017,7 +1035,7 @@ mod tests {
         assert!(text.contains(&HIT.to_string()) && text.contains(&REACH.to_string()), "{text}");
         assert!(text.contains("key 1 while no panel is open"), "{text}");
         for s in 0..=4 {
-            assert_eq!(slot_tooltip(s).is_some(), slot_strikes(Some(s)), "slot {s}");
+            assert_eq!(slot_tooltip(s).is_some(), s <= 1, "slot {s}"); // ABILITY-TOOLTIP-SHOW-1 A3: slot 1 carries the Plate line
         }
         let lower = text.to_lowercase();
         for banned in ["class", "soon", "coming", "unlock", "cooldown"] {
@@ -2682,7 +2700,7 @@ mod tests {
             assert_eq!((c.hurt, c.player_taken, app.world().resource::<FirstHarvestEpiphany>().pulse_line.clone()), (0, 0, epi));
             assert_eq!(app.world_mut().query::<&AudioPlayer>().iter(app.world()).count(), audio);
         });
-        assert!(slot_tooltip(1).is_none() && !slot_strikes(Some(1)));
+        assert!(!slot_strikes(Some(1)) && slot_tooltip(1).is_some_and(|t| !t.to_lowercase().contains("cooldown"))); // ABILITY-TOOLTIP-SHOW-1 A3
         let prod = include_str!("combat_core.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
         let state = &prod[prod.find("pub struct CombatState {").unwrap()..];
         assert!(!state[..state.find("\n}").unwrap()].to_lowercase().contains("cooldown"));
