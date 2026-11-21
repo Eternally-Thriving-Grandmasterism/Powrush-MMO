@@ -380,7 +380,7 @@ pub(crate) fn handle_player_input(
     // Ability slots 1–4
     player_input.ability_slot = if keyboard.just_pressed(KeyCode::Digit1) {
         Some(0)
-    } else if keyboard.just_pressed(KeyCode::Digit2) {
+    } else if keyboard.just_pressed(KeyCode::Digit2) || pad.is_some_and(|g| g.just_pressed(GamepadButton::RightTrigger)) {
         Some(1)
     } else if keyboard.just_pressed(KeyCode::Digit3) {
         Some(2)
