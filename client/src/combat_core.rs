@@ -2918,4 +2918,20 @@ mod tests {
             assert!(ats_all(app, Visibility::Hidden), "Shell, predator down");
         });
     }
+
+    // TIP-NEQ-1 N1 — CUT 7066705477: a steady, unyielded tip is not re-marked Changed each frame (Last-schedule tape on the tip).
+    #[derive(Resource, Default)] struct TnTape(Vec<bool>);
+    fn tn_tape(q: Query<(&HudSlab, Ref<Visibility>)>, mut tape: ResMut<TnTape>) { tape.0.extend(q.iter().filter(|(s, _)| s.0 == ID_ABILITY_TIP).map(|(_, v)| v.is_changed())); }
+    #[test]
+    fn tn1_n1_steady_tip_is_not_marked_changed() {
+        for (tag, shell, want) in [("tn1a", true, Visibility::Visible), ("tn1b", false, Visibility::Hidden)] {
+            ats(tag, shell, |app| {
+                app.init_resource::<TnTape>().add_systems(Last, tn_tape);
+                tick(app, 0.0); tick(app, 0.0); app.world_mut().resource_mut::<TnTape>().0.clear(); // warm-up: first run and Added read as changed
+                tick(app, 0.0); tick(app, 0.0);
+                assert!(ats_all(app, want) && !ats_yielded(app), "{tag}: steady and not yielded");
+                assert_eq!(app.world().resource::<TnTape>().0, [false, false], "{tag}");
+            });
+        }
+    }
 }
