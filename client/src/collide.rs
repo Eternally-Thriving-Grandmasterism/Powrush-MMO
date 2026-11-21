@@ -72,6 +72,35 @@ pub(crate) fn prop_solids(place: Option<shared::hex_travel::PlaceId>) -> impl It
         .map(|c| (Vec2::new(c[0], c[2]), shared::heartwood_wards::WARD_FOOTPRINT_RADIUS))
 }
 
+/// CARD CONTACT-RUMBLE-1 — ruling 7059724016: fire at a gap at or under ε_in, re-arm only above ε_out (metres).
+const CONTACT_IN: f32 = 0.01; const CONTACT_OUT: f32 = 0.10;
+/// CARD CONTACT-RUMBLE-1 — a static solid within `eps` of the body disk: trunk, owned stump or ward post disk, or a
+/// shown yard rock (its own push-out shape and height gate, probed `eps` toward the rock spot).
+fn static_within(pos: Vec3, realm: Option<u8>, discs: &[(Vec2, f32)], eps: f32) -> bool {
+    use crate::living_ecology::{yard_rocks_shown, YARD_ROCK_SPOTS};
+    discs.iter().any(|&(c, r)| (pos.xz() - c).length() <= r + PLAYER_TRUNK_RADIUS + eps) || yard_rocks_shown(realm).then_some(YARD_ROCK_SPOTS).into_iter().flatten().any(|spot| {
+        let (probe, mut v) = (pos - (pos - spot).with_y(0.0).normalize_or_zero() * eps, Vec3::ZERO);
+        let mut t = probe;
+        push_out_of_rock(&mut t, &mut v, spot, 0.9, crate::human_presence::silhouette().feet);
+        t != probe
+    })
+}
+/// CARD CONTACT-RUMBLE-1 — one existing harvest-light rumble on the fixed tick the body reaches a static solid,
+/// grounded or airborne. A move outside the fixed tick (teleport, respawn) or a place change re-seats without firing.
+#[allow(clippy::type_complexity)]
+fn rumble_static_contact(presence: Res<crate::human_presence::SoftPresence>, feel: Option<Res<crate::local_settings::LocalFeedbackFeel>>, pads: Query<Entity, With<Gamepad>>, mut rumble: MessageWriter<bevy::input::gamepad::GamepadRumbleRequest>, trees: (Option<Res<crate::living_practice_loop::SoftPlayerRealm>>, Option<Res<crate::vegetation::FieldTrunks>>, Option<Res<crate::wood_expedition::WoodHub>>, Option<Res<crate::hex_travel::HexTravelState>>), mut seat: Local<Option<(bool, Vec3, Option<shared::hex_travel::PlaceId>, Option<u8>)>>) {
+    use crate::living_ecology::{yard_trees_shown, YARD_TREE_SPOTS, YARD_TRUNK_R};
+    let (realm, place, at) = (trees.0.as_ref().and_then(|r| r.current), trees.3.as_ref().map(|t| t.current), presence.position);
+    let yard = yard_trees_shown(realm).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|s| (s.xz(), YARD_TRUNK_R));
+    let owned = crate::wood_expedition::owned_blocker(trees.2.as_deref(), place, realm);
+    let discs: Vec<_> = yard.chain(trees.1.iter().flat_map(|f| f.0.iter().copied())).chain(owned).chain(prop_solids(place)).collect();
+    let near = |eps| static_within(at, realm, &discs, eps);
+    let armed = match *seat { Some((armed, last, p, r)) if (p, r) == (place, realm) && presence.prev_tick.is_some_and(|t| t.xz().distance(last.xz()) <= CONTACT_IN) => armed, _ => !near(CONTACT_IN) };
+    let fire = armed && near(CONTACT_IN);
+    *seat = Some((!fire && (armed || !near(CONTACT_OUT)), at, place, realm));
+    if fire && feel.is_some_and(|f| f.rumble_enabled) { crate::harvest_feel::rumble_harvest(&mut rumble, pads.iter(), false); }
+}
+
 #[derive(Component, Clone, Copy)]
 pub(crate) struct BodyCollider { pub r: f32 }
 #[cfg(test)]
@@ -97,7 +126,7 @@ fn squeeze_depth(pos: Vec3, realm: Option<u8>, statics: &[(Vec2, f32)]) -> f32 {
 pub struct CreatureBodyPlugin;
 impl Plugin for CreatureBodyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, attach_body_colliders).add_systems(FixedPostUpdate, push_player_from_creature_bodies).add_systems(PostUpdate, clamp_creature_stop_at_contact);
+        app.add_message::<bevy::input::gamepad::GamepadRumbleRequest>().add_systems(Update, attach_body_colliders).add_systems(FixedPostUpdate, (push_player_from_creature_bodies, rumble_static_contact).chain()).add_systems(PostUpdate, clamp_creature_stop_at_contact);
     }
 }
 fn attach_body_colliders(mut c: Commands, q: Query<(Entity, &Name, Option<&crate::grazer::Grazer>, Option<&crate::combat_core::Predator>, Option<&crate::droid::Droid>), Without<BodyCollider>>) {
