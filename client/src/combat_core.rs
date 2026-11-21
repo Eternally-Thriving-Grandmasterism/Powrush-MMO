@@ -2901,7 +2901,7 @@ mod tests {
     fn ats1_r9_budget_44_banned_words_and_plate_values() {
         for t in slot_tooltip(1).iter().chain([ATS_PLATE.to_string()].iter()) {
             assert!(t.chars().count() <= 44, "{t}");
-            assert!(t.to_lowercase().split(|c: char| !c.is_alphabetic()).all(|w| !["class", "soon", "coming", "unlock", "cooldown"].contains(&w)), "{t}"); // whole words: "incoming" is canon
+            assert!(t.to_lowercase().split(|c: char| !c.is_alphanumeric()).all(|w| !["class", "soon", "coming", "unlock", "cooldown"].contains(&w)), "{t}"); // AMEND 7066441253: whole words; "incoming" is the canon word (COMBAT_AND_PVP.md:456)
         }
         assert!(slot_tooltip(2).is_none() && slot_tooltip(3).is_none() && PLATE_SECS == 3.0 && plate_hit(100) == 70);
     }
