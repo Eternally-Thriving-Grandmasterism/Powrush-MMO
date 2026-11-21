@@ -317,4 +317,25 @@ mod tests {
         assert!((app.world().resource::<crate::human_presence::SoftPresence>().position.xz().distance(Vec2::new(0.0, 0.46)) - 0.46).abs() < 2e-3);
     }
 
+    /// CARD COLLIDE-SPLIT-1 S2 — a deer or traveler can't squeeze the player into a Heartwood ward post.
+    #[test]
+    fn collide_split_1_s2_body_cannot_wedge_into_ward_post() {
+        let _g = TEST_CREATURE_LOCK.lock().unwrap(); TEST_CREATURE_SKIP.store(0, Ordering::Relaxed);
+        use shared::heartwood_wards::{WARD_FOOTPRINT_RADIUS, WARD_POST_CENTERS};
+        for (w, r) in WARD_POST_CENTERS.iter().flat_map(|w| [(w, 0.16f32), (w, 0.22)]) {
+            let post = Vec2::new(w[0], w[2]);
+            let pz = post.y - WARD_FOOTPRINT_RADIUS - PLAYER_TRUNK_RADIUS - 0.04;
+            let mut app = body_app();
+            app.insert_resource(crate::hex_travel::HexTravelState { current: shared::hex_travel::PlaceId::Heartwood });
+            app.world_mut().spawn((BodyCollider { r }, Transform::from_xyz(post.x, 0.55, pz - r), InheritedVisibility::VISIBLE, Visibility::Visible));
+            let (at, sk) = (Vec3::new(post.x, 0.9, pz), [(post, WARD_FOOTPRINT_RADIUS)]);
+            let mut p = app.world_mut().resource_mut::<crate::human_presence::SoftPresence>();
+            (p.position, p.velocity, p.prev_tick, p.curr_tick) = (at, Vec3::new(0., 0., -0.25), Some(at), Some(at));
+            let before = squeeze_depth(at, Some(3), &sk);
+            app.world_mut().run_schedule(FixedPostUpdate);
+            let after = squeeze_depth(app.world().resource::<crate::human_presence::SoftPresence>().position, Some(3), &sk);
+            assert!(after <= before + 1e-3, "post {post} r={r}: squeezed {before} -> {after}");
+        }
+    }
+
 }
