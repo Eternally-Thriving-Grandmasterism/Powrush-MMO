@@ -794,7 +794,7 @@ impl Plugin for HumanPresencePlugin {
                         arm_jump_latch,
                         latch_use_attend,
                         sync_control_preset_from_settings,
-                        sync_body,
+                        sync_body.before(crate::combat_core::combat_fire), // STRIKE-FACING-1: the strike reads this frame's body yaw
                         pose_person,
                         sync_mouse_look_grab,
                         follow_camera,

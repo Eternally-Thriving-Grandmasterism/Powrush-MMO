@@ -280,6 +280,12 @@ pub fn in_reach(place: PlaceId, combat: &CombatState, x: f32, z: f32) -> bool {
     let d = Vec2::new(x, z).distance(Vec2::from_array(fight_home(place)));
     fight_present(place) && combat.predator_taken < HEALTH && d <= REACH
 }
+/// STRIKE-FACING-1 — "aimed at a body in front of you" (COMBAT_AND_PVP.md:435): the target sits inside ±60° of the body's +Z
+/// (cos 60° = 0.5). No body yaw, or within 0.1 m of the target, fails open. Only the strike reads it: never in_reach, Plate or the lunge.
+pub fn facing_ok(body_fwd: Option<Vec3>, player: Vec3, target: [f32; 2]) -> bool {
+    let to = Vec2::new(target[0] - player.x, target[1] - player.z);
+    body_fwd.is_none_or(|f| to.length() <= 0.1 || Vec2::new(f.x, f.z).normalize_or_zero().dot(to.normalize()) >= 0.5)
+}
 /// COMBAT-SIGNPOST-1 — arrival at the fight home, predator up or down (not `in_reach`).
 pub fn at_fight_home(place: PlaceId, x: f32, z: f32) -> bool { fight_present(place) && Vec2::new(x, z).distance(Vec2::from_array(fight_home(place))) <= REACH }
 
@@ -557,7 +563,7 @@ pub fn combat_fire(
         Option<Res<HumanInventory>>,
         Option<Res<HumanSoftPanels>>,
     ),
-    (buffer, fixed, diff, runs, mut cmd, assets, mute, mut finds): (
+    (buffer, fixed, diff, runs, mut cmd, assets, mute, mut finds, body): (
         Option<ResMut<StrikeBuffer>>,
         Option<Res<Time<Fixed>>>,
         Option<ResMut<crate::difficulty::AreaDifficulty>>,
@@ -566,6 +572,7 @@ pub fn combat_fire(
         Option<Res<AssetServer>>,
         Option<Res<crate::local_settings::MasterMuteGain>>,
         Option<ResMut<FoundFinds>>,
+        Query<&Transform, With<crate::human_presence::HumanPresence>>,
     ),
 ) {
     let fire = buttons.is_some_and(|b| b.just_pressed(FIRE))
@@ -600,6 +607,7 @@ pub fn combat_fire(
     let allowed = fire_allowed(grab, plate_open, ui.iter().any(|i| *i != Interaction::None), prompts);
     let reach = in_reach(travel.current, &combat, presence.position.x, presence.position.z);
     if plate_key && allowed { plate_arm(&mut combat, reach, shell_equipped(finds.as_deref())); }
+    let reach = reach && facing_ok(body.iter().next().map(|t| t.rotation * Vec3::Z), presence.position, fight_home(travel.current)); // STRIKE-FACING-1 A1
     if !(pressed || buffer.as_ref().is_some_and(|b| b.fire)) { return; }
     // COMBAT-FEEL-1: the hit lands here in Update; only expiry and reach run on the fixed tick.
     let now_fixed = fixed.map_or(0.0, |t| t.elapsed_secs_f64());
@@ -646,12 +654,13 @@ fn hold_strike_buffer(
     time: Option<Res<Time>>,
     buffer: Option<ResMut<StrikeBuffer>>,
     (travel, presence, combat): (Option<Res<HexTravelState>>, Option<Res<SoftPresence>>, Option<Res<CombatState>>),
+    body: Query<&Transform, With<crate::human_presence::HumanPresence>>,
 ) {
     let (Some(time), Some(mut buf)) = (time, buffer.filter(|b| b.until.is_some())) else {
         return;
     };
     let reach = match (travel, presence, combat) {
-        (Some(t), Some(p), Some(c)) => in_reach(t.current, &c, p.position.x, p.position.z),
+        (Some(t), Some(p), Some(c)) => in_reach(t.current, &c, p.position.x, p.position.z) && facing_ok(body.iter().next().map(|b| b.rotation * Vec3::Z), p.position, fight_home(t.current)),
         _ => false,
     };
     strike_buffer_tick(&mut buf, time.elapsed_secs_f64(), reach);
