@@ -820,12 +820,16 @@ pub(crate) fn update_world_care_prompt(
     if nearby.distance > crate::mercy_harvest_nodes::HARVEST_REACH + CLOSE_UP_REARM_PAD {
         arm.latched = false;
     }
+    let k_bound = !gate.k_toggles();
+    // The window only spends on frames the tail could be seen; hidden or K-blocked frames freeze it.
+    if nearby.in_range && (!show || k_bound) && now < arm.until {
+        arm.until += time.delta_secs_f64();
+    }
     if nearby.in_range && !arm.latched {
         // A gated visit latches with no window, so the offer never flashes over the epiphany.
         (arm.latched, arm.until) = (true, if state.first_harvest_lived { now + CLOSE_UP_OFFER_SECS } else { 0.0 });
     }
-    let k_bound = !gate.k_toggles();
-    let live = nearby.in_range && nearby.nodes_exist && state.first_harvest_lived && now < arm.until && !k_bound && !offer.is_some_and(|o| o.spent);
+    let live = show && nearby.in_range && nearby.nodes_exist && state.first_harvest_lived && now < arm.until && !k_bound && !offer.is_some_and(|o| o.spent);
     let line = if live { format!("{line}{}", close_up_offer_suffix()) } else { line.to_string() };
     for mut text in &mut text_q {
         if text.as_str() != line {
