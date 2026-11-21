@@ -65,6 +65,13 @@ pub(crate) fn push_out_of_rock(pos: &mut Vec3, vel: &mut Vec3, spot: Vec3, stand
     }
 }
 
+/// CARD COLLIDE-SPLIT-1 — Heartwood ward posts push as their footprint disk, only where they spawn.
+pub(crate) fn prop_solids(place: Option<shared::hex_travel::PlaceId>) -> impl Iterator<Item = (Vec2, f32)> {
+    use shared::{heartwood_wards::WARD_POST_CENTERS, hex_travel::PlaceId};
+    (place == Some(PlaceId::Heartwood)).then_some(WARD_POST_CENTERS).into_iter().flatten()
+        .map(|c| (Vec2::new(c[0], c[2]), shared::heartwood_wards::WARD_FOOTPRINT_RADIUS))
+}
+
 #[derive(Component, Clone, Copy)]
 pub(crate) struct BodyCollider { pub r: f32 }
 #[cfg(test)]
@@ -112,7 +119,7 @@ fn push_player_from_creature_bodies(input: Res<crate::input::PlayerInput>, mut p
     let yard = yard_trees_shown(realm).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|s| (s.xz(), YARD_TRUNK_R));
     let field = trees.1.iter().flat_map(|f| f.0.iter().copied());
     let owned = crate::wood_expedition::owned_blocker(trees.2.as_deref(), trees.3.as_ref().map(|t| t.current), realm);
-    let statics: Vec<_> = yard.chain(field).chain(owned).collect();
+    let statics: Vec<_> = yard.chain(field).chain(owned).chain(prop_solids(trees.3.as_ref().map(|t| t.current))).collect();
     let before = squeeze_depth(presence.position, realm, &statics);
     let y0 = presence.position.y;
     let (mut pos, mut vel) = (presence.position, presence.velocity);
@@ -315,6 +322,27 @@ mod tests {
         app.world_mut().get_mut::<Transform>(id).unwrap().translation = Vec3::new(0.0, 0.55, 0.46);
         push_walk(&mut app, 0.46, 0.16, false);
         assert!((app.world().resource::<crate::human_presence::SoftPresence>().position.xz().distance(Vec2::new(0.0, 0.46)) - 0.46).abs() < 2e-3);
+    }
+
+    /// CARD COLLIDE-SPLIT-1 S2 — a deer or traveler can't squeeze the player into a Heartwood ward post.
+    #[test]
+    fn collide_split_1_s2_body_cannot_wedge_into_ward_post() {
+        let _g = TEST_CREATURE_LOCK.lock().unwrap(); TEST_CREATURE_SKIP.store(0, Ordering::Relaxed);
+        use shared::heartwood_wards::{WARD_FOOTPRINT_RADIUS, WARD_POST_CENTERS};
+        for (w, r) in WARD_POST_CENTERS.iter().flat_map(|w| [(w, 0.16f32), (w, 0.22)]) {
+            let post = Vec2::new(w[0], w[2]);
+            let pz = post.y - WARD_FOOTPRINT_RADIUS - PLAYER_TRUNK_RADIUS - 0.04;
+            let mut app = body_app();
+            app.insert_resource(crate::hex_travel::HexTravelState { current: shared::hex_travel::PlaceId::Heartwood });
+            app.world_mut().spawn((BodyCollider { r }, Transform::from_xyz(post.x, 0.55, pz - r), InheritedVisibility::VISIBLE, Visibility::Visible));
+            let (at, sk) = (Vec3::new(post.x, 0.9, pz), [(post, WARD_FOOTPRINT_RADIUS)]);
+            let mut p = app.world_mut().resource_mut::<crate::human_presence::SoftPresence>();
+            (p.position, p.velocity, p.prev_tick, p.curr_tick) = (at, Vec3::new(0., 0., -0.25), Some(at), Some(at));
+            let before = squeeze_depth(at, Some(3), &sk);
+            app.world_mut().run_schedule(FixedPostUpdate);
+            let after = squeeze_depth(app.world().resource::<crate::human_presence::SoftPresence>().position, Some(3), &sk);
+            assert!(after <= before + 1e-3, "post {post} r={r}: squeezed {before} -> {after}");
+        }
     }
 
 }

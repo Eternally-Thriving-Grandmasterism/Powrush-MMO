@@ -1436,7 +1436,7 @@ fn apply_locomotion(
     for spot in yard_rocks_shown(realm).then_some(YARD_ROCK_SPOTS).into_iter().flatten() {
         crate::collide::push_out_of_rock(&mut presence.position, &mut vel, spot, STAND, feet);
     }
-    crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned));
+    crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned).chain(crate::collide::prop_solids(trees.3.as_ref().map(|s| s.current))));
     push_out_of_moat(&mut presence.position, &mut vel);
     push_out_of_riser_lips(&mut presence.position, &mut vel);
     presence.velocity = vel;
@@ -7349,5 +7349,83 @@ mod tests {
         assert_eq!(sig[..sig.find("\n) {").unwrap()].lines().skip(1).count(), 16);
         let pads = &prod[prod.find("struct FollowTimePads<").unwrap()..];
         assert!(!pads[..pads.find("\n}\n").unwrap()].contains("ResMut"));
+    }
+
+    // CARD COLLIDE-SPLIT-1 — the 3 Heartwood ward posts push like trunks, only in Heartwood.
+    fn cs_walk(place: Option<shared::hex_travel::PlaceId>, realm: Option<u8>, from: Vec2, to: Vec2, ticks: usize) -> Vec<(Vec3, Vec3)> {
+        let mut app = mf_fresh();
+        if let Some(current) = place { app.insert_resource(crate::hex_travel::HexTravelState { current }); }
+        app.insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: realm });
+        let mut p = app.world_mut().resource_mut::<SoftPresence>();
+        (p.position, p.prev_tick, p.curr_tick) = (Vec3::new(from.x, STAND, from.y), Some(Vec3::new(from.x, STAND, from.y)), Some(Vec3::new(from.x, STAND, from.y)));
+        mf_stick(&mut app, (to - from).normalize().x, -(to - from).normalize().y, false);
+        (0..ticks).map(|_| { jb_step(&mut app); let p = app.world().resource::<SoftPresence>(); (p.position, p.velocity) }).collect()
+    }
+    const CS_POSTS: [(Vec2, Vec2); 3] = [(Vec2::new(8.0, 4.0), Vec2::new(8.0, 5.5)), (Vec2::new(11.0, 0.0), Vec2::new(12.5, 0.0)), (Vec2::new(8.0, -4.0), Vec2::new(8.0, -5.5))];
+
+    #[test]
+    fn collide_split_1_s1_walk_into_each_ward_post_stops_at_contact() {
+        use shared::heartwood_wards::{WARD_FOOTPRINT_RADIUS, WARD_POST_CENTERS};
+        let reach = WARD_FOOTPRINT_RADIUS + crate::collide::PLAYER_TRUNK_RADIUS;
+        for (i, (c, from)) in CS_POSTS.into_iter().enumerate() {
+            assert_eq!(Vec2::new(WARD_POST_CENTERS[i][0], WARD_POST_CENTERS[i][2]), c);
+            let run = cs_walk(Some(shared::hex_travel::PlaceId::Heartwood), Some(2), from, c, 120);
+            for (t, (pos, vel)) in run.iter().enumerate() {
+                let off = pos.xz() - c;
+                assert!(off.length() >= reach - 1e-3, "post {i} tick {t}: walked into it at {pos}");
+                if off.length() < reach + 0.01 { assert!(-Vec2::new(vel.x, vel.z).dot(off.normalize()) <= 1e-3, "post {i} tick {t}: inward {vel}"); }
+            }
+            assert!((run[119].0.xz() - c).length() < reach + 0.01, "post {i}: reached contact");
+        }
+    }
+
+    #[test]
+    fn collide_split_1_s3_gate_off_outside_heartwood() {
+        let (c, from) = CS_POSTS[1];
+        let none = cs_walk(None, Some(2), from, c, 120);
+        assert_eq!(cs_walk(Some(shared::hex_travel::PlaceId::Sanctuary), Some(2), from, c, 120), none);
+        assert!(none[119].0.x < c.x - 1.0, "walks straight through at Sanctuary {}", none[119].0);
+    }
+
+    #[test]
+    fn collide_split_1_s4_e_still_claims_at_contact() {
+        use shared::heartwood_wards::{WARD_FOOTPRINT_RADIUS as R, WARD_POST_CENTERS, WARD_USE_RADIUS};
+        assert!(CS_POSTS.iter().map(|&(c, from)| c + (from - c).normalize() * (R + crate::collide::PLAYER_TRUNK_RADIUS)).all(|at| WARD_POST_CENTERS.iter().any(|w| at.distance(Vec2::new(w[0], w[2])) <= WARD_USE_RADIUS)));
+        assert!(crate::heartwood_wards::claim_ward_use(true, false, true, &mut crate::heartwood_wards::WardSession::default()));
+    }
+
+    #[test]
+    fn collide_split_1_s5_logs_ribs_and_stones_stay_passable() {
+        use shared::heartwood_lamp::HEARTWOOD_LIP_INSTANCES as LIP;
+        for (from, to) in [(Vec2::new(LIP[0].center[0], 3.7), Vec2::new(LIP[0].center[0], 9.0)), (Vec2::new(LIP[3].center[0] - 1.5, LIP[3].center[2]), Vec2::new(9.0, LIP[3].center[2]))] {
+            let run = cs_walk(Some(shared::hex_travel::PlaceId::Heartwood), Some(2), from, to, 60);
+            assert_eq!(run, cs_walk(None, Some(2), from, to, 60), "walkway and rib push nothing");
+            assert!(run[59].0.xz().distance(from) > 2.2, "walked past the dress to {}", run[59].0);
+        }
+        assert!(cs_walk(Some(shared::hex_travel::PlaceId::Sanctuary), Some(1), Vec2::ZERO, Vec2::new(-2.4, 3.1), 90).iter().all(|(p, _)| p.xz().perp_dot(Vec2::new(-2.4, 3.1).normalize()).abs() < 1e-4), "stone ray displaced");
+    }
+
+    #[test]
+    fn collide_split_1_s6_post_placement_and_clearance() {
+        use {crate::living_ecology::{yard_trees_shown, YARD_TREE_SPOTS, YARD_TRUNK_R}, shared::heartwood_wards::{WARD_FOOTPRINT_RADIUS as R, WARD_POST_CENTERS, WARD_POST_SIZE}};
+        use shared::heartwood_lamp::{HEARTWOOD_BATH_RETURN as WAKE, WATER_POND_CENTER as POND, WATER_POND_RADIUS};
+        let reach = R + crate::collide::PLAYER_TRUNK_RADIUS;
+        assert!(yard_trees_shown(Some(2)) && R >= WARD_POST_SIZE[0].hypot(WARD_POST_SIZE[2]) / 2.0);
+        for w in WARD_POST_CENTERS.map(|w| Vec2::new(w[0], w[2])) {
+            assert!(w.distance(Vec2::from(WAKE)) > 8.24 && w.distance(Vec2::from(POND)) - WATER_POND_RADIUS >= reach);
+            assert!(YARD_TREE_SPOTS.iter().all(|t| w.distance(t.xz()) - (reach + YARD_TRUNK_R + crate::collide::PLAYER_TRUNK_RADIUS) >= 0.5), "body channel at {w}");
+            assert!([Vec2::new(3.6, 0.0), Vec2::new(-2.4, 3.1), Vec2::new(1.2, -3.4)].iter().all(|n| w.distance(*n) >= crate::mercy_harvest_nodes::HARVEST_REACH + reach), "node clear at {w}");
+        }
+    }
+
+    #[test]
+    fn collide_split_1_s7_one_helper_two_calls_no_new_writers() {
+        let cut = "\n#[cfg(test)]\nmod tests {";
+        let col = include_str!("collide.rs").split(cut).next().unwrap();
+        let hp = include_str!("human_presence.rs").split(cut).next().unwrap();
+        assert_eq!([col.matches("fn prop_solids(").count(), col.matches("prop_solids(").count(), hp.matches("prop_solids(").count()], [1, 2, 1]);
+        assert_eq!([col.matches("WARD_FOOTPRINT_RADIUS").count(), col.matches("ResMut<").count(), col.matches("add_systems").count(), col.matches("Collider").count()], [1, 1, 3, 5]);
+        assert_eq!([hp.matches("ResMut<").count(), hp.matches("add_systems").count(), hp.matches("push_out_of_rock(").count(), col.matches("push_out_of_rock(").count()], [20, 4, 1, 2]);
+        assert!(col.contains("pub(crate) fn push_out_of_rock(pos: &mut Vec3, vel: &mut Vec3, spot: Vec3, stand: f32, feet: f32) {") && !col.contains("rapier") && !col.contains("avian"));
     }
 }
