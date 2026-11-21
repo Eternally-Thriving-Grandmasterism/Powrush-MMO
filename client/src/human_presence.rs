@@ -2119,6 +2119,17 @@ struct FollowTimePads<'w, 's> {
     pads: Query<'w, 's, &'static Gamepad>,
     /// CARD CAMERA-UX-1a — absent reads as Walk.
     mode: Option<Res<'w, CameraMode>>,
+    /// CARD CAMERA-UX-1d — the close-up scale actually applied this frame.
+    zoom: Local<'s, CloseUpZoom>,
+}
+
+/// CARD CAMERA-UX-1d — raw look eases this toward the mode's scale; raw off sets it.
+struct CloseUpZoom(f32);
+
+impl Default for CloseUpZoom {
+    fn default() -> Self {
+        Self(1.0)
+    }
 }
 
 /// CARD CAMERA-UX-1a — K pulls the follow camera in for a close look.
@@ -2201,7 +2212,7 @@ fn toggle_close_up(
 }
 
 fn follow_camera(
-    clock: FollowTimePads,
+    mut clock: FollowTimePads,
     presence: Res<SoftPresence>,
     pool: Option<Res<SoftRbePool>>,
     feedback: Res<LocalFeedbackFeel>,
@@ -2251,10 +2262,13 @@ fn follow_camera(
     let overstep = clock.fixed.as_ref().map(|t| t.overstep_fraction()).unwrap_or(1.0);
     let pos = presence.render_position(overstep);
     let look_down = presence_reads_ambrosian_lift(pos);
+    let target = close_up_offset_scale(clock.mode.as_deref());
+    let zoom = if raw_look { clock.zoom.0 + (target - clock.zoom.0) * follow_lerp_t(dt) } else { target };
+    clock.zoom.0 = if (target - zoom).abs() < 1e-4 { target } else { zoom };
     let desired = if look_down {
         pos + Vec3::new(0.0, CAM_UP + 1.1, CAM_BACK - 1.4)
     } else {
-        pos + orbit.offset() * close_up_offset_scale(clock.mode.as_deref()) + punch_delta
+        pos + orbit.offset() * clock.zoom.0 + punch_delta
     };
     let look = if look_down {
         Vec3::new(pos.x, 0.45, pos.z)
