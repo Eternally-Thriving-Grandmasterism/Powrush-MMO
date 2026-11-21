@@ -280,6 +280,12 @@ pub fn in_reach(place: PlaceId, combat: &CombatState, x: f32, z: f32) -> bool {
     let d = Vec2::new(x, z).distance(Vec2::from_array(fight_home(place)));
     fight_present(place) && combat.predator_taken < HEALTH && d <= REACH
 }
+/// STRIKE-FACING-1 — "aimed at a body in front of you" (COMBAT_AND_PVP.md:435): the target sits inside ±60° of the body's +Z
+/// (cos 60° = 0.5). No body yaw, or within 0.1 m of the target, fails open. Only the strike reads it: never in_reach, Plate or the lunge.
+pub fn facing_ok(body_fwd: Option<Vec3>, player: Vec3, target: [f32; 2]) -> bool {
+    let to = Vec2::new(target[0] - player.x, target[1] - player.z);
+    body_fwd.is_none_or(|f| to.length() <= 0.1 || Vec2::new(f.x, f.z).normalize_or_zero().dot(to.normalize()) >= 0.5)
+}
 /// COMBAT-SIGNPOST-1 — arrival at the fight home, predator up or down (not `in_reach`).
 pub fn at_fight_home(place: PlaceId, x: f32, z: f32) -> bool { fight_present(place) && Vec2::new(x, z).distance(Vec2::from_array(fight_home(place))) <= REACH }
 
@@ -557,7 +563,7 @@ pub fn combat_fire(
         Option<Res<HumanInventory>>,
         Option<Res<HumanSoftPanels>>,
     ),
-    (buffer, fixed, diff, runs, mut cmd, assets, mute, mut finds): (
+    (buffer, fixed, diff, runs, mut cmd, assets, mute, mut finds, body): (
         Option<ResMut<StrikeBuffer>>,
         Option<Res<Time<Fixed>>>,
         Option<ResMut<crate::difficulty::AreaDifficulty>>,
@@ -566,6 +572,7 @@ pub fn combat_fire(
         Option<Res<AssetServer>>,
         Option<Res<crate::local_settings::MasterMuteGain>>,
         Option<ResMut<FoundFinds>>,
+        Query<&Transform, With<crate::human_presence::HumanPresence>>,
     ),
 ) {
     let fire = buttons.is_some_and(|b| b.just_pressed(FIRE))
@@ -600,6 +607,7 @@ pub fn combat_fire(
     let allowed = fire_allowed(grab, plate_open, ui.iter().any(|i| *i != Interaction::None), prompts);
     let reach = in_reach(travel.current, &combat, presence.position.x, presence.position.z);
     if plate_key && allowed { plate_arm(&mut combat, reach, shell_equipped(finds.as_deref())); }
+    let reach = reach && facing_ok(body.iter().next().map(|t| t.rotation * Vec3::Z), presence.position, fight_home(travel.current)); // STRIKE-FACING-1 A1
     if !(pressed || buffer.as_ref().is_some_and(|b| b.fire)) { return; }
     // COMBAT-FEEL-1: the hit lands here in Update; only expiry and reach run on the fixed tick.
     let now_fixed = fixed.map_or(0.0, |t| t.elapsed_secs_f64());
@@ -646,12 +654,13 @@ fn hold_strike_buffer(
     time: Option<Res<Time>>,
     buffer: Option<ResMut<StrikeBuffer>>,
     (travel, presence, combat): (Option<Res<HexTravelState>>, Option<Res<SoftPresence>>, Option<Res<CombatState>>),
+    body: Query<&Transform, With<crate::human_presence::HumanPresence>>,
 ) {
     let (Some(time), Some(mut buf)) = (time, buffer.filter(|b| b.until.is_some())) else {
         return;
     };
     let reach = match (travel, presence, combat) {
-        (Some(t), Some(p), Some(c)) => in_reach(t.current, &c, p.position.x, p.position.z),
+        (Some(t), Some(p), Some(c)) => in_reach(t.current, &c, p.position.x, p.position.z) && facing_ok(body.iter().next().map(|b| b.rotation * Vec3::Z), p.position, fight_home(t.current)),
         _ => false,
     };
     strike_buffer_tick(&mut buf, time.elapsed_secs_f64(), reach);
@@ -2724,5 +2733,73 @@ mod tests {
     #[test] fn sc1_plate_pin_plated_lunge_11_and_12_on_unbroken() {
         let plated = |t| { let mut c = CombatState::default(); predator_tick_plated(&mut c, LUNGE_SECS, true, true, t, true); c.player_taken };
         assert_eq!((plate_hit(15), crate::difficulty::TIERS.map(plated)), (11, [11, 11, 11, 12]));
+    }
+
+    // STRIKE-FACING-1 — CUT 7059108080 + AMEND 7059114075: a strike lands only inside ±60° of the body's +Z; reach, Plate and the lunge stay distance-only.
+    fn sf1_yaw(app: &mut App, deg: f32) { for mut t in app.world_mut().query_filtered::<&mut Transform, With<crate::human_presence::HumanPresence>>().iter_mut(app.world_mut()) { t.rotation = Quat::from_rotation_y(deg.to_radians()); } }
+    /// The yard 2 m on −Z of the predator home (the home is dead ahead at yaw 0), with one body at `deg`.
+    fn sf1<R>(tag: &str, at: [f32; 2], deg: f32, body: impl FnOnce(&mut App) -> R) -> R {
+        yard(tag, HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, [PREDATOR_HOME[0] + at[0], PREDATOR_HOME[1] + at[1]], |app| { app.world_mut().spawn((crate::human_presence::HumanPresence, Transform::default())); sf1_yaw(app, deg); body(app) })
+    }
+    fn sf1_hit(app: &mut App, keys: &[KeyCode]) -> (u32, u32) { cc2a_keys(app, keys); let c = app.world().resource::<CombatState>(); (c.strikes, c.predator_taken) }
+    fn sf1_at(deg: f32) -> u32 { sf1(&format!("sf1d{deg}"), [0.0, -2.0], deg, |app| sf1_hit(app, &[KeyCode::Digit1]).1) }
+    #[test] fn sf1_f1_facing_away_in_reach_is_a_counted_miss() {
+        sf1("sf1f1", [0.0, -2.0], 180.0, |app| { assert_eq!(sf1_hit(app, &[KeyCode::Digit1]), (1, 0)); assert_eq!(app.world().resource::<FirstHarvestEpiphany>().pulse_line, format!("Missed {PREDATOR_NAME}")); });
+    }
+    #[test] fn sf1_f2_facing_the_predator_lands_8() { assert_eq!(sf1_at(0.0), 8); }
+    #[test] fn sf1_f3_59_lands_61_and_180_miss() { assert_eq!([59.0, 61.0, 180.0, -59.0, -61.0].map(sf1_at), [8, 0, 0, 8, 0]); }
+    #[test] fn sf1_f4_within_a_tenth_of_a_metre_or_no_body_counts_as_in_front() {
+        assert_eq!(sf1("sf1f4a", [0.0, -0.05], 180.0, |app| sf1_hit(app, &[KeyCode::Digit1])), (1, 8));
+        assert_eq!(yard("sf1f4b", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, [PREDATOR_HOME[0], PREDATOR_HOME[1] - 2.0], |app| sf1_hit(app, &[KeyCode::Digit1])), (1, 8));
+    }
+    #[test] fn sf1_f5_modern_and_classic_read_the_same_body() {
+        let run = |p: crate::human_presence::ControlPreset| [0.0, 180.0].map(|d| sf1("sf1f5", [0.0, -2.0], d, |app| { app.insert_resource(p); sf1_hit(app, &[KeyCode::Digit1]).1 }));
+        assert_eq!(run(crate::human_presence::ControlPreset::Modern), run(crate::human_presence::ControlPreset::Classic));
+        let prod = include_str!("combat_core.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        assert!(["ControlPreset", "FollowOrbit", "BodyFacing", "Camera3d"].iter().all(|w| !prod.contains(w)));
+    }
+    #[test] fn sf1_f6_key1_lmb_and_rt2_agree() {
+        let press = |deg: f32, how: usize| sf1(&format!("sf1f6{how}"), [0.0, -2.0], deg, |app| {
+            app.init_resource::<ButtonInput<MouseButton>>(); app.world_mut().spawn(Gamepad::default());
+            if how == 1 { app.world_mut().resource_mut::<ButtonInput<MouseButton>>().press(FIRE); }
+            if how == 2 { app.world_mut().query::<&mut Gamepad>().single_mut(app.world_mut()).unwrap().digital_mut().press(FIRE_PAD); }
+            sf1_hit(app, if how == 0 { &[KeyCode::Digit1] } else { &[] })
+        });
+        for deg in [0.0, 180.0] { let r = [0, 1, 2].map(|h| press(deg, h)); assert!(r[0] == r[1] && r[1] == r[2] && r[0].0 == 1, "{deg}: {r:?}"); }
+        assert_eq!(press(0.0, 2), (1, 8));
+    }
+    #[test] fn sf1_f7_a_same_frame_sync_body_turn_is_read_by_the_strike() {
+        sf1("sf1f7", [0.0, 2.0], 0.0, |app| {
+            app.set_error_handler(bevy::ecs::error::ignore);
+            app.world_mut().resource_mut::<crate::local_settings::LocalSettingsState>().inner.control_preset = "classic".into();
+            app.add_plugins(crate::human_presence::HumanPresencePlugin);
+            app.world_mut().resource_mut::<SoftPresence>().velocity = Vec3::new(0.0, 0.0, -0.5);
+            assert_eq!(sf1_hit(app, &[KeyCode::Digit1]), (1, HIT), "Classic BodyFacing yaw π turns the body to the home on the press frame");
+        });
+    }
+    #[test] fn sf1_f8_droid_still_takes_8_and_the_predator_nothing() {
+        sf1("sf1f8", [crate::droid::DROID_HOME[0] - PREDATOR_HOME[0], crate::droid::DROID_HOME[1] - PREDATOR_HOME[1]], 180.0, |app| {
+            app.add_plugins(crate::droid::DroidPlugin);
+            assert_eq!(sf1_hit(app, &[KeyCode::Digit1]), (1, 0));
+            assert_eq!(app.world().resource::<crate::droid::DroidState>().taken, 8);
+        });
+    }
+    #[test] fn sf1_f10_one_facing_helper_kept_out_of_in_reach_and_plate() {
+        let prod = include_str!("combat_core.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        let (reach, fire) = (&prod[prod.find("pub fn in_reach(").unwrap()..], &prod[prod.find("pub fn combat_fire(").unwrap()..]); let reach = &reach[..reach.find("\n}").unwrap()];
+        assert!(prod.matches("fn facing_ok(").count() <= 1 && !reach.contains("facing") && !fire[..fire.find("plate_arm(&mut combat, reach").unwrap()].contains("facing_ok("));
+    }
+    /// 1/60 s steps; the predator damage after each.
+    fn sf1_steps(app: &mut App, n: usize) -> u32 { (0..n).for_each(|_| tick(app, 1.0 / 60.0)); app.world().resource::<CombatState>().predator_taken }
+    #[test] fn sf1_f11_buffered_press_lands_once_on_a_turn_inside_the_window_and_never_after() {
+        sf1("sf1f11a", [0.0, -2.0], 180.0, |app| { app.init_resource::<StrikeBuffer>(); cc2a_keys(app, &[KeyCode::Digit1]); sf1_steps(app, 3); sf1_yaw(app, 0.0); assert_eq!(sf1_steps(app, 3), 8, "turned at 0.05 s"); assert_eq!(sf1_steps(app, 30), 8, "one hit"); });
+        sf1("sf1f11b", [0.0, -2.0], 180.0, |app| { app.init_resource::<StrikeBuffer>(); cc2a_keys(app, &[KeyCode::Digit1]); let late = sf1_steps(app, 12); sf1_yaw(app, 0.0); assert_eq!(sf1_steps(app, 30), late, "turned at 0.2 s"); });
+    }
+    #[test] fn sf1_f12_plate_arms_the_same_facing_away() {
+        sf1("sf1f12", [0.0, -2.0], 180.0, |app| {
+            let mut f = app.world_mut().resource_mut::<FoundFinds>(); f.names = shared::temper::NAMED_FINDS.iter().map(|n| n.name).collect(); assert!(f.cycle_equipped()); drop(f);
+            cc2a_press_at(app, CC2A_TELL);
+            let c = app.world().resource::<CombatState>(); assert!(c.plate_armed && c.plate_secs > 0.0, "{c:?}");
+        });
     }
 }
