@@ -3,7 +3,7 @@ name = "powrush-mmo-host"
 version = "21.88.0"
 edition = "2021"
 authors = ["Sherif Samy Botros <info@Rathor.ai>"]
-license = "AG-SML-1.0"
+license = "AG-SML-1.1"
 description = "Powrush-MMO unified co-host: full simulation + server RTT bridge + Kardashev Dashboard in one Bevy App"
 
 [[bin]]

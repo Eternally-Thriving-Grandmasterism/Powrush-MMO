@@ -3,7 +3,7 @@ name = "simulation"
 version = "21.88.3"
 edition = "2021"
 authors = ["Sherif Samy Botros <info@Rathor.ai>"]
-license = "AG-SML-1.0"
+license = "AG-SML-1.1"
 description = "Powrush-MMO Simulation Layer — Orchestrator, Council, RBE, Kardashev, Multi-Realm, Telemetry"
 
 [dependencies]
