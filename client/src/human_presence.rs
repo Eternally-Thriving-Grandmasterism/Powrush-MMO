@@ -1436,7 +1436,7 @@ fn apply_locomotion(
     for spot in yard_rocks_shown(realm).then_some(YARD_ROCK_SPOTS).into_iter().flatten() {
         crate::collide::push_out_of_rock(&mut presence.position, &mut vel, spot, STAND, feet);
     }
-    crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned).chain(crate::collide::prop_solids(trees.3.as_ref().map(|s| s.current))));
+    crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned).chain(crate::collide::prop_solids(trees.3.as_ref().map(|s| s.current), realm)));
     push_out_of_moat(&mut presence.position, &mut vel);
     push_out_of_riser_lips(&mut presence.position, &mut vel);
     presence.velocity = vel;
@@ -6563,6 +6563,7 @@ mod tests {
         for spot in crate::living_ecology::YARD_ROCK_SPOTS {
             let (u, w) = rs_axes(spot);
             for (name, dir) in [("long", u), ("short", w), ("45deg", (u + w).normalize())] {
+                let dir = if crate::living_ecology::YARD_CRYSTAL_SPOTS.iter().any(|c| (c.xz() - spot.xz()).dot(dir) > 0.0 && (c.xz() - spot.xz()).perp_dot(dir).abs() < 0.5) { -dir } else { dir }; // CRYSTAL-SOLID-1: mirrored side when a spire is in the approach
                 let mut app = rock_collide_1_app(Some(4), spot);
                 let s = spot.xz() + dir * 2.5;
                 app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(s.x, STAND, s.y);
@@ -6582,7 +6583,8 @@ mod tests {
             for dir in [u, w] {
                 let mut app = mf_fresh();
                 app.insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(4) });
-                let s = spot.xz() + dir * (23.0 * 5.4 / 60.0);
+                let c = spot.xz() + crate::living_ecology::YARD_CRYSTAL_SPOTS.map(|k| ((k.xz() - spot.xz()).perp_dot(dir), (k.xz() - spot.xz()).dot(dir))).into_iter().filter(|(p, a)| p.abs() < 0.5 && a.abs() < 2.6).fold(Vec2::ZERO, |o, (p, _)| o + dir.perp() * (p.signum() * 0.5 - p)); // CRYSTAL-SOLID-1: line shifted clear of a spire
+                let s = c + dir * (23.0 * 5.4 / 60.0);
                 let mut p = app.world_mut().resource_mut::<SoftPresence>();
                 p.position = Vec3::new(s.x, STAND, s.y);
                 (p.prev_tick, p.curr_tick) = (Some(p.position), Some(p.position));
@@ -6600,7 +6602,7 @@ mod tests {
                     if p.position.y > apex.y { apex = p.position; }
                     if p.grounded { break; }
                 }
-                assert!(apex.y - STAND + silhouette().feet > top && apex.xz().distance(spot.xz()) < 0.1, "{spot} {apex}");
+                assert!(apex.y - STAND + silhouette().feet > top && apex.xz().distance(c) < 0.1, "{spot} {apex}");
             }
         }
     }
