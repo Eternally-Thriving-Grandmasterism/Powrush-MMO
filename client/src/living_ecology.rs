@@ -509,11 +509,7 @@ fn dress_for_climate(
             PropKind::Crystal => matches!(id, 1 | 4),
             PropKind::Mycelium => id == 3,
         };
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
