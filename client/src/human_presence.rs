@@ -1436,7 +1436,7 @@ fn apply_locomotion(
     for spot in yard_rocks_shown(realm).then_some(YARD_ROCK_SPOTS).into_iter().flatten() {
         crate::collide::push_out_of_rock(&mut presence.position, &mut vel, spot, STAND, feet);
     }
-    crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned));
+    crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned).chain(crate::collide::prop_solids(trees.3.as_ref().map(|s| s.current))));
     push_out_of_moat(&mut presence.position, &mut vel);
     push_out_of_riser_lips(&mut presence.position, &mut vel);
     presence.velocity = vel;

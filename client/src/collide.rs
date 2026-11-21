@@ -65,6 +65,13 @@ pub(crate) fn push_out_of_rock(pos: &mut Vec3, vel: &mut Vec3, spot: Vec3, stand
     }
 }
 
+/// CARD COLLIDE-SPLIT-1 — Heartwood ward posts push as their footprint disk, only where they spawn.
+pub(crate) fn prop_solids(place: Option<shared::hex_travel::PlaceId>) -> impl Iterator<Item = (Vec2, f32)> {
+    use shared::{heartwood_wards::WARD_POST_CENTERS, hex_travel::PlaceId};
+    (place == Some(PlaceId::Heartwood)).then_some(WARD_POST_CENTERS).into_iter().flatten()
+        .map(|c| (Vec2::new(c[0], c[2]), shared::heartwood_wards::WARD_FOOTPRINT_RADIUS))
+}
+
 #[derive(Component, Clone, Copy)]
 pub(crate) struct BodyCollider { pub r: f32 }
 #[cfg(test)]
@@ -112,7 +119,7 @@ fn push_player_from_creature_bodies(input: Res<crate::input::PlayerInput>, mut p
     let yard = yard_trees_shown(realm).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|s| (s.xz(), YARD_TRUNK_R));
     let field = trees.1.iter().flat_map(|f| f.0.iter().copied());
     let owned = crate::wood_expedition::owned_blocker(trees.2.as_deref(), trees.3.as_ref().map(|t| t.current), realm);
-    let statics: Vec<_> = yard.chain(field).chain(owned).collect();
+    let statics: Vec<_> = yard.chain(field).chain(owned).chain(prop_solids(trees.3.as_ref().map(|t| t.current))).collect();
     let before = squeeze_depth(presence.position, realm, &statics);
     let y0 = presence.position.y;
     let (mut pos, mut vel) = (presence.position, presence.velocity);
