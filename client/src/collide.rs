@@ -72,6 +72,35 @@ pub(crate) fn prop_solids(place: Option<shared::hex_travel::PlaceId>) -> impl It
         .map(|c| (Vec2::new(c[0], c[2]), shared::heartwood_wards::WARD_FOOTPRINT_RADIUS))
 }
 
+/// CARD CONTACT-RUMBLE-1 — ruling 7059724016: fire at a gap at or under ε_in, re-arm only above ε_out (metres).
+const CONTACT_IN: f32 = 0.01; const CONTACT_OUT: f32 = 0.10;
+/// CARD CONTACT-RUMBLE-1 — a static solid within `eps` of the body disk: trunk, owned stump or ward post disk, or a
+/// shown yard rock (its own push-out shape and height gate, probed `eps` toward the rock spot).
+fn static_within(pos: Vec3, realm: Option<u8>, discs: &[(Vec2, f32)], eps: f32) -> bool {
+    use crate::living_ecology::{yard_rocks_shown, YARD_ROCK_SPOTS};
+    discs.iter().any(|&(c, r)| (pos.xz() - c).length() <= r + PLAYER_TRUNK_RADIUS + eps) || yard_rocks_shown(realm).then_some(YARD_ROCK_SPOTS).into_iter().flatten().any(|spot| {
+        let (probe, mut v) = (pos - (pos - spot).with_y(0.0).normalize_or_zero() * eps, Vec3::ZERO);
+        let mut t = probe;
+        push_out_of_rock(&mut t, &mut v, spot, 0.9, crate::human_presence::silhouette().feet);
+        t != probe
+    })
+}
+/// CARD CONTACT-RUMBLE-1 — one existing harvest-light rumble on the fixed tick the body reaches a static solid,
+/// grounded or airborne. A move outside the fixed tick (teleport, respawn) or a place change re-seats without firing.
+#[allow(clippy::type_complexity)]
+fn rumble_static_contact(presence: Res<crate::human_presence::SoftPresence>, feel: Option<Res<crate::local_settings::LocalFeedbackFeel>>, pads: Query<Entity, With<Gamepad>>, mut rumble: MessageWriter<bevy::input::gamepad::GamepadRumbleRequest>, trees: (Option<Res<crate::living_practice_loop::SoftPlayerRealm>>, Option<Res<crate::vegetation::FieldTrunks>>, Option<Res<crate::wood_expedition::WoodHub>>, Option<Res<crate::hex_travel::HexTravelState>>), mut seat: Local<Option<(bool, Vec3, Option<shared::hex_travel::PlaceId>, Option<u8>)>>) {
+    use crate::living_ecology::{yard_trees_shown, YARD_TREE_SPOTS, YARD_TRUNK_R};
+    let (realm, place, at) = (trees.0.as_ref().and_then(|r| r.current), trees.3.as_ref().map(|t| t.current), presence.position);
+    let yard = yard_trees_shown(realm).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|s| (s.xz(), YARD_TRUNK_R));
+    let owned = crate::wood_expedition::owned_blocker(trees.2.as_deref(), place, realm);
+    let discs: Vec<_> = yard.chain(trees.1.iter().flat_map(|f| f.0.iter().copied())).chain(owned).chain(prop_solids(place)).collect();
+    let near = |eps| static_within(at, realm, &discs, eps);
+    let armed = match *seat { Some((armed, last, p, r)) if (p, r) == (place, realm) && presence.prev_tick.is_some_and(|t| t.xz().distance(last.xz()) <= CONTACT_IN) => armed, _ => !near(CONTACT_IN) };
+    let fire = armed && near(CONTACT_IN);
+    *seat = Some((!fire && (armed || !near(CONTACT_OUT)), at, place, realm));
+    if fire && feel.is_some_and(|f| f.rumble_enabled) { crate::harvest_feel::rumble_harvest(&mut rumble, pads.iter(), false); }
+}
+
 #[derive(Component, Clone, Copy)]
 pub(crate) struct BodyCollider { pub r: f32 }
 #[cfg(test)]
@@ -97,7 +126,7 @@ fn squeeze_depth(pos: Vec3, realm: Option<u8>, statics: &[(Vec2, f32)]) -> f32 {
 pub struct CreatureBodyPlugin;
 impl Plugin for CreatureBodyPlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, attach_body_colliders).add_systems(FixedPostUpdate, push_player_from_creature_bodies).add_systems(PostUpdate, clamp_creature_stop_at_contact);
+        app.add_message::<bevy::input::gamepad::GamepadRumbleRequest>().add_systems(Update, attach_body_colliders).add_systems(FixedPostUpdate, (push_player_from_creature_bodies, rumble_static_contact).chain()).add_systems(PostUpdate, clamp_creature_stop_at_contact);
     }
 }
 fn attach_body_colliders(mut c: Commands, q: Query<(Entity, &Name, Option<&crate::grazer::Grazer>, Option<&crate::combat_core::Predator>, Option<&crate::droid::Droid>), Without<BodyCollider>>) {
@@ -345,4 +374,124 @@ mod tests {
         }
     }
 
+
+    // CARD CONTACT-RUMBLE-1 — body_app + feel + one pad. `cr_to` moves the body one fixed tick through the static push-outs
+    // apply_locomotion runs (yard trunks, shown rocks, field + ward posts), runs FixedPostUpdate, and counts the Adds written.
+    use bevy::input::gamepad::{GamepadRumbleIntensity as Gi, GamepadRumbleRequest as Rq};
+    use shared::{hex_travel::PlaceId, local_settings::LocalSettings};
+    fn cr_app(place: Option<PlaceId>, realm: Option<u8>, feel: Option<LocalSettings>, pad: bool) -> App {
+        let mut app = body_app();
+        app.add_message::<Rq>().insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: realm });
+        if let Some(current) = place { app.insert_resource(crate::hex_travel::HexTravelState { current }); }
+        if let Some(s) = feel { app.insert_resource(crate::local_settings::LocalFeedbackFeel::from_settings(&s)); }
+        if pad { app.world_mut().spawn(Gamepad::default()); } app
+    }
+    fn cr_seat(app: &mut App, at: Vec3) { let mut p = app.world_mut().resource_mut::<crate::human_presence::SoftPresence>(); (p.position, p.prev_tick, p.curr_tick) = (at, Some(at), Some(at)); }
+    fn cr_to(app: &mut App, to: Vec3) -> usize {
+        use crate::living_ecology::{yard_rocks_shown, yard_trees_shown, YARD_ROCK_SPOTS, YARD_TREE_SPOTS, YARD_TRUNK_R};
+        let (realm, place) = (app.world().resource::<crate::living_practice_loop::SoftPlayerRealm>().current, app.world().get_resource::<crate::hex_travel::HexTravelState>().map(|t| t.current));
+        let field = app.world().get_resource::<FieldTrunks>().map(|f| f.0.clone()).unwrap_or_default();
+        let mut p = app.world_mut().resource_mut::<crate::human_presence::SoftPresence>();
+        let (prev, mut pos, mut vel) = (p.position, to, (to - p.position) * 60.0);
+        push_out_clear(&mut pos, &mut vel, yard_trees_shown(realm).then_some(YARD_TREE_SPOTS).into_iter().flatten().map(|s| (s.xz(), YARD_TRUNK_R)));
+        for spot in yard_rocks_shown(realm).then_some(YARD_ROCK_SPOTS).into_iter().flatten() { push_out_of_rock(&mut pos, &mut vel, spot, 0.9, crate::human_presence::silhouette().feet); }
+        push_out_clear(&mut pos, &mut vel, field.into_iter().chain(prop_solids(place)));
+        (p.position, p.velocity, p.prev_tick, p.curr_tick) = (pos, vel, Some(prev), Some(pos));
+        drop(p); app.world_mut().run_schedule(FixedPostUpdate);
+        app.world_mut().resource_mut::<Messages<Rq>>().drain().map(|q| match q { Rq::Add { intensity: Gi { strong_motor, weak_motor }, duration, .. } => assert_eq!((strong_motor, weak_motor, duration.as_millis()), (0.12, 0.28, 90)), Rq::Stop { .. } => panic!("contact never stops a pad") }).count()
+    }
+    fn cr_walk(app: &mut App, dir: Vec2, ticks: usize) -> usize { (0..ticks).map(|_| { let p = app.world().resource::<crate::human_presence::SoftPresence>().position; cr_to(app, p + Vec3::new(dir.x, 0.0, dir.y).normalize() * 0.06) }).sum() }
+    /// (place, realm, start, walk dir): Heartwood ward post, yard trunk (-5.2, -2.4), yard rock (7.0, 0.4), all real spots.
+    const CR_POST: (Option<PlaceId>, Option<u8>, Vec3, Vec2) = (Some(PlaceId::Heartwood), Some(2), Vec3::new(8.0, 0.9, 5.5), Vec2::NEG_Y);
+    const CR_SOLIDS: [(Option<PlaceId>, Option<u8>, Vec3, Vec2); 3] = [CR_POST, (None, Some(0), Vec3::new(-5.2, 0.9, -0.9), Vec2::NEG_Y), (None, Some(1), Vec3::new(7.0, 0.9, 2.2), Vec2::NEG_Y)];
+    fn cr_run(case: (Option<PlaceId>, Option<u8>, Vec3, Vec2), feel: Option<LocalSettings>, pad: bool, ticks: usize) -> (App, usize) {
+        let mut app = cr_app(case.0, case.1, feel, pad); cr_seat(&mut app, case.2); let n = cr_walk(&mut app, case.3, ticks); (app, n)
+    }
+    fn cr_gap(app: &App) -> bool { let p = app.world().resource::<crate::human_presence::SoftPresence>().position.xz(); prop_solids(Some(PlaceId::Heartwood)).any(|(c, r)| p.distance(c) <= r + PLAYER_TRUNK_RADIUS + 0.01) }
+
+    #[test]
+    fn contact_rumble_1_f1_walk_into_post_trunk_rock_one_add_each() {
+        for (i, case) in CR_SOLIDS.into_iter().chain([(CR_POST.0, CR_POST.1, CR_POST.2 + Vec3::Y, CR_POST.3)]).enumerate() {
+            let (app, n) = cr_run(case, Some(LocalSettings::peace_defaults()), true, 40);
+            assert!(n == 1 && (i == 1 || i == 2 || cr_gap(&app)), "solid {i} (3 = airborne post): {n} Adds; one on the contact tick");
+        }
+    }
+    #[test]
+    fn contact_rumble_1_f2_hold_and_slide_along_stays_one() {
+        let (mut app, _) = cr_run(CR_POST, Some(LocalSettings::peace_defaults()), true, 40); let x0 = app.world().resource::<crate::human_presence::SoftPresence>().position.x;
+        assert_eq!(cr_walk(&mut app, Vec2::NEG_Y, 30) + cr_walk(&mut app, Vec2::new(0.15, -1.0), 20), 0, "no Add after the contact tick");
+        assert!(cr_gap(&app) && app.world().resource::<crate::human_presence::SoftPresence>().position.x - x0 > 0.4, "slid along the post, still in contact");
+    }
+    #[test]
+    fn contact_rumble_1_f3_back_off_past_eps_out_and_reenter_is_two() {
+        let (mut app, n) = cr_run(CR_POST, Some(LocalSettings::peace_defaults()), true, 40); let at = app.world().resource::<crate::human_presence::SoftPresence>().position;
+        assert_eq!(n + cr_to(&mut app, at + Vec3::Z * 0.09) + cr_to(&mut app, at), 1, "0.09 m stays inside ε_out");
+        assert_eq!(cr_walk(&mut app, Vec2::Y, 5) + cr_walk(&mut app, Vec2::NEG_Y, 20), 1, "back off past ε_out, then re-enter");
+    }
+    #[test]
+    fn contact_rumble_1_f4_rumble_off_reduced_motion_low_write_nothing() {
+        let offs = [LocalSettings { rumble: false, ..LocalSettings::peace_defaults() }, LocalSettings { reduced_motion: true, ..LocalSettings::peace_defaults() }, { let mut s = LocalSettings::peace_defaults(); s.set_graphics_preset(GraphicsPreset::Low); s }];
+        for (i, s) in offs.into_iter().enumerate() {
+            assert!(!crate::local_settings::LocalFeedbackFeel::from_settings(&s).rumble_enabled);
+            assert_eq!(CR_SOLIDS.into_iter().map(|c| cr_run(c, Some(s.clone()), true, 40).1).sum::<usize>(), 0, "case {i} without LocalSettingsPlugin");
+            let (_env, dir) = (crate::test_env::lock(), std::env::temp_dir().join(format!("powrush-cr1-f4-{i}-{}", std::process::id())));
+            std::fs::create_dir_all(&dir).unwrap(); std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+            let mut app = cr_app(CR_POST.0, CR_POST.1, None, true);
+            app.insert_resource(crate::lived_hour_bind::LivedHourBind::default()).insert_resource(crate::title_screen::HouseLabel { house: shared::house_name::HouseName::default(), persist_present: false, hour_two_held: false, book_held: false, settings_open: false, draft: String::new(), naming_offered: false, seals_offered: false }).add_plugins((crate::local_settings::LocalSettingsPlugin, crate::hud_presets::HudLayoutPlugin));
+            app.update(); app.world_mut().resource_mut::<crate::local_settings::LocalSettingsState>().inner = s; app.update();
+            app.world_mut().resource_mut::<Messages<Rq>>().clear(); // the global suppressor's edge Stop (RUMBLE-OFF-1)
+            std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV); let _ = std::fs::remove_dir_all(&dir); cr_seat(&mut app, CR_POST.2);
+            assert_eq!(cr_walk(&mut app, CR_POST.3, 40), 0, "case {i} with LocalSettingsPlugin");
+        }
+    }
+    #[test]
+    fn contact_rumble_1_f5_no_pad_writes_nothing() {
+        assert!(CR_SOLIDS.into_iter().all(|c| cr_run(c, Some(LocalSettings::peace_defaults()), false, 40).1 == 0));
+    }
+    #[test]
+    fn contact_rumble_1_f6_trace_same_with_rumble_on_and_off() {
+        let trace = |feel: Option<LocalSettings>, pad| CR_SOLIDS.map(|c| { let (mut app, _) = cr_run(c, feel.clone(), pad, 30); (0..30).map(|_| { cr_walk(&mut app, Vec2::new(0.3, -1.0), 1); let p = app.world().resource::<crate::human_presence::SoftPresence>(); (p.position, p.velocity) }).collect::<Vec<_>>() });
+        assert_eq!(trace(Some(LocalSettings::peace_defaults()), true), trace(None, false));
+    }
+    #[test]
+    fn contact_rumble_1_f7_creature_bodies_never_rumble() {
+        let _g = TEST_CREATURE_LOCK.lock().unwrap(); TEST_CREATURE_SKIP.store(0, Ordering::Relaxed);
+        for (name, r, mounted) in [("Grazer", 0.5, false), ("ResonantDeer", 0.16, false), ("ResonantDeer", 0.16, true), ("Mira", 0.22, false)] {
+            let mut app = cr_app(None, Some(3), Some(LocalSettings::peace_defaults()), true);
+            if mounted { app.insert_resource(crate::companion_bond::CompanionBond { mounted: true, ..default() }); }
+            app.world_mut().spawn((BodyCollider { r }, Name::new(name), Transform::from_xyz(0.0, 0.55, 0.0), InheritedVisibility::VISIBLE, Visibility::Visible)); cr_seat(&mut app, Vec3::new(0.0, 0.9, -1.2));
+            assert_eq!(cr_walk(&mut app, Vec2::Y, 40), 0, "{name} r={r} mounted={mounted}");
+        }
+    }
+    #[test]
+    fn contact_rumble_1_f8_terrain_bounds_never_rumble() {
+        use crate::{terrain::{SHELF_COUNT, SHELF_OUTER}, water::{BATH_INNER, BATH_OUTER}};
+        for (r, realm) in [(BATH_INNER - PLAYER_TRUNK_RADIUS, None), (BATH_OUTER + PLAYER_TRUNK_RADIUS, None), (SHELF_OUTER[0] + PLAYER_TRUNK_RADIUS, Some(0)), (SHELF_OUTER[SHELF_COUNT - 1] - PLAYER_TRUNK_RADIUS, None)] {
+            let mut app = cr_app(None, realm, Some(LocalSettings::peace_defaults()), true); cr_seat(&mut app, Vec3::new(0.0, 0.9, r - 0.5));
+            assert_eq!(cr_walk(&mut app, Vec2::Y, 20), 0, "bound at r={r}");
+        }
+    }
+    #[test]
+    fn contact_rumble_1_f9_teleport_place_change_sanctuary_and_adjacent() {
+        let (mut app, _) = cr_run(CR_POST, Some(LocalSettings::peace_defaults()), true, 40); let at = app.world().resource::<crate::human_presence::SoftPresence>().position;
+        cr_walk(&mut app, Vec2::Y, 20); cr_seat(&mut app, at);
+        assert_eq!(cr_walk(&mut app, Vec2::NEG_Y, 10), 0, "a teleport landing in contact re-seats without firing");
+        app.insert_resource(crate::hex_travel::HexTravelState { current: PlaceId::Sanctuary });
+        assert_eq!(cr_walk(&mut app, Vec2::NEG_Y, 30), 0, "ward gate off at Sanctuary");
+        cr_seat(&mut app, at); app.insert_resource(crate::hex_travel::HexTravelState { current: PlaceId::Heartwood });
+        assert_eq!(cr_walk(&mut app, Vec2::NEG_Y, 10), 0, "a place change in contact re-seats without firing");
+        let mut app = cr_app(None, Some(3), Some(LocalSettings::peace_defaults()), true);
+        app.insert_resource(FieldTrunks(vec![(Vec2::new(0.0, 0.0), 0.3), (Vec2::new(1.0, 0.0), 0.3)])); cr_seat(&mut app, Vec3::new(-0.2, 0.9, 1.5));
+        cr_walk(&mut app, Vec2::NEG_Y, 30);
+        assert_eq!(cr_walk(&mut app, Vec2::new(1.0, -0.4), 20), 0, "trunk to the touching trunk stays one contact");
+    }
+    #[test]
+    fn contact_rumble_1_f10_read_only_one_existing_rumble_call() {
+        let col = include_str!("collide.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        let sys = col.find("fn rumble_static_contact(").map_or("", |a| &col[a..col.find("pub(crate) struct BodyCollider").unwrap()]);
+        assert!(sys.is_empty() || (sys.contains("presence: Res<crate::human_presence::SoftPresence>") && !sys.contains("ResMut") && !sys.contains("grounded")));
+        assert!(col.matches("rumble_harvest(").count() == usize::from(!sys.is_empty()) && !col.contains("GamepadRumbleIntensity") && !col.contains("from_millis"));
+        let feel = include_str!("harvest_feel.rs").split("\n#[cfg(test)]").next().unwrap();
+        assert!(feel.contains("(0.28, 0.52, 160)") && feel.contains("(0.12, 0.28, 90)") && feel.matches("GamepadRumbleRequest::Add").count() == 1);
+    }
 }

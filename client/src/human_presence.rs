@@ -7423,9 +7423,9 @@ mod tests {
         let cut = "\n#[cfg(test)]\nmod tests {";
         let col = include_str!("collide.rs").split(cut).next().unwrap();
         let hp = include_str!("human_presence.rs").split(cut).next().unwrap();
-        assert_eq!([col.matches("fn prop_solids(").count(), col.matches("prop_solids(").count(), hp.matches("prop_solids(").count()], [1, 2, 1]);
+        assert_eq!([col.matches("fn prop_solids(").count(), col.matches("prop_solids(").count(), hp.matches("prop_solids(").count()], [1, 3, 1]);
         assert_eq!([col.matches("WARD_FOOTPRINT_RADIUS").count(), col.matches("ResMut<").count(), col.matches("add_systems").count(), col.matches("Collider").count()], [1, 1, 3, 5]);
-        assert_eq!([hp.matches("ResMut<").count(), hp.matches("add_systems").count(), hp.matches("push_out_of_rock(").count(), col.matches("push_out_of_rock(").count()], [20, 4, 1, 2]);
+        assert_eq!([hp.matches("ResMut<").count(), hp.matches("add_systems").count(), hp.matches("push_out_of_rock(").count(), col.matches("push_out_of_rock(").count()], [20, 4, 1, 3]);
         assert!(col.contains("pub(crate) fn push_out_of_rock(pos: &mut Vec3, vel: &mut Vec3, spot: Vec3, stand: f32, feet: f32) {") && !col.contains("rapier") && !col.contains("avian"));
     }
 }
