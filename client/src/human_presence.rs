@@ -7180,6 +7180,94 @@ mod tests {
         assert!(!fhe.split("#[cfg(test)]").next().unwrap().contains("ResMut<crate::human_presence::CloseUpOffer>"));
     }
 
+    // CARD CAMERA-UX-1e — the 6 s offer window only spends on frames the tail could be seen.
+    fn offer_hold(app: &mut App, secs: f64, row: fn(&mut App, bool), on: bool) {
+        for _ in 0..(secs / 0.25).round() as usize { row(app, on); offer_step(app, 0.25); }
+    }
+
+    fn places_row(app: &mut App, on: bool) {
+        let mut p = crate::hex_travel::PlacesPlate::default(); p.open = on; app.insert_resource(p);
+    }
+
+    fn offer_full_window(app: &mut App, row: fn(&mut App, bool), name: &str) {
+        row(app, false);
+        offer_step(app, 0.1);
+        assert!(care_visible(app) && offered(app), "{name}: shown once cleared");
+        offer_step(app, 5.7); assert!(offered(app), "{name}: 5.8 s seen still offers");
+        offer_step(app, 0.4); assert!(!offered(app) && care_visible(app), "{name}: expires after 6 s seen");
+    }
+
+    #[test]
+    fn cux1e_s1_arrive_hidden_then_shown_gets_full_window() {
+        let rows: [(&str, fn(&mut App, bool)); 4] = [
+            ("places", places_row),
+            ("settings", |app, on| { app.insert_resource(quiet_house(on)); }),
+            ("persona", |app, on| { app.insert_resource(crate::title_screen::PersonaCreatorState { open: on, ..default() }); }),
+            ("care_strip", |app, on| { let mut c = crate::mercy_harvest_nodes::CareCycleOffer::default(); c.active = on; app.insert_resource(c); }),
+        ];
+        for (name, row) in rows {
+            let mut app = offer_world(|app| row(app, true));
+            offer_hold(&mut app, 6.5, row, true);
+            assert!(!care_visible(&mut app) && !offered(&mut app), "{name}: hidden");
+            offer_full_window(&mut app, row, name);
+        }
+    }
+
+    #[test]
+    fn cux1e_s1b_mid_window_hide_pauses() {
+        let mut app = offer_world(|_| {});
+        offer_step(&mut app, 3.0); assert!(offered(&mut app), "3 s seen");
+        offer_hold(&mut app, 10.0, places_row, true);
+        assert!(!care_visible(&mut app), "places hides");
+        places_row(&mut app, false);
+        offer_step(&mut app, 0.1); assert!(offered(&mut app), "back after places");
+        offer_step(&mut app, 2.6); assert!(offered(&mut app), "5.7 s seen");
+        offer_step(&mut app, 0.4); assert!(!offered(&mut app), "6.1 s seen");
+    }
+
+    #[test]
+    fn cux1e_s2_blocked_k_while_visible_keeps_window() {
+        let rows: [(&str, fn(&mut App, bool)); 3] = [
+            ("k_jump", |app, on| app.world_mut().resource_mut::<LocalSettingsState>().inner.key_jump = if on { PeaceKey::K } else { LocalSettings::default().key_jump }),
+            ("hud_edit", |app, on| { let mut h = crate::hud_edit_mode::HudEditMode::default(); h.active = on; app.insert_resource(h); }),
+            ("lifted", |app, on| {
+                let mut p = app.world_mut().resource_mut::<SoftPresence>();
+                (p.position.y, p.velocity) = (if on { sanctuary_yard_wake().y + AMBROSIAN_LIFT_DETECT + 1.0 } else { STAND }, Vec3::ZERO);
+            }),
+        ];
+        for (name, row) in rows {
+            let mut app = offer_world(|app| row(app, true));
+            offer_hold(&mut app, 6.5, row, true);
+            assert_eq!((care_visible(&mut app), care_line(&mut app)), (true, crate::first_harvest_epiphany::tap_vs_hold_prompt().to_string()), "{name}");
+            offer_full_window(&mut app, row, name);
+        }
+    }
+
+    #[test]
+    fn cux1e_s3_seen_window_boundary_and_spent_stay_today() {
+        let mut app = offer_world(|_| {});
+        (offer_at(&mut app, 5.0), offer_at(&mut app, 1.0));
+        let seen: Vec<bool> = (0..26).map(|_| { offer_step(&mut app, 0.25); offered(&mut app) }).collect();
+        assert_eq!(seen, (1..=26).map(|k| k <= 23).collect::<Vec<_>>(), "0.25 s steps");
+        assert!(care_visible(&mut app));
+        let mut app = offer_world(|_| {});
+        cux_tap_k(&mut app);
+        offer_hold(&mut app, 1.0, places_row, true);
+        places_row(&mut app, false);
+        offer_step(&mut app, 0.1); assert!(!offered(&mut app), "spent stays spent through places");
+    }
+
+    #[test]
+    fn cux1e_s4_one_freeze_one_latch_counts_hold() {
+        let fhe = include_str!("first_harvest_epiphany.rs").split("#[cfg(test)]").next().unwrap();
+        let counts = ["arm.until +=", "(arm.latched, arm.until) =", "ResMut<", "add_systems", "const CLOSE_UP", "#[derive(Resource"].map(|k| fhe.matches(k).count());
+        assert_eq!(counts, [1, 1, 14, 2, 4, 2]);
+        let sig = &fhe[fhe.find("fn update_world_care_prompt(").unwrap()..];
+        assert_eq!(sig[..sig.find("\n) {").unwrap()].lines().skip(1).count(), 10);
+        let hp = include_str!("human_presence.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        assert_eq!(hp.matches("ResMut<CloseUpOffer>").count(), 1);
+    }
+
     // CARD CAMERA-UX-1d — raw look eases only the close-up zoom scale; raw off is today's.
     fn cux_raw_world() -> App {
         cux_world(|app| {
