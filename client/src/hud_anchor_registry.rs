@@ -96,7 +96,7 @@ pub const ID_GUIDANCE: &str = "Guidance";
 pub const ID_PRACTICE: &str = "Practice";
 pub const ID_VOICE: &str = "Voice";
 pub const ID_ALLOCATE: &str = "Allocate";
-/// HUD-LAYOUT-1. Data-only home for ABILITY-TOOLTIP-SHOW-1; no spawn, empty text slot.
+/// HUD-LAYOUT-1. ABILITY-TOOLTIP-SHOW-1: combat_core spawns it with slot 1's Plate text (Shell equipped and in reach).
 pub const ID_ABILITY_TIP: &str = "AbilityTip";
 
 const ACTION_BAR_OCCUPANTS: [HudOccupant; 5] = [
