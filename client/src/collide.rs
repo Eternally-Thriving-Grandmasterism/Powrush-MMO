@@ -416,6 +416,12 @@ mod tests {
             assert!(n == 1 && (i == 1 || i == 2 || cr_gap(&app)), "solid {i} (3 = airborne post): {n} Adds; one on the contact tick");
         }
     }
+    /// CARD CRYSTAL-SOLID-1 — R4: walking into the shown spire (-7.2, 2.2) is one existing Add, and nothing with rumble off.
+    #[test]
+    fn crystal_solid_1_r4_spire_contact_one_add_silent_with_rumble_off() {
+        let run = |realm, rumble| cr_run((None, Some(realm), Vec3::new(-5.2, 0.9, 2.2), Vec2::NEG_X), Some(LocalSettings { rumble, ..LocalSettings::peace_defaults() }), true, 40).1;
+        assert_eq!([1, 4].map(|r| (run(r, true), run(r, false))), [(1, 0); 2], "realm 1 / 4: one Add on the contact tick, none with rumble off");
+    }
     #[test]
     fn contact_rumble_1_f2_hold_and_slide_along_stays_one() {
         let (mut app, _) = cr_run(CR_POST, Some(LocalSettings::peace_defaults()), true, 40); let x0 = app.world().resource::<crate::human_presence::SoftPresence>().position.x;

@@ -6621,6 +6621,58 @@ mod tests {
         }
     }
 
+    // CARD CRYSTAL-SOLID-1 — real locomotion plus the spawned ecology under dress_for_climate. The four spires as (spot,
+    // visible, axis away from the nearest yard rock), by x. `sp_walk` holds the stick along `dir`, one position per fixed tick.
+    fn sp_app(realm: Option<u8>) -> (App, Vec<(Vec3, bool, Vec2)>) {
+        use crate::living_ecology::{EcologyProp, PropKind, YARD_ROCK_SPOTS};
+        let mut app = rock_collide_1_app(realm, Vec3::ZERO);
+        app.add_plugins(AssetPlugin::default()).init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>().init_resource::<crate::world_answer::WorldAnswer>().add_plugins(crate::living_ecology::LivingEcologyPlugin).update();
+        let ids: Vec<Entity> = app.world_mut().query_filtered::<Entity, With<EcologyProp>>().iter(app.world()).collect();
+        for e in ids { app.world_mut().entity_mut(e).insert(Visibility::Inherited); } app.update();
+        let away = |s: Vec3| YARD_ROCK_SPOTS.map(|r| s.xz() - r.xz()).into_iter().min_by(|a, b| a.length().total_cmp(&b.length())).unwrap().normalize();
+        let mut spires: Vec<_> = app.world_mut().query::<(&EcologyProp, &Transform, &Visibility)>().iter(app.world()).filter(|p| p.0.kind == PropKind::Crystal).map(|(_, t, v)| (t.translation, *v == Visibility::Visible, away(t.translation))).collect();
+        spires.sort_by(|a, b| a.0.x.total_cmp(&b.0.x)); assert_eq!(spires.len(), 4); (app, spires)
+    }
+    fn sp_walk(app: &mut App, from: Vec2, dir: Vec2, ticks: usize) -> Vec<Vec3> {
+        app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(from.x, STAND, from.y); mf_stick(app, dir.x, -dir.y, false);
+        (0..ticks).map(|_| { app.update(); app.world().resource::<SoftPresence>().position }).collect()
+    }
+    #[test]
+    fn crystal_solid_1_r1_walk_stops_at_each_spire_in_realm_1_and_4() {
+        for (realm, (mut app, spires)) in [Some(1), Some(4)].map(|r| (r, sp_app(r))) {
+            for (spot, _, dir) in spires { let at = sp_walk(&mut app, spot.xz() + dir * 2.0, -dir, 90)[89]; assert!((at.xz().distance(spot.xz()) - 0.16 - PLAYER_TRUNK_RADIUS).abs() <= 0.02 && (at.xz() - spot.xz()).dot(dir) > 0.0, "{realm:?} {spot} {at}"); }
+        }
+    }
+    #[test]
+    fn crystal_solid_1_r2_walk_passes_through_spire_spots_in_realms_none_0_2_3() {
+        for (realm, (mut app, spires)) in [None, Some(0), Some(2), Some(3)].map(|r| (r, sp_app(r))) {
+            for (spot, _, dir) in spires { let at = sp_walk(&mut app, spot.xz() + dir * 2.0, -dir, 90)[89]; assert!((at.xz() - spot.xz()).dot(dir) < -1.0, "{realm:?} {spot} {at}"); }
+        }
+    }
+    #[test]
+    fn crystal_solid_1_r3_spire_visible_equals_solid_every_realm() {
+        for (realm, (mut app, spires)) in [None, Some(0), Some(1), Some(2), Some(3), Some(4)].map(|r| (r, sp_app(r))) {
+            for (spot, visible, dir) in spires { let at = sp_walk(&mut app, spot.xz() + dir * 0.4, Vec2::ZERO, 1)[0]; assert_eq!(at.xz().distance(spot.xz()) >= 0.16 + PLAYER_TRUNK_RADIUS - 0.005, visible, "{realm:?} {spot} {at}"); }
+        }
+    }
+    /// R6: each rock-to-spire crease (0.43 / 0.56 m), both sides, stick held at the crease point 0.36 m off the spire. Finite, never
+    /// in the spire disk, at most 0.2 m into the rock shape, and within 60 fixed ticks of first contact at rest (last 10 under 0.5 mm).
+    #[test]
+    fn crystal_solid_1_r6_rock_spire_creases_settle_within_60_ticks() {
+        for (realm, (mut app, spires)) in [Some(1), Some(4)].map(|r| (r, sp_app(r))) {
+            let creases: Vec<_> = spires.iter().flat_map(|s| crate::living_ecology::YARD_ROCK_SPOTS.map(|r| (s.0, r))).filter(|(s, r)| s.xz().distance(r.xz()) < 1.5).collect();
+            assert_eq!(creases.len(), 2, "{realm:?}");
+            for ((spot, rock), side) in creases.into_iter().flat_map(|(s, r)| [1.0, -1.0].map(|k| ((s, r), (s.xz() - r.xz()).perp().normalize() * k))) {
+                let k = spot.xz() + (rock.xz() - spot.xz()).normalize() * 0.36;
+                let mut path = vec![(k + side * 1.5).extend(STAND).xzy()];
+                for _ in 0..120 { let at = path.last().unwrap().xz(); path.extend(sp_walk(&mut app, at, (k - at).normalize_or_zero(), 1)); }
+                let c = path.iter().position(|a| a.xz().distance(spot.xz()) <= 0.461 || rs_gap(rock, *a) <= 0.005).unwrap();
+                assert!(path.iter().all(|a| a.is_finite() && a.xz().distance(spot.xz()) >= 0.455 && rs_gap(rock, *a) >= -0.2), "{realm:?} {spot} {side}");
+                assert!(path[c + 50..=c + 60].windows(2).all(|w| w[0].distance(w[1]) <= 0.0005), "{realm:?} {spot} {side} {:?}", &path[c + 50..=c + 60]);
+            }
+        }
+    }
+
     fn tg_hip_y(x: f32, z: f32) -> f32 {
         STAND + crate::terrain::shelf_offset(x, z)
     }

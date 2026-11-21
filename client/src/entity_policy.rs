@@ -35,8 +35,8 @@ const STEP: f32 = 0.1;
 const CELLS: usize = (2.0 * PLAY_HALF / STEP + 0.5) as usize + 1;
 /// (place, dress realm, shown solids, C5 uses). Sanctuary rows pick the realm; Heartwood and Depths assert the travel sync's.
 const PLACES: [(PlaceId, Option<u8>, usize, usize); 7] = [
-    (PlaceId::Sanctuary, None, 11, 7), (PlaceId::Sanctuary, Some(0), 11, 7), (PlaceId::Sanctuary, Some(1), 3, 7),
-    (PlaceId::Sanctuary, Some(2), 5, 7), (PlaceId::Sanctuary, Some(4), 3, 7), (PlaceId::Heartwood, Some(2), 8, 8), (PlaceId::Depths, Some(3), 0, 4),
+    (PlaceId::Sanctuary, None, 11, 7), (PlaceId::Sanctuary, Some(0), 11, 7), (PlaceId::Sanctuary, Some(1), 7, 7),
+    (PlaceId::Sanctuary, Some(2), 5, 7), (PlaceId::Sanctuary, Some(4), 7, 7), (PlaceId::Heartwood, Some(2), 8, 8), (PlaceId::Depths, Some(3), 0, 4),
 ];
 /// Owning card per walk-through. The row is that mesh's only declaration.
 const KNOWN_GAPS: &[(&str, &str)] = &[
