@@ -2802,4 +2802,102 @@ mod tests {
             let c = app.world().resource::<CombatState>(); assert!(c.plate_armed && c.plate_secs > 0.0, "{c:?}");
         });
     }
+
+    // ABILITY-TOOLTIP-SHOW-1 R1–R10 — CUT 7066278335 / ruling 7063122896: the AbilityTip slab shows slot 1's canon Plate text only
+    // with the Shell ward equipped and the fight in reach; HudLayoutPlugin owns the final Visibility (R5, R2, §6.3).
+    use crate::hud_anchor_registry::{ID_ABILITY_TIP, ID_CARE_STRIP};
+    const ATS_PLATE: &str = "Plate, 3 s, incoming damage reduced by 30%.";
+    /// Each AbilityTip slab: (final Visibility, its child texts).
+    fn ats_tips(app: &mut App) -> Vec<(Visibility, Vec<String>)> {
+        let w = app.world_mut();
+        let roots: Vec<_> = w.query::<(Entity, &HudSlab, &Visibility)>().iter(w).filter(|(_, s, _)| s.0 == ID_ABILITY_TIP).map(|(e, _, v)| (e, *v)).collect();
+        roots.into_iter().map(|(e, v)| (v, w.query::<(&Text, &ChildOf)>().iter(w).filter(|(_, c)| c.parent() == e).map(|(t, _)| t.as_str().to_string()).collect())).collect()
+    }
+    fn ats_all(app: &mut App, want: Visibility) -> bool { ats_tips(app).iter().all(|t| t.0 == want) }
+    fn ats_yielded(app: &App) -> bool { app.world().resource::<HudYielded>().0.contains(&ID_ABILITY_TIP) }
+    /// The cc2a yard at the Heartwood home (in reach), Shell equipped or not, Guidance dismissed so only the case under test yields.
+    fn ats<R>(tag: &str, shell: bool, body: impl FnOnce(&mut App) -> R) -> R {
+        cc2a(tag, DifficultyTier::Sheltered, shell.then_some(0), |app| { app.world_mut().resource_mut::<FirstSessionGuidance>().dismiss(); tick(app, 0.0); tick(app, 0.0); body(app) })
+    }
+
+    #[test]
+    fn ats1_r1_one_ability_tip_slab_spawns() {
+        yard("ats1r1", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, PREDATOR_HOME, |app| assert_eq!(ats_tips(app).len(), 1));
+    }
+    #[test]
+    fn ats1_r2_shell_in_reach_classic_final_visible() {
+        ats("ats1r2", true, |app| { assert_eq!(ats_tips(app).iter().map(|t| t.0).collect::<Vec<_>>(), [Visibility::Visible]); assert!(!ats_yielded(app)); });
+    }
+    #[test]
+    fn ats1_r3_child_text_is_the_canon_plate_line() {
+        ats("ats1r3", true, |app| assert_eq!(ats_tips(app), [(Visibility::Visible, vec![ATS_PLATE.to_string()])]));
+    }
+    #[test]
+    fn ats1_r4_yields_to_care_strip_and_guidance() {
+        ats("ats1r4a", true, |app| {
+            app.world_mut().spawn((HudSlab(ID_CARE_STRIP), Visibility::Visible, Node::default()));
+            tick(app, 0.0);
+            assert!(ats_all(app, Visibility::Hidden) && ats_yielded(app) == !ats_tips(app).is_empty(), "CareStrip shown");
+        });
+        cc2a("ats1r4b", DifficultyTier::Sheltered, Some(0), |app| {
+            tick(app, 0.0);
+            assert!(app.world().resource::<FirstSessionGuidance>().active && !app.world().resource::<FirstSessionGuidance>().dismissed);
+            assert!(ats_all(app, Visibility::Hidden) && ats_yielded(app) == !ats_tips(app).is_empty(), "Guidance shown");
+        });
+    }
+    #[test]
+    fn ats1_r5_places_plate_hides_then_restores() {
+        ats("ats1r5", true, |app| {
+            app.world_mut().resource_mut::<PlacesPlate>().open = true;
+            tick(app, 0.0);
+            assert!(ats_all(app, Visibility::Hidden), "R5 modal");
+            app.world_mut().resource_mut::<PlacesPlate>().open = false;
+            tick(app, 0.0);
+            assert!(ats_all(app, Visibility::Visible), "restored the next frame");
+        });
+    }
+    #[test]
+    fn ats1_r6_minimal_and_management_show_it() {
+        for (tag, preset) in [("ats1r6m", HudPresetId::Minimal), ("ats1r6g", HudPresetId::Management)] {
+            ats(tag, true, |app| { app.insert_resource(ActiveHudPreset { id: Some(preset) }); tick(app, 0.0); tick(app, 0.0); assert!(ats_all(app, Visibility::Visible) && !ats_yielded(app), "{tag}"); });
+        }
+    }
+    #[test]
+    fn ats1_r7_no_preset_keeps_the_writer_value() {
+        ats("ats1r7", true, |app| {
+            app.insert_resource(ActiveHudPreset { id: None });
+            tick(app, 0.0);
+            assert!(ats_all(app, Visibility::Visible) && app.world().resource::<HudYielded>().0.is_empty());
+            app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(PREDATOR_HOME[0] + 2.0 * REACH, 0.9, PREDATOR_HOME[1]);
+            tick(app, 0.0);
+            assert!(ats_all(app, Visibility::Hidden), "out of reach, no preset");
+        });
+    }
+    #[test]
+    fn ats1_r8_slot_one_text_is_the_canon_plate_line() {
+        assert_eq!(slot_tooltip(1), Some(ATS_PLATE.to_string()));
+        assert!(docs_combat_456().contains(&format!("| **Bulwark** | {ATS_PLATE} ")));
+    }
+    fn docs_combat_456() -> String { include_str!("../../docs/design/COMBAT_AND_PVP.md").lines().nth(455).unwrap_or_default().to_string() }
+    #[test]
+    fn ats1_r9_budget_44_banned_words_and_plate_values() {
+        for t in slot_tooltip(1).iter().chain([ATS_PLATE.to_string()].iter()) {
+            assert!(t.chars().count() <= 44, "{t}");
+            assert!(t.to_lowercase().split(|c: char| !c.is_alphabetic()).all(|w| !["class", "soon", "coming", "unlock", "cooldown"].contains(&w)), "{t}"); // whole words: "incoming" is canon
+        }
+        assert!(slot_tooltip(2).is_none() && slot_tooltip(3).is_none() && PLATE_SECS == 3.0 && plate_hit(100) == 70);
+    }
+    #[test]
+    fn ats1_r10_no_shell_or_out_of_reach_stays_hidden() {
+        ats("ats1r10a", false, |app| { tick(app, 0.0); assert!(ats_all(app, Visibility::Hidden) && !ats_yielded(app), "no Shell, in reach"); });
+        ats("ats1r10b", true, |app| {
+            app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(PREDATOR_HOME[0] + 2.0 * REACH, 0.9, PREDATOR_HOME[1]);
+            tick(app, 0.0);
+            assert!(ats_all(app, Visibility::Hidden) && !ats_yielded(app), "Shell, out of reach");
+            app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(PREDATOR_HOME[0], 0.9, PREDATOR_HOME[1]);
+            app.world_mut().resource_mut::<CombatState>().predator_taken = HEALTH;
+            tick(app, 0.0);
+            assert!(ats_all(app, Visibility::Hidden), "Shell, predator down");
+        });
+    }
 }
