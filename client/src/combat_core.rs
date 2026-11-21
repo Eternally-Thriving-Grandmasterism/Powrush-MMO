@@ -976,11 +976,11 @@ fn spawn_ability_tip(mut commands: Commands) {
         tip.spawn((Text::new(slot_tooltip(1).unwrap_or_default()), TextFont { font_size: FontSize::Px(15.5 / 1.2), ..default() }, TextColor(TITLE_TEXT_PRIMARY)));
     });
 }
-/// ABILITY-TOOLTIP-SHOW-1 A2 (T1 + Shell gate) — the tip's own Visibility, written outright each frame after `combat_fire`:
+/// ABILITY-TOOLTIP-SHOW-1 A2 (T1 + Shell gate) — the tip's own Visibility, set each frame after `combat_fire` (`set_if_neq`, TIP-NEQ-1):
 /// Visible only with the Shell ward equipped and the fight in reach at this place, so it never offers Plate when Plate can't arm.
 fn ability_tip_show(combat: Res<CombatState>, finds: Option<Res<FoundFinds>>, (travel, presence): (Option<Res<HexTravelState>>, Option<Res<SoftPresence>>), mut slabs: Query<(&crate::hud_anchor_registry::HudSlab, &mut Visibility)>) {
     let show = shell_equipped(finds.as_deref()) && travel.zip(presence).is_some_and(|(t, p)| in_reach(t.current, &combat, p.position.x, p.position.z));
-    for (_, mut vis) in slabs.iter_mut().filter(|(s, _)| s.0 == crate::hud_anchor_registry::ID_ABILITY_TIP) { *vis = if show { Visibility::Visible } else { Visibility::Hidden }; }
+    for (_, mut vis) in slabs.iter_mut().filter(|(s, _)| s.0 == crate::hud_anchor_registry::ID_ABILITY_TIP) { vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden }); }
 }
 
 #[cfg(test)]
