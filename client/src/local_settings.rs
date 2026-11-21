@@ -1118,4 +1118,84 @@ mod tests {
             );
         });
     }
+
+    // RUMBLE-OFF-1 — CUT 7059762191: disabled rumble is dropped in PostUpdate, after every Update writer and before gilrs
+    // plays requests (`bevy::gilrs::RumbleSystems`). The reader below stands in for gilrs inside that set; no GilrsPlugin.
+    type RumbleRow = (Entity, Option<(f32, f32, u128)>); // (pad, Add strengths and ms) or (pad, None) for Stop
+    #[derive(Resource, Default)]
+    struct RumbleTape(Vec<RumbleRow>);
+    #[derive(Resource)]
+    struct RumbleWriterOn(bool);
+    fn rumble_writer(on: Res<RumbleWriterOn>, mut w: MessageWriter<GamepadRumbleRequest>, pads: Query<Entity, With<Gamepad>>) {
+        if on.0 { crate::harvest_feel::rumble_harvest(&mut w, pads.iter(), false); }
+    }
+    fn tape_rumble(mut reader: MessageReader<GamepadRumbleRequest>, mut tape: ResMut<RumbleTape>) {
+        tape.0.extend(reader.read().map(|q| match q {
+            GamepadRumbleRequest::Add { gamepad, intensity, duration } => (*gamepad, Some((intensity.strong_motor, intensity.weak_motor, duration.as_millis()))),
+            GamepadRumbleRequest::Stop { gamepad } => (*gamepad, None),
+        }));
+    }
+    /// boot_app in a scratch user dir, an Update writer through `rumble_harvest`, a stand-in reader in RumbleSystems, `pad` spawned.
+    fn rumble_run<R>(tag: &str, pad: bool, body: impl FnOnce(&mut App, Option<Entity>) -> R) -> R {
+        let dir = ScratchDir::new(tag);
+        with_user_dir(dir.path(), || {
+            let mut app = boot_app();
+            app.init_resource::<RumbleTape>().insert_resource(RumbleWriterOn(true)).add_systems(Update, rumble_writer).add_systems(PostUpdate, tape_rumble.in_set(bevy::gilrs::RumbleSystems));
+            let pad = pad.then(|| app.world_mut().spawn(Gamepad::default()).id());
+            body(&mut app, pad)
+        })
+    }
+    fn rumble_set(app: &mut App, edit: impl FnOnce(&mut LocalSettings)) { edit(&mut app.world_mut().resource_mut::<LocalSettingsState>().inner); }
+    /// One update; what the stand-in gilrs reader saw that frame.
+    fn rumble_frame(app: &mut App) -> Vec<RumbleRow> { app.update(); std::mem::take(&mut app.world_mut().resource_mut::<RumbleTape>().0) }
+    fn rumble_adds(rows: &[RumbleRow]) -> usize { rows.iter().filter(|r| r.1.is_some()).count() }
+
+    #[test]
+    fn ro1_r1_rumble_off_reaches_no_reader() {
+        rumble_run("ro1r1", true, |app, _| { rumble_set(app, |s| s.rumble = false); assert_eq!((0..3).map(|_| rumble_adds(&rumble_frame(app))).sum::<usize>(), 0); });
+    }
+    #[test]
+    fn ro1_r2_reduced_motion_reaches_no_reader() {
+        rumble_run("ro1r2", true, |app, _| { rumble_set(app, |s| s.reduced_motion = true); assert_eq!((0..3).map(|_| rumble_adds(&rumble_frame(app))).sum::<usize>(), 0); });
+    }
+    #[test]
+    fn ro1_r3_low_preset_reaches_no_reader() {
+        rumble_run("ro1r3", true, |app, _| {
+            rumble_set(app, |s| { s.graphics_preset = GraphicsPreset::Low; s.apply_graphics_preset(); });
+            assert!(app.world().resource::<LocalSettingsState>().inner.reduced_motion && !app.world().resource::<LocalSettingsState>().inner.rumble);
+            assert_eq!((0..3).map(|_| rumble_adds(&rumble_frame(app))).sum::<usize>(), 0);
+        });
+    }
+    #[test]
+    fn ro1_r4_defaults_pass_one_harvest_add_a_frame() {
+        rumble_run("ro1r4", true, |app, pad| { for _ in 0..3 { assert_eq!(rumble_frame(app), vec![(pad.unwrap(), Some((0.12, 0.28, 90)))]); } });
+    }
+    #[test]
+    fn ro1_r5_turning_rumble_off_stops_the_pad_on_that_frame() {
+        rumble_run("ro1r5", true, |app, pad| {
+            assert_eq!(rumble_adds(&rumble_frame(app)), 1);
+            rumble_set(app, |s| s.rumble = false);
+            assert_eq!(rumble_frame(app), vec![(pad.unwrap(), None)], "one Stop and no Add on the edge frame");
+            assert_eq!(rumble_frame(app), vec![], "nothing after the edge");
+        });
+    }
+    #[test]
+    fn ro1_r6_no_pad_edge_writes_nothing() {
+        rumble_run("ro1r6", false, |app, _| { rumble_frame(app); rumble_set(app, |s| s.rumble = false); assert_eq!(rumble_frame(app), vec![]); });
+    }
+    #[test]
+    fn ro1_r7_turning_rumble_back_on_passes_the_flip_frame_add() {
+        rumble_run("ro1r7", true, |app, pad| {
+            rumble_set(app, |s| s.rumble = false); rumble_frame(app); rumble_frame(app);
+            rumble_set(app, |s| s.rumble = true);
+            assert_eq!(rumble_frame(app), vec![(pad.unwrap(), Some((0.12, 0.28, 90)))]);
+        });
+    }
+    #[test]
+    fn ro1_r8_one_stop_writer_one_suppressor_and_harvest_strengths_unchanged() {
+        let prod = include_str!("local_settings.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        assert!(prod.matches("GamepadRumbleRequest::Stop").count() == 1 && prod.matches("suppress_disabled_rumble").count() == 2);
+        let feel = include_str!("harvest_feel.rs").split("\n#[cfg(test)]").next().unwrap();
+        assert!(feel.contains("(0.28, 0.52, 160)") && feel.contains("(0.12, 0.28, 90)") && feel.matches("GamepadRumbleRequest::Add").count() == 1);
+    }
 }
