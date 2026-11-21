@@ -6657,20 +6657,22 @@ mod tests {
             for (spot, visible, dir) in spires { let at = sp_walk(&mut app, spot.xz() + dir * 0.4, Vec2::ZERO, 1)[0]; assert_eq!(at.xz().distance(spot.xz()) >= 0.16 + PLAYER_TRUNK_RADIUS - 0.005, visible, "{realm:?} {spot} {at}"); }
         }
     }
-    /// R6: each rock-to-spire crease (0.43 / 0.56 m), both sides, stick held at the crease point 0.36 m off the spire. Finite, never
-    /// in the spire disk, at most 0.2 m into the rock shape, and within 60 fixed ticks of first contact at rest (last 10 under 0.5 mm).
+    /// R6 (7068905925, 7068990896, 7069041675): each rock-to-spire crease, both sides, stick at the crease point 0.36 m off the spire. From contact
+    /// (both push): rest in 60 ticks, held 0.5 mm 10 more; per axis <= 2 sign flips in ticks 0-10, none after; spire overlap 0; rock <= 0.045, <= 0.025 at rest.
     #[test]
     fn crystal_solid_1_r6_rock_spire_creases_settle_within_60_ticks() {
         for (realm, (mut app, spires)) in [Some(1), Some(4)].map(|r| (r, sp_app(r))) {
             let creases: Vec<_> = spires.iter().flat_map(|s| crate::living_ecology::YARD_ROCK_SPOTS.map(|r| (s.0, r))).filter(|(s, r)| s.xz().distance(r.xz()) < 1.5).collect();
             assert_eq!(creases.len(), 2, "{realm:?}");
             for ((spot, rock), side) in creases.into_iter().flat_map(|(s, r)| [1.0, -1.0].map(|k| ((s, r), (s.xz() - r.xz()).perp().normalize() * k))) {
-                let k = spot.xz() + (rock.xz() - spot.xz()).normalize() * 0.36;
+                let (k, rk, sp) = (spot.xz() + (rock.xz() - spot.xz()).normalize() * 0.36, |a: &Vec3| -rs_gap(rock, *a), |a: &Vec3| 0.16 + PLAYER_TRUNK_RADIUS - a.xz().distance(spot.xz()));
                 let mut path = vec![(k + side * 1.5).extend(STAND).xzy()];
-                for _ in 0..120 { let at = path.last().unwrap().xz(); path.extend(sp_walk(&mut app, at, (k - at).normalize_or_zero(), 1)); }
-                let c = path.iter().position(|a| a.xz().distance(spot.xz()) <= 0.461 || rs_gap(rock, *a) <= 0.005).unwrap();
-                assert!(path.iter().all(|a| a.is_finite() && a.xz().distance(spot.xz()) >= 0.455 && rs_gap(rock, *a) >= -0.2), "{realm:?} {spot} {side}");
-                assert!(path[c + 50..=c + 60].windows(2).all(|w| w[0].distance(w[1]) <= 0.0005), "{realm:?} {spot} {side} {:?}", &path[c + 50..=c + 60]);
+                for _ in 0..140 { let at = path.last().unwrap().xz(); path.extend(sp_walk(&mut app, at, (k - at).normalize_or_zero(), 1)); }
+                let c = path.iter().position(|a| sp(a) >= -0.001 && rk(a) >= -0.005).unwrap();
+                let rest = (c..path.len() - 10).find(|&t| path[t..=t + 10].iter().all(|p| p.distance(path[t]) <= 0.0005)).unwrap();
+                let flips = |r: std::ops::Range<usize>, i: usize| path[r].windows(2).map(|w| (w[1] - w[0])[i]).filter(|d| d.abs() > 1e-5).collect::<Vec<_>>().windows(2).filter(|s| s[0].signum() != s[1].signum()).count();
+                assert!(rest <= c + 60 && [0, 2].iter().all(|&i| flips(c..c + 11, i) <= 2 && flips(c + 10..rest + 11, i) == 0), "{realm:?} {spot} {side} contact t{c} rest t{rest}");
+                assert!(path.iter().all(|a| a.is_finite() && sp(a) <= 1e-4 && rk(a) <= 0.045) && path[rest..=rest + 10].iter().all(|a| rk(a) <= 0.025), "{realm:?} {spot} {side} overlap");
             }
         }
     }
