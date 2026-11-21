@@ -1139,4 +1139,18 @@ mod tests {
             assert_eq!(std::mem::take(&mut app.world_mut().resource_mut::<EnTape>().0), [false, false, true], "realm {realm} steady x2, then switch to {next}");
         }
     }
+    // BIOMEFEEL-NEQ-1 BF1 — CUT 7070810677: a steady realm leaves BiomeFeel unmarked; a realm switch marks it only when the value changes.
+    #[derive(Resource, Default)] struct BfTape(Vec<bool>);
+    fn bf_tape(f: Res<BiomeFeel>, mut t: ResMut<BfTape>) { t.0.push(f.is_changed()); }
+    #[test]
+    fn biomefeel_neq_1_bf1_steady_realm_leaves_feel_unmarked_switch_marks_only_on_new_value() {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).insert_resource(SoftPlayerRealm { current: Some(0) }).init_resource::<BiomeFeel>().init_resource::<BfTape>().add_systems(Update, dress_for_climate).add_systems(Last, bf_tape);
+        app.update(); app.update(); app.world_mut().resource_mut::<BfTape>().0.clear(); // warm-up: the first run sees the added resource
+        for step in [None, None, Some(Some(2)), None, Some(Some(1)), Some(Some(4)), Some(None), Some(Some(0))] {
+            if let Some(r) = step { app.world_mut().resource_mut::<SoftPlayerRealm>().current = r; } app.update();
+            let f = app.world().resource::<BiomeFeel>(); assert!(step != Some(Some(4)) || (f.place == SchedulePlace::Threshold && f.regen_mul == 1.6), "after ->4: {f:?}");
+        }
+        assert_eq!(app.world().resource::<BfTape>().0, [false, false, true, false, true, false, true, false], "steady, steady, ->2, steady, ->1, ->4, ->None, ->0");
+    }
 }
