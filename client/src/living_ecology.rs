@@ -509,11 +509,7 @@ fn dress_for_climate(
             PropKind::Crystal => matches!(id, 1 | 4),
             PropKind::Mycelium => id == 3,
         };
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
@@ -1128,5 +1124,21 @@ mod tests {
         assert!((txz - YARD_TRUNK_R).abs() <= 0.01 && (tt.y + ty0).abs() <= 0.02 && (ct.y + cy0 - (tt.y + ty1)).abs() <= 0.05 && (ct.x - tt.x).abs() <= 0.02 && (ct.z - tt.z).abs() <= 0.02 && cxz > 0.35 && ma.get(&ch).unwrap().attribute(Mesh::ATTRIBUTE_COLOR).is_some());
         app.world_mut().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Low }); app.update();
         assert!((app.world().get::<Transform>(se).unwrap().scale.x - place_dress_lod_scale(shared::local_settings::GraphicsPreset::Low)).abs() < f32::EPSILON && sxz > 0.1 && sxz < 0.5);
+    }
+
+    // ECO-NEQ-1 E1 — CUT 7067367028: a steady realm leaves every ecology prop's Visibility unmarked; a realm switch marks it.
+    #[derive(Resource, Default)] struct EnTape(Vec<bool>);
+    fn en_tape(q: Query<Ref<Visibility>, With<EcologyProp>>, mut tape: ResMut<EnTape>) { tape.0.push(q.iter().any(|v| v.is_changed())); }
+    #[test]
+    fn eco_neq_1_e1_steady_props_not_marked_changed_realm_switch_is() {
+        let mut app = ecology_build();
+        for e in app.world_mut().query_filtered::<Entity, With<EcologyProp>>().iter(app.world()).collect::<Vec<_>>() { app.world_mut().entity_mut(e).insert(Visibility::Inherited); }
+        app.insert_resource(SoftPlayerRealm { current: None }).init_resource::<BiomeFeel>().init_resource::<EnTape>().add_systems(Update, dress_for_climate).add_systems(Last, en_tape);
+        for (realm, next) in [(0, 1), (1, 3), (3, 0)] {
+            app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(realm);
+            app.update(); app.update(); app.world_mut().resource_mut::<EnTape>().0.clear(); // warm-up: first run and Inherited -> shown/hidden
+            app.update(); app.update(); app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(next); app.update();
+            assert_eq!(std::mem::take(&mut app.world_mut().resource_mut::<EnTape>().0), [false, false, true], "realm {realm} steady x2, then switch to {next}");
+        }
     }
 }
