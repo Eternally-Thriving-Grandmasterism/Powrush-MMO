@@ -2676,4 +2676,51 @@ mod tests {
         let state = &prod[prod.find("pub struct CombatState {").unwrap()..];
         assert!(!state[..state.find("\n}").unwrap()].to_lowercase().contains("cooldown"));
     }
+
+    // STRIKE-CANON-1 — COMBAT_AND_PVP.md:435/:676 the player strike lands 8; the lunge stays 15 (:486/:678).
+    fn sc1_kill(finds: Option<&FoundFinds>) -> (u32, u32) {
+        let (mut c, mut s, mut n) = (CombatState::default(), SkillXp::default(), 0);
+        while c.predator_taken < HEALTH { assert!(land_hit_paid(&mut c, &mut s, true, DifficultyTier::Sheltered, None, finds).0); n += 1; } (n, s.xp[COMBAT])
+    }
+    #[test] fn sc1_s1_one_strike_lands_8_on_every_tier() { assert_eq!(crate::difficulty::TIERS.map(|t| { let mut c = CombatState::default(); assert!(land_hit_on(&mut c, &mut SkillXp::default(), true, t).0); c.predator_taken }), [8; 4]); }
+    #[test] fn sc1_s2_24_strikes_leave_192_the_25th_downs_and_the_kill_pays_200() {
+        let (mut c, mut s) = (CombatState::default(), SkillXp::default());
+        assert!((0..24).all(|_| land_hit(&mut c, &mut s, true)) && c.predator_taken == 192 && land_hit(&mut c, &mut s, true) && c.predator_taken == HEALTH && sc1_kill(None) == (25, 200));
+    }
+    #[test] fn sc1_s3_kept_proven_storied_land_9_10_11_and_kill_in_23_20_19() {
+        let all = FoundFinds { names: shared::temper::NAMED_FINDS.iter().map(|f| f.name).collect(), ..Default::default() };
+        for (i, want) in [(0, (9, 23)), (2, (10, 20)), (4, (11, 19))] {
+            let (geared, mut c) = (FoundFinds { equipped: Some(all.names[i]), ..all.clone() }, CombatState::default()); land_hit_paid(&mut c, &mut SkillXp::default(), true, DifficultyTier::Sheltered, None, Some(&geared));
+            assert_eq!((c.predator_taken, sc1_kill(Some(&geared)).0), want, "{}", all.names[i]);
+        }
+    }
+    #[test] fn sc1_s4_lunge_stays_15_and_the_hurt_lines_hold() {
+        assert_eq!(crate::difficulty::TIERS.map(|t| { let mut c = CombatState::default(); predator_tick(&mut c, LUNGE_SECS, true, true, t); c.player_taken }), [15, 15, 15, 17]); assert!(hurt_line(15) == "You 185 / 200" && hurt_line(enemy_hit(DifficultyTier::Unbroken, 15)) == "You 183 / 200");
+    }
+    #[test] fn sc1_s5_the_droid_takes_8_and_its_shot_still_lands_25() {
+        use crate::droid::{shot_step, strike_step, DroidState, DROID_SHOT_SECS};
+        let (mut d, mut last, mut p) = (DroidState::default(), 0, 0);
+        shot_step(&mut DroidState::default(), &mut p, DROID_SHOT_SECS, true, true, true, DifficultyTier::Sheltered);
+        assert!(strike_step(&mut d, &mut last, 1, true, true).is_some() && (d.taken, p) == (8, 25));
+    }
+    #[test] fn sc1_s6_slot_tooltip_reads_8_and_reach() {
+        let text = slot_tooltip(0).unwrap(); assert!(text.contains("for 8 when") && text.contains(&REACH.to_string()) && ["class", "soon", "coming", "unlock", "cooldown"].iter().all(|b| !text.to_lowercase().contains(b)), "{text}");
+    }
+    #[test] fn sc1_s7_ten_xp_a_landed_hit_and_hits_21_to_25_pay_nothing() {
+        let (mut c, mut s, mut paid) = (CombatState::default(), SkillXp::default(), vec![]); for _ in 0..25 { if c.predator_taken >= HEALTH { c.predator_taken = 0 } let xp = s.xp[COMBAT]; assert!(land_hit(&mut c, &mut s, true)); paid.push(s.xp[COMBAT] - xp); }
+        assert_eq!((XP_PER_LANDED_HIT, s.xp[COMBAT], &paid[..20], &paid[20..]), (10, 200, &[10; 20][..], &[0; 5][..]));
+    }
+    #[test] fn sc1_s8_a_25_strike_first_kill_finds_the_tend_hook() {
+        let find = |n| { let mut f = FoundFinds::default(); assert!(f.first_find(n, PlaceId::Sanctuary as u32)); f.names[0] };
+        assert_eq!((find(sc1_kill(None).0), find(14)), ("Yard-Worn Tend Hook", "Steady Climate Pick"));
+    }
+    #[test] fn sc1_s9_an_8_rise_flashes_and_reads_8_in_combat_text() {
+        let ((mut app, _), mut q) = (flash_app(), crate::combat_text::CombatTextQueue::default());
+        app.world_mut().resource_mut::<CombatState>().predator_taken = 8; crate::combat_text::hook_player_strike(&mut q, PlaceId::Heartwood, 0, 8, true, Vec3::ZERO);
+        assert!(step(&mut app, 0.0) == (HIT_KICK, 1) && q.events.len() == 1 && (q.events[0].amount, q.events[0].kind) == (8, crate::combat_text::CombatTextKind::Dealt));
+    }
+    #[test] fn sc1_plate_pin_plated_lunge_11_and_12_on_unbroken() {
+        let plated = |t| { let mut c = CombatState::default(); predator_tick_plated(&mut c, LUNGE_SECS, true, true, t, true); c.player_taken };
+        assert_eq!((plate_hit(15), crate::difficulty::TIERS.map(plated)), (11, [11, 11, 11, 12]));
+    }
 }
