@@ -449,9 +449,9 @@ impl Plugin for LocalSettingsPlugin {
                 Update,
                 hud_preset_row_clicks.before(crate::hud_presets::apply_hud_layout_commands),
             )
-            // Harvest producers stay unchanged; disabled accessibility feel removes their
-            // requests before Bevy's next input pass can apply them.
-            .add_systems(Last, suppress_disabled_rumble);
+            // Harvest producers stay unchanged (all write in Update); disabled accessibility feel
+            // removes their requests in PostUpdate, before gilrs plays them (RumbleSystems).
+            .add_systems(PostUpdate, suppress_disabled_rumble.before(bevy::gilrs::RumbleSystems));
     }
 }
 
