@@ -315,4 +315,43 @@ mod tests {
             assert!(!sample.contains("Threshold"), "{sample}");
         }
     }
+
+    /// STATUS-VIS-NEQ-1 SV1–SV4. Last tape of (Visibility, changed) on SpillSlabRoot; settle 2 then clear.
+    #[derive(Resource, Default)] struct SvTape(Vec<(Visibility, bool)>);
+    fn sv_tape(q: Query<Ref<Visibility>, With<SpillSlabRoot>>, mut t: ResMut<SvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn sv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<SvTape>().0) }
+    fn sv_settle(mut app: App) -> App { app.update(); app.update(); app.world_mut().resource_mut::<SvTape>().0.clear(); app }
+    fn sv_hide(app: &mut App) { let e = app.world_mut().query_filtered::<Entity, With<SpillSlabRoot>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden; }
+    fn sv_yielded(app: &App, id: &'static str) -> bool { app.world().resource::<crate::hud_presets::HudYielded>().0.contains(&id) }
+    const SV: Visibility = Visibility::Visible;
+    const SH: Visibility = Visibility::Hidden;
+    /// Peace by default; `live` plants the House off Peace (ridge tab, plant house) and witnesses the I2 spill, as q_off_peace_plants_house_and_i2_spill.
+    fn sv_live() -> (HourSacred, EvidenceYard) {
+        let (mut hour, mut yard, mut factory) = (HourSacred::default(), EvidenceYard { witness: InfraWitness::default() }, shared::vertical_factory::VerticalFactory::default());
+        assert!(crate::hour_sacred::try_ridge_tab(&mut hour, true) && crate::hour_sacred::try_plant_house(&mut hour, &mut factory) && try_witness_house_spill(&hour, &mut yard));
+        (hour, yard)
+    }
+    fn sv_app(live: bool, hud: Option<(crate::hud_presets::HudPresetId, Option<crate::title_screen::LaunchDoor>)>) -> App {
+        let (hour, yard) = if live { sv_live() } else { (HourSacred::default(), EvidenceYard { witness: InfraWitness::default() }) };
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).insert_resource(hour).insert_resource(yard).init_resource::<SvTape>().add_systems(Startup, spawn_spill_slab).add_systems(Update, update_spill_slab).add_systems(Last, sv_tape);
+        if let Some((id, door)) = hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(id) }).init_resource::<crate::hex_travel::PlacesPlate>(); if let Some(door) = door { app.insert_resource(door); } }
+        sv_settle(app)
+    }
+    #[test] fn status_vis_neq_1_sv1_spill_peace_steady_hidden_unmarked() { let mut app = sv_app(false, None); assert_eq!(sv_run(&mut app, 3), vec![(SH, false); 3], "SV1 spill Peace steady hidden"); }
+    #[test] fn status_vis_neq_1_sv2_spill_live_then_peace_once_each() {
+        let mut app = sv_app(false, None); let (hour, yard) = sv_live(); app.insert_resource(hour).insert_resource(yard);
+        assert_eq!(sv_run(&mut app, 2), vec![(SV, true), (SV, false)], "SV2 spill goes live: Visible once, then quiet");
+        app.insert_resource(HourSacred::default());
+        assert_eq!(sv_run(&mut app, 2), vec![(SH, true), (SH, false)], "SV2 spill back to Peace: Hidden once, then quiet");
+    }
+    #[test] fn status_vis_neq_1_sv3_spill_direct_hidden_restored_once() { let mut app = sv_app(true, None); sv_hide(&mut app); assert_eq!(sv_run(&mut app, 2), vec![(SV, true), (SV, false)], "SV3 spill direct Hidden write: restored once, then quiet"); }
+    #[test] fn status_vis_neq_1_sv4_spill_real_hud_layout() {
+        let mut app = sv_app(true, Some((crate::hud_presets::HudPresetId::Classic, Some(crate::title_screen::LaunchDoor::InYard))));
+        assert_eq!(sv_run(&mut app, 2), vec![(SH, true); 2], "SV4 Classic InYard live: clean-hidden, changed every frame on main and branch alike");
+        let mut app = sv_app(true, Some((crate::hud_presets::HudPresetId::Management, Some(crate::title_screen::LaunchDoor::InYard))));
+        assert_eq!(sv_run(&mut app, 2), vec![(SV, false); 2], "SV4 Management live, no Factory or Fab: steady Visible, quiet");
+        app.world_mut().spawn((Node::default(), Visibility::Visible, HudSlab(crate::hud_anchor_registry::ID_FACTORY))); let t = sv_run(&mut app, 2);
+        assert_eq!((t.last().unwrap().0, sv_yielded(&app, SPILL.id)), (SH, true), "SV4 Management with a Factory sentinel: Spill yields by R2 into HudYielded");
+    }
 }

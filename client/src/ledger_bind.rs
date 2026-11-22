@@ -1268,4 +1268,24 @@ mod tests {
         let node = q.single(app.world()).expect("ledger node");
         (node.width, node.padding, node.bottom)
     }
+
+    /// STATUS-VIS-NEQ-1 SV9–SV12. Last tape of (Visibility, changed) on LedgerSlabRoot over ledger_scale_app; settle 2 then clear. Not HUD-managed (Q6).
+    #[derive(Resource, Default)] struct SvTape(Vec<(Visibility, bool)>);
+    fn sv_tape(q: Query<Ref<Visibility>, With<LedgerSlabRoot>>, mut t: ResMut<SvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn sv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<SvTape>().0) }
+    fn sv_settle(mut app: App) -> App { app.update(); app.update(); app.world_mut().resource_mut::<SvTape>().0.clear(); app }
+    fn sv_hide(app: &mut App) { let e = app.world_mut().query_filtered::<Entity, With<LedgerSlabRoot>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden; }
+    const SV: Visibility = Visibility::Visible;
+    const SH: Visibility = Visibility::Hidden;
+    fn sv_app(sash_open: bool) -> App { let mut app = ledger_scale_app(sash_open, None); app.init_resource::<SvTape>().add_systems(Last, sv_tape); sv_settle(app) }
+    fn sv_sash(app: &mut App, open: bool) { app.world_mut().resource_mut::<LedgerYard>().sash_open = open; }
+    #[test] fn status_vis_neq_1_sv9_ledger_closed_steady_unmarked() { let mut app = sv_app(false); assert_eq!(sv_run(&mut app, 3), vec![(SH, false); 3], "SV9 ledger closed steady hidden"); }
+    #[test] fn status_vis_neq_1_sv10_ledger_open_steady_unmarked() { let mut app = sv_app(true); assert_eq!(sv_run(&mut app, 3), vec![(SV, false); 3], "SV10 ledger open steady visible"); }
+    #[test] fn status_vis_neq_1_sv11_ledger_sash_toggle_once_each_way() {
+        let mut app = sv_app(false); sv_sash(&mut app, true);
+        assert_eq!(sv_run(&mut app, 2), vec![(SV, true), (SV, false)], "SV11 ledger sash open: Visible once, then quiet");
+        sv_sash(&mut app, false);
+        assert_eq!(sv_run(&mut app, 2), vec![(SH, true), (SH, false)], "SV11 ledger sash closed: Hidden once, then quiet");
+    }
+    #[test] fn status_vis_neq_1_sv12_ledger_direct_hidden_restored_once() { let mut app = sv_app(true); sv_hide(&mut app); assert_eq!(sv_run(&mut app, 2), vec![(SV, true), (SV, false)], "SV12 ledger direct Hidden write while open: restored once, then quiet"); }
 }

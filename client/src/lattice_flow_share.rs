@@ -382,4 +382,41 @@ mod tests {
             assert!(!sample.contains("Threshold"), "{sample}");
         }
     }
+
+    /// STATUS-VIS-NEQ-1 SV5–SV8. Last tape of (Visibility, changed) on PeerPresenceRoot; settle 2 then clear. No file I/O (no ambient_peer_poll).
+    #[derive(Resource, Default)] struct SvTape(Vec<(Visibility, bool)>);
+    fn sv_tape(q: Query<Ref<Visibility>, With<PeerPresenceRoot>>, mut t: ResMut<SvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn sv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<SvTape>().0) }
+    fn sv_settle(mut app: App) -> App { app.update(); app.update(); app.world_mut().resource_mut::<SvTape>().0.clear(); app }
+    fn sv_hide(app: &mut App) { let e = app.world_mut().query_filtered::<Entity, With<PeerPresenceRoot>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden; }
+    fn sv_yielded(app: &App, id: &'static str) -> bool { app.world().resource::<crate::hud_presets::HudYielded>().0.contains(&id) }
+    const SV: Visibility = Visibility::Visible;
+    const SH: Visibility = Visibility::Hidden;
+    fn sv_app(hud: Option<(crate::hud_presets::HudPresetId, Option<crate::title_screen::LaunchDoor>)>) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).init_resource::<LatticeFlowShare>().init_resource::<SvTape>().add_systems(Startup, spawn_peer_presence_chip).add_systems(Update, update_peer_presence_chip).add_systems(Last, sv_tape);
+        if let Some((id, door)) = hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(id) }).init_resource::<crate::hex_travel::PlacesPlate>(); if let Some(door) = door { app.insert_resource(door); } }
+        sv_settle(app)
+    }
+    /// The envelope_roundtrip peer, with the chip up or down.
+    fn sv_peer(app: &mut App, chip_visible: bool) {
+        let env = LatticeFlowShareEnvelope { schema: "powrush_lattice_flow_share_v1".into(), flow_total: 3.0, reserve_total: 1.5, choices_made: 4, last_path: Some("Flow outward".into()), mercy_note: "Voluntary abundance direction — never scarcity".into(), exported_at_secs: 12.0 };
+        let mut share = app.world_mut().resource_mut::<LatticeFlowShare>(); share.chip_visible = chip_visible; share.last_peer = Some(env);
+    }
+    #[test] fn status_vis_neq_1_sv5_peer_steady_hidden_unmarked() { let mut app = sv_app(None); assert_eq!(sv_run(&mut app, 3), vec![(SH, false); 3], "SV5 peer steady hidden"); }
+    #[test] fn status_vis_neq_1_sv6_peer_chip_flip_once_each_way() {
+        let mut app = sv_app(None); sv_peer(&mut app, true);
+        assert_eq!(sv_run(&mut app, 2), vec![(SV, true), (SV, false)], "SV6 peer chip up: Visible once, then quiet");
+        app.world_mut().resource_mut::<LatticeFlowShare>().chip_visible = false;
+        assert_eq!(sv_run(&mut app, 2), vec![(SH, true), (SH, false)], "SV6 peer chip down: Hidden once, then quiet");
+    }
+    #[test] fn status_vis_neq_1_sv7_peer_direct_hidden_restored_once() { let mut app = sv_app(None); sv_peer(&mut app, true); sv_run(&mut app, 2); sv_hide(&mut app); assert_eq!(sv_run(&mut app, 2), vec![(SV, true), (SV, false)], "SV7 peer direct Hidden write: restored once, then quiet"); }
+    #[test] fn status_vis_neq_1_sv8_peer_real_hud_layout() {
+        let mut app = sv_app(Some((crate::hud_presets::HudPresetId::Classic, Some(crate::title_screen::LaunchDoor::InYard)))); sv_peer(&mut app, true);
+        assert_eq!(sv_run(&mut app, 2), vec![(SH, true); 2], "SV8 Classic InYard chip up: clean-hidden, changed every frame on main and branch alike");
+        let mut app = sv_app(Some((crate::hud_presets::HudPresetId::Management, Some(crate::title_screen::LaunchDoor::InYard)))); sv_peer(&mut app, true); sv_run(&mut app, 1);
+        assert_eq!(sv_run(&mut app, 2), vec![(SV, false); 2], "SV8 Management chip up: steady Visible, quiet");
+        let mut app = sv_app(Some((crate::hud_presets::HudPresetId::Minimal, None))); sv_peer(&mut app, true); app.world_mut().spawn((Node::default(), Visibility::Visible, HudSlab(crate::hud_anchor_registry::ID_WATCH))); let t = sv_run(&mut app, 2);
+        assert_eq!((t.last().unwrap().0, sv_yielded(&app, PEER.id)), (SH, true), "SV8 Minimal, no door, Watch sentinel: Peer yields by R2 into HudYielded");
+    }
 }
