@@ -28,7 +28,7 @@ Tip `07490761`:
 
 capture: none on tip
 
-No screenshot or tape capture on tip. Headless Q1 script-run (`./scripts/play-offline.sh --script-run`) is cited in `docs/FIRST_HOUR_PLAYTEST.md` MACHINE QA.
+No screenshot or tape capture on tip. Q1 script-run (`./scripts/play-offline.sh --script-run`) is cited in `docs/FIRST_HOUR_PLAYTEST.md` MACHINE QA.
 
 MACHINE QA GREEN
 

@@ -40,7 +40,7 @@ cargo test -p shared -p rsil-identity
 cargo test -p powrush-client --lib
 ```
 
-`./scripts/play-offline.sh` forces `POWRUSH_NET=off`. With no args it is the Offline door (`cargo run -p powrush-client`). `q1` / `--script-run` is the headless door: those same two `cargo test` lines, then the named `q0_*` landings. No WASD. Title Online stays grey.
+`./scripts/play-offline.sh` forces `POWRUSH_NET=off`. With no args it is the Offline door (`cargo run -p powrush-client`). `q1` / `--script-run` is the CARD Q1 six-landing machine pass: those same two `cargo test` lines, then the named `q0_*` landings, with no cargo run. No WASD. Title Online stays grey.
 
 ```bash
 cargo test -p shared -p rsil-identity
@@ -56,7 +56,7 @@ Tip `07490761`:
 
 capture: none on tip
 
-headless Q1 script-run · stdout (no output file; temp log deleted) at tip 07490761
+Q1 script-run · stdout (no output file; temp log deleted) at tip 07490761
 
 ```
 CARD Q1 SCRIPT-RUN 2026-09-25
@@ -84,7 +84,7 @@ Three odd zones, hush only. Peak memory may be cited: walked · tended · week w
 
 No fifth Place · no new PlaceId · reuses existing hex_travel Places only · design note, not Felt minutes · capture: none on tip
 
-No screenshot or tape capture on tip. Headless Q1 script-run (`./scripts/play-offline.sh --script-run`) is cited above.
+No screenshot or tape capture on tip. Q1 script-run (`./scripts/play-offline.sh --script-run`) is cited above.
 
 MACHINE QA GREEN
 
