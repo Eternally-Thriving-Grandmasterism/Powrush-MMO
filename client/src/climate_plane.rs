@@ -2417,6 +2417,22 @@ mod tests {
         assert_eq!(style.width, Val::Px(PLACE_NAME.width));
     }
 
+    /// FIRST-BOOT-HUD-1: first-boot Classic. The chip wants Visible for HOLD_SECS, but Title (R5) and the clean yard keep it Hidden. Management shows it.
+    #[test]
+    fn first_boot_place_chip_final_hidden_under_real_hud_layout() {
+        use crate::hud_presets::{ActiveHudPreset, HudLayoutPlugin, HudPresetId};
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, HudLayoutPlugin)).insert_resource(ActiveHudPreset { id: Some(HudPresetId::Classic) })
+            .init_resource::<crate::hex_travel::PlacesPlate>().init_resource::<SoftPlayerRealm>()
+            .insert_resource(crate::hex_travel::HexTravelState { current: PlaceId::Sanctuary }).insert_resource(LaunchDoor::Title)
+            .add_systems(Startup, spawn_climate_chip).add_systems(Update, update_climate_chip);
+        let vis = |app: &mut App| *app.world_mut().query_filtered::<&Visibility, With<ClimateNameRoot>>().single(app.world()).unwrap();
+        (app.update(), app.update()); assert_eq!(vis(&mut app), Visibility::Hidden, "Title: R5 yields the place chip");
+        app.insert_resource(LaunchDoor::InYard); (app.update(), app.update()); assert_eq!(vis(&mut app), Visibility::Hidden, "first-boot Classic yard: clean hide");
+        app.insert_resource(ActiveHudPreset { id: Some(HudPresetId::Management) }); (app.update(), app.update());
+        assert_eq!(vis(&mut app), Visibility::Visible, "control: Management (PLACE solo anchor, hud_presets.rs:574-581) shows the held chip");
+    }
+
     /// CARD VP-HUD-TOP-1 — the Sanctuary Prime place chip rests on the title palette: opaque
     /// plate, gold rim at alpha 1, cream text (no blue-grey / dim chrome).
     #[test]
