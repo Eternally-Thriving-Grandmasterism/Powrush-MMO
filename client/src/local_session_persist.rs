@@ -127,25 +127,17 @@ fn save_blob(blob: &SessionBlob) -> bool {
 }
 
 fn save_blob_at(path: &Path, blob: &SessionBlob) -> bool {
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
     let Ok(json) = serde_json::to_string_pretty(blob) else {
         return false;
     };
-    let tmp = path.with_extension("json.tmp");
-    if let Err(e) = fs::write(&tmp, json) {
-        warn!(target: "powrush::session", "local session write failed: {e}");
-        return false;
-    }
     // A bad live file must not replace the last good `.bak`.
-    if path.exists() && read_session_blob(path).is_some() {
+    if read_session_blob(path).is_some() {
         let bak = path.with_extension("json.bak");
-        if let Err(e) = fs::copy(path, &bak) {
+        if let Err(e) = fs::read(path).and_then(|b| shared::user_persist::replace_synced(&bak, &b)) {
             warn!(target: "powrush::session", "local session backup failed: {e}");
         }
     }
-    if let Err(e) = fs::rename(&tmp, path) {
+    if let Err(e) = shared::user_persist::replace_synced(path, json.as_bytes()) {
         warn!(target: "powrush::session", "local session write failed: {e}");
         return false;
     }
@@ -454,6 +446,21 @@ mod tests {
         let main_blob = load_blob_at(&kept.path).unwrap();
         assert!(trust_near(&main_blob, 0.41));
         assert!(!kept.path.with_extension("json.tmp").exists());
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn persist_audit_session_bak_is_replaced_not_written_through() {
+        let temp = TempSession::new("bak-link");
+        save_blob_at(&temp.path, &blob_with_trust(0.62));
+        let (bak, witness, prev) = (temp.path.with_extension("json.bak"), temp.dir.join("witness"), fs::read(&temp.path).unwrap());
+        fs::write(&witness, b"WITNESS").unwrap();
+        fs::hard_link(&witness, &bak).unwrap();
+        save_blob_at(&temp.path, &blob_with_trust(0.41));
+        assert_eq!(fs::read(&witness).unwrap(), b"WITNESS", ".bak written through in place");
+        assert_eq!(fs::read(&bak).unwrap(), prev);
+        assert!(trust_near(&load_blob_at(&temp.path).unwrap(), 0.41));
+        assert!(!temp.path.with_extension("json.tmp").exists() && !temp.path.with_extension("json.bak.tmp").exists());
     }
 
     /// SESSION-SAVE-RATE-1: per-frame `ResMut` writers (harvest_feel.rs:150-151,
