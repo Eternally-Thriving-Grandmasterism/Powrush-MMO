@@ -88,6 +88,7 @@ pub struct LocalSessionPersist {
     pub loaded: bool,
     pub dirty: bool,
     pub whisper_lived: bool,
+    last_saved: Option<String>,
 }
 
 impl Default for LocalSessionPersist {
@@ -96,6 +97,7 @@ impl Default for LocalSessionPersist {
             loaded: false,
             dirty: false,
             whisper_lived: false,
+            last_saved: None,
         }
     }
 }
@@ -120,21 +122,21 @@ fn read_session_blob(path: &Path) -> Option<SessionBlob> {
     serde_json::from_slice(&bytes).ok()
 }
 
-fn save_blob(blob: &SessionBlob) {
-    save_blob_at(&persist_path(), blob);
+fn save_blob(blob: &SessionBlob) -> bool {
+    save_blob_at(&persist_path(), blob)
 }
 
-fn save_blob_at(path: &Path, blob: &SessionBlob) {
+fn save_blob_at(path: &Path, blob: &SessionBlob) -> bool {
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
     let Ok(json) = serde_json::to_string_pretty(blob) else {
-        return;
+        return false;
     };
     let tmp = path.with_extension("json.tmp");
     if let Err(e) = fs::write(&tmp, json) {
         warn!(target: "powrush::session", "local session write failed: {e}");
-        return;
+        return false;
     }
     // A bad live file must not replace the last good `.bak`.
     if path.exists() && read_session_blob(path).is_some() {
@@ -145,7 +147,9 @@ fn save_blob_at(path: &Path, blob: &SessionBlob) {
     }
     if let Err(e) = fs::rename(&tmp, path) {
         warn!(target: "powrush::session", "local session write failed: {e}");
+        return false;
     }
+    true
 }
 
 pub struct LocalSessionPersistPlugin;
@@ -264,8 +268,10 @@ fn save_local_session(
         difficulty: saved.map(|s| s.0), area_difficulty: saved.map(|s| s.1), area_clears: saved.map(|s| s.2),
         run_best: ledger.as_ref().map(|l| l.best),
     };
-    save_blob(&blob);
     persist.dirty = false;
+    let Ok(json) = serde_json::to_string_pretty(&blob) else { return };
+    if persist.last_saved.as_deref() == Some(json.as_str()) { return; }
+    if save_blob(&blob) { persist.last_saved = Some(json); }
 }
 
 #[cfg(test)]
@@ -448,6 +454,44 @@ mod tests {
         let main_blob = load_blob_at(&kept.path).unwrap();
         assert!(trust_near(&main_blob, 0.41));
         assert!(!kept.path.with_extension("json.tmp").exists());
+    }
+
+    /// SESSION-SAVE-RATE-1: per-frame `ResMut` writers (harvest_feel.rs:150-151,
+    /// skirmish_well.rs:169) must not rewrite an unchanged session.
+    #[test]
+    fn session_save_rate_idle_frames_write_nothing() {
+        struct Env(Option<std::ffi::OsString>, PathBuf);
+        impl Drop for Env {
+            fn drop(&mut self) {
+                let key = shared::user_persist::USER_DIR_OVERRIDE_ENV;
+                match self.0.take() { Some(v) => std::env::set_var(key, v), None => std::env::remove_var(key) }
+                let _ = fs::remove_dir_all(&self.1);
+            }
+        }
+        let _lock = crate::test_env::lock();
+        let dir = std::env::temp_dir().join(format!("powrush-save-rate-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let env = Env(std::env::var_os(shared::user_persist::USER_DIR_OVERRIDE_ENV), dir.clone());
+        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &env.1);
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, LocalSessionPersistPlugin))
+            .init_resource::<SoftRbePool>().init_resource::<SoftPlayerRealm>()
+            .init_resource::<FirstHarvestEpiphany>().init_resource::<HumanInventory>()
+            .init_resource::<PersistentWeb>().init_resource::<CompanionBond>()
+            .add_systems(Update, (
+                |mut p: ResMut<SoftRbePool>| p.tick_juice(0.016),
+                |mut e: ResMut<FirstHarvestEpiphany>| e.well_in_reach = false,
+            ));
+        for _ in 0..3 { app.update(); }
+        let live = dir.join("powrush_local_session.json");
+        assert!(live.is_file(), "settle frames save the session once");
+        fs::remove_file(&live).unwrap();
+        for _ in 0..30 { app.update(); }
+        assert!(!live.exists(), "idle frames rewrote an unchanged session");
+        app.world_mut().resource_mut::<CompanionBond>().trust = 0.5;
+        app.update();
+        assert!(live.is_file(), "a real change still saves on the next frame");
     }
 
     #[test]

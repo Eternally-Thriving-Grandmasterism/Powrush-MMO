@@ -259,13 +259,13 @@ pub(crate) mod tests {
         });
     }
 
-    /// LTS4 (H3) — the SessionBlob v1 literal stays at local_session_persist.rs:278 and finds stay out of that file.
+    /// LTS4 (H3) — the SessionBlob v1 literal stays in local_session_persist.rs, right above its `run_best, None` load, and finds stay out of that file.
     #[test]
     fn lts4_session_v1_literal_pinned() {
         const V1: &str = r#"{"schema":"powrush_local_session_v1","vitality":1.0,"harmony":0.0,"joy":0.0,"harvests":0,"tends":0,"realm":0,"first_harvest_lived":false,"whisper_lived":false}"#;
         let src = include_str!("local_session_persist.rs");
-        assert!(src.lines().nth(277).is_some_and(|l| l.contains(&format!("fs::write(&temp.path, r#\"{V1}\"#)"))), "v1 literal moved");
-        assert!(src.lines().nth(278).is_some_and(|l| l.contains("run_best, None")) && !src.contains("finds"));
+        assert!(src.lines().zip(src.lines().skip(1)).any(|(l, n)| l.contains(&format!("fs::write(&temp.path, r#\"{V1}\"#)")) && n.contains("run_best, None")), "v1 literal moved");
+        assert!(!src.contains("finds"));
         let v: serde_json::Value = serde_json::from_str(V1).unwrap();
         assert_eq!((v["vitality"].as_f64(), v["harmony"].as_f64(), v["joy"].as_f64()), (Some(1.0), Some(0.0), Some(0.0)));
     }
