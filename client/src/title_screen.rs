@@ -2624,11 +2624,7 @@ fn refresh_garden_boot_want(
             FontSize::Px(current) if (current - font_px / 1.2).abs() <= 0.01 => {}
             _ => font_face.font_size = FontSize::Px(font_px / 1.2),
         }
-        *vis = if spoken.is_some() {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if spoken.is_some() { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
@@ -2863,21 +2859,13 @@ pub(crate) fn sync_title_visibility(
 ) {
     let show = *door == LaunchDoor::Title;
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     // Continue dims when no persist
     let enabled = label.persist_present;
     for (mut bg, mut border) in &mut cont_style {
-        *bg = if enabled {
-            TITLE_BTN_BG.into()
-        } else {
-            TITLE_BTN_DISABLED_BG.into()
-        };
-        *border = TITLE_BORDER.into();
+        bg.set_if_neq(if enabled { TITLE_BTN_BG } else { TITLE_BTN_DISABLED_BG }.into());
+        border.set_if_neq(TITLE_BORDER.into());
     }
     let _ = net.mode; // Online stays Offline; peer count never shown
 }
@@ -10848,5 +10836,69 @@ mod tests {
         let mut app = ts_app(LaunchDoor::Title, false); app.insert_resource(crate::age_gate::AgeGate { open: true }).add_systems(Update, hide_comfort_banner_while_age_gate.after(sync_comfort_graphics_banner));
         let t = ts_run(&mut app, 2).banner;
         assert!(t.len() == 4 && t.iter().all(|r| r.1 == SH), "TS11 age gate open on Title: both banner rows end Hidden (values only, nil): {t:?}");
+    }
+
+    /// TITLE-PLATE-VIS-NEQ-1 TS1–TS6. Last tape of (value, changed) on TitleRoot Visibility, the Continue BackgroundColor and BorderColor
+    /// and the TitleGardenWantText Visibility, over a MinimalPlugins app with refresh_garden_boot_want and sync_title_visibility; settle 2 then clear.
+    #[derive(Resource, Default)]
+    struct TpTape { root: Vec<(Visibility, bool)>, cont: Vec<(Color, Color, bool, bool)>, want: Vec<(Visibility, bool)> }
+    #[allow(clippy::type_complexity)]
+    fn tp_tape(root: Query<Ref<Visibility>, With<TitleRoot>>, cont: Query<(Ref<BackgroundColor>, Ref<BorderColor>), With<TitleContinueBtn>>, want: Query<Ref<Visibility>, With<TitleGardenWantText>>, mut t: ResMut<TpTape>) {
+        t.root.extend(root.iter().map(|v| (*v, v.is_changed())));
+        t.cont.extend(cont.iter().map(|(bg, br)| (bg.0, br.top, bg.is_changed(), br.is_changed())));
+        t.want.extend(want.iter().map(|v| (*v, v.is_changed())));
+    }
+    fn tp_run(app: &mut App, n: usize) -> TpTape { for _ in 0..n { app.update(); } std::mem::take(&mut *app.world_mut().resource_mut::<TpTape>()) }
+    fn tp_app(door: LaunchDoor, persist: bool, guidance: bool, launch: bool) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).insert_resource(door).insert_resource(HouseLabel { persist_present: persist, ..bf2_house(false) }).insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false })
+            .insert_resource(SessionNetMode::from_powrush_net(shared::hex_listen::PowrushNet::Off)).init_resource::<PersonaCreatorState>().init_resource::<PauseTab>().init_resource::<TpTape>()
+            .add_systems(Startup, spawn_title_screen).add_systems(Update, (refresh_garden_boot_want, sync_title_visibility)).add_systems(Last, tp_tape);
+        if guidance { app.insert_resource(crate::first_session_guidance::FirstSessionGuidance::default()); }
+        if launch { app.add_plugins(crate::launch_menu::LaunchMenuPlugin); }
+        app.update(); app.update(); tp_run(&mut app, 0); app
+    }
+    fn tp_bg(persist: bool) -> Color { if persist { TITLE_BTN_BG } else { TITLE_BTN_DISABLED_BG } }
+    #[test] fn title_plate_vis_neq_1_ts1_title_root_steady_on_title_and_in_yard() {
+        for (door, want) in [(LaunchDoor::Title, Visibility::Visible), (LaunchDoor::InYard, Visibility::Hidden)] {
+            let mut app = tp_app(door, true, false, false);
+            assert_eq!(tp_run(&mut app, 3).root, vec![(want, false); 3], "TS1 {door:?}: TitleRoot steady {want:?}, quiet");
+        }
+    }
+    #[test] fn title_plate_vis_neq_1_ts2_title_to_in_yard_changes_once() {
+        let mut app = tp_app(LaunchDoor::Title, true, false, false); app.insert_resource(LaunchDoor::InYard);
+        assert_eq!(tp_run(&mut app, 2).root, vec![(Visibility::Hidden, true), (Visibility::Hidden, false)], "TS2 Title to InYard: TitleRoot hides once, then quiet");
+    }
+    #[test] fn title_plate_vis_neq_1_ts3_direct_hidden_on_title_restored_once() {
+        let mut app = tp_app(LaunchDoor::Title, true, false, false);
+        let e = app.world_mut().query_filtered::<Entity, With<TitleRoot>>().single(app.world()).unwrap();
+        *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden;
+        assert_eq!(tp_run(&mut app, 2).root, vec![(Visibility::Visible, true), (Visibility::Visible, false)], "TS3 direct Hidden poke on Title: restored once, then quiet");
+    }
+    #[test] fn title_plate_vis_neq_1_ts4_continue_bg_and_border_steady_and_flip() {
+        for persist in [true, false] {
+            let mut app = tp_app(LaunchDoor::Title, persist, false, false);
+            assert_eq!(tp_run(&mut app, 3).cont, vec![(tp_bg(persist), TITLE_BORDER, false, false); 3], "TS4 persist_present {persist}: Continue bg and border steady on TITLE_*, quiet");
+            app.world_mut().resource_mut::<HouseLabel>().persist_present = !persist;
+            assert_eq!(tp_run(&mut app, 2).cont, vec![(tp_bg(!persist), TITLE_BORDER, true, false), (tp_bg(!persist), TITLE_BORDER, false, false)], "TS4 persist_present flip from {persist}: bg repaints once, border stays quiet");
+        }
+    }
+    #[test] fn title_plate_vis_neq_1_ts5_garden_want_steady_and_flip() {
+        for guidance in [false, true] {
+            let mut app = tp_app(LaunchDoor::Title, true, guidance, false);
+            assert_eq!(tp_run(&mut app, 3).want, vec![(Visibility::Visible, false); 3], "TS5 guidance present {guidance}: garden-want steady Visible, quiet");
+            if guidance { app.world_mut().resource_mut::<crate::first_session_guidance::FirstSessionGuidance>().dismissed = true; } else { app.insert_resource(LaunchDoor::InYard); }
+            assert_eq!(tp_run(&mut app, 2).want, vec![(Visibility::Hidden, true), (Visibility::Hidden, false)], "TS5 guidance present {guidance}: garden-want hides once, then quiet");
+        }
+    }
+    #[test] fn title_plate_vis_neq_1_ts6_continue_bg_ends_on_paint_launch_focus_fill() {
+        for persist in [true, false] {
+            let mut app = tp_app(LaunchDoor::Title, persist, false, true); let t = tp_run(&mut app, 2).cont;
+            assert!(t.len() == 2 && t.iter().all(|r| (r.0, r.1) == (tp_bg(persist), TITLE_BORDER)), "TS6 persist_present {persist}, no pad: Continue ends on the paint fill (values only): {t:?}");
+        }
+        let mut app = tp_app(LaunchDoor::Title, true, false, true);
+        app.insert_resource(crate::launch_menu::LaunchFocus(crate::launch_menu::LaunchRow::Continue)); app.world_mut().spawn(bevy::input::gamepad::Gamepad::default());
+        let t = tp_run(&mut app, 2).cont;
+        assert!(t.len() == 2 && t.iter().all(|r| (r.0, r.1) == (TITLE_BTN_ACTIVE_BG, TITLE_BORDER)), "TS6 pad focus on Continue: ends on the active fill (values only, nil): {t:?}");
     }
 }
