@@ -1938,4 +1938,36 @@ mod tests {
         *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden;
         assert_eq!(cv_run(&mut app, 2), vec![(Visibility::Visible, true), (Visibility::Visible, false)], "CV3 direct Hidden write: restored Visible once, then quiet");
     }
+
+    /// CLIMATE-SLAB-COLOR-NEQ-1 CF1–CF3. hud_gold_climate_app with a Last (BorderColor, changed, BackgroundColor, changed) tape on the climate slab root.
+    type CfRow = (BorderColor, bool, BackgroundColor, bool);
+    #[derive(Resource, Default)] struct CfTape(Vec<CfRow>);
+    fn cf_tape(q: Query<(Ref<BorderColor>, Ref<BackgroundColor>), With<ClimateStateRoot>>, mut t: ResMut<CfTape>) { t.0.extend(q.iter().map(|(b, g)| (*b, b.is_changed(), *g, g.is_changed()))); }
+    fn cf_app(reduced_motion: bool, glow: f32) -> App {
+        let mut app = hud_gold_climate_app(reduced_motion, glow); app.init_resource::<CfTape>().add_systems(Last, cf_tape);
+        app.update(); app.world_mut().resource_mut::<CfTape>().0.clear(); app
+    }
+    fn cf_run(app: &mut App, n: usize) -> Vec<CfRow> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<CfTape>().0) }
+    /// Rest is the spawn palette (:306/:308); lifted is the existing rim/fill expectation (hud_gold_climate_chip_reduced_motion_holds_gold_rest).
+    fn cf_rest(changed: bool) -> CfRow { (BorderColor::all(TITLE_BORDER.with_alpha(1.0)), changed, BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)), changed) }
+    fn cf_lifted(glow: f32, changed: bool) -> CfRow {
+        let (p, t, b) = (well_slab_pulse(glow, false), TITLE_BORDER.to_srgba(), TITLE_PLATE_BG.to_srgba());
+        (BorderColor::all(Color::srgba((t.red + p.r).min(1.0), (t.green + p.g).min(1.0), (t.blue + p.b).min(1.0), 1.0)), changed, BackgroundColor(Color::srgba(b.red + p.bg_r, b.green + p.bg_g, b.blue + p.bg_b, 1.0)), changed)
+    }
+    #[test] fn climate_slab_color_neq_1_cf1_rest_steady_unmarked() {
+        let mut app = cf_app(false, 0.0);
+        assert_eq!(cf_run(&mut app, 3), vec![cf_rest(false); 3], "CF1 rest steady: rest colours, unchanged after settle");
+    }
+    #[test] fn climate_slab_color_neq_1_cf2_reduced_motion_holds_rest_unmarked() {
+        let mut app = cf_app(true, 1.0);
+        assert_eq!(cf_run(&mut app, 3), vec![cf_rest(false); 3], "CF2 reduced motion at glow 1.0: rest colours, unchanged");
+        app.world_mut().resource_mut::<WeekFeelGlow>().glow = 0.6;
+        assert_eq!(cf_run(&mut app, 1), vec![cf_rest(false)], "CF2 reduced motion at glow 0.6: still rest, unchanged");
+    }
+    #[test] fn climate_slab_color_neq_1_cf3_glow_steps_mark_once_each_then_quiet() {
+        let mut app = cf_app(false, 0.0);
+        for glow in [1.0, 0.5] { app.world_mut().resource_mut::<WeekFeelGlow>().glow = glow; assert_eq!(cf_run(&mut app, 2), vec![cf_lifted(glow, true), cf_lifted(glow, false)], "CF3 glow {glow}: changed once, then quiet"); }
+        app.world_mut().resource_mut::<WeekFeelGlow>().glow = 0.0;
+        assert_eq!(cf_run(&mut app, 2), vec![cf_rest(true), cf_rest(false)], "CF3 glow 0.0: back to exact rest once, then quiet");
+    }
 }
