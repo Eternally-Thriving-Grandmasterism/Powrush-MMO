@@ -407,7 +407,7 @@ fn update_climate_state_slab(
                 .map(|s| s.inner.reduced_motion)
                 .unwrap_or(false);
             let pulse = well_slab_pulse(glow, reduced_motion);
-            *border = Color::srgba(
+            border.set_if_neq(Color::srgba(
                 // VP-RIM-POLISH-1: the pulse lifts rim rgb (capped per channel);
                 // rim alpha stays 1.0, so pulse.a is not used on the rim.
                 (TITLE_BORDER.to_srgba().red + pulse.r).min(1.0),
@@ -415,14 +415,14 @@ fn update_climate_state_slab(
                 (TITLE_BORDER.to_srgba().blue + pulse.b).min(1.0),
                 1.0,
             )
-            .into();
-            *bg = Color::srgba(
+            .into());
+            bg.set_if_neq(Color::srgba(
                 TITLE_PLATE_BG.to_srgba().red + pulse.bg_r,
                 TITLE_PLATE_BG.to_srgba().green + pulse.bg_g,
                 TITLE_PLATE_BG.to_srgba().blue + pulse.bg_b,
                 1.0,
             )
-            .into();
+            .into());
         }
     }
     if !show {
