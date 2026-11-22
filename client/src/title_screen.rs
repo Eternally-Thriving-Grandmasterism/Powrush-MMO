@@ -2438,13 +2438,17 @@ fn breath_title_border(
     }
 }
 
-fn refresh_title_cue(label: Res<HouseLabel>, mut q: Query<&mut Text, With<TitleCueText>>) {
+fn refresh_title_cue(label: Res<HouseLabel>, door: Res<LaunchDoor>, mut roster: Local<Option<Option<String>>>, mut q: Query<&mut Text, With<TitleCueText>>) {
     let house_cue = continue_cue_when_persist(label.persist_present, &label.house)
         .unwrap_or_else(|| "Play opens the yard · no account wall".into());
     // CARD FLESH-CONTINUE-LINE — same beat, Guide peak (`yard remembered`).
     let house_cue = continue_yard_remembered_line(&house_cue);
     // CARD S3 — sealed souls shown as People dress · last Place. Not a portraits grid.
-    let cue = match s3_continue_roster_cue(read_hour_two_json().as_deref()) {
+    // CARD TITLE-CUE-DISK-1 — the roster is read from disk once, then again only when the door changes.
+    if roster.is_none() || door.is_changed() {
+        *roster = Some(s3_continue_roster_cue(read_hour_two_json().as_deref()));
+    }
+    let cue = match roster.as_ref().and_then(|r| r.as_ref()) {
         Some(roster) => format!("{house_cue} · {roster}"),
         None => house_cue,
     };
@@ -10933,5 +10937,57 @@ mod tests {
         assert_eq!(dv_run(&mut app, 2).persona, DV_ONCE_V.to_vec(), "TS14 persona opened: PersonaCreatorRoot shows once, then quiet");
         dv_poke::<PersonaCreatorRoot>(&mut app);
         assert_eq!(dv_run(&mut app, 2).persona, DV_ONCE_V.to_vec(), "TS14 direct Hidden poke while open: restored once, then quiet");
+    }
+
+    /// TITLE-CUE-DISK-1 TC1–TC5. MinimalPlugins + spawn_title_screen + refresh_title_cue on the NameRiteUserDir seam; settle 2.
+    /// Cue text is compared across apps and frames only (no copy quoted). The hour-two file is written straight to the temp user dir.
+    fn tc_app(persist: bool) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).insert_resource(LaunchDoor::Title).insert_resource(HouseLabel { persist_present: persist, ..bf2_house(false) })
+            .insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).init_resource::<PersonaCreatorState>().init_resource::<PauseTab>()
+            .add_systems(Startup, spawn_title_screen).add_systems(Update, refresh_title_cue);
+        app.update(); app.update(); app
+    }
+    fn tc_text(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<TitleCueText>>().single(app.world()).unwrap().0.clone() }
+    fn tc_file(scratch: &NameRiteUserDir, sealed: bool) {
+        let raw = if sealed { crate::hour_sacred::merge_gate_seal_into_hour_two_json("{}", crate::hour_sacred::HousePeople::Cydruid, crate::hour_sacred::PeopleLanding::Heartwood) } else { "{}".to_string() };
+        std::fs::write(scratch.dir.join("powrush_hour_two.json"), raw).expect("hour-two file");
+    }
+    fn tc_door(app: &mut App, door: LaunchDoor) { app.insert_resource(door); app.update(); }
+    #[test] fn title_cue_disk_1_tc1_sealed_and_no_file_differ_at_boot() {
+        let scratch = NameRiteUserDir::new("tc1"); let t0 = tc_text(&mut tc_app(false));
+        tc_file(&scratch, true);
+        assert!(tc_text(&mut tc_app(false)) != t0, "TC1 a sealed hour-two file changes the boot cue against no file");
+    }
+    #[test] fn title_cue_disk_1_tc2_rewrite_on_title_holds_the_cue() {
+        let scratch = NameRiteUserDir::new("tc2"); tc_file(&scratch, true);
+        let mut app = tc_app(false); let t1 = tc_text(&mut app);
+        tc_file(&scratch, false);
+        for frame in 0..5 { app.update(); assert!(tc_text(&mut app) == t1, "TC2 rewrite while the door stays on Title: cue holds, frame {frame}"); }
+    }
+    #[test] fn title_cue_disk_1_tc3_door_round_trip_picks_up_the_new_file() {
+        let scratch = NameRiteUserDir::new("tc3"); tc_file(&scratch, true);
+        let mut app = tc_app(false); let t1 = tc_text(&mut app);
+        tc_file(&scratch, false); let t0 = tc_text(&mut tc_app(false));
+        assert!(t0 != t1, "TC3 the rewritten file boots a different cue");
+        tc_door(&mut app, LaunchDoor::InYard); tc_door(&mut app, LaunchDoor::Title);
+        assert!(tc_text(&mut app) == t0, "TC3 yard and back: cue matches a fresh boot on the new file");
+    }
+    #[test] fn title_cue_disk_1_tc4_persist_toggle_updates_the_same_frame() {
+        let scratch = NameRiteUserDir::new("tc4"); tc_file(&scratch, true);
+        let mut app = tc_app(false); let before = tc_text(&mut app);
+        app.world_mut().resource_mut::<HouseLabel>().persist_present = true; app.update();
+        let after = tc_text(&mut app);
+        assert!(after != before, "TC4 persist_present toggle changes the cue that frame");
+        assert!(after == tc_text(&mut tc_app(true)), "TC4 cue matches a fresh boot with the same label and file");
+    }
+    #[test] fn title_cue_disk_1_tc5_delete_on_title_waits_for_a_door_change() {
+        let scratch = NameRiteUserDir::new("tc5"); tc_file(&scratch, true);
+        let mut app = tc_app(false); let t1 = tc_text(&mut app);
+        std::fs::remove_file(scratch.dir.join("powrush_hour_two.json")).expect("delete hour-two file");
+        let t0 = tc_text(&mut tc_app(false));
+        for frame in 0..3 { app.update(); assert!(tc_text(&mut app) == t1, "TC5 delete while on Title: cue holds, frame {frame}"); }
+        tc_door(&mut app, LaunchDoor::InYard);
+        assert!(tc_text(&mut app) == t0, "TC5 next door change: cue matches a fresh boot with no file");
     }
 }
