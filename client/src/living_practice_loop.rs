@@ -680,4 +680,36 @@ mod tests {
     #[test] fn hud_plate_hp2_d_practice_corner_is_one_at_spawned_font() { let mut app = hp2_ui(1280, 720, 1.); (app.update(), app.update()); let root = hp2_root(&mut app); let n = app.world().get::<ComputedNode>(root).unwrap(); let pad = n.padding_box().size() * n.inverse_scale_factor;
         assert!(pad.x >= 24. && pad.y >= 24. && (pad / crate::ui_frame::FRAME_PX as f32).min_element().min(crate::ui_frame::frame_slicer().max_corner_scale) == 1., "HP2-d practice {pad}");
     }
+
+    /// PRACTICE-NEQ-1 PN1. Real HudLayoutPlugin + LivingPracticeLoopPlugin (Classic, yard): a steady strip stays unmarked; R5/R2 yields still hide and churn, and restore wins (steps 5, 9).
+    #[derive(Resource, Default)] struct PnTape(Vec<(Visibility, bool)>);
+    fn pn_tape(q: Query<Ref<Visibility>, With<LivingPracticeStrip>>, mut t: ResMut<PnTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    #[test]
+    fn practice_neq_1_pn1_steady_strip_unmarked_yield_and_restore_still_win() {
+        use crate::{hex_travel::PlacesPlate, hud_presets::{ActiveHudPreset, HudLayoutPlugin, HudPresetId, HudYielded}, title_screen::LaunchDoor};
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, HudLayoutPlugin, LivingPracticeLoopPlugin)).insert_resource(ActiveHudPreset { id: Some(HudPresetId::Classic) }).insert_resource(LaunchDoor::InYard).insert_resource(ButtonInput::<KeyCode>::default()).init_resource::<FirstSessionGuidance>().init_resource::<ThrivingMoments>().init_resource::<RbeUiSync>().init_resource::<PnTape>().add_systems(Last, pn_tape);
+        { let mut g = app.world_mut().resource_mut::<FirstSessionGuidance>(); g.dismissed = true; g.harvests_completed = 1; }
+        app.update(); app.update(); app.update(); app.world_mut().resource_mut::<PnTape>().0.clear();
+        let vis = |app: &mut App| *app.world_mut().query_filtered::<&Visibility, With<LivingPracticeStrip>>().single(app.world()).unwrap();
+        assert!(app.world().resource::<LivingPracticeLoop>().active && vis(&mut app) == Visibility::Visible, "PN1 warm-up: practice active through the real handoff, strip Visible");
+        let (v, h) = (Visibility::Visible, Visibility::Hidden); let mut care = None;
+        let want = [(v, false), (v, false), (h, true), (h, true), (v, true), (v, false), (h, true), (h, true), (v, true), (v, false), (h, true), (h, false), (h, false), (v, true), (v, false)];
+        for (i, exp) in want.iter().enumerate() {
+            match i + 1 {
+                3 => { app.insert_resource(PlacesPlate::default()); app.world_mut().resource_mut::<PlacesPlate>().open = true; }
+                5 => app.world_mut().resource_mut::<PlacesPlate>().open = false,
+                7 => care = Some(app.world_mut().spawn((HudSlab(ID_CARE_STRIP), Visibility::Visible, Node::default())).id()),
+                9 => { app.world_mut().despawn(care.unwrap()); }
+                11 => app.world_mut().resource_mut::<LivingPracticeLoop>().dismissed = true,
+                13 => app.world_mut().resource_mut::<PlacesPlate>().open = true,
+                14 => { app.world_mut().resource_mut::<PlacesPlate>().open = false; app.world_mut().resource_mut::<LivingPracticeLoop>().dismissed = false; }
+                _ => {}
+            }
+            app.update();
+            assert_eq!(vis(&mut app), exp.0, "PN1 final Visibility, step {}", i + 1);
+            match (i + 1, &app.world().resource::<HudYielded>().0) { (7, y) => assert!(y.contains(&ID_PRACTICE), "PN1 R2 yield, step 7"), (9, y) => assert!(y.is_empty(), "PN1 R2 released, step 9"), _ => {} }
+        }
+        assert_eq!(app.world().resource::<PnTape>().0, want, "PN1 tape (final Visibility, is_changed) per tick");
+    }
 }
