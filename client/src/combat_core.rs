@@ -128,7 +128,7 @@ pub fn tell_arm(armed: &mut bool, reach: bool, tell: bool) -> bool {
     tell_onset(armed, reach && (*armed || tell))
 }
 
-/// Dot i sits at angle TAU*i/N, radius `REACH`, around `PREDATOR_HOME`, at the ground lift.
+/// Dot i sits at angle TAU*i/N, radius `REACH`, around `PREDATOR_HOME`, at the ground lift; `home_shift` moves it to the live `fight_home(place)` (STAVEHOLD_FIGHT_HOME in Sanctuary).
 pub fn lunge_tell_ring() -> [Vec3; LUNGE_TELL_DOTS] {
     std::array::from_fn(|i| {
         let a = std::f32::consts::TAU * i as f32 / LUNGE_TELL_DOTS as f32;
@@ -139,11 +139,11 @@ pub fn lunge_tell_ring() -> [Vec3; LUNGE_TELL_DOTS] {
 
 /// RESPAWN-TELL-1 — the last stretch of the down clock, when the creature rises from the Place.
 pub const PREDATOR_TELL_SECS: f32 = 1.5;
-/// A ground pillar at `PREDATOR_HOME`: full height when the predator returns.
+/// A ground pillar at `PREDATOR_HOME`: full height when the predator returns; `home_shift` moves it to the live `fight_home(place)` (STAVEHOLD_FIGHT_HOME in Sanctuary).
 pub const RISE_TELL_RADIUS: f32 = 0.45;
 pub const RISE_TELL_HEIGHT: f32 = 1.7;
 
-/// The rising pillar at `PREDATOR_HOME`.
+/// The rising pillar at `PREDATOR_HOME`; `home_shift` moves it to the live `fight_home(place)` (STAVEHOLD_FIGHT_HOME in Sanctuary).
 #[derive(Component)]
 pub struct RiseTell;
 
@@ -515,7 +515,7 @@ fn spawn_lunge_tell(
     }
 }
 
-/// RESPAWN-TELL-1 — one hidden pillar at `PREDATOR_HOME`, primitive mesh and colour only.
+/// RESPAWN-TELL-1 — one hidden pillar at `PREDATOR_HOME`, primitive mesh and colour only; `home_shift` moves it to the live `fight_home(place)` (STAVEHOLD_FIGHT_HOME in Sanctuary).
 fn spawn_rise_tell(
     mut commands: Commands,
     (mut meshes, mut materials): (ResMut<Assets<Mesh>>, ResMut<Assets<StandardMaterial>>),
@@ -533,7 +533,7 @@ fn spawn_rise_tell(
     ));
 }
 
-/// CLEARED-STATE-1 — one hidden steady disc at `PREDATOR_HOME`, unlit Heartwood amber, no animation.
+/// CLEARED-STATE-1 — one hidden steady disc at `PREDATOR_HOME`, unlit Heartwood amber, no animation; `home_shift` moves it to the live `fight_home(place)` (STAVEHOLD_FIGHT_HOME in Sanctuary).
 fn spawn_cleared_tell(mut commands: Commands, (mut meshes, mut materials): (ResMut<Assets<Mesh>>, ResMut<Assets<StandardMaterial>>)) {
     commands.spawn((
         (Mesh3d(meshes.add(Cylinder::new(RISE_TELL_RADIUS, LUNGE_TELL_DOT_HEIGHT))), MeshMaterial3d(materials.add(StandardMaterial { base_color: crate::climate_plane::HEARTWOOD_AMBER_LAMP, unlit: true, ..default() }))),
