@@ -95,6 +95,15 @@ pub fn write_named(named: &str, contents: impl AsRef<[u8]>) -> std::io::Result<(
     write_last_good(&persist_path(named), contents.as_ref())
 }
 
+/// Synced replace at an explicit path: `<dest>.tmp`, `sync_all`, rename,
+/// parent sync on Unix. No `.bak` rule; callers keep their typed last-good check.
+pub fn replace_synced(dest: &Path, bytes: &[u8]) -> io::Result<()> {
+    ensure_parent(dest)?;
+    let tmp = live_stage_path(dest);
+    write_synced_temp(&tmp, bytes)?;
+    rename_synced(&tmp, dest)
+}
+
 /// Whether [`read_named`] can return this persist file.
 ///
 /// The live file counts when it parses as one JSON value

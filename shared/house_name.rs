@@ -379,12 +379,9 @@ fn write_last_good(path: &Path, json: &str) -> std::io::Result<()> {
         }
     }
     if read_valid_house(path).is_some() {
-        fs::copy(path, sibling_path(path, ".bak"))?;
+        crate::user_persist::replace_synced(&sibling_path(path, ".bak"), &fs::read(path)?)?;
     }
-    let tmp = sibling_path(path, ".tmp");
-    fs::write(&tmp, json)?;
-    fs::rename(&tmp, path)?;
-    Ok(())
+    crate::user_persist::replace_synced(path, json.as_bytes())
 }
 
 fn mint_stable_local_seed(live: &Path) -> u64 {
