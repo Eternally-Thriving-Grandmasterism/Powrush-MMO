@@ -206,4 +206,34 @@ mod tests {
             assert!(!low.contains("xp"));
         }
     }
+
+    /// COMPASS-NEQ-1 CP1. Real HudLayoutPlugin: a steady slab stays unmarked; the R5 yield and the Classic clean hide still win, and restore wins (M7).
+    #[derive(Resource, Default)] struct CpTape(Vec<(Visibility, bool)>);
+    fn cp_tape(q: Query<Ref<Visibility>, With<CompassSlabRoot>>, mut t: ResMut<CpTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    #[test]
+    fn compass_neq_1_cp1_steady_slab_unmarked_yield_clean_and_restore_still_win() {
+        use crate::{hex_travel::PlacesPlate, hud_presets::{ActiveHudPreset, HudLayoutPlugin, HudPresetId, HudYielded}, title_screen::LaunchDoor};
+        let (v, h) = (Visibility::Visible, Visibility::Hidden);
+        // Actions: 0 none, 1 last = Some, 2 last = None, 3 Places open, 4 Places closed.
+        let run = |preset: HudPresetId, steps: &[(u8, (Visibility, bool))]| {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, HudLayoutPlugin)).insert_resource(ActiveHudPreset { id: Some(preset) }).insert_resource(LaunchDoor::InYard).init_resource::<CompassYard>().init_resource::<PlacesPlate>().init_resource::<CpTape>().add_systems(Startup, spawn_compass_slab).add_systems(Update, update_compass_slab).add_systems(Last, cp_tape);
+            app.update(); app.update(); app.world_mut().resource_mut::<CpTape>().0.clear();
+            for (i, (act, want)) in steps.iter().enumerate() {
+                match act {
+                    1 => app.world_mut().resource_mut::<CompassYard>().last = Some("Compass · 20"),
+                    2 => app.world_mut().resource_mut::<CompassYard>().last = None,
+                    3 | 4 => app.world_mut().resource_mut::<PlacesPlate>().open = *act == 3,
+                    _ => {}
+                }
+                app.update();
+                assert_eq!(*app.world_mut().query_filtered::<&Visibility, With<CompassSlabRoot>>().single(app.world()).unwrap(), want.0, "CP1 {preset:?} final Visibility, step {}", i + 1);
+                if preset == HudPresetId::Classic { assert!(app.world().resource::<HudYielded>().0.is_empty(), "CP1 C: the clean hide is not R2, step {}", i + 1); }
+            }
+            (app.world().resource::<CpTape>().0.clone(), steps.iter().map(|s| s.1).collect::<Vec<_>>())
+        };
+        let m = run(HudPresetId::Management, &[(0, (h, false)), (0, (h, false)), (1, (v, true)), (0, (v, false)), (3, (h, true)), (0, (h, true)), (4, (v, true)), (0, (v, false)), (2, (h, true)), (3, (h, false)), (4, (h, false))]);
+        let c = run(HudPresetId::Classic, &[(0, (h, false)), (1, (h, true)), (0, (h, true)), (2, (h, true)), (0, (h, false))]);
+        assert_eq!((m.0, c.0), (m.1, c.1), "CP1 tapes (Case M, Case C): (final Visibility, is_changed) per tick");
+    }
 }
