@@ -200,10 +200,9 @@ mod tests {
     }
     #[test] fn toast_vis_neq_1_tv3_whisper_direct_hidden_restored_once() { let mut app = tv_app(None); tv_show(&mut app); tv_run(&mut app, 2); tv_hide(&mut app); assert_eq!(tv_run(&mut app, 2), vec![(TV, true), (TV, false)], "TV3 whisper direct Hidden write: restored once, then quiet"); }
     #[test] fn toast_vis_neq_1_tv4_whisper_real_hud_layout() {
-        use crate::hud_presets::HudPresetId::{Classic, Management};
-        let mut app = tv_app(Some(Classic)); tv_show(&mut app);
+        let mut app = tv_app(Some(crate::hud_presets::HudPresetId::Classic)); tv_show(&mut app);
         assert_eq!(tv_run(&mut app, 2), vec![(TH, true); 2], "TV4 Classic InYard showing: clean-hidden, changed every frame on main and branch alike");
-        let mut app = tv_app(Some(Management));
+        let mut app = tv_app(Some(crate::hud_presets::HudPresetId::Management));
         assert_eq!(tv_run(&mut app, 2), vec![(TH, false); 2], "TV4 Management not showing: quiet");
         tv_show(&mut app); tv_run(&mut app, 1);
         assert_eq!(tv_run(&mut app, 2), vec![(TV, false); 2], "TV4 Management showing: steady Visible, quiet");

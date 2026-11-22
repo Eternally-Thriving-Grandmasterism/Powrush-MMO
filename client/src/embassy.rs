@@ -513,12 +513,11 @@ mod tests {
     }
     #[test] fn toast_vis_neq_1_tv14_embassy_direct_hidden_restored_once() { let mut app = tv_app(None); tv_hide(&mut app); assert_eq!(tv_run(&mut app, 2), vec![(TV, true), (TV, false)], "TV14 embassy direct Hidden write: restored once, then quiet"); }
     #[test] fn toast_vis_neq_1_tv15_embassy_real_hud_layout() {
-        use crate::hud_presets::HudPresetId::{Classic, Management, Minimal};
-        let mut app = tv_app(Some(Classic));
+        let mut app = tv_app(Some(crate::hud_presets::HudPresetId::Classic));
         assert_eq!(tv_run(&mut app, 3), vec![(TH, true); 3], "TV15 Classic InYard lamp live: clean-hidden, changed every frame on main and branch alike");
-        let mut app = tv_app(Some(Management));
+        let mut app = tv_app(Some(crate::hud_presets::HudPresetId::Management));
         assert_eq!(tv_run(&mut app, 3), vec![(TV, false); 3], "TV15 Management: steady Visible, quiet");
-        let mut app = tv_app(Some(Minimal)); app.insert_resource(crate::title_screen::LaunchDoor::Title);
+        let mut app = tv_app(Some(crate::hud_presets::HudPresetId::Minimal)); app.insert_resource(crate::title_screen::LaunchDoor::Title);
         assert!(tv_run(&mut app, 2).iter().all(|r| r.0 == TH), "TV15 Minimal off the yard door: R5 hides the band");
     }
 }

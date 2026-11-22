@@ -410,10 +410,9 @@ mod tests {
     }
     #[test] fn toast_vis_neq_1_tv7_thriving_direct_hidden_restored_once() { let mut app = tv_app(None); tv_current(&mut app, Some(ThrivingKind::FirstShare)); tv_run(&mut app, 2); tv_hide(&mut app); assert_eq!(tv_run(&mut app, 2), vec![(TV, true), (TV, false)], "TV7 thriving direct Hidden write: restored once, then quiet"); }
     #[test] fn toast_vis_neq_1_tv8_thriving_real_hud_layout_with_tick() {
-        use crate::hud_presets::HudPresetId::{Classic, Management};
-        let mut app = tv_app(Some(Classic)); tv_fire(&mut app);
+        let mut app = tv_app(Some(crate::hud_presets::HudPresetId::Classic)); tv_fire(&mut app);
         assert_eq!(tv_run(&mut app, 2), vec![(TH, true); 2], "TV8 Classic InYard current: clean-hidden, changed every frame on main and branch alike");
-        let mut app = tv_app(Some(Management)); tv_fire(&mut app); tv_run(&mut app, 1);
+        let mut app = tv_app(Some(crate::hud_presets::HudPresetId::Management)); tv_fire(&mut app); tv_run(&mut app, 1);
         assert_eq!(tv_run(&mut app, 2), vec![(TV, false); 2], "TV8 Management current: steady Visible, quiet");
         app.world_mut().spawn((Node::default(), Visibility::Visible, HudSlab(crate::hud_anchor_registry::ID_PULSE)));
         tv_run(&mut app, 1); let before = app.world().resource::<ThrivingMoments>().display_until;
