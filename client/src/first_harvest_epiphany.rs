@@ -2186,4 +2186,74 @@ mod tests {
     #[test] fn hud_plate_hp2_d_care_prompt_corner_is_one_at_spawned_font() { let mut app = hp2_ui(1280, 720, 1.); (app.update(), app.update()); let root = hp2_root(&mut app); let n = app.world().get::<ComputedNode>(root).unwrap(); let pad = n.padding_box().size() * n.inverse_scale_factor;
         assert!(pad.x >= 24. && pad.y >= 24. && (pad / crate::ui_frame::FRAME_PX as f32).min_element().min(crate::ui_frame::frame_slicer().max_corner_scale) == 1., "HP2-d care_prompt {pad}");
     }
+
+    /// FIRST-HARVEST-SLAB-NEQ-1 FH1–FH11. Last tapes of (value, is_changed) on the care, pulse and welcome roots plus Welcome's (BorderColor, changed, BackgroundColor, changed); 100 ms manual steps.
+    type FhVis = Vec<(Visibility, bool)>;
+    #[derive(Resource, Default)] struct FhTape(FhVis, FhVis, FhVis, Vec<(BorderColor, bool, BackgroundColor, bool)>);
+    fn fh_tape(c: Query<Ref<Visibility>, With<WorldCarePromptRoot>>, p: Query<Ref<Visibility>, With<HarvestPulseRoot>>, w: Query<(Ref<Visibility>, Ref<BorderColor>, Ref<BackgroundColor>), With<WelcomeBackRoot>>, mut t: ResMut<FhTape>) {
+        t.0.extend(c.iter().map(|v| (*v, v.is_changed()))); t.1.extend(p.iter().map(|v| (*v, v.is_changed())));
+        for (v, b, g) in &w { t.2.push((*v, v.is_changed())); t.3.push((*b, b.is_changed(), *g, g.is_changed())); }
+    }
+    /// (A) care_prompt_yield_1's resources (in range, care strip inactive) on (B) spawn_lived_surfaces with the three systems chained; `hud` adds (C) HudLayoutPlugin, Classic, InYard.
+    fn fh_app(hud: bool) -> App {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins).init_resource::<FirstHarvestEpiphany>().init_resource::<FirstSessionGuidance>().insert_resource(NearbyMercyNode { in_range: true, nodes_exist: true, ..default() }).insert_resource(CareCycleOffer::default()).init_resource::<FhTape>()
+            .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(100))).add_systems(Startup, spawn_lived_surfaces).add_systems(Update, (update_world_care_prompt, update_harvest_pulse, update_welcome_back).chain()).add_systems(Last, fh_tape);
+        if hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(crate::hud_presets::HudPresetId::Classic) }).insert_resource(crate::title_screen::LaunchDoor::InYard); }
+        app.update(); app.update(); app.world_mut().insert_resource(FhTape::default()); app
+    }
+    fn fh_run(app: &mut App, n: usize) -> FhTape { for _ in 0..n { app.update(); } std::mem::take(&mut *app.world_mut().resource_mut::<FhTape>()) }
+    fn fh_now(app: &App) -> f64 { app.world().resource::<Time>().elapsed_secs_f64() }
+    fn fh_hide<R: Component>(app: &mut App) { let e = app.world_mut().query_filtered::<Entity, With<R>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden; }
+    /// Welcome rest is its spawn pair: BorderColor::all(TITLE_BORDER.with_alpha(0.40)), BackgroundColor(TITLE_PLATE_BG).
+    fn fh_rest() -> (BorderColor, bool, BackgroundColor, bool) { (BorderColor::all(TITLE_BORDER.with_alpha(0.40)), false, BackgroundColor(TITLE_PLATE_BG), false) }
+    fn fh_pulse(app: &mut App) { let until = fh_now(app) + PULSE_SECS; let mut e = app.world_mut().resource_mut::<FirstHarvestEpiphany>(); (e.pulse_line, e.pulse_until) = ("x".into(), until); }
+    fn fh_welcome(app: &mut App, glow: f32) { let until = fh_now(app) + WELCOME_SECS; let mut e = app.world_mut().resource_mut::<FirstHarvestEpiphany>(); (e.welcome_shown, e.welcome_until, e.welcome_glow) = (true, Some(until), glow); }
+    const FV: Visibility = Visibility::Visible;
+    const FH: Visibility = Visibility::Hidden;
+    #[test] fn first_harvest_slab_neq_1_fh1_care_steady_unmarked() { let mut app = fh_app(false); assert_eq!(fh_run(&mut app, 3).0, vec![(FV, false); 3], "FH1 care steady: Visible, unchanged"); }
+    #[test] fn first_harvest_slab_neq_1_fh2_care_flip_marks_once_each_way() {
+        let mut app = fh_app(false); app.world_mut().resource_mut::<CareCycleOffer>().active = true;
+        assert_eq!(fh_run(&mut app, 2).0, vec![(FH, true), (FH, false)], "FH2 care strip active: Hidden once, then quiet");
+        app.world_mut().resource_mut::<CareCycleOffer>().active = false;
+        assert_eq!(fh_run(&mut app, 2).0, vec![(FV, true), (FV, false)], "FH2 care strip inactive: Visible once, then quiet");
+    }
+    #[test] fn first_harvest_slab_neq_1_fh3_care_direct_hidden_restored_once() { let mut app = fh_app(false); fh_hide::<WorldCarePromptRoot>(&mut app); assert_eq!(fh_run(&mut app, 2).0, vec![(FV, true), (FV, false)], "FH3 care direct Hidden write: restored once, then quiet"); }
+    #[test] fn first_harvest_slab_neq_1_fh4_pulse_steady_hidden_unmarked() { let mut app = fh_app(false); assert_eq!(fh_run(&mut app, 3).1, vec![(FH, false); 3], "FH4 pulse steady: Hidden, unchanged"); }
+    #[test] fn first_harvest_slab_neq_1_fh5_pulse_live_then_expiry_marks_once_each() {
+        let mut app = fh_app(false); fh_pulse(&mut app);
+        assert_eq!(fh_run(&mut app, 2).1, vec![(FV, true), (FV, false)], "FH5 pulse live: Visible once, then quiet");
+        let t = fh_run(&mut app, 45).1; let k = t.iter().position(|r| r.0 == FH).expect("FH5 pulse expires");
+        assert_eq!(t, [vec![(FV, false); k], vec![(FH, true)], vec![(FH, false); 44 - k]].concat(), "FH5 pulse expiry: Hidden once, then quiet");
+    }
+    #[test] fn first_harvest_slab_neq_1_fh6_pulse_direct_hidden_restored_once() { let mut app = fh_app(false); fh_pulse(&mut app); fh_run(&mut app, 2); fh_hide::<HarvestPulseRoot>(&mut app); assert_eq!(fh_run(&mut app, 2).1, vec![(FV, true), (FV, false)], "FH6 pulse direct Hidden write: restored once, then quiet"); }
+    #[test] fn first_harvest_slab_neq_1_fh7_welcome_steady_hidden_unmarked() { let mut app = fh_app(false); let t = fh_run(&mut app, 3); assert_eq!((t.2, t.3), (vec![(FH, false); 3], vec![fh_rest(); 3]), "FH7 welcome steady hidden: Visibility quiet, no colour write"); }
+    #[test] fn first_harvest_slab_neq_1_fh8_welcome_shown_at_rest_quiet() {
+        let mut app = fh_app(false); fh_welcome(&mut app, 0.0);
+        assert_eq!(fh_run(&mut app, 1).2, vec![(FV, true)], "FH8 welcome show edge");
+        let t = fh_run(&mut app, 3); assert_eq!((t.2, t.3), (vec![(FV, false); 3], vec![fh_rest(); 3]), "FH8 welcome shown at rest: Visibility and both colours quiet, rest equals spawn");
+    }
+    #[test] fn first_harvest_slab_neq_1_fh9_welcome_glow_changes_each_frame_then_quiet() {
+        let mut app = fh_app(false); fh_welcome(&mut app, 1.0); let t = fh_run(&mut app, 30);
+        let k = t.3.iter().position(|r| !r.1 && !r.3).expect("FH9 glow settles to quiet rest");
+        assert!(k > 1 && t.3[..k].iter().all(|r| r.1 && r.3) && t.3[k..] == vec![fh_rest(); 30 - k][..], "FH9 colours change every breath frame, then rest quiet");
+        assert_eq!(t.2, [vec![(FV, true)], vec![(FV, false); 29]].concat(), "FH9 Visibility quiet after the show edge");
+    }
+    #[test] fn first_harvest_slab_neq_1_fh10_welcome_direct_hidden_restored_once() {
+        let mut app = fh_app(false); fh_welcome(&mut app, 0.0); fh_run(&mut app, 2); fh_hide::<WelcomeBackRoot>(&mut app);
+        let t = fh_run(&mut app, 2); assert_eq!((t.2, t.3), (vec![(FV, true), (FV, false)], vec![fh_rest(); 2]), "FH10 welcome direct Hidden write: restored once, then quiet; colours at rest");
+    }
+    #[test] fn first_harvest_slab_neq_1_fh11_real_hud_layout_classic_in_yard() {
+        let mut app = fh_app(true);
+        assert_eq!(fh_run(&mut app, 2).0, vec![(FV, false); 2], "FH11 care steady under Classic InYard");
+        fh_pulse(&mut app); fh_welcome(&mut app, 0.0);
+        let t = fh_run(&mut app, 2); assert_eq!((t.0, t.1, t.2), (vec![(FV, false); 2], vec![(FH, true); 2], vec![(FH, true); 2]), "FH11 pulse and welcome clean-hidden, changed every frame on main and branch alike");
+        app.insert_resource(crate::title_screen::HouseLabel { settings_open: true, ..default() });
+        let t = fh_run(&mut app, 2); assert!(t.0 == vec![(FH, true); 2] && t.1.iter().chain(&t.2).all(|r| r.0 == FH), "FH11 settings open hides all three");
+        app.world_mut().resource_mut::<crate::title_screen::HouseLabel>().settings_open = false;
+        assert_eq!(fh_run(&mut app, 2).0, vec![(FV, true), (FV, false)], "FH11 settings close: care restored once, then quiet");
+        app.world_mut().resource_mut::<crate::hud_presets::ActiveHudPreset>().id = Some(crate::hud_presets::HudPresetId::Management);
+        let t = fh_run(&mut app, 2); let yielded = app.world().resource::<crate::hud_presets::HudYielded>().0.contains(&WELCOME.id);
+        assert_eq!((t.1.last().unwrap().0, t.2.last().unwrap().0, yielded), (FV, FH, true), "FH11 Management: Welcome yields by R2 into HudYielded, Pulse Visible");
+    }
 }
