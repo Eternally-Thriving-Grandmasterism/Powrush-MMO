@@ -398,11 +398,7 @@ fn update_climate_state_slab(
         0.0
     });
     for (mut vis, mut border, mut bg) in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
         if show {
             // Same well_glow rim lift; Peace rest colors stay on this slab.
             // Reduced motion (Comfort Low sets the flag) holds that lift at rest.
