@@ -403,11 +403,7 @@ fn update_allocate_visibility(
 ) {
     let show = allocate.panel_open;
     for mut vis in &mut q {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
@@ -801,5 +797,35 @@ mod tests {
     }
     #[test] fn hud_plate_hp2_d_allocate_corner_is_one_at_spawned_font() { let mut app = hp2_ui(1280, 720, 1.); (app.update(), app.update()); let root = hp2_root(&mut app); let n = app.world().get::<ComputedNode>(root).unwrap(); let pad = n.padding_box().size() * n.inverse_scale_factor;
         assert!(pad.x >= 24. && pad.y >= 24. && (pad / crate::ui_frame::FRAME_PX as f32).min_element().min(crate::ui_frame::frame_slicer().max_corner_scale) == 1., "HP2-d allocate {pad}");
+    }
+
+    /// PANEL-VIS-NEQ-1 PV12–PV15. Last tape of (Visibility, changed) on AllocatePanelRoot; settle 2 then clear.
+    #[derive(Resource, Default)] struct PvTape(Vec<(Visibility, bool)>);
+    fn pv_tape(q: Query<Ref<Visibility>, With<AllocatePanelRoot>>, mut t: ResMut<PvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn pv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<PvTape>().0) }
+    fn pv_settle(mut app: App) -> App { app.update(); app.update(); app.world_mut().resource_mut::<PvTape>().0.clear(); app }
+    fn pv_set(app: &mut App, v: Visibility) { let e = app.world_mut().query_filtered::<Entity, With<AllocatePanelRoot>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = v; }
+    const PV: Visibility = Visibility::Visible;
+    const PH: Visibility = Visibility::Hidden;
+    fn pv_app(open: bool, hud: Option<(crate::hud_presets::HudPresetId, crate::title_screen::LaunchDoor)>) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).insert_resource(RbeAllocateChoice { panel_open: open, ..Default::default() }).init_resource::<PvTape>().add_systems(Startup, spawn_allocate_panel).add_systems(Update, update_allocate_visibility).add_systems(Last, pv_tape);
+        if let Some((id, door)) = hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(id) }).insert_resource(door).init_resource::<crate::hex_travel::PlacesPlate>(); }
+        pv_settle(app)
+    }
+    fn pv_open(app: &mut App, open: bool) { app.world_mut().resource_mut::<RbeAllocateChoice>().panel_open = open; }
+    #[test] fn panel_vis_neq_1_pv12_allocate_closed_steady_unmarked() { let mut app = pv_app(false, None); assert_eq!(pv_run(&mut app, 3), vec![(PH, false); 3], "PV12 allocate closed steady hidden"); }
+    #[test] fn panel_vis_neq_1_pv13_allocate_open_close_once_each() {
+        let mut app = pv_app(false, None); pv_open(&mut app, true);
+        assert_eq!(pv_run(&mut app, 2), vec![(PV, true), (PV, false)], "PV13 allocate opens: Visible once, then quiet");
+        pv_open(&mut app, false);
+        assert_eq!(pv_run(&mut app, 2), vec![(PH, true), (PH, false)], "PV13 allocate closes: Hidden once, then quiet");
+    }
+    #[test] fn panel_vis_neq_1_pv14_allocate_direct_hidden_restored_once() { let mut app = pv_app(true, None); pv_set(&mut app, PH); assert_eq!(pv_run(&mut app, 2), vec![(PV, true), (PV, false)], "PV14 allocate direct Hidden write while open: restored once, then quiet"); }
+    #[test] fn panel_vis_neq_1_pv15_allocate_real_hud_layout() {
+        let mut app = pv_app(true, Some((crate::hud_presets::HudPresetId::Management, crate::title_screen::LaunchDoor::InYard)));
+        assert_eq!(pv_run(&mut app, 2), vec![(PV, false); 2], "PV15 Management InYard open: steady Visible, quiet");
+        app.insert_resource(crate::title_screen::HouseLabel { house: shared::house_name::HouseName::default(), persist_present: false, hour_two_held: false, book_held: false, settings_open: true, draft: String::new(), naming_offered: false, seals_offered: false });
+        assert_eq!(pv_run(&mut app, 2), vec![(PH, true); 2], "PV15 settings open (R5 pause): Hidden, changed every frame on main and branch alike");
     }
 }

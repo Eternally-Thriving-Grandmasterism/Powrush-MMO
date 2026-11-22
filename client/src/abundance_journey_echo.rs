@@ -323,11 +323,7 @@ fn update_echo_visibility(
     mut q: Query<&mut Visibility, With<JourneyEchoRoot>>,
 ) {
     for mut vis in &mut q {
-        *vis = if echo.panel_open {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if echo.panel_open { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
@@ -700,5 +696,37 @@ mod tests {
         let mut app = hp3_bare(false); let root = hp3_root(&mut app); let w = app.world();
         assert_eq!(w.get::<Children>(root).unwrap().iter().map(|c| (w.get::<Text>(c).is_some(), w.get::<ImageNode>(c).is_some())).collect::<Vec<_>>(), vec![(true, false); 3], "HP3-d journey");
         let w = app.world_mut(); assert_eq!(w.query::<&ImageNode>().iter(w).count(), 1, "HP3-d root count");
+    }
+
+    /// PANEL-VIS-NEQ-1 PV1–PV4. Last tape of (Visibility, changed) on JourneyEchoRoot; settle 2 then clear. No journey file I/O.
+    #[derive(Resource, Default)] struct PvTape(Vec<(Visibility, bool)>);
+    fn pv_tape(q: Query<Ref<Visibility>, With<JourneyEchoRoot>>, mut t: ResMut<PvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn pv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<PvTape>().0) }
+    fn pv_settle(mut app: App) -> App { app.update(); app.update(); app.world_mut().resource_mut::<PvTape>().0.clear(); app }
+    fn pv_set(app: &mut App, v: Visibility) { let e = app.world_mut().query_filtered::<Entity, With<JourneyEchoRoot>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = v; }
+    const PV: Visibility = Visibility::Visible;
+    const PH: Visibility = Visibility::Hidden;
+    fn pv_app(open: bool, hud: Option<(crate::hud_presets::HudPresetId, crate::title_screen::LaunchDoor)>) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).insert_resource(AbundanceJourneyEcho { panel_open: open, ..Default::default() }).init_resource::<PvTape>().add_systems(Startup, spawn_echo_panel).add_systems(Update, update_echo_visibility).add_systems(Last, pv_tape);
+        if let Some((id, door)) = hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(id) }).insert_resource(door).init_resource::<crate::hex_travel::PlacesPlate>(); }
+        pv_settle(app)
+    }
+    fn pv_open(app: &mut App, open: bool) { app.world_mut().resource_mut::<AbundanceJourneyEcho>().panel_open = open; }
+    #[test] fn panel_vis_neq_1_pv1_journey_closed_steady_unmarked() { let mut app = pv_app(false, None); assert_eq!(pv_run(&mut app, 3), vec![(PH, false); 3], "PV1 journey closed steady hidden"); }
+    #[test] fn panel_vis_neq_1_pv2_journey_open_close_once_each() {
+        let mut app = pv_app(false, None); pv_open(&mut app, true);
+        assert_eq!(pv_run(&mut app, 2), vec![(PV, true), (PV, false)], "PV2 journey opens: Visible once, then quiet");
+        pv_open(&mut app, false);
+        assert_eq!(pv_run(&mut app, 2), vec![(PH, true), (PH, false)], "PV2 journey closes: Hidden once, then quiet");
+    }
+    #[test] fn panel_vis_neq_1_pv3_journey_direct_hidden_restored_once() { let mut app = pv_app(true, None); pv_set(&mut app, PH); assert_eq!(pv_run(&mut app, 2), vec![(PV, true), (PV, false)], "PV3 journey direct Hidden write while open: restored once, then quiet"); }
+    #[test] fn panel_vis_neq_1_pv4_journey_real_hud_layout() {
+        let mut app = pv_app(true, Some((crate::hud_presets::HudPresetId::Classic, crate::title_screen::LaunchDoor::InYard)));
+        assert_eq!(pv_run(&mut app, 2), vec![(PV, false); 2], "PV4 Classic InYard open: steady Visible, quiet (Push, never yields)");
+        app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = true;
+        assert_eq!(pv_run(&mut app, 2), vec![(PH, true); 2], "PV4 Places open (R5): Hidden, changed every frame on main and branch alike");
+        app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = false;
+        assert_eq!(pv_run(&mut app, 2), vec![(PV, true), (PV, false)], "PV4 Places closed: restored once, then quiet");
     }
 }
