@@ -307,30 +307,26 @@ fn update_fab_slab(
     let show = hour.charter_skin_live() && factory.factory.tutorial_complete();
     let glow = yard.bench_glow;
     for (mut vis, mut border, mut bg) in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
         if show {
             // VP-SLABS-REGAL-1 (#643 pattern): rest on the title palette; the
             // bench_glow lift rides in rgb (capped per channel), rim alpha 1.0.
             let rim = TITLE_BORDER.to_srgba();
             let plate = TITLE_PLATE_BG.to_srgba();
-            *border = Color::srgba(
+            border.set_if_neq(Color::srgba(
                 (rim.red + glow * 0.18).min(1.0),
                 (rim.green + glow * 0.22).min(1.0),
                 rim.blue, // no blue lift on the rim, as before
                 1.0,
             )
-            .into();
-            *bg = Color::srgba(
+            .into());
+            bg.set_if_neq(Color::srgba(
                 (plate.red + glow * 0.10).min(1.0),
                 (plate.green + glow * 0.08).min(1.0),
                 (plate.blue + glow * 0.12).min(1.0),
                 1.0,
             )
-            .into();
+            .into());
         }
     }
     if !show {
