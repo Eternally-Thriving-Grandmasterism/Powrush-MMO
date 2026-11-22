@@ -330,6 +330,14 @@ fn use_key_label(settings: Option<&LocalSettingsState>) -> &'static str {
         .display_label()
 }
 
+/// CARD KEY-HINTS-SYNC-1 — the live Allocate key, twin of [`use_key_label`].
+fn alloc_key_label(settings: Option<&LocalSettingsState>) -> &'static str {
+    settings
+        .map(|s| s.inner.key_allocate)
+        .unwrap_or_else(|| shared::local_settings::LocalSettings::default().key_allocate)
+        .display_label()
+}
+
 /// CARD INTERACT-PROMPT-1 — in-range line `[<key>] Use · name · caption · hint`.
 /// One Use-key token per line: a hint that opens on the fixed "E " (the shared
 /// Glowing hand hint "E tend") hands its key over to the live label.
@@ -438,10 +446,11 @@ fn update_climate_state_slab(
                     .as_ref()
                     .and_then(|c| c.sentence_for(n.climate_id))
                     .unwrap_or(state.hand_hint());
+                let hint = hint.replace("R 1 flow", &format!("{} 1 flow", alloc_key_label(settings.as_deref())));
                 let mut line = in_range_use_line(
                     n.name,
                     &place_color_well_caption(state, shapes, place),
-                    hint,
+                    &hint,
                     use_key_label(settings.as_deref()),
                 );
                 if let Some(slab) = bind.climate_slab.as_deref() {

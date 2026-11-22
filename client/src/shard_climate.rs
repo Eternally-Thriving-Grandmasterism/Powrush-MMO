@@ -37,7 +37,7 @@ impl Plugin for ShardClimatePlugin {
             .add_systems(
                 Update,
                 (
-                    hold_e_care_tend,
+                    hold_e_care_tend.after(crate::input::InputMapSet).before(crate::feel_move::raise_buffered_use),
                     paint_climate_feel.in_set(FogWriteSet::ClimateFeel),
                     persist_climate_on_escape,
                 ),
@@ -48,6 +48,7 @@ impl Plugin for ShardClimatePlugin {
 
 fn hold_e_care_tend(
     keyboard: Res<ButtonInput<KeyCode>>,
+    input: Option<Res<crate::input::PlayerInput>>,
     nearby: Res<NearbyMercyNode>,
     epiphany: Option<Res<crate::first_harvest_epiphany::FirstHarvestEpiphany>>,
     mut bind: ResMut<LivedHourBind>,
@@ -64,13 +65,13 @@ fn hold_e_care_tend(
         .as_ref()
         .map(|e| e.tends_this_session)
         .unwrap_or(0);
-    let pressing = keyboard.pressed(soft_play_bindings::INTERACT);
+    let pressing = keyboard.pressed(soft_play_bindings::INTERACT) || input.as_ref().is_some_and(|i| i.interact_held);
     if session_dress_claims_use || !pressing || !nearby.in_range {
         hold.seconds = 0.0;
         hold.fired = false;
         return;
     }
-    if keyboard.just_pressed(soft_play_bindings::INTERACT) {
+    if keyboard.just_pressed(soft_play_bindings::INTERACT) || input.as_ref().is_some_and(|i| i.interact) {
         hold.seconds = 0.0;
         hold.fired = false;
         return;
@@ -411,6 +412,9 @@ mod tests {
             let before = app.world().resource::<super::CareTendHold>().seconds; assert!(before > 0.0, "KH-O primed {before}");
             app.world_mut().resource_mut::<crate::feel_move::SimUsePulse>().fire = true; app.update();
             let after = app.world().resource::<super::CareTendHold>().seconds; assert!(after > before, "KH-O buffered Use reset the shard hold {before} -> {after}");
+            use bevy::ecs::system::IntoSystem as Sys;
+            let (i, r, b) = (crate::heartwood_plaque::kh_sync::ord(&mut app, Sys::system_type_id(&crate::input::handle_player_input)), crate::heartwood_plaque::kh_sync::ord(&mut app, Sys::system_type_id(&super::hold_e_care_tend)), crate::heartwood_plaque::kh_sync::ord(&mut app, Sys::system_type_id(&crate::feel_move::raise_buffered_use)));
+            assert!(i < r && r < b, "KH-O order {i} {r} {b}");
         });
     }
 }

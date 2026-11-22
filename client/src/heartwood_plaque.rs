@@ -24,7 +24,7 @@ pub struct HeartwoodPlaquePlugin;
 impl Plugin for HeartwoodPlaquePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PlaqueSession>().add_systems(Startup, spawn_plaque_slab).add_systems(PreUpdate, mark_plaque_near)
-            .add_systems(Update, (handle_plaque, update_plaque_slab).chain());
+            .add_systems(Update, (handle_plaque, update_plaque_slab).chain().after(crate::input::InputMapSet).before(crate::feel_move::raise_buffered_use));
     }
 }
 
@@ -60,10 +60,10 @@ fn mark_plaque_near(
     }
 }
 
-fn handle_plaque(keyboard: Res<ButtonInput<KeyCode>>, mut session: ResMut<PlaqueSession>) {
+fn handle_plaque(keyboard: Res<ButtonInput<KeyCode>>, input: Option<Res<crate::input::PlayerInput>>, mut session: ResMut<PlaqueSession>) {
     if !session.near {
         if session.open { session.open = false; }
-    } else if keyboard.just_pressed(soft_play_bindings::INTERACT) {
+    } else if keyboard.just_pressed(soft_play_bindings::INTERACT) || input.as_ref().is_some_and(|i| i.interact) {
         session.open = !session.open;
     }
 }
@@ -195,6 +195,9 @@ mod tests {
         let mut app = at_pad(shared::local_settings::LocalSettings::peace_defaults()); app.update(); assert!(!open(&app));
         app.world_mut().resource_mut::<crate::feel_move::SimUsePulse>().fire = true; app.update();
         assert!(!open(&app), "KH-O buffered Use does not toggle the plaque");
+        use bevy::ecs::system::IntoSystem as Sys;
+        let (i, r, b) = (super::kh_sync::ord(&mut app, Sys::system_type_id(&crate::input::handle_player_input)), super::kh_sync::ord(&mut app, Sys::system_type_id(&handle_plaque)), super::kh_sync::ord(&mut app, Sys::system_type_id(&crate::feel_move::raise_buffered_use)));
+        assert!(i < r && r < b, "KH-O order {i} {r} {b}");
     }
 }
 
@@ -208,4 +211,8 @@ pub(crate) mod kh_sync {
     }
     pub(crate) fn south(app: &mut App) -> Entity { let mut pad = Gamepad::default(); pad.digital_mut().press(GamepadButton::South); app.world_mut().spawn(pad).id() }
     pub(crate) fn key_f(app: &mut App) { app.world_mut().write_message(bevy::input::keyboard::KeyboardInput { key_code: KeyCode::KeyF, logical_key: bevy::input::keyboard::Key::Character("f".into()), state: bevy::input::ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER }); }
+    pub(crate) fn ord(app: &mut App, id: std::any::TypeId) -> usize {
+        use bevy::ecs::system::System;
+        app.world_mut().resource_mut::<bevy::ecs::schedule::Schedules>().get_mut(Update).unwrap().systems().unwrap().position(|(_, s)| System::system_type(&**s) == id).expect("missing")
+    }
 }

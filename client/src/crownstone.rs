@@ -32,7 +32,7 @@ impl Plugin for CrownstonePlugin {
         app.init_resource::<CrownstoneYard>()
             .add_systems(Startup, spawn_crownstone_slab)
             .add_systems(PreUpdate, mark_crownstone_near)
-            .add_systems(Update, (handle_crownstone, update_crownstone_slab));
+            .add_systems(Update, (handle_crownstone, update_crownstone_slab).after(crate::input::InputMapSet).before(crate::feel_move::raise_buffered_use));
     }
 }
 
@@ -88,6 +88,7 @@ fn mark_crownstone_near(
 
 fn handle_crownstone(
     keyboard: Res<ButtonInput<KeyCode>>,
+    input: Option<Res<crate::input::PlayerInput>>,
     hour: Res<HourSacred>,
     embassy: Res<EmbassyYard>,
     voice: Res<VoiceYard>,
@@ -103,7 +104,7 @@ fn handle_crownstone(
     if voice.sash_open || ledger.sash_open {
         return;
     }
-    if !keyboard.just_pressed(soft_play_bindings::INTERACT) {
+    if !(keyboard.just_pressed(soft_play_bindings::INTERACT) || input.as_ref().is_some_and(|i| i.interact)) {
         return;
     }
     let step = yard.stone.witness();
@@ -189,5 +190,15 @@ mod tests {
         let mut app = crown_app(LocalSettings::peace_defaults()); app.update();
         let stone = &app.world().resource::<CrownstoneYard>().stone; assert!(!stone.witnessed && !stone.last_line.is_empty(), "C0");
         crate::heartwood_plaque::kh_sync::south(&mut app); app.update(); assert!(witnessed(&app), "KH-C");
+    }
+    /// KEY-HINTS-SYNC-1 KH-O. Crownstone reads after input and before the Use buffer.
+    #[test]
+    fn kh_o_crownstone_reads_between_input_and_buffer() {
+        use bevy::ecs::system::IntoSystem as Sys;
+        let mut app = crown_app(shared::local_settings::LocalSettings::peace_defaults()); app.update();
+        let i = crate::heartwood_plaque::kh_sync::ord(&mut app, Sys::system_type_id(&crate::input::handle_player_input));
+        let r = crate::heartwood_plaque::kh_sync::ord(&mut app, Sys::system_type_id(&handle_crownstone));
+        let b = crate::heartwood_plaque::kh_sync::ord(&mut app, Sys::system_type_id(&crate::feel_move::raise_buffered_use));
+        assert!(i < r && r < b, "KH-O order {i} {r} {b}");
     }
 }
