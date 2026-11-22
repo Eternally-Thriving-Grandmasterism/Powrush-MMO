@@ -1079,11 +1079,7 @@ pub(crate) fn update_guidance_visibility(
             &[(ID_CARE_STRIP, care_strip), (ID_CARE_PROMPT, care_prompt)],
         );
     for mut vis in &mut query {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
