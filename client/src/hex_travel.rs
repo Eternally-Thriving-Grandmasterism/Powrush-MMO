@@ -566,12 +566,8 @@ fn refresh_pause_places_row(
         && !plate.open
         && *door == LaunchDoor::InYard;
     for (mut style, mut vis) in &mut q {
-        style.display = if live { Display::Flex } else { Display::None };
-        *vis = if live {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        let display = if live { Display::Flex } else { Display::None }; if style.display != display { style.display = display; }
+        vis.set_if_neq(if live { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
