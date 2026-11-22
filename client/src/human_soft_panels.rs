@@ -208,18 +208,18 @@ fn update_soft_visibility(
     mut realm: Query<&mut Visibility, (With<RealmSoftRoot>, Without<MercySoftRoot>)>,
 ) {
     for mut vis in &mut mercy {
-        *vis = if panels.mercy_open {
+        vis.set_if_neq(if panels.mercy_open {
             Visibility::Visible
         } else {
             Visibility::Hidden
-        };
+        });
     }
     for mut vis in &mut realm {
-        *vis = if panels.realm_open {
+        vis.set_if_neq(if panels.realm_open {
             Visibility::Visible
         } else {
             Visibility::Hidden
-        };
+        });
     }
 }
 
@@ -392,5 +392,34 @@ mod tests {
             assert_eq!(w.get::<Children>(root).unwrap().iter().map(|c| (w.get::<Text>(c).is_some(), w.get::<ImageNode>(c).is_some())).collect::<Vec<_>>(), vec![(true, false); kids], "HP3-d mercy={mercy}");
         }
         let w = app.world_mut(); assert_eq!(w.query::<&ImageNode>().iter(w).count(), 2, "HP3-d root count");
+    }
+
+    /// SOFT-PANELS-NEQ-1 SN1–SN3. Last-schedule tape on hp3_open: per frame, (Visibility, is_changed) for [Mercy root, Realm root].
+    #[derive(Resource, Default)] struct SnTape(Vec<[(Visibility, bool); 2]>);
+    fn sn_tape(q: Query<(Ref<Visibility>, Has<MercySoftRoot>), Or<(With<MercySoftRoot>, With<RealmSoftRoot>)>>, mut t: ResMut<SnTape>) {
+        let mut f = [(Visibility::Inherited, false); 2];
+        for (v, m) in &q { f[usize::from(!m)] = (*v, v.is_changed()); }
+        t.0.push(f);
+    }
+    fn sn_app() -> App {
+        let mut app = hp3_open(1280, 720, 1., 1., true); app.init_resource::<SnTape>().add_systems(Last, sn_tape);
+        app.update(); app.world_mut().resource_mut::<SnTape>().0.clear(); app
+    }
+    fn sn_run(app: &mut App, n: usize) -> Vec<[(Visibility, bool); 2]> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<SnTape>().0) }
+    const SN_V: Visibility = Visibility::Visible;
+    const SN_H: Visibility = Visibility::Hidden;
+    #[test] fn soft_panels_neq_1_sn1_steady_panels_stay_unmarked() {
+        let mut app = sn_app();
+        assert_eq!(sn_run(&mut app, 4), vec![[(SN_V, false), (SN_H, false)]; 4], "SN1 steady: Mercy Visible, Realm Hidden, no is_changed after settle");
+    }
+    #[test] fn soft_panels_neq_1_sn2_flip_marks_one_frame_then_quiet() {
+        let mut app = sn_app();
+        *app.world_mut().resource_mut::<HumanSoftPanels>() = HumanSoftPanels { mercy_open: false, realm_open: true };
+        assert_eq!(sn_run(&mut app, 3), vec![[(SN_H, true), (SN_V, true)], [(SN_H, false), (SN_V, false)], [(SN_H, false), (SN_V, false)]], "SN2 flip: one changed frame with swapped values, then quiet");
+    }
+    #[test] fn soft_panels_neq_1_sn3_external_hide_while_open_is_restored() {
+        let mut app = sn_app(); let root = hp3_root(&mut app, true);
+        *app.world_mut().get_mut::<Visibility>(root).unwrap() = SN_H;
+        assert_eq!(sn_run(&mut app, 1)[0][0], (SN_V, true), "SN3 guard: Mercy hidden externally while open is restored Visible with is_changed");
     }
 }
