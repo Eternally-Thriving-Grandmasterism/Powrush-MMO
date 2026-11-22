@@ -10802,4 +10802,72 @@ mod tests {
         assert_eq!(online, vec![(None, TITLE_BTN_DISABLED_BG), (Some(crate::ui_frame::FRAME_IMAGE.id()), TITLE_BTN_DISABLED_BG)]);
         for label in ["Resume", "Title", "Quit"] { let e = bf2_btns(w).into_iter().find(|e| bf2_text(w, *e) == label).unwrap(); assert!(w.get::<ImageNode>(e).is_none(), "{label}"); }
     }
+
+    /// TITLE-PAUSE-VIS-NEQ-1 TS7–TS11. Last tape of (value, Visibility/Bg changed, Node/Border changed) on SettingsStubRoot, PauseTabPanel ×4,
+    /// PauseTabBtn ×4 and both ComfortGraphicsBannerRoot rows, over a MinimalPlugins app with the three sync systems; settle 2 then clear.
+    #[derive(Resource, Default)]
+    struct TsTape { stub: Vec<(Visibility, Display, bool, bool)>, panels: Vec<(PauseTab, Visibility, Display, bool, bool)>, btns: Vec<(PauseTab, Color, Color, bool, bool)>, banner: Vec<(bool, Visibility, Display, bool, bool)> }
+    #[allow(clippy::type_complexity)]
+    fn ts_tape(stub: Query<(Ref<Visibility>, Ref<Node>), With<SettingsStubRoot>>, panels: Query<(&PauseTabPanel, Ref<Visibility>, Ref<Node>)>, btns: Query<(&PauseTabBtn, Ref<BackgroundColor>, Ref<BorderColor>)>, banner: Query<(&ComfortGraphicsBannerRoot, Ref<Visibility>, Ref<Node>)>, mut t: ResMut<TsTape>) {
+        t.stub.extend(stub.iter().map(|(v, n)| (*v, n.display, v.is_changed(), n.is_changed())));
+        t.panels.extend(panels.iter().map(|(p, v, n)| (p.0, *v, n.display, v.is_changed(), n.is_changed())));
+        t.btns.extend(btns.iter().map(|(b, bg, br)| (b.0, bg.0, br.top, bg.is_changed(), br.is_changed())));
+        t.banner.extend(banner.iter().map(|(r, v, n)| (r.in_pause, *v, n.display, v.is_changed(), n.is_changed())));
+    }
+    fn ts_run(app: &mut App, n: usize) -> TsTape { for _ in 0..n { app.update(); } std::mem::take(&mut *app.world_mut().resource_mut::<TsTape>()) }
+    fn ts_app(door: LaunchDoor, settings_open: bool) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).insert_resource(door).insert_resource(bf2_house(settings_open)).insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).init_resource::<PersonaCreatorState>().init_resource::<PauseTab>().init_resource::<TsTape>()
+            .add_systems(Startup, (spawn_title_screen, spawn_settings_stub, spawn_comfort_graphics_banner).chain()).add_systems(Update, (sync_settings_stub, sync_comfort_graphics_banner, sync_pause_tabs)).add_systems(Last, ts_tape);
+        app.update(); app.update(); ts_run(&mut app, 0); app
+    }
+    fn ts_open(app: &mut App, open: bool) { app.world_mut().resource_mut::<HouseLabel>().settings_open = open; }
+    /// Rows that marked either change flag.
+    fn ts_marked<K: Copy, V: Copy>(rows: &[(K, V, Display, bool, bool)]) -> Vec<(K, V, Display, bool, bool)> { rows.iter().copied().filter(|r| r.3 || r.4).collect() }
+    const SV: Visibility = Visibility::Visible;
+    const SH: Visibility = Visibility::Hidden;
+    #[test] fn title_pause_vis_neq_1_ts7_settings_stub_steady_flip_and_restore() {
+        let mut app = ts_app(LaunchDoor::InYard, true);
+        assert_eq!(ts_run(&mut app, 3).stub, vec![(SV, Display::Flex, false, false); 3], "TS7 stub open steady: Visible + Flex, Visibility and Node quiet");
+        ts_open(&mut app, false);
+        assert_eq!(ts_run(&mut app, 2).stub, vec![(SH, Display::None, true, true), (SH, Display::None, false, false)], "TS7 settings closed: Hidden + None once, then quiet");
+        assert_eq!(ts_run(&mut app, 3).stub, vec![(SH, Display::None, false, false); 3], "TS7 stub closed steady: quiet");
+        ts_open(&mut app, true); ts_run(&mut app, 1);
+        let e = app.world_mut().query_filtered::<Entity, With<SettingsStubRoot>>().single(app.world()).unwrap();
+        *app.world_mut().get_mut::<Visibility>(e).unwrap() = SH; app.world_mut().get_mut::<Node>(e).unwrap().display = Display::None;
+        assert_eq!(ts_run(&mut app, 2).stub, vec![(SV, Display::Flex, true, true), (SV, Display::Flex, false, false)], "TS7 direct Hidden + None poke while open: restored once, then quiet");
+    }
+    #[test] fn title_pause_vis_neq_1_ts8_pause_tab_panels_steady_and_switch() {
+        let mut app = ts_app(LaunchDoor::InYard, true); let t = ts_run(&mut app, 3).panels;
+        assert!(t.len() == 12 && t.iter().all(|r| !r.3 && !r.4 && (r.1 == SV) == (r.0 == PauseTab::Comfort) && (r.2 == Display::Flex) == (r.0 == PauseTab::Comfort)), "TS8 four panels steady, Comfort shown, quiet: {t:?}");
+        *app.world_mut().resource_mut::<PauseTab>() = PauseTab::Controls; let t = ts_run(&mut app, 2).panels; let mut m = ts_marked(&t); m.sort_by_key(|r| r.0 == PauseTab::Controls);
+        assert_eq!(m, vec![(PauseTab::Comfort, SH, Display::None, true, true), (PauseTab::Controls, SV, Display::Flex, true, true)], "TS8 tab switch: only the old and new panel change, once each");
+        assert_eq!(t.len(), 8, "TS8 four panels per frame");
+    }
+    #[test] fn title_pause_vis_neq_1_ts9_pause_tab_buttons_steady_and_switch() {
+        let mut app = ts_app(LaunchDoor::InYard, true); let t = ts_run(&mut app, 3).btns;
+        let paint = |tab: PauseTab, on: PauseTab| if tab == on { (TITLE_BTN_ACTIVE_BG, TITLE_BORDER) } else { (TITLE_BTN_BG, TITLE_BORDER_MUTED) };
+        assert!(t.len() == 12 && t.iter().all(|r| !r.3 && !r.4 && (r.1, r.2) == paint(r.0, PauseTab::Comfort)), "TS9 four tab buttons steady on the TITLE_* paint, quiet: {t:?}");
+        *app.world_mut().resource_mut::<PauseTab>() = PauseTab::Guide; let t = ts_run(&mut app, 2).btns;
+        let mut m: Vec<_> = t.iter().copied().filter(|r| r.3 || r.4).collect(); m.sort_by_key(|r| r.0 == PauseTab::Guide);
+        assert_eq!(m, vec![(PauseTab::Comfort, TITLE_BTN_BG, TITLE_BORDER_MUTED, true, true), (PauseTab::Guide, TITLE_BTN_ACTIVE_BG, TITLE_BORDER, true, true)], "TS9 tab switch: old and new button repaint once each");
+        assert!(t.len() == 8 && t.iter().all(|r| (r.1, r.2) == paint(r.0, PauseTab::Guide)), "TS9 every button lands on the Guide paint: {t:?}");
+    }
+    #[test] fn title_pause_vis_neq_1_ts10_comfort_banner_rows_steady_and_flips() {
+        let row = |pause: bool, on: bool| (pause, if on { SV } else { SH }, if on { Display::Flex } else { Display::None }, false, false);
+        let mut app = ts_app(LaunchDoor::Title, false); let mut t = ts_run(&mut app, 3).banner; t.sort_by_key(|r| r.0);
+        assert_eq!(t, [vec![row(false, true); 3], vec![row(true, false); 3]].concat(), "TS10 Title door: title row shown, pause row hidden, both quiet");
+        ts_open(&mut app, true); app.insert_resource(LaunchDoor::InYard); let t = ts_run(&mut app, 2).banner; let mut m = ts_marked(&t); m.sort_by_key(|r| r.0);
+        assert_eq!(m, vec![(false, SH, Display::None, true, true), (true, SV, Display::Flex, true, true)], "TS10 door to InYard with settings open: each row changes once");
+        assert_eq!(ts_marked(&ts_run(&mut app, 3).banner), vec![], "TS10 yard pause row steady: quiet");
+        ts_open(&mut app, false);
+        assert_eq!(ts_marked(&ts_run(&mut app, 2).banner), vec![(true, SH, Display::None, true, true)], "TS10 settings closed: pause row hides once");
+        ts_open(&mut app, true); ts_run(&mut app, 1); app.world_mut().resource_mut::<LocalSettingsState>().inner.comfort_graphics_banner_dismissed = true;
+        assert_eq!(ts_marked(&ts_run(&mut app, 2).banner), vec![(true, SH, Display::None, true, true)], "TS10 dismissed: pause row hides once");
+    }
+    #[test] fn title_pause_vis_neq_1_ts11_age_gate_open_keeps_banner_hidden() {
+        let mut app = ts_app(LaunchDoor::Title, false); app.insert_resource(crate::age_gate::AgeGate { open: true }).add_systems(Update, hide_comfort_banner_while_age_gate.after(sync_comfort_graphics_banner));
+        let t = ts_run(&mut app, 2).banner;
+        assert!(t.len() == 4 && t.iter().all(|r| r.1 == SH), "TS11 age gate open on Title: both banner rows end Hidden (values only, nil): {t:?}");
+    }
 }
