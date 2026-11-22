@@ -2434,7 +2434,7 @@ fn breath_title_border(
     for mut border in &mut q {
         // TitleBreath is on the full-screen root (no border) — keep noop-safe.
         let _ = pulse; // opaque plate — no alpha breath on soft GPU
-        *border = TITLE_BORDER.into();
+        border.set_if_neq(TITLE_BORDER.into());
     }
 }
 
