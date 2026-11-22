@@ -379,4 +379,28 @@ mod tests {
         assert!(body.contains("CARE HELPERS") || body.contains("Mercy"));
         assert!(body.contains("never scarcity"));
     }
+
+    /// PANEL-VIS-NEQ-1 PV5–PV7. Last tape of (Visibility, changed) on FoundationLatticeRoot; settle 2 then clear. Not HUD-managed.
+    #[derive(Resource, Default)] struct PvTape(Vec<(Visibility, bool)>);
+    fn pv_tape(q: Query<Ref<Visibility>, With<FoundationLatticeRoot>>, mut t: ResMut<PvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn pv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<PvTape>().0) }
+    fn pv_settle(mut app: App) -> App { app.update(); app.update(); app.world_mut().resource_mut::<PvTape>().0.clear(); app }
+    fn pv_set(app: &mut App, v: Visibility) { let e = app.world_mut().query_filtered::<Entity, With<FoundationLatticeRoot>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = v; }
+    const PV: Visibility = Visibility::Visible;
+    const PH: Visibility = Visibility::Hidden;
+    /// `toggle` adds toggle_lattice_panel (prod shape: it forces panel_open = false every frame).
+    fn pv_app(toggle: bool) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).init_resource::<FoundationLattice>().init_resource::<PvTape>().add_systems(Startup, spawn_lattice_panel).add_systems(Update, update_lattice_visibility).add_systems(Last, pv_tape);
+        if toggle { app.init_resource::<ButtonInput<KeyCode>>().insert_resource(HourSacred::default()).add_systems(Update, toggle_lattice_panel.before(update_lattice_visibility)); }
+        pv_settle(app)
+    }
+    #[test] fn panel_vis_neq_1_pv5_lattice_prod_shape_steady_hidden_unmarked() { let mut app = pv_app(true); assert_eq!(pv_run(&mut app, 3), vec![(PH, false); 3], "PV5 lattice with toggle: steady hidden"); }
+    #[test] fn panel_vis_neq_1_pv6_lattice_open_close_once_each() {
+        let mut app = pv_app(false); app.world_mut().resource_mut::<FoundationLattice>().panel_open = true;
+        assert_eq!(pv_run(&mut app, 2), vec![(PV, true), (PV, false)], "PV6 lattice opens: Visible once, then quiet");
+        app.world_mut().resource_mut::<FoundationLattice>().panel_open = false;
+        assert_eq!(pv_run(&mut app, 2), vec![(PH, true), (PH, false)], "PV6 lattice closes: Hidden once, then quiet");
+    }
+    #[test] fn panel_vis_neq_1_pv7_lattice_direct_visible_rehidden_once() { let mut app = pv_app(true); pv_set(&mut app, PV); assert_eq!(pv_run(&mut app, 2), vec![(PH, true), (PH, false)], "PV7 lattice direct Visible write with toggle: Hidden once, then quiet"); }
 }

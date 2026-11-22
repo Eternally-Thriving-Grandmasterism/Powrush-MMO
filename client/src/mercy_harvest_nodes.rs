@@ -1536,4 +1536,37 @@ mod tests {
     #[test] fn hud_plate_hp2_d_care_strip_corner_is_one_at_spawned_font() { let mut app = hp2_ui(1280, 720, 1.); (app.update(), app.update()); let root = hp2_root(&mut app); let n = app.world().get::<ComputedNode>(root).unwrap(); let pad = n.padding_box().size() * n.inverse_scale_factor;
         assert!(pad.x >= 24. && pad.y >= 24. && (pad / crate::ui_frame::FRAME_PX as f32).min_element().min(crate::ui_frame::frame_slicer().max_corner_scale) == 1., "HP2-d care_strip {pad}");
     }
+
+    /// PANEL-VIS-NEQ-1 PV8–PV11. Last tape of (Visibility, changed) on CareCycleStrip; settle 2 then clear. No meshes.
+    #[derive(Resource, Default)] struct PvTape(Vec<(Visibility, bool)>);
+    fn pv_tape(q: Query<Ref<Visibility>, With<CareCycleStrip>>, mut t: ResMut<PvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn pv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<PvTape>().0) }
+    fn pv_settle(mut app: App) -> App { app.update(); app.update(); app.world_mut().resource_mut::<PvTape>().0.clear(); app }
+    fn pv_set(app: &mut App, v: Visibility) { let e = app.world_mut().query_filtered::<Entity, With<CareCycleStrip>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = v; }
+    const PV: Visibility = Visibility::Visible;
+    const PH: Visibility = Visibility::Hidden;
+    fn pv_app(active: bool, hud: Option<(crate::hud_presets::HudPresetId, crate::title_screen::LaunchDoor)>) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).insert_resource(CareCycleOffer { active, ..Default::default() }).init_resource::<PvTape>().add_systems(Startup, spawn_care_cycle_strip).add_systems(Update, update_care_cycle_strip).add_systems(Last, pv_tape);
+        if let Some((id, door)) = hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(id) }).insert_resource(door).init_resource::<crate::hex_travel::PlacesPlate>(); }
+        pv_settle(app)
+    }
+    fn pv_active(app: &mut App, active: bool) { app.world_mut().resource_mut::<CareCycleOffer>().active = active; }
+    #[test] fn panel_vis_neq_1_pv8_care_strip_inactive_steady_unmarked() { let mut app = pv_app(false, None); assert_eq!(pv_run(&mut app, 3), vec![(PH, false); 3], "PV8 care strip inactive steady hidden"); }
+    #[test] fn panel_vis_neq_1_pv9_care_strip_active_inactive_once_each() {
+        let mut app = pv_app(false, None); pv_active(&mut app, true);
+        assert_eq!(pv_run(&mut app, 2), vec![(PV, true), (PV, false)], "PV9 care strip active: Visible once, then quiet");
+        pv_active(&mut app, false);
+        assert_eq!(pv_run(&mut app, 2), vec![(PH, true), (PH, false)], "PV9 care strip inactive: Hidden once, then quiet");
+    }
+    #[test] fn panel_vis_neq_1_pv10_care_strip_direct_hidden_restored_once() { let mut app = pv_app(true, None); pv_set(&mut app, PH); assert_eq!(pv_run(&mut app, 2), vec![(PV, true), (PV, false)], "PV10 care strip direct Hidden write while active: restored once, then quiet"); }
+    #[test] fn panel_vis_neq_1_pv11_care_strip_real_hud_layout() {
+        let mut app = pv_app(true, Some((crate::hud_presets::HudPresetId::Classic, crate::title_screen::LaunchDoor::InYard)));
+        for id in [crate::hud_anchor_registry::ID_CARE_PROMPT, crate::hud_anchor_registry::ID_GUIDANCE] { app.world_mut().spawn((Node::default(), Visibility::Visible, HudSlab(id))); }
+        pv_run(&mut app, 1); let t = pv_run(&mut app, 2);
+        let yielded = app.world().resource::<crate::hud_presets::HudYielded>().0.contains(&crate::hud_anchor_registry::ID_CARE_STRIP);
+        assert_eq!((t, yielded), (vec![(PV, false); 2], false), "PV11 Classic InYard active with CarePrompt and Guidance sentinels: rank 1 never yields, steady Visible, quiet");
+        let mut app = pv_app(true, Some((crate::hud_presets::HudPresetId::Classic, crate::title_screen::LaunchDoor::Title)));
+        assert_eq!(pv_run(&mut app, 2), vec![(PH, true); 2], "PV11 Title door (R5): Hidden, changed every frame on main and branch alike");
+    }
 }
