@@ -450,6 +450,44 @@ mod tests {
         assert!(!kept.path.with_extension("json.tmp").exists());
     }
 
+    /// SESSION-SAVE-RATE-1: per-frame `ResMut` writers (harvest_feel.rs:150-151,
+    /// skirmish_well.rs:169) must not rewrite an unchanged session.
+    #[test]
+    fn session_save_rate_idle_frames_write_nothing() {
+        struct Env(Option<std::ffi::OsString>, PathBuf);
+        impl Drop for Env {
+            fn drop(&mut self) {
+                let key = shared::user_persist::USER_DIR_OVERRIDE_ENV;
+                match self.0.take() { Some(v) => std::env::set_var(key, v), None => std::env::remove_var(key) }
+                let _ = fs::remove_dir_all(&self.1);
+            }
+        }
+        let _lock = crate::test_env::lock();
+        let dir = std::env::temp_dir().join(format!("powrush-save-rate-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let env = Env(std::env::var_os(shared::user_persist::USER_DIR_OVERRIDE_ENV), dir.clone());
+        std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &env.1);
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, LocalSessionPersistPlugin))
+            .init_resource::<SoftRbePool>().init_resource::<SoftPlayerRealm>()
+            .init_resource::<FirstHarvestEpiphany>().init_resource::<HumanInventory>()
+            .init_resource::<PersistentWeb>().init_resource::<CompanionBond>()
+            .add_systems(Update, (
+                |mut p: ResMut<SoftRbePool>| p.tick_juice(0.016),
+                |mut e: ResMut<FirstHarvestEpiphany>| e.well_in_reach = false,
+            ));
+        for _ in 0..3 { app.update(); }
+        let live = dir.join("powrush_local_session.json");
+        assert!(live.is_file(), "settle frames save the session once");
+        fs::remove_file(&live).unwrap();
+        for _ in 0..30 { app.update(); }
+        assert!(!live.exists(), "idle frames rewrote an unchanged session");
+        app.world_mut().resource_mut::<CompanionBond>().trust = 0.5;
+        app.update();
+        assert!(live.is_file(), "a real change still saves on the next frame");
+    }
+
     #[test]
     fn good_save_leaves_no_json_tmp() {
         let temp = TempSession::new("notmp");
