@@ -128,11 +128,7 @@ fn update_redemption_slab(
 ) {
     let show = grove_live(&hour, &stone);
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if !show {
         return;

@@ -128,11 +128,7 @@ fn update_hybrid_slab(
 ) {
     let show = hybrid_live(&hour, &red);
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if !show {
         return;
