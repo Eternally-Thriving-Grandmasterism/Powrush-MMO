@@ -456,6 +456,21 @@ mod tests {
         assert!(!kept.path.with_extension("json.tmp").exists());
     }
 
+    #[cfg(unix)]
+    #[test]
+    fn persist_audit_session_bak_is_replaced_not_written_through() {
+        let temp = TempSession::new("bak-link");
+        save_blob_at(&temp.path, &blob_with_trust(0.62));
+        let (bak, witness, prev) = (temp.path.with_extension("json.bak"), temp.dir.join("witness"), fs::read(&temp.path).unwrap());
+        fs::write(&witness, b"WITNESS").unwrap();
+        fs::hard_link(&witness, &bak).unwrap();
+        save_blob_at(&temp.path, &blob_with_trust(0.41));
+        assert_eq!(fs::read(&witness).unwrap(), b"WITNESS", ".bak written through in place");
+        assert_eq!(fs::read(&bak).unwrap(), prev);
+        assert!(trust_near(&load_blob_at(&temp.path).unwrap(), 0.41));
+        assert!(!temp.path.with_extension("json.tmp").exists() && !temp.path.with_extension("json.bak.tmp").exists());
+    }
+
     /// SESSION-SAVE-RATE-1: per-frame `ResMut` writers (harvest_feel.rs:150-151,
     /// skirmish_well.rs:169) must not rewrite an unchanged session.
     #[test]
