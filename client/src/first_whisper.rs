@@ -179,4 +179,40 @@ mod tests {
         assert!(!low.contains("market"));
         assert!(!low.contains("xp"));
     }
+
+    /// TOAST-VIS-NEQ-1 TV1–TV4. Last tape of (Visibility, changed) on WhisperRoot; settle 2 then clear; 100 ms manual steps.
+    #[derive(Resource, Default)] struct TvTape(Vec<(Visibility, bool)>);
+    fn tv_tape(q: Query<Ref<Visibility>, With<WhisperRoot>>, mut t: ResMut<TvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn tv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<TvTape>().0) }
+    fn tv_settle(mut app: App) -> App { app.update(); app.update(); app.world_mut().resource_mut::<TvTape>().0.clear(); app }
+    fn tv_hide(app: &mut App) { let e = app.world_mut().query_filtered::<Entity, With<WhisperRoot>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden; }
+    const TV: Visibility = Visibility::Visible;
+    const TH: Visibility = Visibility::Hidden;
+    fn tv_app(hud: Option<crate::hud_presets::HudPresetId>) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).init_resource::<WhisperClock>().init_resource::<TvTape>().insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(100))).add_systems(Startup, spawn_whisper).add_systems(Update, update_whisper).add_systems(Last, tv_tape);
+        if let Some(id) = hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(id) }).insert_resource(crate::title_screen::LaunchDoor::InYard).init_resource::<crate::hex_travel::PlacesPlate>(); }
+        tv_settle(app)
+    }
+    fn tv_show(app: &mut App) { let until = app.world().resource::<Time>().elapsed_secs_f64() + HOLD_SECS; *app.world_mut().resource_mut::<WhisperClock>() = WhisperClock { until, showing: true }; }
+    #[test] fn toast_vis_neq_1_tv1_whisper_steady_hidden_unmarked() { let mut app = tv_app(None); assert_eq!(tv_run(&mut app, 3), vec![(TH, false); 3], "TV1 whisper steady hidden"); }
+    #[test] fn toast_vis_neq_1_tv2_whisper_show_then_expire_once_each() {
+        let mut app = tv_app(None); tv_show(&mut app);
+        assert_eq!(tv_run(&mut app, 2), vec![(TV, true), (TV, false)], "TV2 whisper shows: Visible once, then quiet");
+        let t = tv_run(&mut app, 60); let k = t.iter().position(|r| r.0 == TH).expect("TV2 whisper expires");
+        assert_eq!(t, [vec![(TV, false); k], vec![(TH, true)], vec![(TH, false); 59 - k]].concat(), "TV2 whisper expires: Hidden once, then quiet");
+    }
+    #[test] fn toast_vis_neq_1_tv3_whisper_direct_hidden_restored_once() { let mut app = tv_app(None); tv_show(&mut app); tv_run(&mut app, 2); tv_hide(&mut app); assert_eq!(tv_run(&mut app, 2), vec![(TV, true), (TV, false)], "TV3 whisper direct Hidden write: restored once, then quiet"); }
+    #[test] fn toast_vis_neq_1_tv4_whisper_real_hud_layout() {
+        use crate::hud_presets::HudPresetId::{Classic, Management};
+        let mut app = tv_app(Some(Classic)); tv_show(&mut app);
+        assert_eq!(tv_run(&mut app, 2), vec![(TH, true); 2], "TV4 Classic InYard showing: clean-hidden, changed every frame on main and branch alike");
+        let mut app = tv_app(Some(Management));
+        assert_eq!(tv_run(&mut app, 2), vec![(TH, false); 2], "TV4 Management not showing: quiet");
+        tv_show(&mut app); tv_run(&mut app, 1);
+        assert_eq!(tv_run(&mut app, 2), vec![(TV, false); 2], "TV4 Management showing: steady Visible, quiet");
+        app.world_mut().spawn((Node::default(), Visibility::Visible, HudSlab(crate::hud_anchor_registry::ID_THRIVING)));
+        let t = tv_run(&mut app, 2); let yielded = app.world().resource::<crate::hud_presets::HudYielded>().0.contains(&WHISPER.id);
+        assert_eq!((t.last().unwrap().0, yielded), (TH, true), "TV4 Management with a Thriving sentinel: Whisper yields by R2 into HudYielded");
+    }
 }
