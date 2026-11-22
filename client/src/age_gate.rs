@@ -417,4 +417,44 @@ mod tests {
             assert!(md.abs() <= 1. && yd.abs() <= 1., "AGF1-4 {label} {w}x{h}x{s} month {md} year {yd}");
         } }
     }
+
+    /// AGE-GATE-VIS-NEQ-1 AV1–AV4. Last tape of (Visibility, changed) on AgeRoot and both panes (tagged denied-pane or not) over the
+    /// ui_frame.rs bf2_gate seam: MinimalPlugins, InputPlugin, AgeGatePlugin, a default LocalSettingsState and AppExit; settle 2 then clear.
+    #[derive(Resource, Default)]
+    struct AvTape { root: Vec<(Visibility, bool)>, panes: Vec<(bool, Visibility, bool)> }
+    fn av_tape(roots: Query<Ref<Visibility>, With<AgeRoot>>, panes: Query<(&Pane, Ref<Visibility>)>, mut t: ResMut<AvTape>) {
+        t.root.extend(roots.iter().map(|v| (*v, v.is_changed())));
+        t.panes.extend(panes.iter().map(|(p, v)| (*p == Pane::Denied, *v, v.is_changed())));
+    }
+    fn av_run(app: &mut App, n: usize) -> AvTape { for _ in 0..n { app.update(); } std::mem::take(&mut *app.world_mut().resource_mut::<AvTape>()) }
+    fn av_app() -> App {
+        let mut app = App::new();
+        app.insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).add_plugins((MinimalPlugins, bevy::input::InputPlugin, AgeGatePlugin)).add_message::<AppExit>()
+            .init_resource::<AvTape>().add_systems(Last, av_tape);
+        app.update(); app.update(); av_run(&mut app, 0); app
+    }
+    const AV_V: Visibility = Visibility::Visible;
+    const AV_H: Visibility = Visibility::Hidden;
+    #[test] fn age_gate_vis_neq_1_av1_open_gate_steady_and_quiet() {
+        let mut app = av_app(); let mut t = av_run(&mut app, 3); t.panes.sort_by_key(|r| r.0);
+        assert_eq!(t.root, vec![(AV_V, false); 3], "AV1 open gate: root steady Visible, quiet");
+        assert_eq!(t.panes, [vec![(false, AV_V, false); 3], vec![(true, AV_H, false); 3]].concat(), "AV1 open gate: Ask Visible and Denied Hidden, both quiet");
+    }
+    #[test] fn age_gate_vis_neq_1_av2_denied_flips_panes_once_root_untouched() {
+        let mut app = av_app(); app.world_mut().resource_mut::<AgeEntry>().denied = true;
+        let mut t = av_run(&mut app, 2); t.panes.sort_by_key(|r| r.0);
+        assert_eq!(t.root, vec![(AV_V, false); 2], "AV2 denied: root untouched, quiet");
+        assert_eq!(t.panes, vec![(false, AV_H, true), (false, AV_H, false), (true, AV_V, true), (true, AV_V, false)], "AV2 denied: Ask hides and Denied shows once each, then quiet");
+    }
+    #[test] fn age_gate_vis_neq_1_av3_root_poke_restored_once() {
+        let mut app = av_app();
+        let e = app.world_mut().query_filtered::<Entity, With<AgeRoot>>().single(app.world()).unwrap();
+        *app.world_mut().get_mut::<Visibility>(e).unwrap() = AV_H;
+        assert_eq!(av_run(&mut app, 2).root, vec![(AV_V, true), (AV_V, false)], "AV3 root poked Hidden: restored once, then quiet");
+    }
+    #[test] fn age_gate_vis_neq_1_av4_close_despawns_root() {
+        let mut app = av_app(); app.world_mut().resource_mut::<AgeEntry>().close = true; app.update();
+        assert_eq!(app.world_mut().query_filtered::<(), With<AgeRoot>>().iter(app.world()).count(), 0, "AV4 close: root despawned");
+        assert!(!app.world().resource::<AgeGate>().open, "AV4 close: gate no longer open");
+    }
 }
