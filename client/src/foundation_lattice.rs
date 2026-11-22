@@ -399,4 +399,20 @@ mod tests {
         assert_eq!(pv_run(&mut app, 2), vec![(PH, true), (PH, false)], "PV6 lattice closes: Hidden once, then quiet");
     }
     #[test] fn panel_vis_neq_1_pv7_lattice_direct_visible_rehidden_once() { let mut app = pv_app(true); pv_set(&mut app, PV); assert_eq!(pv_run(&mut app, 2), vec![(PH, true), (PH, false)], "PV7 lattice direct Visible write with toggle: Hidden once, then quiet"); }
+
+    /// LATTICE-PANEL-NEQ-1 LP1–LP2. Last tape of (panel_open, Res<FoundationLattice>::is_changed()) over toggle_lattice_panel alone; settle 2 then clear.
+    #[derive(Resource, Default)] struct LpTape(Vec<(bool, bool)>);
+    fn lp_tape(l: Res<FoundationLattice>, mut t: ResMut<LpTape>) { t.0.push((l.panel_open, l.is_changed())); }
+    fn lp_app() -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).init_resource::<FoundationLattice>().init_resource::<ButtonInput<KeyCode>>().insert_resource(HourSacred::default()).init_resource::<LpTape>().add_systems(Update, toggle_lattice_panel).add_systems(Last, lp_tape);
+        (app.update(), app.update()); lp_run(&mut app, 0); app
+    }
+    fn lp_run(app: &mut App, n: usize) -> Vec<(bool, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<LpTape>().0) }
+    #[test] fn lattice_panel_neq_1_lp1_steady_closed_unmarked() { let mut app = lp_app(); assert_eq!(lp_run(&mut app, 3), vec![(false, false); 3], "LP1 lattice steady: panel closed, resource quiet"); }
+    #[test] fn lattice_panel_neq_1_lp2_direct_open_forced_closed_then_quiet() {
+        let mut app = lp_app(); app.world_mut().resource_mut::<FoundationLattice>().panel_open = true;
+        let t = lp_run(&mut app, 3);
+        assert!(t.iter().all(|r| !r.0) && t[1..] == [(false, false); 2], "LP2 direct open: forced closed, then quiet: {t:?}");
+    }
 }
