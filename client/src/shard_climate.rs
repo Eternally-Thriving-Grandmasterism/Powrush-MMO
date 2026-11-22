@@ -37,7 +37,7 @@ impl Plugin for ShardClimatePlugin {
             .add_systems(
                 Update,
                 (
-                    hold_e_care_tend,
+                    hold_e_care_tend.after(crate::input::InputMapSet).before(crate::feel_move::raise_buffered_use),
                     paint_climate_feel.in_set(FogWriteSet::ClimateFeel),
                     persist_climate_on_escape,
                 ),
@@ -48,6 +48,7 @@ impl Plugin for ShardClimatePlugin {
 
 fn hold_e_care_tend(
     keyboard: Res<ButtonInput<KeyCode>>,
+    input: Option<Res<crate::input::PlayerInput>>,
     nearby: Res<NearbyMercyNode>,
     epiphany: Option<Res<crate::first_harvest_epiphany::FirstHarvestEpiphany>>,
     mut bind: ResMut<LivedHourBind>,
@@ -64,13 +65,13 @@ fn hold_e_care_tend(
         .as_ref()
         .map(|e| e.tends_this_session)
         .unwrap_or(0);
-    let pressing = keyboard.pressed(soft_play_bindings::INTERACT);
+    let pressing = keyboard.pressed(soft_play_bindings::INTERACT) || input.as_ref().is_some_and(|i| i.interact_held);
     if session_dress_claims_use || !pressing || !nearby.in_range {
         hold.seconds = 0.0;
         hold.fired = false;
         return;
     }
-    if keyboard.just_pressed(soft_play_bindings::INTERACT) {
+    if keyboard.just_pressed(soft_play_bindings::INTERACT) || input.as_ref().is_some_and(|i| i.interact) {
         hold.seconds = 0.0;
         hold.fired = false;
         return;
@@ -373,5 +374,47 @@ mod tests {
                 assert_eq!(got, expect);
             }
         }
+    }
+
+    fn shard_app(inner: shared::local_settings::LocalSettings, epi: crate::first_harvest_epiphany::FirstHarvestEpiphany) -> bevy::prelude::App {
+        use bevy::prelude::*;
+        let mut app = crate::heartwood_plaque::kh_sync::app(inner);
+        app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(100))).insert_resource(super::NearbyMercyNode { in_range: true, ..Default::default() }).insert_resource(crate::lived_hour_bind::LivedHourBind { hour: shared::climate_node::LivedHour::new_demo(), climate: shared::shard_climate::ShardClimate::default(), standing: Default::default(), week: Default::default(), last_line: String::new(), guidance_hidden: false, focus_id: None, climate_slab: None }).insert_resource(epi).init_resource::<GlobalAmbientLight>().add_plugins(super::ShardClimatePlugin);
+        app
+    }
+    fn harmony(app: &bevy::prelude::App) -> f32 { app.world().resource::<crate::lived_hour_bind::LivedHourBind>().climate.harmony }
+    fn held(app: &mut bevy::prelude::App, n: usize) { let e = crate::heartwood_plaque::kh_sync::south(app); app.update(); for _ in 1..n { app.world_mut().get_mut::<bevy::prelude::Gamepad>(e).unwrap().digital_mut().clear(); app.update(); } }
+    /// KEY-HINTS-SYNC-1 KH-S. Pad held 0.5 s gives +0.06 harmony. Harvest-tend and remap are guards.
+    #[test]
+    fn kh_s_pad_held_gives_harmony() {
+        use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+        use shared::local_settings::{LocalSettings, PeaceKey};
+        crate::loot_drops::tests::in_user_dir("kh-s", |_| {
+            let near = |h: f32, h0: f32| (h - h0).abs() < 1e-6;
+            let mut quiet = shard_app(LocalSettings::peace_defaults(), FirstHarvestEpiphany::default()); quiet.update(); let h0 = harmony(&quiet); held(&mut quiet, 7); assert!(near(harmony(&quiet), h0), "S8 harvest-tend gate");
+            let mut dress = shard_app(LocalSettings::peace_defaults(), FirstHarvestEpiphany { threshold_near: true, ..Default::default() }); dress.update(); let h0 = harmony(&dress); held(&mut dress, 7); assert!(near(harmony(&dress), h0), "S9 session dress");
+            let mut rebound = LocalSettings::peace_defaults(); rebound.key_use = PeaceKey::F;
+            let mut app = shard_app(rebound, FirstHarvestEpiphany { tends_this_session: 1, ..Default::default() }); app.update(); let h0 = harmony(&app); crate::heartwood_plaque::kh_sync::key_f(&mut app); app.update(); for _ in 0..6 { app.update(); } assert!(near(harmony(&app), h0 + 0.06), "S10 remap");
+            let mut app = shard_app(LocalSettings::peace_defaults(), FirstHarvestEpiphany { tends_this_session: 1, ..Default::default() }); app.update(); let h0 = harmony(&app); let e = crate::heartwood_plaque::kh_sync::south(&mut app); app.update(); assert!(near(harmony(&app), h0), "S1");
+            for _ in 0..4 { app.world_mut().get_mut::<bevy::prelude::Gamepad>(e).unwrap().digital_mut().clear(); app.update(); assert!(near(harmony(&app), h0), "S2-S5"); }
+            app.world_mut().get_mut::<bevy::prelude::Gamepad>(e).unwrap().digital_mut().clear(); app.update(); let h = harmony(&app); assert!((h - (h0 + 0.06)).abs() < 1e-6, "KH-S {h} {h0}");
+            app.world_mut().get_mut::<bevy::prelude::Gamepad>(e).unwrap().digital_mut().clear(); app.update(); assert!(near(harmony(&app), h0 + 0.06), "S7 latched");
+        });
+    }
+    /// KEY-HINTS-SYNC-1 KH-O. A buffered Use with no new press does not reset the shard hold timer.
+    #[test]
+    fn kh_o_buffered_use_does_not_reset_shard_hold() {
+        use crate::first_harvest_epiphany::FirstHarvestEpiphany;
+        use bevy::prelude::*;
+        crate::loot_drops::tests::in_user_dir("kh-o", |_| {
+            let mut app = shard_app(shared::local_settings::LocalSettings::peace_defaults(), FirstHarvestEpiphany { tends_this_session: 1, ..Default::default() });
+            app.update(); app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(crate::soft_play_bindings::INTERACT); app.update(); app.world_mut().resource_mut::<ButtonInput<KeyCode>>().clear(); app.update();
+            let before = app.world().resource::<super::CareTendHold>().seconds; assert!(before > 0.0, "KH-O primed {before}");
+            app.world_mut().resource_mut::<crate::feel_move::SimUsePulse>().fire = true; app.update();
+            let after = app.world().resource::<super::CareTendHold>().seconds; assert!(after > before, "KH-O buffered Use reset the shard hold {before} -> {after}");
+            use bevy::ecs::system::IntoSystem as Sys;
+            let (i, r, b) = (crate::heartwood_plaque::kh_sync::ord(&mut app, Sys::system_type_id(&crate::input::handle_player_input)), crate::heartwood_plaque::kh_sync::ord(&mut app, Sys::system_type_id(&super::hold_e_care_tend)), crate::heartwood_plaque::kh_sync::ord(&mut app, Sys::system_type_id(&crate::feel_move::raise_buffered_use)));
+            assert!(i < r && r < b, "KH-O order {i} {r} {b}");
+        });
     }
 }

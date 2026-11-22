@@ -24,7 +24,7 @@ pub struct HeartwoodPlaquePlugin;
 impl Plugin for HeartwoodPlaquePlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<PlaqueSession>().add_systems(Startup, spawn_plaque_slab).add_systems(PreUpdate, mark_plaque_near)
-            .add_systems(Update, (handle_plaque, update_plaque_slab).chain());
+            .add_systems(Update, (handle_plaque, update_plaque_slab).chain().after(crate::input::InputMapSet).before(crate::feel_move::raise_buffered_use));
     }
 }
 
@@ -60,10 +60,10 @@ fn mark_plaque_near(
     }
 }
 
-fn handle_plaque(keyboard: Res<ButtonInput<KeyCode>>, mut session: ResMut<PlaqueSession>) {
+fn handle_plaque(keyboard: Res<ButtonInput<KeyCode>>, input: Option<Res<crate::input::PlayerInput>>, mut session: ResMut<PlaqueSession>) {
     if !session.near {
         if session.open { session.open = false; }
-    } else if keyboard.just_pressed(soft_play_bindings::INTERACT) {
+    } else if keyboard.just_pressed(soft_play_bindings::INTERACT) || input.as_ref().is_some_and(|i| i.interact) {
         session.open = !session.open;
     }
 }
@@ -166,5 +166,53 @@ mod tests {
         assert!(clear([T[0], T[2]], THRESHOLD_SHELF_USE_RADIUS));
         HEARTWOOD_LIP_INSTANCES.iter().for_each(|l| assert!(clear([l.center[0], l.center[2]], l.footprint_radius)));
         assert!(clear(crate::combat_core::PREDATOR_HOME, reach));
+    }
+
+    fn at_pad(inner: shared::local_settings::LocalSettings) -> App {
+        let mut app = super::kh_sync::app(inner);
+        app.insert_resource(HexTravelState { current: PlaceId::Heartwood }).insert_resource(SoftPresence { position: Vec3::new(PLAQUE_SPOT[0], 0.9, PLAQUE_SPOT[1]), ..Default::default() }).init_resource::<FirstHarvestEpiphany>().add_plugins(HeartwoodPlaquePlugin);
+        app
+    }
+    /// KEY-HINTS-SYNC-1 KH-P. Pad South opens the plaque; rebound, edit mode, and South-off are guards.
+    #[test]
+    fn kh_p_pad_south_opens_plaque() {
+        use shared::local_settings::{LocalSettings, PeaceKey};
+        let mut off = LocalSettings::peace_defaults(); off.gamepad_south_use = false;
+        let mut app = at_pad(off); super::kh_sync::south(&mut app); app.update(); assert!(!open(&app), "P4 south off");
+        let mut rebound = LocalSettings::peace_defaults(); rebound.key_use = PeaceKey::F;
+        let mut app = at_pad(rebound); super::kh_sync::key_f(&mut app); app.update(); assert!(open(&app), "P5 rebound F");
+        let mut app = at_pad(LocalSettings::peace_defaults()); let mut edit = crate::hud_edit_mode::HudEditMode::default(); edit.active = true; app.insert_resource(edit);
+        super::kh_sync::south(&mut app); app.update(); assert!(!open(&app), "P6 edit mode");
+        let mut app = at_pad(LocalSettings::peace_defaults()); app.update(); assert!(!open(&app), "P0");
+        let e = super::kh_sync::south(&mut app); app.update(); assert!(open(&app), "KH-P");
+        app.world_mut().get_mut::<Gamepad>(e).unwrap().digital_mut().clear(); app.update(); assert!(open(&app), "P2 hold is not a new edge");
+        { let mut p = app.world_mut().get_mut::<Gamepad>(e).unwrap(); p.digital_mut().release(GamepadButton::South); p.digital_mut().press(GamepadButton::South); }
+        app.update(); assert!(!open(&app), "P3 toggle");
+    }
+    /// KEY-HINTS-SYNC-1 KH-O. A buffered Use with no new press does not toggle the plaque.
+    #[test]
+    fn kh_o_buffered_use_does_not_toggle_plaque() {
+        let mut app = at_pad(shared::local_settings::LocalSettings::peace_defaults()); app.update(); assert!(!open(&app));
+        app.world_mut().resource_mut::<crate::feel_move::SimUsePulse>().fire = true; app.update();
+        assert!(!open(&app), "KH-O buffered Use does not toggle the plaque");
+        use bevy::ecs::system::IntoSystem as Sys;
+        let (i, r, b) = (super::kh_sync::ord(&mut app, Sys::system_type_id(&crate::input::handle_player_input)), super::kh_sync::ord(&mut app, Sys::system_type_id(&handle_plaque)), super::kh_sync::ord(&mut app, Sys::system_type_id(&crate::feel_move::raise_buffered_use)));
+        assert!(i < r && r < b, "KH-O order {i} {r} {b}");
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod kh_sync {
+    use bevy::prelude::*;
+    pub(crate) fn app(inner: shared::local_settings::LocalSettings) -> App {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins).add_message::<bevy::input::keyboard::KeyboardInput>().add_message::<bevy::input::mouse::MouseButtonInput>().add_message::<bevy::input::touch::TouchInput>().init_resource::<ButtonInput<KeyCode>>().insert_resource(crate::local_settings::LocalSettingsState { inner, dirty: false }).add_plugins((crate::input::InputPlugin, crate::feel_move::FeelMovePlugin)).edit_schedule(Update, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); });
+        app
+    }
+    pub(crate) fn south(app: &mut App) -> Entity { let mut pad = Gamepad::default(); pad.digital_mut().press(GamepadButton::South); app.world_mut().spawn(pad).id() }
+    pub(crate) fn key_f(app: &mut App) { app.world_mut().write_message(bevy::input::keyboard::KeyboardInput { key_code: KeyCode::KeyF, logical_key: bevy::input::keyboard::Key::Character("f".into()), state: bevy::input::ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER }); }
+    pub(crate) fn ord(app: &mut App, id: std::any::TypeId) -> usize {
+        use bevy::ecs::system::System;
+        app.world_mut().resource_mut::<bevy::ecs::schedule::Schedules>().get_mut(Update).unwrap().systems().unwrap().position(|(_, s)| System::system_type(&**s) == id).expect("missing")
     }
 }

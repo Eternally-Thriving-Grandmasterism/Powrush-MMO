@@ -330,6 +330,14 @@ fn use_key_label(settings: Option<&LocalSettingsState>) -> &'static str {
         .display_label()
 }
 
+/// CARD KEY-HINTS-SYNC-1 — the live Allocate key, twin of [`use_key_label`].
+fn alloc_key_label(settings: Option<&LocalSettingsState>) -> &'static str {
+    settings
+        .map(|s| s.inner.key_allocate)
+        .unwrap_or_else(|| shared::local_settings::LocalSettings::default().key_allocate)
+        .display_label()
+}
+
 /// CARD INTERACT-PROMPT-1 — in-range line `[<key>] Use · name · caption · hint`.
 /// One Use-key token per line: a hint that opens on the fixed "E " (the shared
 /// Glowing hand hint "E tend") hands its key over to the live label.
@@ -438,10 +446,11 @@ fn update_climate_state_slab(
                     .as_ref()
                     .and_then(|c| c.sentence_for(n.climate_id))
                     .unwrap_or(state.hand_hint());
+                let hint = hint.replace("R 1 flow", &format!("{} 1 flow", alloc_key_label(settings.as_deref())));
                 let mut line = in_range_use_line(
                     n.name,
                     &place_color_well_caption(state, shapes, place),
-                    hint,
+                    &hint,
                     use_key_label(settings.as_deref()),
                 );
                 if let Some(slab) = bind.climate_slab.as_deref() {
@@ -1874,5 +1883,31 @@ mod tests {
     #[test] fn hud_plate_hp2_d_climate_corner_is_one_at_text_scale_085() {
         let mut app = hp2_ui(1280, 720, 1.); app.add_systems(Update, |mut q: Query<(&mut Text, &mut TextFont), With<ClimateStateText>>| for (mut t, mut f) in &mut q { t.0 = "Calm · the field breathes".into(); f.font_size = FontSize::Px(climate_slab_font_px(0.85) / 1.2); }); (app.update(), app.update()); let root = hp2_root(&mut app); let n = app.world().get::<ComputedNode>(root).unwrap(); let pad = n.padding_box().size() * n.inverse_scale_factor;
         assert!(pad.x >= 24. && pad.y >= 24. && (pad / crate::ui_frame::FRAME_PX as f32).min_element().min(crate::ui_frame::frame_slicer().max_corner_scale) == 1., "HP2-d climate {pad}");
+    }
+
+    fn flow_slab(allocate: shared::local_settings::PeaceKey, use_key: shared::local_settings::PeaceKey, state: NodeState) -> String {
+        use shared::local_settings::LocalSettings;
+        let mut inner = LocalSettings::peace_defaults(); inner.key_allocate = allocate; inner.key_use = use_key;
+        let mut hour = shared::climate_node::LivedHour::new_demo(); hour.nodes[0] = ClimateNode { id: 1, state, fatigue: 0.0 };
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins).insert_resource(NearbyMercyNode { in_range: true, nodes_exist: true, ..Default::default() }).insert_resource(LivedHourBind { hour, climate: Default::default(), standing: Default::default(), week: Default::default(), last_line: String::new(), guidance_hidden: false, focus_id: None, climate_slab: None }).insert_resource(HexTravelState { current: PlaceId::Sanctuary }).insert_resource(WeekFeelGlow::default()).insert_resource(WardsNoticeGlow::default()).insert_resource(LocalColorblindWells::default()).insert_resource(LocalSettingsState { inner, dirty: false }).add_systems(Startup, spawn_climate_state_slab).add_systems(Update, update_climate_state_slab);
+        let e = app.world_mut().spawn(MercyHarvestNode { name: "North Well", climate_id: 1, vitality: 1.0, harvests: 0, pulse: 0.0 }).id();
+        app.world_mut().resource_mut::<NearbyMercyNode>().entity = Some(e); app.update();
+        app.world_mut().query_filtered::<&Text, With<ClimateStateText>>().single(app.world()).unwrap().as_str().to_string()
+    }
+    /// KEY-HINTS-SYNC-1 KH-R. key_allocate=N shows "N 1 flow"; default R and Glowing Use stay put.
+    #[test]
+    fn kh_r_allocate_key_in_flow_hint() {
+        use shared::local_settings::{LocalSettings, PeaceKey};
+        assert_eq!((NodeState::Tended.hand_hint(), NodeState::Resting.hand_hint(), NodeState::Stressed.hand_hint()), ("let it breathe · R 1 flow", "R 1 flow restores", "only take faded it · R 1 flow"));
+        let d = LocalSettings::peace_defaults();
+        let (tended, resting, stressed) = (flow_slab(d.key_allocate, d.key_use, NodeState::Tended), flow_slab(d.key_allocate, d.key_use, NodeState::Resting), flow_slab(d.key_allocate, d.key_use, NodeState::Stressed));
+        assert!(tended.contains("let it breathe · R 1 flow") && resting.contains("R 1 flow restores") && stressed.contains("only take faded it · R 1 flow"), "R4");
+        let glowing = flow_slab(PeaceKey::N, PeaceKey::F, NodeState::Glowing);
+        assert!(glowing.contains("[F] Use · North Well") && glowing.matches("[F]").count() == 1 && !glowing.contains("N "), "R5 {glowing}");
+        let (tended, resting, stressed) = (flow_slab(PeaceKey::N, PeaceKey::E, NodeState::Tended), flow_slab(PeaceKey::N, PeaceKey::E, NodeState::Resting), flow_slab(PeaceKey::N, PeaceKey::E, NodeState::Stressed));
+        assert!(tended.contains("let it breathe · N 1 flow") && !tended.contains("R 1 flow"), "KH-R {tended}");
+        assert!(resting.contains("N 1 flow restores") && !resting.contains("R 1 flow"), "KH-R {resting}");
+        assert!(stressed.contains("only take faded it · N 1 flow") && !stressed.contains("R 1 flow"), "KH-R {stressed}");
     }
 }
