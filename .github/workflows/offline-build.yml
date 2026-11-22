@@ -47,11 +47,15 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           set -euo pipefail
-          cargo metadata --locked --format-version 1 --no-deps | python3 -c 'import json,sys; p=next(x for x in json.load(sys.stdin)["packages"] if x["name"]=="powrush-client"); raise SystemExit(0 if p["features"].get("default", [])==[] else "FAIL default")'
-          if python3 -c 'import sys; sys.exit(0 if ["steam"]==[] else 1)'; then echo "self-test: default=[] missed a feature" >&2; exit 1; fi
+          dflt() { python3 -c 'import json,sys; p=next(x for x in json.load(sys.stdin)["packages"] if x["name"]=="powrush-client"); raise SystemExit(0 if p["features"].get("default", [])==[] else "FAIL default")'; }
+          cargo metadata --locked --format-version 1 --no-deps | dflt; echo "ok: powrush-client default=[] (dflt)"
+          if echo '{"packages":[{"name":"powrush-client","features":{"default":["steam"]}}]}' | dflt 2>/dev/null; then echo "self-test: default=[] missed a feature" >&2; exit 1; fi; echo "self-test ok: planted default=steam made dflt FAIL, caught"
           sw() { cargo tree -p powrush-client --locked --target all -e normal,build --prefix none "$@"; }
-          sw | grep -q '^steamworks ' && { echo "FAIL: steamworks in normal/build tree" >&2; exit 1; }
-          sw --features steam | grep -q '^steamworks ' || { echo "self-test: steam tree missed steamworks" >&2; exit 1; }
+          sw | grep '^steamworks ' >/dev/null && { echo "FAIL: steamworks in normal/build tree" >&2; exit 1; }
+          sw --features steam | grep '^steamworks ' >/dev/null || { echo "self-test: steam tree missed steamworks" >&2; exit 1; }
+          bld() { sed -n '/^      - name: Release build/,/^      - name: Assert/p' "$1" | grep -E -- '-features|[[:space:]]-F[[:space:]=]' >/dev/null; }
+          if bld .github/workflows/offline-build.yml; then echo "FAIL: features flag on the release build step" >&2; exit 1; fi; echo "ok: release build step has no features flag (bld)"
+          printf '      - name: Release build\n        run: cargo build --features steam\n      - name: Assert\n' > "${RUNNER_TEMP}/bld.yml"; bld "${RUNNER_TEMP}/bld.yml" || { echo "self-test: planted --features missed" >&2; exit 1; }; echo "self-test ok: planted --features step caught by bld"
 
       - name: Package offline dist
         id: package
