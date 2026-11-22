@@ -185,4 +185,56 @@ mod tests {
         let stone = CrownstoneYard::default();
         assert!(!grove_live(&hour, &stone));
     }
+
+    /// YARD-SLAB-VIS-NEQ-1 YS1–YS6. Last tape of (Visibility, changed) on RedemptionSlabRoot over a MinimalPlugins app with update_redemption_slab only
+    /// (plus HudLayoutPlugin, Classic and InYard for YS5/YS6); settle 2 then clear. Values and ticks only.
+    #[derive(Resource, Default)]
+    struct YsTape(Vec<(Visibility, bool)>);
+    fn ys_tape(q: Query<Ref<Visibility>, With<RedemptionSlabRoot>>, mut t: ResMut<YsTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn ys_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<YsTape>().0) }
+    /// Live is charter live and witnessed = true; not live is the Peace default.
+    fn ys_live(app: &mut App, live: bool) {
+        let mut hour = HourSacred::default();
+        if live { hour.session.charter_id = Some(String::new()); hour.session.hex = HexFlag::Frontier; }
+        app.insert_resource(hour);
+        app.world_mut().resource_mut::<CrownstoneYard>().stone.witnessed = live;
+    }
+    fn ys_app(live: bool, hud: bool) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).init_resource::<CrownstoneYard>().init_resource::<RedemptionYard>().init_resource::<YsTape>()
+            .add_systems(Startup, spawn_redemption_slab).add_systems(Update, update_redemption_slab).add_systems(Last, ys_tape);
+        if hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(crate::hud_presets::HudPresetId::Classic) }).insert_resource(crate::title_screen::LaunchDoor::InYard); }
+        ys_live(&mut app, live);
+        app.update(); app.update(); ys_run(&mut app, 0); app
+    }
+    const YS_H: (Visibility, bool) = (Visibility::Hidden, false);
+    const YS_V: (Visibility, bool) = (Visibility::Visible, false);
+    #[test] fn yard_slab_vis_neq_1_ys1_redemption_steady_hidden_in_peace() {
+        let mut app = ys_app(false, false);
+        assert_eq!(ys_run(&mut app, 3), vec![YS_H; 3], "YS1 Peace: slab steady Hidden, quiet");
+    }
+    #[test] fn yard_slab_vis_neq_1_ys2_redemption_steady_visible_when_live() {
+        let mut app = ys_app(true, false);
+        assert_eq!(ys_run(&mut app, 3), vec![YS_V; 3], "YS2 live: slab steady Visible, quiet");
+    }
+    #[test] fn yard_slab_vis_neq_1_ys3_redemption_flips_once_each_way() {
+        let mut app = ys_app(false, false); ys_live(&mut app, true);
+        assert_eq!(ys_run(&mut app, 2), vec![(Visibility::Visible, true), YS_V], "YS3 goes live: shows once, then quiet");
+        ys_live(&mut app, false);
+        assert_eq!(ys_run(&mut app, 2), vec![(Visibility::Hidden, true), YS_H], "YS3 back to Peace: hides once, then quiet");
+    }
+    #[test] fn yard_slab_vis_neq_1_ys4_redemption_direct_poke_restored_once() {
+        let mut app = ys_app(false, false);
+        let e = app.world_mut().query_filtered::<Entity, With<RedemptionSlabRoot>>().single(app.world()).unwrap();
+        *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Visible;
+        assert_eq!(ys_run(&mut app, 2), vec![(Visibility::Hidden, true), YS_H], "YS4 direct Visible poke in Peace: restored once, then quiet");
+    }
+    #[test] fn yard_slab_vis_neq_1_ys5_redemption_classic_in_yard_live_ends_hidden() {
+        let mut app = ys_app(true, true); let t = ys_run(&mut app, 3);
+        assert!(t.len() == 3 && t.iter().all(|r| r.0 == Visibility::Hidden), "YS5 Classic InYard live: clean-suppressed slab ends Hidden every frame (values only, nil): {t:?}");
+    }
+    #[test] fn yard_slab_vis_neq_1_ys6_redemption_classic_in_yard_not_live_quiet() {
+        let mut app = ys_app(false, true);
+        assert_eq!(ys_run(&mut app, 3), vec![YS_H; 3], "YS6 Classic InYard not live: slab steady Hidden, quiet");
+    }
 }
