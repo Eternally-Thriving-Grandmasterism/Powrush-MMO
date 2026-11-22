@@ -309,14 +309,10 @@ fn update_well_slab(
     let show = near_first_well(&presence);
     let glow = yard.well_glow;
     for (mut vis, mut border, mut bg) in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
         if show {
             let pulse = well_glow_pulse(glow);
-            *border = Color::srgba(
+            border.set_if_neq(Color::srgba(
                 // VP-RIM-POLISH-1: the pulse lifts rim rgb (capped per channel);
                 // rim alpha stays 1.0, so pulse.a is not used on the rim.
                 (TITLE_BORDER.to_srgba().red + pulse.r).min(1.0),
@@ -324,14 +320,14 @@ fn update_well_slab(
                 (TITLE_BORDER.to_srgba().blue + pulse.b).min(1.0),
                 1.0,
             )
-            .into();
-            *bg = Color::srgba(
+            .into());
+            bg.set_if_neq(Color::srgba(
                 TITLE_PLATE_BG.to_srgba().red + pulse.bg_r,
                 TITLE_PLATE_BG.to_srgba().green + pulse.bg_g,
                 TITLE_PLATE_BG.to_srgba().blue + pulse.bg_b,
                 1.0,
             )
-            .into();
+            .into());
         }
     }
     if !show {
@@ -756,5 +752,52 @@ mod tests {
         assert_eq!(well.wins, 0, "out of reach does not contest");
         assert_eq!(well.hold, WellHold::Traveler);
         assert!(well.last_line.is_empty(), "out of reach returns before act");
+    }
+
+    /// SKIRMISH-SLAB-COLOR-NEQ-1 WC1–WC3 and WV1–WV2. hud_gold_well_app with Last tapes on the well slab root: (BorderColor, changed, BackgroundColor, changed) and (Visibility, changed).
+    type WcRow = (BorderColor, bool, BackgroundColor, bool);
+    #[derive(Resource, Default)] struct WcTape(Vec<WcRow>, Vec<(Visibility, bool)>);
+    fn wc_tape(q: Query<(Ref<BorderColor>, Ref<BackgroundColor>, Ref<Visibility>), With<WellSlabRoot>>, mut t: ResMut<WcTape>) {
+        for (b, g, v) in &q { t.0.push((*b, b.is_changed(), *g, g.is_changed())); t.1.push((*v, v.is_changed())); }
+    }
+    fn wc_app(glow: f32) -> App {
+        let mut app = hud_gold_well_app(glow); app.init_resource::<WcTape>().add_systems(Last, wc_tape);
+        app.update(); app.world_mut().insert_resource(WcTape::default()); app
+    }
+    fn wc_run(app: &mut App, n: usize) -> WcTape { for _ in 0..n { app.update(); } std::mem::take(&mut *app.world_mut().resource_mut::<WcTape>()) }
+    fn wc_glow(app: &mut App, glow: f32) { app.world_mut().resource_mut::<WellYard>().well_glow = glow; }
+    /// Rest is the spawn palette (:133/:134); lifted is the existing expectation in hud_gold_well_slab_pulse_adds_on_gold_base.
+    fn wc_rest(changed: bool) -> WcRow { (BorderColor::all(TITLE_BORDER.with_alpha(1.0)), changed, BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)), changed) }
+    fn wc_lifted(glow: f32, changed: bool) -> WcRow {
+        let (p, t, b) = (well_glow_pulse(glow), TITLE_BORDER.to_srgba(), TITLE_PLATE_BG.to_srgba());
+        (BorderColor::all(Color::srgba((t.red + p.r).min(1.0), (t.green + p.g).min(1.0), (t.blue + p.b).min(1.0), 1.0)), changed, BackgroundColor(Color::srgba(b.red + p.bg_r, b.green + p.bg_g, b.blue + p.bg_b, 1.0)), changed)
+    }
+    #[test] fn skirmish_slab_color_neq_1_wc1_rest_steady_unmarked() {
+        let mut app = wc_app(0.0);
+        assert_eq!(wc_run(&mut app, 3).0, vec![wc_rest(false); 3], "WC1 rest steady: rest colours, unchanged after settle");
+    }
+    #[test] fn skirmish_slab_color_neq_1_wc2_glow_steps_mark_once_each_then_quiet() {
+        let mut app = wc_app(0.0);
+        for glow in [1.0, 0.5] { wc_glow(&mut app, glow); assert_eq!(wc_run(&mut app, 2).0, vec![wc_lifted(glow, true), wc_lifted(glow, false)], "WC2 glow {glow}: changed once, then quiet"); }
+        wc_glow(&mut app, 0.0);
+        assert_eq!(wc_run(&mut app, 2).0, vec![wc_rest(true), wc_rest(false)], "WC2 glow 0.0: back to exact rest once, then quiet");
+    }
+    #[test] fn skirmish_slab_color_neq_1_wc3_out_of_reach_quiet_reentry_marks_once() {
+        let mut app = wc_app(0.0); let (x, y, z) = WELL_ANCHORS[0];
+        app.world_mut().resource_mut::<SoftPresence>().position = SoftPresence::default().position;
+        assert_eq!(wc_run(&mut app, 2).0, vec![wc_rest(false); 2], "WC3 out of reach: no colour write");
+        wc_glow(&mut app, 1.0);
+        assert_eq!(wc_run(&mut app, 2).0, vec![wc_rest(false); 2], "WC3 out of reach at glow 1.0: no colour change");
+        app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(x, y, z);
+        assert_eq!(wc_run(&mut app, 2).0, vec![wc_lifted(1.0, true), wc_lifted(1.0, false)], "WC3 re-entry: lifted once, then quiet");
+    }
+    #[test] fn skirmish_slab_color_neq_1_wv1_steady_visibility_unmarked() {
+        let mut app = wc_app(0.0);
+        assert_eq!(wc_run(&mut app, 3).1, vec![(Visibility::Visible, false); 3], "WV1 steady: Visible, no is_changed after settle");
+    }
+    #[test] fn skirmish_slab_color_neq_1_wv2_direct_hidden_write_restored_once() {
+        let mut app = wc_app(0.0); let e = app.world_mut().query_filtered::<Entity, With<WellSlabRoot>>().single(app.world()).unwrap();
+        *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden;
+        assert_eq!(wc_run(&mut app, 2).1, vec![(Visibility::Visible, true), (Visibility::Visible, false)], "WV2 direct Hidden write: restored Visible once, then quiet");
     }
 }
