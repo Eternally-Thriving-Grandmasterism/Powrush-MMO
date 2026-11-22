@@ -379,12 +379,9 @@ fn write_last_good(path: &Path, json: &str) -> std::io::Result<()> {
         }
     }
     if read_valid_house(path).is_some() {
-        fs::copy(path, sibling_path(path, ".bak"))?;
+        crate::user_persist::replace_synced(&sibling_path(path, ".bak"), &fs::read(path)?)?;
     }
-    let tmp = sibling_path(path, ".tmp");
-    fs::write(&tmp, json)?;
-    fs::rename(&tmp, path)?;
-    Ok(())
+    crate::user_persist::replace_synced(path, json.as_bytes())
 }
 
 fn mint_stable_local_seed(live: &Path) -> u64 {
@@ -836,6 +833,25 @@ mod tests {
         let second = HouseName::load_from_path(&path);
         assert_eq!(second.seed, first.seed);
         assert_ne!(second.seed, decoy.seed);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[cfg(unix)]
+    #[test]
+    fn persist_audit_bak_is_replaced_not_written_through() {
+        let dir = scratch("bak-link");
+        let path = dir.join("powrush_house.json");
+        let mut good = HouseName::default();
+        good.confirm("Kept");
+        good.persist_to_path(&path);
+        let (bak, witness, prev) = (super::sibling_path(&path, ".bak"), dir.join("witness"), std::fs::read(&path).unwrap());
+        std::fs::write(&witness, b"WITNESS").unwrap();
+        std::fs::hard_link(&witness, &bak).unwrap();
+        good.confirm("Changed");
+        good.persist_to_path(&path);
+        assert_eq!(std::fs::read(&witness).unwrap(), b"WITNESS", ".bak written through in place");
+        assert_eq!((std::fs::read(&bak).unwrap(), super::read_valid_house(&path).unwrap().name), (prev, "Changed".into()));
+        assert!(!super::sibling_path(&path, ".tmp").exists() && !super::sibling_path(&path, ".bak.tmp").exists());
         let _ = std::fs::remove_dir_all(&dir);
     }
 
