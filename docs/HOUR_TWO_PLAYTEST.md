@@ -37,7 +37,7 @@ cargo test -p shared -p rsil-identity
 cargo test -p powrush-client --lib
 ```
 
-`./scripts/play-offline.sh` forces `POWRUSH_NET=off`. With no args it is the Offline door (`cargo run -p powrush-client`). `q1` / `--script-run` is the headless door: those same two `cargo test` lines, then the named `q0_*` landings. No WASD. Title Online stays grey.
+`./scripts/play-offline.sh` forces `POWRUSH_NET=off`. With no args it is the Offline door (`cargo run -p powrush-client`). `q1` / `--script-run` is the CARD Q1 six-landing machine pass: those same two `cargo test` lines, then the named `q0_*` landings, with no cargo run. No WASD. Title Online stays grey.
 
 ```bash
 cargo test -p shared -p rsil-identity
@@ -53,7 +53,7 @@ Tip `07490761`:
 
 capture: none on tip
 
-No screenshot or tape capture on tip. Headless Q1 script-run (`./scripts/play-offline.sh --script-run`) is cited in `docs/FIRST_HOUR_PLAYTEST.md` MACHINE QA.
+No screenshot or tape capture on tip. Q1 script-run (`./scripts/play-offline.sh --script-run`) is cited in `docs/FIRST_HOUR_PLAYTEST.md` MACHINE QA.
 
 MACHINE QA GREEN
 
