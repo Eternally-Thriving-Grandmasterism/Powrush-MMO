@@ -333,11 +333,7 @@ fn update_watch_strip(
     let now = time.map_or(0.0, |t| t.elapsed_secs_f64()); // UI-CALM-1: Watch waits for the burst
     let show = (harvest.first_harvest_lived || pool.harvests > 0) && calm.as_deref().map_or(true, |c| c.done(now));
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     let aging = fresh.map(|f| f.age > 24.0 && pool.vitality >= 0.45).unwrap_or(false);
     let vmark = if aging { "~" } else { "" };
@@ -466,11 +462,7 @@ fn update_satchel(
     mut body: Query<&mut Text, With<SatchelBody>>,
 ) {
     for mut vis in &mut root {
-        *vis = if inv.open {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if inv.open { Visibility::Visible } else { Visibility::Hidden });
     }
     if !inv.open {
         return;
@@ -558,11 +550,7 @@ fn update_pickup_flash(
     let now = time.elapsed_secs_f64();
     let show = now < inv.pickup_until && !inv.pickup_line.is_empty() && inv.pickup_until < 9000.0;
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if show {
         for mut text in &mut text_q {
