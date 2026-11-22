@@ -400,4 +400,23 @@ mod tests {
             assert_eq!(root_vis(&mut app), (level_up_line(SPRINT, 2), Visibility::Hidden));
         });
     }
+
+    /// SKILLXP-TEXT-NEQ-1 SX1. Real SkillXpPlugin: idle frames and a sub-level gain leave the panel Text unmarked; a level-up writes it once.
+    #[derive(Resource, Default)] struct SxTape(Vec<(String, bool)>);
+    fn sx_tape(q: Query<Ref<Text>, With<SkillsPanelText>>, mut t: ResMut<SxTape>) { t.0.extend(q.iter().map(|x| (x.as_str().to_string(), x.is_changed()))); }
+    #[test]
+    fn skillxp_text_neq_1_sx1_idle_and_sub_level_gain_leave_panel_unmarked_level_up_marks_once() {
+        let (b0, b1) = ("SKILLS\nGathering · Lv 1\nTending · Lv 1\nWalking · Lv 1\nSprinting · Lv 1\nCombat · Lv 1\nTotal · Lv 5", "SKILLS\nGathering · Lv 2\nTending · Lv 1\nWalking · Lv 1\nSprinting · Lv 1\nCombat · Lv 1\nTotal · Lv 6");
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, SkillXpPlugin)).insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::ZERO)).init_resource::<FirstHarvestEpiphany>().init_resource::<SxTape>().add_systems(Last, sx_tape);
+        app.world_mut().spawn((Text::new(""), SkillsPanelText));
+        for step in 1..=6 {
+            if step == 4 { app.world_mut().resource_mut::<FirstHarvestEpiphany>().harvests_this_session = 1; }
+            if step == 5 { app.world_mut().resource_mut::<SkillXp>().xp[GATHER] = xp_for_level(2) - 10; app.world_mut().resource_mut::<FirstHarvestEpiphany>().harvests_this_session = 2; }
+            app.update();
+            if step == 4 { assert_eq!(app.world().resource::<SkillXp>().xp[GATHER], 10, "SX1 step 4: real sub-level gain"); }
+            if step == 5 { assert_eq!((app.world().resource::<SkillXp>().xp[GATHER], app.world().resource::<FirstHarvestEpiphany>().pulse_line.clone()), (100, level_up_line(GATHER, 2)), "SX1 step 5: real level-crossing gain"); }
+        }
+        assert_eq!(app.world().resource::<SxTape>().0, [(b0, true), (b0, false), (b0, false), (b0, false), (b1, true), (b1, false)].map(|(s, c)| (s.to_string(), c)), "SX1 tape (full panel string, is_changed) per tick");
+    }
 }
