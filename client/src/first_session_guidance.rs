@@ -1079,11 +1079,7 @@ pub(crate) fn update_guidance_visibility(
             &[(ID_CARE_STRIP, care_strip), (ID_CARE_PROMPT, care_prompt)],
         );
     for mut vis in &mut query {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
@@ -4351,5 +4347,35 @@ mod tests {
             assert_eq!(with, case(id, false), "{id:?} with {with:?}");
             assert_eq!(with, (Visibility::Visible, Visibility::Hidden, Visibility::Hidden), "{id:?}");
         }
+    }
+
+    /// GUIDANCE-NEQ-1 GN1. FN7's real HudLayoutPlugin harness: a steady strip stays unmarked; R5/R2 yields still hide and churn, and restore wins (step 5).
+    #[derive(Resource, Default)] struct GnTape(Vec<(Visibility, bool)>);
+    fn gn_tape(q: Query<Ref<Visibility>, With<FirstSessionGuidanceStrip>>, mut t: ResMut<GnTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    #[test]
+    fn guidance_neq_1_gn1_steady_strip_unmarked_yield_and_restore_still_win() {
+        use crate::{hex_travel::PlacesPlate, hud_presets::{ActiveHudPreset, HudLayoutPlugin, HudPresetId, HudYielded}};
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, HudLayoutPlugin)).insert_resource(ActiveHudPreset { id: Some(HudPresetId::Classic) }).insert_resource(LaunchDoor::InYard).init_resource::<FirstSessionGuidance>().init_resource::<GnTape>().add_systems(Startup, spawn_guidance_strip).add_systems(Update, update_guidance_visibility).add_systems(Last, gn_tape);
+        app.update(); app.update(); app.world_mut().resource_mut::<GnTape>().0.clear();
+        let (v, h) = (Visibility::Visible, Visibility::Hidden); let mut care = None;
+        let want = [(v, false), (v, false), (h, true), (h, true), (v, true), (v, false), (h, true), (h, true), (v, true), (v, false), (h, true), (h, false), (h, false), (v, true), (v, false)];
+        for (i, exp) in want.iter().enumerate() {
+            match i + 1 {
+                3 => { app.insert_resource(PlacesPlate::default()); app.world_mut().resource_mut::<PlacesPlate>().open = true; }
+                5 => app.world_mut().resource_mut::<PlacesPlate>().open = false,
+                7 => care = Some(app.world_mut().spawn((HudSlab(ID_CARE_STRIP), Visibility::Visible, Node::default())).id()),
+                9 => { app.world_mut().despawn(care.unwrap()); }
+                11 => app.world_mut().resource_mut::<FirstSessionGuidance>().dismissed = true,
+                13 => app.world_mut().resource_mut::<PlacesPlate>().open = true,
+                14 => { app.world_mut().resource_mut::<PlacesPlate>().open = false; app.world_mut().resource_mut::<FirstSessionGuidance>().dismissed = false; }
+                _ => {}
+            }
+            app.update();
+            assert_eq!(*app.world_mut().query_filtered::<&Visibility, With<FirstSessionGuidanceStrip>>().single(app.world()).unwrap(), exp.0, "GN1 final Visibility, step {}", i + 1);
+            let y = &app.world().resource::<HudYielded>().0;
+            match i + 1 { 7 => assert!(y.contains(&ID_GUIDANCE), "GN1 R2 yield, step 7"), 9 => assert!(y.is_empty(), "GN1 R2 released, step 9"), _ => {} }
+        }
+        assert_eq!(app.world().resource::<GnTape>().0, want, "GN1 tape (final Visibility, is_changed) per tick");
     }
 }
