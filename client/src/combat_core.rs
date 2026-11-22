@@ -6,7 +6,7 @@ use bevy::input::gamepad::GamepadRumbleRequest;
 use bevy::prelude::*;
 use bevy::window::PrimaryWindow;
 
-use shared::heartwood_lamp::{heartwood_bath_return, HEARTWOOD_BATH_RETURN, WATER_POND_CENTER};
+use shared::heartwood_lamp::HEARTWOOD_BATH_RETURN;
 use shared::hex_travel::PlaceId;
 use shared::temper::Standing;
 
@@ -408,8 +408,7 @@ pub fn reseat_on_defeat(combat: &mut CombatState, presence: &mut SoftPresence) {
 
 /// COMBAT-REACH-1 — a Sanctuary defeat wakes at the Stavehold gate; Heartwood is unchanged.
 pub fn reseat_at(place: PlaceId, combat: &mut CombatState, presence: &mut SoftPresence) {
-    let [px, pz] = WATER_POND_CENTER;
-    let [x, z] = if place == PlaceId::Sanctuary { STAVEHOLD_GATE_SPOT } else { heartwood_bath_return(PlaceId::Heartwood, px, pz).unwrap_or(HEARTWOOD_ENTRANCE) };
+    let [x, z] = if place == PlaceId::Sanctuary { STAVEHOLD_GATE_SPOT } else { HEARTWOOD_ENTRANCE };
     (presence.position, presence.velocity) = (Vec3::new(x, STAND_HEIGHT, z), Vec3::ZERO);
     presence.grounded = true;
     (combat.player_taken, combat.lunge_timer, combat.plate_secs, combat.plate_armed) = (0, 0.0, 0.0, false);
@@ -986,6 +985,7 @@ fn ability_tip_show(combat: Res<CombatState>, finds: Option<Res<FoundFinds>>, (t
 #[cfg(test)]
 mod tests {
     use super::*;
+    use shared::heartwood_lamp::WATER_POND_CENTER;
     use crate::human_inventory::HumanInventory;
     use crate::terrain::PLAY_HALF;
     use shared::heartwood_lamp::{LAMP_DISK_CENTER, LAMP_DISK_RADIUS, WATER_POND_RADIUS};
