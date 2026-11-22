@@ -44,6 +44,10 @@ pub const LIVED_UI_Z_PAUSE: i32 = 130;
 #[derive(Component, Debug, Clone, Copy)]
 pub struct LivedUiCamera;
 
+/// CAPTURE-NO-UI-1: `POWRUSH_CAPTURE_NO_UI` set keeps the lived UI camera off (capture only). Read once in `build`.
+#[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CaptureNoUi(pub bool);
+
 /// Marker on lived UI plate roots that must stay on the UI camera after Settled.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct LivedUiPlate;
@@ -72,6 +76,9 @@ pub struct UiAboveWorldPlugin;
 
 impl Plugin for UiAboveWorldPlugin {
     fn build(&self, app: &mut App) {
+        let no_ui = std::env::var_os("POWRUSH_CAPTURE_NO_UI").is_some();
+        if no_ui { info!(target: "powrush::capture", "lived UI camera off (POWRUSH_CAPTURE_NO_UI)"); }
+        app.insert_resource(CaptureNoUi(no_ui));
         // Sample4 MSAA writeback across Camera3d → Camera2d re-buries mid-screen
         // plates on lavapipe after Settled/Continue (F3). Off keeps UI honest.
         app.add_systems(Startup, spawn_lived_ui_camera)
@@ -165,6 +172,7 @@ fn stamp_lived_ui_camera(
     mut cams: Query<&mut Camera, With<LivedUiCamera>>,
     missing_marker: Query<Entity, (With<LivedUiCamera>, Without<IsDefaultUiCamera>)>,
     mut commands: Commands,
+    no_ui: Res<CaptureNoUi>,
 ) {
     for mut cam in &mut cams {
         if cam.order != UI_CAMERA_ORDER {
@@ -173,8 +181,8 @@ fn stamp_lived_ui_camera(
         if !matches!(cam.clear_color, ClearColorConfig::None) {
             cam.clear_color = ClearColorConfig::None;
         }
-        if !cam.is_active {
-            cam.is_active = true;
+        if cam.is_active == no_ui.0 {
+            cam.is_active = !no_ui.0;
         }
     }
     for entity in &missing_marker {
