@@ -11022,4 +11022,43 @@ mod tests {
         let mut app = tb_app(LaunchDoor::InYard); app.insert_resource(LaunchDoor::Title);
         assert_eq!(tb_run(&mut app, 2), vec![(tb_lit(), true), (tb_lit(), false)], "TB4 InYard to Title: paints once, then quiet");
     }
+
+    /// FIRST-BOOT-CLEAN-1 FB1–FB3. Full TitleScreenPlugin + AgeGatePlugin boot with an inserted LocalSettingsState (no file), the age_gate.rs `boot` seam.
+    /// `fb_hits` scans every Text (hidden too) for dev markers only and returns marker names, never copy.
+    fn fb_boot(seeded: bool) -> App {
+        let mut inner = shared::local_settings::LocalSettings::peace_defaults(); if seeded { inner.confirm_age(); }
+        let mut app = App::new();
+        app.insert_resource(LocalSettingsState { inner, dirty: false }).insert_resource(crate::lived_hour_bind::LivedHourBind::default()).insert_resource(crate::hud_presets::ActiveHudPreset::default())
+            .insert_resource(crate::net_mode::SessionNetMode::from_powrush_net(shared::hex_listen::PowrushNet::Off)).add_message::<bevy::input::gamepad::GamepadRumbleRequest>().add_message::<AppExit>()
+            .add_plugins((MinimalPlugins, bevy::input::InputPlugin, crate::input::InputPlugin, TitleScreenPlugin, crate::age_gate::AgeGatePlugin));
+        app.update(); app
+    }
+    fn fb_marks(s: &str) -> Vec<&'static str> {
+        let l = s.to_lowercase();
+        let ver = l.match_indices('v').any(|(i, _)| { let r = &l[i + 1..]; let d = r.len() - r.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+            d > 0 && r[d..].starts_with('.') && r[d + 1..].starts_with(|c: char| c.is_ascii_digit()) });
+        ["prototype", "todo", "debug"].into_iter().filter(|m| l.contains(m)).chain(ver.then_some("vN.N")).collect()
+    }
+    fn fb_hits(app: &mut App) -> Vec<&'static str> { app.world_mut().query::<&Text>().iter(app.world()).flat_map(|t| fb_marks(&t.0)).collect() }
+    fn fb_count(app: &mut App) -> usize { app.world_mut().query::<&Text>().iter(app.world()).count() }
+    #[test] fn first_boot_clean_1_fb1_title_then_play_show_no_dev_markers() {
+        let mut app = fb_boot(true); app.update();
+        assert!(!app.world().resource::<crate::age_gate::AgeGate>().open && fb_count(&mut app) > 0, "FB1 seeded: gate closed and Title texts spawned");
+        let title = fb_hits(&mut app); assert!(title.is_empty(), "FB1 Title dev markers: {title:?}");
+        for door in [LaunchDoor::InYard, LaunchDoor::NameHouse] {
+            app.insert_resource(door); (app.update(), app.update());
+            let hits = fb_hits(&mut app); assert!(hits.is_empty(), "FB1 after Play ({door:?}) dev markers: {hits:?}");
+        }
+    }
+    #[test] fn first_boot_clean_1_fb2_unseeded_age_gate_open_on_frame_one() {
+        let mut app = fb_boot(false);
+        assert!(app.world().resource::<crate::age_gate::AgeGate>().open, "FB2 unseeded: age gate open on frame 1");
+        let hits = fb_hits(&mut app); assert!(hits.is_empty(), "FB2 age-gate frame dev markers: {hits:?}");
+    }
+    #[test] fn first_boot_clean_1_fb3_planted_prototype_text_is_caught() {
+        let mut app = fb_boot(true); assert!(fb_hits(&mut app).is_empty(), "FB3 clean before planting");
+        app.world_mut().spawn(Text::new("Prototype build")); app.update();
+        assert_eq!(fb_hits(&mut app), vec!["prototype"], "FB3 planted text must trip the same checker");
+        assert!(fb_marks("TODO").len() + fb_marks("Debug").len() + fb_marks("build v0.20").len() == 3 && fb_marks("vivid 2.5").is_empty(), "FB3 every marker class trips; a non-version v does not");
+    }
 }
