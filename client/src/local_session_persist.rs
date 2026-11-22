@@ -127,25 +127,17 @@ fn save_blob(blob: &SessionBlob) -> bool {
 }
 
 fn save_blob_at(path: &Path, blob: &SessionBlob) -> bool {
-    if let Some(parent) = path.parent() {
-        let _ = fs::create_dir_all(parent);
-    }
     let Ok(json) = serde_json::to_string_pretty(blob) else {
         return false;
     };
-    let tmp = path.with_extension("json.tmp");
-    if let Err(e) = fs::write(&tmp, json) {
-        warn!(target: "powrush::session", "local session write failed: {e}");
-        return false;
-    }
     // A bad live file must not replace the last good `.bak`.
-    if path.exists() && read_session_blob(path).is_some() {
+    if read_session_blob(path).is_some() {
         let bak = path.with_extension("json.bak");
-        if let Err(e) = fs::copy(path, &bak) {
+        if let Err(e) = fs::read(path).and_then(|b| shared::user_persist::replace_synced(&bak, &b)) {
             warn!(target: "powrush::session", "local session backup failed: {e}");
         }
     }
-    if let Err(e) = fs::rename(&tmp, path) {
+    if let Err(e) = shared::user_persist::replace_synced(path, json.as_bytes()) {
         warn!(target: "powrush::session", "local session write failed: {e}");
         return false;
     }
