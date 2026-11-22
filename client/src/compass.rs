@@ -101,11 +101,7 @@ fn update_compass_slab(
 ) {
     let show = yard.last.is_some();
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     let Some(line) = yard.last else {
         return;
