@@ -333,11 +333,7 @@ fn update_watch_strip(
     let now = time.map_or(0.0, |t| t.elapsed_secs_f64()); // UI-CALM-1: Watch waits for the burst
     let show = (harvest.first_harvest_lived || pool.harvests > 0) && calm.as_deref().map_or(true, |c| c.done(now));
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     let aging = fresh.map(|f| f.age > 24.0 && pool.vitality >= 0.45).unwrap_or(false);
     let vmark = if aging { "~" } else { "" };
@@ -466,11 +462,7 @@ fn update_satchel(
     mut body: Query<&mut Text, With<SatchelBody>>,
 ) {
     for mut vis in &mut root {
-        *vis = if inv.open {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if inv.open { Visibility::Visible } else { Visibility::Hidden });
     }
     if !inv.open {
         return;
@@ -558,11 +550,7 @@ fn update_pickup_flash(
     let now = time.elapsed_secs_f64();
     let show = now < inv.pickup_until && !inv.pickup_line.is_empty() && inv.pickup_until < 9000.0;
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if show {
         for mut text in &mut text_q {
@@ -1285,5 +1273,68 @@ mod tests {
     #[test] fn hud_plate_hp2_d_watch_corner_is_one_at_text_scale_085() {
         let mut app = hp2_ui(1280, 720, 1.); app.insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings { text_scale: 0.85, ..shared::local_settings::LocalSettings::peace_defaults() }, dirty: false }).add_systems(Update, (scale_strip_and_flash_fonts, |mut q: Query<&mut Text, With<WatchStripText>>| for mut t in &mut q { t.0 = "Harvests 1 · Vitality 1.2".into(); })); (app.update(), app.update()); let root = hp2_root(&mut app); let n = app.world().get::<ComputedNode>(root).unwrap(); let pad = n.padding_box().size() * n.inverse_scale_factor;
         assert!(pad.x >= 24. && pad.y >= 24. && (pad / crate::ui_frame::FRAME_PX as f32).min_element().min(crate::ui_frame::frame_slicer().max_corner_scale) == 1., "HP2-d watch {pad}");
+    }
+
+    /// HUMAN-INVENTORY-VIS-NEQ-1 HI1–HI10. Last tape of (Visibility, changed) on the satchel, watch and pickup roots.
+    type HiVis = Vec<(Visibility, bool)>;
+    #[derive(Resource, Default)] struct HiTape(HiVis, HiVis, HiVis);
+    fn hi_row(v: Ref<Visibility>) -> (Visibility, bool) { (*v, v.is_changed()) }
+    fn hi_tape(s: Query<Ref<Visibility>, With<SatchelRoot>>, w: Query<Ref<Visibility>, With<WatchStripRoot>>, p: Query<Ref<Visibility>, With<PickupFlashRoot>>, mut t: ResMut<HiTape>) {
+        t.0.extend(s.iter().map(hi_row)); t.1.extend(w.iter().map(hi_row)); t.2.extend(p.iter().map(hi_row));
+    }
+    fn hi_arm(mut app: App) -> App { app.init_resource::<HiTape>().add_systems(Last, hi_tape); app.update(); app.world_mut().insert_resource(HiTape::default()); app }
+    fn hi_run(app: &mut App, n: usize) -> HiTape { for _ in 0..n { app.update(); } std::mem::take(&mut *app.world_mut().resource_mut::<HiTape>()) }
+    fn hi_hide<R: Component>(app: &mut App) { let e = app.world_mut().query_filtered::<Entity, With<R>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden; }
+    /// (B) MinimalPlugins + spawn_inventory_surfaces with update_watch_strip and update_pickup_flash, 100 ms manual steps; `hud` adds (C) HudLayoutPlugin, Classic, InYard, PlacesPlate.
+    fn hi_b(hud: bool) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).init_resource::<SoftRbePool>().init_resource::<FirstHarvestEpiphany>().init_resource::<HumanInventory>().insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(100))).add_systems(Startup, spawn_inventory_surfaces).add_systems(Update, (update_watch_strip, update_pickup_flash));
+        if hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(crate::hud_presets::HudPresetId::Classic) }).insert_resource(crate::title_screen::LaunchDoor::InYard).init_resource::<crate::hex_travel::PlacesPlate>(); }
+        app.update(); hi_arm(app)
+    }
+    /// A live pickup flash: the 1.8 s window notice_pickup opens, from now.
+    fn hi_pickup(app: &mut App) { let until = app.world().resource::<Time>().elapsed_secs_f64() + 1.8; let mut inv = app.world_mut().resource_mut::<HumanInventory>(); (inv.pickup_line, inv.pickup_until) = ("x".into(), until); }
+    const IV: Visibility = Visibility::Visible;
+    const IH: Visibility = Visibility::Hidden;
+    #[test] fn human_inventory_vis_neq_1_hi1_satchel_steady_open_unmarked() { let mut app = hi_arm(open_satchel("hi1", None, None)); assert_eq!(hi_run(&mut app, 3).0, vec![(IV, false); 3], "HI1 satchel steady open"); }
+    #[test] fn human_inventory_vis_neq_1_hi2_satchel_close_reopen_marks_once_each() {
+        let mut app = hi_arm(open_satchel("hi2", None, None)); app.world_mut().resource_mut::<HumanInventory>().open = false;
+        assert_eq!(hi_run(&mut app, 2).0, vec![(IH, true), (IH, false)], "HI2 satchel close: Hidden once, then quiet");
+        app.world_mut().resource_mut::<HumanInventory>().open = true;
+        assert_eq!(hi_run(&mut app, 2).0, vec![(IV, true), (IV, false)], "HI2 satchel reopen: Visible once, then quiet");
+    }
+    #[test] fn human_inventory_vis_neq_1_hi3_satchel_direct_hidden_restored_once() { let mut app = hi_arm(open_satchel("hi3", None, None)); hi_hide::<SatchelRoot>(&mut app); assert_eq!(hi_run(&mut app, 2).0, vec![(IV, true), (IV, false)], "HI3 satchel direct Hidden write: restored once, then quiet"); }
+    #[test] fn human_inventory_vis_neq_1_hi4_watch_steady_hidden_unmarked() { let mut app = hi_b(false); assert_eq!(hi_run(&mut app, 3).1, vec![(IH, false); 3], "HI4 watch steady hidden"); }
+    #[test] fn human_inventory_vis_neq_1_hi5_watch_first_harvest_marks_once() { let mut app = hi_b(false); app.world_mut().resource_mut::<SoftRbePool>().harvests = 1; assert_eq!(hi_run(&mut app, 2).1, vec![(IV, true), (IV, false)], "HI5 watch first harvest: Visible once, then quiet"); }
+    #[test] fn human_inventory_vis_neq_1_hi6_watch_direct_hidden_restored_once() {
+        let mut app = hi_b(false); app.world_mut().resource_mut::<SoftRbePool>().harvests = 1; hi_run(&mut app, 2); hi_hide::<WatchStripRoot>(&mut app);
+        assert_eq!(hi_run(&mut app, 2).1, vec![(IV, true), (IV, false)], "HI6 watch direct Hidden write: restored once, then quiet");
+    }
+    #[test] fn human_inventory_vis_neq_1_hi7_pickup_steady_hidden_and_sentinel_unmarked() {
+        let mut app = hi_b(false); assert_eq!(hi_run(&mut app, 3).2, vec![(IH, false); 3], "HI7 pickup steady hidden");
+        { let mut inv = app.world_mut().resource_mut::<HumanInventory>(); (inv.pickup_line, inv.pickup_until) = ("x".into(), 9999.0); }
+        assert_eq!(hi_run(&mut app, 2).2, vec![(IH, false); 2], "HI7 9999 sentinel stays hidden and quiet");
+    }
+    #[test] fn human_inventory_vis_neq_1_hi8_pickup_flash_on_then_off_once_each() {
+        let mut app = hi_b(false); hi_pickup(&mut app);
+        assert_eq!(hi_run(&mut app, 2).2, vec![(IV, true), (IV, false)], "HI8 pickup flash on: Visible once, then quiet");
+        let t = hi_run(&mut app, 20).2; let k = t.iter().position(|r| r.0 == IH).expect("HI8 flash ends");
+        assert_eq!(t, [vec![(IV, false); k], vec![(IH, true)], vec![(IH, false); 19 - k]].concat(), "HI8 pickup flash off: Hidden once, then quiet");
+    }
+    #[test] fn human_inventory_vis_neq_1_hi9_pickup_direct_hidden_restored_once() { let mut app = hi_b(false); hi_pickup(&mut app); hi_run(&mut app, 2); hi_hide::<PickupFlashRoot>(&mut app); assert_eq!(hi_run(&mut app, 2).2, vec![(IV, true), (IV, false)], "HI9 pickup direct Hidden write: restored once, then quiet"); }
+    #[test] fn human_inventory_vis_neq_1_hi10_real_hud_layout_classic_in_yard() {
+        let mut app = hi_b(true); app.world_mut().resource_mut::<SoftRbePool>().harvests = 1; hi_run(&mut app, 2);
+        assert_eq!(hi_run(&mut app, 2).1, vec![(IV, false); 2], "HI10 watch steady under Classic InYard");
+        hi_pickup(&mut app);
+        let t = hi_run(&mut app, 2); assert_eq!((t.1, t.2), (vec![(IV, false); 2], vec![(IH, true); 2]), "HI10 live pickup clean-hidden, changed every frame on main and branch alike");
+        app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = true;
+        let t = hi_run(&mut app, 2); assert!(t.1 == vec![(IH, true); 2] && t.2.iter().all(|r| r.0 == IH), "HI10 Places open hides watch and pickup");
+        app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = false;
+        assert_eq!(hi_run(&mut app, 2).1, vec![(IV, true), (IV, false)], "HI10 Places close: watch restored once, then quiet");
+        hi_run(&mut app, 15); assert_eq!(hi_run(&mut app, 2).2, vec![(IH, false); 2], "HI10 pickup after expiry: Hidden and quiet");
+        app.world_mut().resource_mut::<crate::hud_presets::ActiveHudPreset>().id = Some(crate::hud_presets::HudPresetId::Management);
+        app.world_mut().spawn((Node::default(), Visibility::Visible, HudSlab(crate::hud_anchor_registry::ID_PULSE))); hi_pickup(&mut app);
+        let t = hi_run(&mut app, 2); let yielded = app.world().resource::<crate::hud_presets::HudYielded>().0.contains(&PICKUP.id);
+        assert_eq!((t.2.last().unwrap().0, yielded), (IH, true), "HI10 Management with a Pulse sentinel: Pickup yields by R2 into HudYielded");
     }
 }
