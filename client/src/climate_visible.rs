@@ -1910,4 +1910,36 @@ mod tests {
         assert!(resting.contains("N 1 flow restores") && !resting.contains("R 1 flow"), "KH-R {resting}");
         assert!(stressed.contains("only take faded it · N 1 flow") && !stressed.contains("R 1 flow"), "KH-R {stressed}");
     }
+
+    /// CLIMATE-CROWN-VIS-NEQ-1 CV1–CV3. Real HudLayoutPlugin (Management, yard) with a Last (Visibility, is_changed) tape on the climate slab root.
+    #[derive(Resource, Default)] struct CvTape(Vec<(Visibility, bool)>);
+    fn cv_tape(q: Query<Ref<Visibility>, With<ClimateStateRoot>>, mut t: ResMut<CvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn cv_app() -> App {
+        use crate::hud_presets::{ActiveHudPreset, HudLayoutPlugin, HudPresetId};
+        let mut app = App::new();
+        app.add_plugins((bevy::MinimalPlugins, HudLayoutPlugin)).insert_resource(NearbyMercyNode::default()).insert_resource(LivedHourBind::default()).insert_resource(HexTravelState::default()).insert_resource(WeekFeelGlow::default()).insert_resource(WardsNoticeGlow::default()).insert_resource(LocalColorblindWells::default()).insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings::peace_defaults(), dirty: false }).insert_resource(ActiveHudPreset { id: Some(HudPresetId::Management) }).insert_resource(crate::title_screen::LaunchDoor::InYard).init_resource::<crate::hex_travel::PlacesPlate>().init_resource::<CvTape>().add_systems(Startup, spawn_climate_state_slab).add_systems(Update, update_climate_state_slab).add_systems(Last, cv_tape);
+        app.update(); app.update(); app.world_mut().resource_mut::<CvTape>().0.clear(); app
+    }
+    fn cv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> {
+        let mut out = Vec::new();
+        for _ in 0..n { app.update(); let v = *app.world_mut().query_filtered::<&Visibility, With<ClimateStateRoot>>().single(app.world()).unwrap(); let e = *app.world().resource::<CvTape>().0.last().unwrap(); assert_eq!(v, e.0, "final Visibility each step"); out.push(e); }
+        app.world_mut().resource_mut::<CvTape>().0.clear(); out
+    }
+    #[test] fn climate_crown_vis_neq_1_cv1_steady_climate_slab_unmarked() {
+        let mut app = cv_app();
+        assert_eq!(cv_run(&mut app, 3), vec![(Visibility::Visible, false); 3], "CV1 steady: Visible, no is_changed after settle");
+    }
+    #[test] fn climate_crown_vis_neq_1_cv2_places_plate_hides_then_restores_once() {
+        let (mut app, v, h) = (cv_app(), Visibility::Visible, Visibility::Hidden);
+        app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = true;
+        assert_eq!(cv_run(&mut app, 2), vec![(h, true); 2], "CV2 open: Hidden, changed each frame (as main)");
+        assert!(app.world().resource::<crate::hud_presets::HudYielded>().0.is_empty(), "CV2: the R5 hide is not R2");
+        app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = false;
+        assert_eq!(cv_run(&mut app, 2), vec![(v, true), (v, false)], "CV2 close: Visible changed once, then quiet");
+    }
+    #[test] fn climate_crown_vis_neq_1_cv3_direct_hidden_write_restored_once() {
+        let mut app = cv_app(); let e = app.world_mut().query_filtered::<Entity, With<ClimateStateRoot>>().single(app.world()).unwrap();
+        *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden;
+        assert_eq!(cv_run(&mut app, 2), vec![(Visibility::Visible, true), (Visibility::Visible, false)], "CV3 direct Hidden write: restored Visible once, then quiet");
+    }
 }
