@@ -10990,4 +10990,36 @@ mod tests {
         tc_door(&mut app, LaunchDoor::InYard);
         assert!(tc_text(&mut app) == t0, "TC5 next door change: cue matches a fresh boot with no file");
     }
+
+    /// TITLE-BREATH-NEQ-1 TB1–TB4. Last tape of (BorderColor, changed) on a `(Node::default(), TitleBreath)` root over MinimalPlugins
+    /// with breath_title_border only; settle 2 then clear.
+    #[derive(Resource, Default)]
+    struct TbTape(Vec<(BorderColor, bool)>);
+    fn tb_tape(q: Query<Ref<BorderColor>, With<TitleBreath>>, mut t: ResMut<TbTape>) { t.0.extend(q.iter().map(|b| ((*b).clone(), b.is_changed()))); }
+    fn tb_run(app: &mut App, n: usize) -> Vec<(BorderColor, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<TbTape>().0) }
+    fn tb_app(door: LaunchDoor) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).insert_resource(door).init_resource::<TbTape>().add_systems(Update, breath_title_border).add_systems(Last, tb_tape);
+        app.world_mut().spawn((Node::default(), TitleBreath));
+        app.update(); app.update(); tb_run(&mut app, 0); app
+    }
+    fn tb_lit() -> BorderColor { TITLE_BORDER.into() }
+    #[test] fn title_breath_neq_1_tb1_title_holds_title_border_quietly() {
+        let mut app = tb_app(LaunchDoor::Title);
+        assert_eq!(tb_run(&mut app, 3), vec![(tb_lit(), false); 3], "TB1 Title: root border steady on TITLE_BORDER, quiet");
+    }
+    #[test] fn title_breath_neq_1_tb2_in_yard_stays_default_quietly() {
+        let mut app = tb_app(LaunchDoor::InYard);
+        assert_eq!(tb_run(&mut app, 3), vec![(BorderColor::DEFAULT, false); 3], "TB2 InYard: root border stays default, quiet");
+    }
+    #[test] fn title_breath_neq_1_tb3_poke_on_title_restored_once() {
+        let mut app = tb_app(LaunchDoor::Title);
+        let e = app.world_mut().query_filtered::<Entity, With<TitleBreath>>().single(app.world()).unwrap();
+        *app.world_mut().get_mut::<BorderColor>(e).unwrap() = BorderColor::DEFAULT;
+        assert_eq!(tb_run(&mut app, 2), vec![(tb_lit(), true), (tb_lit(), false)], "TB3 direct default poke on Title: restored once, then quiet");
+    }
+    #[test] fn title_breath_neq_1_tb4_in_yard_to_title_paints_once() {
+        let mut app = tb_app(LaunchDoor::InYard); app.insert_resource(LaunchDoor::Title);
+        assert_eq!(tb_run(&mut app, 2), vec![(tb_lit(), true), (tb_lit(), false)], "TB4 InYard to Title: paints once, then quiet");
+    }
 }
