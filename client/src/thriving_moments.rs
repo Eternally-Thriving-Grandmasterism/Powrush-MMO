@@ -205,7 +205,7 @@ fn update_toast_ui(
     }
     if let Some(kind) = moments.current {
         for mut text in &mut text_q {
-            **text = kind.line().to_string();
+            if text.as_str() != kind.line() { **text = kind.line().to_string(); }
         }
     }
 }
