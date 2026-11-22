@@ -119,11 +119,7 @@ fn update_whisper(
     let now = time.elapsed_secs_f64(); // UI-CALM-1: in the burst, queue time holds the whisper (CL-U1)
     let show = clock.showing && calm.as_deref().filter(|c| !c.done(now)).map_or(now < clock.until, |c| c.live(crate::first_harvest_epiphany::CalmStep::Whisper, now));
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 

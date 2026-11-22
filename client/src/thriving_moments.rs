@@ -201,11 +201,7 @@ fn update_toast_ui(
     let now = time.map_or(0.0, |t| t.elapsed_secs_f64());
     let show = moments.current.is_some() && calm.as_deref().filter(|c| !c.done(now)).map_or(true, |c| c.live(crate::first_harvest_epiphany::CalmStep::Thriving, now));
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if let Some(kind) = moments.current {
         for mut text in &mut text_q {

@@ -108,11 +108,7 @@ fn update_war_slab(
 ) {
     let show = hour.charter_skin_live() && yard.sash_open;
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if !show {
         return;
