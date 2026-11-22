@@ -309,14 +309,10 @@ fn update_well_slab(
     let show = near_first_well(&presence);
     let glow = yard.well_glow;
     for (mut vis, mut border, mut bg) in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
         if show {
             let pulse = well_glow_pulse(glow);
-            *border = Color::srgba(
+            border.set_if_neq(Color::srgba(
                 // VP-RIM-POLISH-1: the pulse lifts rim rgb (capped per channel);
                 // rim alpha stays 1.0, so pulse.a is not used on the rim.
                 (TITLE_BORDER.to_srgba().red + pulse.r).min(1.0),
@@ -324,14 +320,14 @@ fn update_well_slab(
                 (TITLE_BORDER.to_srgba().blue + pulse.b).min(1.0),
                 1.0,
             )
-            .into();
-            *bg = Color::srgba(
+            .into());
+            bg.set_if_neq(Color::srgba(
                 TITLE_PLATE_BG.to_srgba().red + pulse.bg_r,
                 TITLE_PLATE_BG.to_srgba().green + pulse.bg_g,
                 TITLE_PLATE_BG.to_srgba().blue + pulse.bg_b,
                 1.0,
             )
-            .into();
+            .into());
         }
     }
     if !show {
