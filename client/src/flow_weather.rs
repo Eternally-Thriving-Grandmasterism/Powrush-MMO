@@ -364,11 +364,7 @@ fn show_nectar(
 ) {
     let show = matches!(realm.current, Some(0) | Some(2));
     for mut vis in &mut q {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
@@ -519,5 +515,23 @@ mod tests {
             assert_eq!(app.world().resource::<Assets<StandardMaterial>>().len(), mats);
             assert_eq!(app.world_mut().query::<&RibbonBead>().iter(app.world()).count(), 0);
         }
+    }
+
+    // NECTAR-NEQ-1 NQ1 — CUT 7071414432: a steady realm leaves the nectar beads' Visibility unmarked; a switch marks it only on a new value.
+    #[derive(Resource, Default)] struct NqTape(Vec<bool>);
+    fn nq_tape(q: Query<Ref<Visibility>, With<NectarBead>>, mut t: ResMut<NqTape>) { t.0.push(q.iter().any(|v| v.is_changed())); }
+    #[test]
+    fn nectar_neq_1_nq1_steady_realm_leaves_beads_unmarked_switch_marks_only_on_new_value() {
+        use crate::living_practice_loop::SoftPlayerRealm;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_resource::<Assets<Mesh>>().init_resource::<Assets<StandardMaterial>>().insert_resource(SoftPlayerRealm { current: Some(0) })
+            .init_resource::<NqTape>().add_systems(Startup, seed_nectar).add_systems(Update, show_nectar).add_systems(Last, nq_tape);
+        app.update(); app.update(); app.world_mut().resource_mut::<NqTape>().0.clear(); // warm-up: spawn (Added) and Hidden -> Visible
+        for (step, (realm, shown)) in [(Some(0), true), (Some(0), true), (Some(1), false), (Some(1), false), (Some(2), true), (Some(0), true), (None, false), (None, false)].into_iter().enumerate() {
+            app.world_mut().resource_mut::<SoftPlayerRealm>().current = realm; app.update();
+            let vis: Vec<Visibility> = app.world_mut().query_filtered::<&Visibility, With<NectarBead>>().iter(app.world()).copied().collect();
+            assert_eq!(vis, vec![if shown { Visibility::Visible } else { Visibility::Hidden }; 9], "step {step} realm {realm:?}: 9 beads");
+        }
+        assert_eq!(app.world().resource::<NqTape>().0, [false, false, true, false, true, false, true, false], "steady, steady, ->1, steady, ->2, ->0, ->None, steady");
     }
 }
