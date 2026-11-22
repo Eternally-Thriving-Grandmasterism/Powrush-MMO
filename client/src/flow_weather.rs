@@ -364,11 +364,7 @@ fn show_nectar(
 ) {
     let show = matches!(realm.current, Some(0) | Some(2));
     for mut vis in &mut q {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
