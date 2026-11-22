@@ -1697,8 +1697,9 @@ fn sync_comfort_graphics_banner(
     let stacked = on_title && label.settings_open;
     for (row, mut vis, mut node) in &mut q {
         let here = show && !stacked && row.in_pause != on_title;
-        *vis = if here { Visibility::Visible } else { Visibility::Hidden };
-        node.display = if here { Display::Flex } else { Display::None };
+        vis.set_if_neq(if here { Visibility::Visible } else { Visibility::Hidden });
+        let display = if here { Display::Flex } else { Display::None };
+        if node.display != display { node.display = display; }
     }
 }
 
@@ -2896,16 +2897,9 @@ fn sync_settings_stub(
     // Display::None (not only Hidden): soft-GPU / same-z Comfort must not linger
     // over the four-room Places plate after Places row Pressed (PLACES-CLICK).
     for (mut vis, mut style) in &mut q {
-        style.display = if show {
-            Display::Flex
-        } else {
-            Display::None
-        };
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        let display = if show { Display::Flex } else { Display::None };
+        if style.display != display { style.display = display; }
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
@@ -3293,29 +3287,14 @@ fn sync_pause_tabs(
 ) {
     for (panel, mut vis, mut style) in &mut panels {
         let active = panel.0 == *tab;
-        *vis = if active {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
-        style.display = if active {
-            Display::Flex
-        } else {
-            Display::None
-        };
+        vis.set_if_neq(if active { Visibility::Visible } else { Visibility::Hidden });
+        let display = if active { Display::Flex } else { Display::None };
+        if style.display != display { style.display = display; }
     }
     for (btn, mut bg, mut border) in &mut btns {
         let active = btn.0 == *tab;
-        *bg = if active {
-            TITLE_BTN_ACTIVE_BG.into()
-        } else {
-            TITLE_BTN_BG.into()
-        };
-        *border = if active {
-            TITLE_BORDER.into()
-        } else {
-            TITLE_BORDER_MUTED.into()
-        };
+        bg.set_if_neq(if active { TITLE_BTN_ACTIVE_BG } else { TITLE_BTN_BG }.into());
+        border.set_if_neq(if active { TITLE_BORDER } else { TITLE_BORDER_MUTED }.into());
     }
 }
 
