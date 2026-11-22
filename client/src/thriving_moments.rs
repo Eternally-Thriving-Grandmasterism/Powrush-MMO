@@ -201,11 +201,7 @@ fn update_toast_ui(
     let now = time.map_or(0.0, |t| t.elapsed_secs_f64());
     let show = moments.current.is_some() && calm.as_deref().filter(|c| !c.done(now)).map_or(true, |c| c.live(crate::first_harvest_epiphany::CalmStep::Thriving, now));
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if let Some(kind) = moments.current {
         for mut text in &mut text_q {
@@ -385,5 +381,44 @@ mod tests {
         world.insert_resource(crate::hud_presets::HudYielded(vec![crate::hud_anchor_registry::ID_THRIVING]));
         world.run_system_once(tick_moments).unwrap();
         assert_eq!(world.resource::<ThrivingMoments>().display_until, 0.5 + left, "CalmQueue time, no double extension");
+    }
+
+    /// TOAST-VIS-NEQ-1 TV5–TV8. Last tape of (Visibility, changed) on ThrivingToastRoot; settle 2 then clear; 100 ms manual steps.
+    #[derive(Resource, Default)] struct TvTape(Vec<(Visibility, bool)>);
+    fn tv_tape(q: Query<Ref<Visibility>, With<ThrivingToastRoot>>, mut t: ResMut<TvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn tv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<TvTape>().0) }
+    fn tv_settle(mut app: App) -> App { app.update(); app.update(); app.world_mut().resource_mut::<TvTape>().0.clear(); app }
+    fn tv_hide(app: &mut App) { let e = app.world_mut().query_filtered::<Entity, With<ThrivingToastRoot>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden; }
+    const TV: Visibility = Visibility::Visible;
+    const TH: Visibility = Visibility::Hidden;
+    /// `hud` adds tick_moments with the real HudLayoutPlugin.
+    fn tv_app(hud: Option<crate::hud_presets::HudPresetId>) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).init_resource::<ThrivingMoments>().init_resource::<TvTape>().insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(100))).add_systems(Startup, spawn_toast).add_systems(Update, update_toast_ui).add_systems(Last, tv_tape);
+        if hud.is_some() { app.add_systems(Update, tick_moments); }
+        if let Some(id) = hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(id) }).insert_resource(crate::title_screen::LaunchDoor::InYard).init_resource::<crate::hex_travel::PlacesPlate>(); }
+        tv_settle(app)
+    }
+    fn tv_current(app: &mut App, kind: Option<ThrivingKind>) { app.world_mut().resource_mut::<ThrivingMoments>().current = kind; }
+    fn tv_fire(app: &mut App) { let now = app.world().resource::<Time>().elapsed_secs_f64(); app.world_mut().resource_mut::<ThrivingMoments>().try_fire(ThrivingKind::FirstShare, now); }
+    #[test] fn toast_vis_neq_1_tv5_thriving_steady_hidden_unmarked() { let mut app = tv_app(None); assert_eq!(tv_run(&mut app, 3), vec![(TH, false); 3], "TV5 thriving steady hidden"); }
+    #[test] fn toast_vis_neq_1_tv6_thriving_one_change_each_way() {
+        let mut app = tv_app(None); tv_current(&mut app, Some(ThrivingKind::FirstShare));
+        assert_eq!(tv_run(&mut app, 2), vec![(TV, true), (TV, false)], "TV6 thriving current: Visible once, then quiet");
+        tv_current(&mut app, None);
+        assert_eq!(tv_run(&mut app, 2), vec![(TH, true), (TH, false)], "TV6 thriving cleared: Hidden once, then quiet");
+    }
+    #[test] fn toast_vis_neq_1_tv7_thriving_direct_hidden_restored_once() { let mut app = tv_app(None); tv_current(&mut app, Some(ThrivingKind::FirstShare)); tv_run(&mut app, 2); tv_hide(&mut app); assert_eq!(tv_run(&mut app, 2), vec![(TV, true), (TV, false)], "TV7 thriving direct Hidden write: restored once, then quiet"); }
+    #[test] fn toast_vis_neq_1_tv8_thriving_real_hud_layout_with_tick() {
+        let mut app = tv_app(Some(crate::hud_presets::HudPresetId::Classic)); tv_fire(&mut app);
+        assert_eq!(tv_run(&mut app, 2), vec![(TH, true); 2], "TV8 Classic InYard current: clean-hidden, changed every frame on main and branch alike");
+        let mut app = tv_app(Some(crate::hud_presets::HudPresetId::Management)); tv_fire(&mut app); tv_run(&mut app, 1);
+        assert_eq!(tv_run(&mut app, 2), vec![(TV, false); 2], "TV8 Management current: steady Visible, quiet");
+        app.world_mut().spawn((Node::default(), Visibility::Visible, HudSlab(crate::hud_anchor_registry::ID_PULSE)));
+        tv_run(&mut app, 1); let before = app.world().resource::<ThrivingMoments>().display_until;
+        let t = tv_run(&mut app, 2); let yielded = app.world().resource::<crate::hud_presets::HudYielded>().0.contains(&THRIVING.id);
+        let grew = app.world().resource::<ThrivingMoments>().display_until - before;
+        assert_eq!((t, yielded), (vec![(TH, true); 2], true), "TV8 Management with a Pulse sentinel: Thriving yields by R2 into HudYielded");
+        assert!((grew - 0.2).abs() < 1e-9, "TV8 CL-Y3 hold: display_until grows by dt per yielded frame, got {grew}");
     }
 }

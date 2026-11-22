@@ -108,11 +108,7 @@ fn update_war_slab(
 ) {
     let show = hour.charter_skin_live() && yard.sash_open;
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if !show {
         return;
@@ -137,4 +133,30 @@ mod tests {
         assert!(!yard.week.declared);
         assert!(!yard.sash_open);
     }
+
+    /// TOAST-VIS-NEQ-1 TV9–TV11. Last tape of (Visibility, changed) on WarSlabRoot; settle 2 then clear.
+    #[derive(Resource, Default)] struct TvTape(Vec<(Visibility, bool)>);
+    fn tv_tape(q: Query<Ref<Visibility>, With<WarSlabRoot>>, mut t: ResMut<TvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn tv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<TvTape>().0) }
+    fn tv_settle(mut app: App) -> App { app.update(); app.update(); app.world_mut().resource_mut::<TvTape>().0.clear(); app }
+    fn tv_hide(app: &mut App) { let e = app.world_mut().query_filtered::<Entity, With<WarSlabRoot>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden; }
+    const TV: Visibility = Visibility::Visible;
+    const TH: Visibility = Visibility::Hidden;
+    /// Peace by default; `charter` walks the embassy bench chain (ridge tab, plant house, hour two held) to a Charter-live hour.
+    fn tv_app(charter: bool) -> App {
+        let mut hour = HourSacred::default();
+        if charter { assert!(crate::hour_sacred::try_ridge_tab(&mut hour, true)); let mut vf = shared::vertical_factory::VerticalFactory::default(); assert!(crate::hour_sacred::try_plant_house(&mut hour, &mut vf) && crate::hour_sacred::try_mark_hour_two_held(&mut hour, true, true) && hour.charter_skin_live()); }
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).insert_resource(hour).init_resource::<WarYard>().init_resource::<TvTape>().add_systems(Startup, spawn_war_slab).add_systems(Update, update_war_slab).add_systems(Last, tv_tape);
+        tv_settle(app)
+    }
+    fn tv_sash(app: &mut App, open: bool) { app.world_mut().resource_mut::<WarYard>().sash_open = open; }
+    #[test] fn toast_vis_neq_1_tv9_war_peace_steady_hidden_unmarked() { let mut app = tv_app(false); assert_eq!(tv_run(&mut app, 3), vec![(TH, false); 3], "TV9 war Peace steady hidden"); }
+    #[test] fn toast_vis_neq_1_tv10_war_sash_open_close_once_each() {
+        let mut app = tv_app(true); tv_sash(&mut app, true);
+        assert_eq!(tv_run(&mut app, 2), vec![(TV, true), (TV, false)], "TV10 war sash open: Visible once, then quiet");
+        tv_sash(&mut app, false);
+        assert_eq!(tv_run(&mut app, 2), vec![(TH, true), (TH, false)], "TV10 war sash closed: Hidden once, then quiet");
+    }
+    #[test] fn toast_vis_neq_1_tv11_war_direct_hidden_restored_once() { let mut app = tv_app(true); tv_sash(&mut app, true); tv_run(&mut app, 2); tv_hide(&mut app); assert_eq!(tv_run(&mut app, 2), vec![(TV, true), (TV, false)], "TV11 war direct Hidden write: restored once, then quiet"); }
 }

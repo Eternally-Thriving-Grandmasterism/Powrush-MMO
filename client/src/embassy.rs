@@ -204,11 +204,7 @@ fn update_embassy_slab(
         && hour.charter_skin_live()
         && yard.embassy.lamp_live;
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if !show {
         return;
@@ -488,5 +484,40 @@ mod tests {
                 assert!(!slab.contains("Heartwood ·"));
             }
         }
+    }
+
+    /// TOAST-VIS-NEQ-1 TV12–TV15. Last tape of (Visibility, changed) on EmbassySlabRoot; settle 2 then clear.
+    #[derive(Resource, Default)] struct TvTape(Vec<(Visibility, bool)>);
+    fn tv_tape(q: Query<Ref<Visibility>, With<EmbassySlabRoot>>, mut t: ResMut<TvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn tv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<TvTape>().0) }
+    fn tv_settle(mut app: App) -> App { app.update(); app.update(); app.world_mut().resource_mut::<TvTape>().0.clear(); app }
+    fn tv_hide(app: &mut App) { let e = app.world_mut().query_filtered::<Entity, With<EmbassySlabRoot>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden; }
+    const TV: Visibility = Visibility::Visible;
+    const TH: Visibility = Visibility::Hidden;
+    /// The embassy_slab_1 lamp offer on Sanctuary (bench + EmbassyPlugin); `hud` adds the real HudLayoutPlugin at InYard.
+    fn tv_app(hud: Option<crate::hud_presets::HudPresetId>) -> App {
+        let (hour, fabricator) = embassy_slab_1_bench();
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::input::InputPlugin, EmbassyPlugin)).insert_resource(hour).insert_resource(fabricator).insert_resource(VoiceYard::default()).insert_resource(LedgerYard::default()).insert_resource(ThrivingMoments::default()).insert_resource(FirstHarvestEpiphany::default()).insert_resource(EmbassyYard::default())
+            .insert_resource(crate::hex_travel::HexTravelState { current: shared::hex_travel::PlaceId::Sanctuary }).init_resource::<TvTape>().add_systems(Last, tv_tape);
+        if let Some(id) = hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(id) }).insert_resource(crate::title_screen::LaunchDoor::InYard).init_resource::<crate::hex_travel::PlacesPlate>(); }
+        tv_settle(app)
+    }
+    fn tv_place(app: &mut App, current: shared::hex_travel::PlaceId) { app.insert_resource(crate::hex_travel::HexTravelState { current }); }
+    #[test] fn toast_vis_neq_1_tv12_embassy_lamp_steady_visible_unmarked() { let mut app = tv_app(None); assert_eq!(tv_run(&mut app, 3), vec![(TV, false); 3], "TV12 embassy lamp steady visible"); }
+    #[test] fn toast_vis_neq_1_tv13_embassy_heartwood_and_back_once_each() {
+        let mut app = tv_app(None); tv_place(&mut app, shared::hex_travel::PlaceId::Heartwood);
+        assert_eq!(tv_run(&mut app, 2), vec![(TH, true), (TH, false)], "TV13 embassy on Heartwood: Hidden once, then quiet");
+        tv_place(&mut app, shared::hex_travel::PlaceId::Sanctuary);
+        assert_eq!(tv_run(&mut app, 2), vec![(TV, true), (TV, false)], "TV13 embassy back on Sanctuary: Visible once, then quiet");
+    }
+    #[test] fn toast_vis_neq_1_tv14_embassy_direct_hidden_restored_once() { let mut app = tv_app(None); tv_hide(&mut app); assert_eq!(tv_run(&mut app, 2), vec![(TV, true), (TV, false)], "TV14 embassy direct Hidden write: restored once, then quiet"); }
+    #[test] fn toast_vis_neq_1_tv15_embassy_real_hud_layout() {
+        let mut app = tv_app(Some(crate::hud_presets::HudPresetId::Classic));
+        assert_eq!(tv_run(&mut app, 3), vec![(TH, true); 3], "TV15 Classic InYard lamp live: clean-hidden, changed every frame on main and branch alike");
+        let mut app = tv_app(Some(crate::hud_presets::HudPresetId::Management));
+        assert_eq!(tv_run(&mut app, 3), vec![(TV, false); 3], "TV15 Management: steady Visible, quiet");
+        let mut app = tv_app(Some(crate::hud_presets::HudPresetId::Minimal)); app.insert_resource(crate::title_screen::LaunchDoor::Title);
+        assert!(tv_run(&mut app, 2).iter().all(|r| r.0 == TH), "TV15 Minimal off the yard door: R5 hides the band");
     }
 }
