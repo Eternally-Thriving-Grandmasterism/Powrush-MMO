@@ -173,11 +173,7 @@ fn update_banner(
     if counts && dt > 0.0 && !session.dismissed && session.shown < session.banner_until { session.shown += dt; }
     let show = !session.dismissed && session.shown < session.banner_until;
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if !show {
         return;
@@ -620,5 +616,41 @@ mod tests {
         assert!(s.shown == 1.0, "Places with edit mode counts");
         run(&mut s, modal(false, false, false));
         assert!(s.shown == 2.0 && s.banner_until == BANNER_SECS, "closing resumes, no reset");
+    }
+
+    /// STATUS-VIS-NEQ-1 SV13–SV16. Last tape of (Visibility, changed) on SovereignBannerRoot; settle 2 then clear; 125 ms manual steps.
+    #[derive(Resource, Default)] struct SvTape(Vec<(Visibility, bool)>);
+    fn sv_tape(q: Query<Ref<Visibility>, With<SovereignBannerRoot>>, mut t: ResMut<SvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn sv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<SvTape>().0) }
+    fn sv_settle(mut app: App) -> App { app.update(); app.update(); app.world_mut().resource_mut::<SvTape>().0.clear(); app }
+    fn sv_hide(app: &mut App) { let e = app.world_mut().query_filtered::<Entity, With<SovereignBannerRoot>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden; }
+    fn sv_yielded(app: &App, id: &'static str) -> bool { app.world().resource::<crate::hud_presets::HudYielded>().0.contains(&id) }
+    const SV: Visibility = Visibility::Visible;
+    const SH: Visibility = Visibility::Hidden;
+    fn sv_app(dismissed: bool, hud: Option<(crate::hud_presets::HudPresetId, Option<crate::title_screen::LaunchDoor>)>) -> App {
+        let mut app = App::new();
+        app.add_plugins(MinimalPlugins).insert_resource(LocalSovereignSession { dismissed, ..Default::default() }).init_resource::<SvTape>().insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(125))).add_systems(Startup, spawn_banner).add_systems(Update, update_banner).add_systems(Last, sv_tape);
+        if let Some((id, door)) = hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(id) }).init_resource::<crate::hex_travel::PlacesPlate>(); if let Some(door) = door { app.insert_resource(door); } }
+        sv_settle(app)
+    }
+    fn sv_shown(app: &App) -> f64 { app.world().resource::<LocalSovereignSession>().shown }
+    #[test] fn status_vis_neq_1_sv13_sovereign_dismissed_steady_unmarked() { let mut app = sv_app(true, None); assert_eq!(sv_run(&mut app, 3), vec![(SH, false); 3], "SV13 sovereign dismissed steady hidden"); }
+    #[test] fn status_vis_neq_1_sv14_sovereign_fresh_steady_then_one_change_at_banner_end() {
+        let mut app = sv_app(false, None);
+        assert_eq!(sv_run(&mut app, 3), vec![(SV, false); 3], "SV14 fresh banner frames 3-5: steady Visible, quiet");
+        let t = sv_run(&mut app, 80); let k = t.iter().position(|r| r.0 == SH).expect("SV14 banner ends");
+        assert_eq!(t, [vec![(SV, false); k], vec![(SH, true)], vec![(SH, false); 79 - k]].concat(), "SV14 banner end: Hidden once, then quiet");
+        assert!(sv_shown(&app) >= BANNER_SECS, "SV14 the banner ends at shown {BANNER_SECS}");
+    }
+    #[test] fn status_vis_neq_1_sv15_sovereign_direct_hidden_restored_once() { let mut app = sv_app(false, None); sv_hide(&mut app); assert_eq!(sv_run(&mut app, 2), vec![(SV, true), (SV, false)], "SV15 sovereign direct Hidden write while live: restored once, then quiet"); }
+    #[test] fn status_vis_neq_1_sv16_sovereign_real_hud_layout() {
+        let mut app = sv_app(false, Some((crate::hud_presets::HudPresetId::Classic, Some(crate::title_screen::LaunchDoor::Title))));
+        assert_eq!((sv_run(&mut app, 2), sv_shown(&app)), (vec![(SH, true); 2], 0.0), "SV16 Title door: R5 hides every frame on main and branch alike; the clock holds");
+        let mut app = sv_app(false, Some((crate::hud_presets::HudPresetId::Classic, Some(crate::title_screen::LaunchDoor::InYard))));
+        assert_eq!(sv_run(&mut app, 2), vec![(SH, true); 2], "SV16 Classic InYard: clean-hidden, changed every frame on main and branch alike");
+        let mut app = sv_app(false, Some((crate::hud_presets::HudPresetId::Management, Some(crate::title_screen::LaunchDoor::InYard))));
+        assert_eq!(sv_run(&mut app, 2), vec![(SV, false); 2], "SV16 Management InYard: steady Visible, quiet");
+        app.world_mut().spawn((Node::default(), Visibility::Visible, HudSlab(crate::hud_anchor_registry::ID_PULSE))); sv_run(&mut app, 1); let held = sv_shown(&app); let t = sv_run(&mut app, 2);
+        assert_eq!((t, sv_yielded(&app, ID_SOVEREIGN), sv_shown(&app)), (vec![(SH, true); 2], true, held), "SV16 Management with a Pulse sentinel: Sovereign yields by R2 into HudYielded (changed every frame on main and branch alike) and the clock holds");
     }
 }
