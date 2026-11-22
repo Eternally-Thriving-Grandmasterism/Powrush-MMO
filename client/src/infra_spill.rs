@@ -133,11 +133,7 @@ fn update_spill_slab(
 ) {
     let show = yard.witness.visible_on(hour.hex()) && hour.charter_skin_live();
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if !show {
         return;

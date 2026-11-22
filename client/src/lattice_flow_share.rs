@@ -226,11 +226,7 @@ fn update_peer_presence_chip(
 ) {
     let show = share.chip_visible && share.last_peer.is_some();
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if let Some(env) = &share.last_peer {
         let bare = format!(

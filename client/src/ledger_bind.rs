@@ -283,11 +283,7 @@ fn update_ledger_slab(
     // Show whenever L sash is open — wait line before Settled, full face after.
     let show = yard.sash_open;
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if !show {
         return;
