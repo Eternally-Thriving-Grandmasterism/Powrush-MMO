@@ -201,10 +201,20 @@ jobs:
           sudo apt-get install -y --no-install-recommends scrot imagemagick x11-utils xdotool
           cap="${RUNNER_TEMP}/media-capture"; rm -rf "${cap}"; mkdir -p "${cap}"
           cp -a "${DIST}/." "${cap}/"; tar -xzf "${cap}/powrush-offline-linux-${SHA8}.tar.gz" -C "${cap}"
-          export POWRUSH_CAPTURE_SHA="$(git rev-parse HEAD)"; timeout 180 bash scripts/capture-packaged-frames.sh "${cap}"
+          export POWRUSH_CAPTURE_SHA="$(git rev-parse HEAD)"; timeout 150 bash scripts/capture-packaged-frames.sh "${cap}"
       - uses: actions/upload-artifact@v4
         if: runner.os == 'Linux'
         with: { name: "powrush-packaged-frames-${{ steps.package.outputs.sha8 }}", path: "${{ runner.temp }}/media-capture/media-capture-frames", retention-days: 90 }
+      - name: Capture packaged lavapipe library hero (3840x1240, UI camera off)
+        if: runner.os == 'Linux'
+        shell: bash
+        env: { POWRUSH_CAPTURE_W: "3840", POWRUSH_CAPTURE_H: "1240", POWRUSH_CAPTURE_N: "1", POWRUSH_CAPTURE_DEADLINE: "80", POWRUSH_CAPTURE_NO_UI: "1", POWRUSH_DISPLAY: ":198" }
+        run: |
+          set -euo pipefail
+          POWRUSH_CAPTURE_SHA="$(git rev-parse HEAD)" timeout 90 bash scripts/capture-packaged-frames.sh "${RUNNER_TEMP}/media-capture" "${RUNNER_TEMP}/media-capture/library-hero"
+      - uses: actions/upload-artifact@v4
+        if: runner.os == 'Linux'
+        with: { name: "powrush-library-hero-${{ steps.package.outputs.sha8 }}", path: "${{ runner.temp }}/media-capture/library-hero", retention-days: 90 }
 
   # Matrix outputs keep whichever leg finishes last, so recompute sha8
   # from the same expression the package step uses.
