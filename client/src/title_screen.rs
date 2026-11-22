@@ -4910,11 +4910,7 @@ fn sync_name_house_visibility(
 ) {
     let show = *door == LaunchDoor::NameHouse;
     for mut vis in &mut q {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
@@ -5052,11 +5048,7 @@ fn sync_house_dress_visibility(
 ) {
     let show = *door == LaunchDoor::HouseDress;
     for mut vis in &mut q {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
@@ -5067,11 +5059,7 @@ fn sync_persona_creator_visibility(
 ) {
     let show = persona.open && PERSONA_CREATOR_ENABLED;
     for mut vis in &mut q {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
