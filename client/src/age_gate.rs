@@ -136,8 +136,8 @@ fn age_gate_sync(
     let denied = entry.as_ref().is_some_and(|entry| entry.denied);
     let ready = entry.as_ref().is_some_and(|entry| entry.month.is_some() && entry.year.is_some());
     let show = |on: bool| if on { Visibility::Visible } else { Visibility::Hidden };
-    for mut root in &mut roots { *root = show(gate.open); }
-    for (pane, mut vis) in &mut panes { *vis = show(gate.open && (*pane == Pane::Denied) == denied); }
+    for mut root in &mut roots { root.set_if_neq(show(gate.open)); }
+    for (pane, mut vis) in &mut panes { vis.set_if_neq(show(gate.open && (*pane == Pane::Denied) == denied)); }
     let month_s = entry.as_ref().and_then(|e| e.month).map(|m| m.to_string()).unwrap_or_else(|| "--".into());
     let year_s = entry.as_ref().and_then(|e| e.year).map(|y| y.to_string()).unwrap_or_else(|| "----".into());
     for (mut text, mut color) in &mut month { if text.as_str() != month_s { **text = month_s.clone(); } color.set_if_neq(TextColor(if entry.as_ref().and_then(|e| e.month).is_some() { TITLE_TEXT_PRIMARY } else { TITLE_TEXT_SECONDARY })); }
