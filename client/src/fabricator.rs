@@ -1246,4 +1246,57 @@ mod tests {
             assert_eq!(world.query::<&ImageNode>().iter(world).count(), 1);
         }
     }
+
+    /// FABRICATOR-SLAB-NEQ-1 FN1–FN4. Last tape of (Visibility, changed, BorderColor, changed, BackgroundColor, changed) on FabSlabRoot.
+    type FnRow = (Visibility, bool, BorderColor, bool, BackgroundColor, bool);
+    #[derive(Resource, Default)] struct FnTape(Vec<FnRow>);
+    fn fn_tape(q: Query<(Ref<Visibility>, Ref<BorderColor>, Ref<BackgroundColor>), With<FabSlabRoot>>, mut t: ResMut<FnTape>) { t.0.extend(q.iter().map(|(v, b, g)| (*v, v.is_changed(), *b, b.is_changed(), *g, g.is_changed()))); }
+    fn fn_arm(app: &mut App) { app.init_resource::<FnTape>().add_systems(Last, fn_tape); app.update(); app.world_mut().insert_resource(FnTape::default()); }
+    fn fn_run(app: &mut App, n: usize) -> Vec<FnRow> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<FnTape>().0) }
+    fn fn_vis(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { fn_run(app, n).into_iter().map(|r| (r.0, r.1)).collect() }
+    /// Rest is the spawn palette (:91/:92); lifted is read from a fresh slabs_regal_fab_app at that glow.
+    fn fn_rest() -> (BorderColor, BackgroundColor) { (BorderColor::all(TITLE_BORDER.with_alpha(1.0)), BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0))) }
+    fn fn_lift(glow: f32) -> (BorderColor, BackgroundColor) { let mut app = slabs_regal_fab_app(glow); let mut q = app.world_mut().query_filtered::<(&BorderColor, &BackgroundColor), With<FabSlabRoot>>(); let (b, g) = q.single(app.world()).unwrap(); (*b, *g) }
+    fn fr(v: Visibility, vc: bool, (b, g): (BorderColor, BackgroundColor), cc: bool) -> FnRow { (v, vc, b, cc, g, cc) }
+    #[test] fn fabricator_slab_neq_1_fn1_colour_rest_quiet_glow_marks_once() {
+        let (mut app, v, rest, lift) = (slabs_regal_fab_app(0.0), Visibility::Visible, fn_rest(), fn_lift(1.0)); fn_arm(&mut app);
+        assert_eq!(fn_run(&mut app, 3), vec![fr(v, false, rest, false); 3], "FN1 rest: spawn colours, unchanged after settle");
+        app.world_mut().resource_mut::<FabricatorYard>().bench_glow = 1.0;
+        assert_eq!(fn_run(&mut app, 2), vec![fr(v, false, lift, true), fr(v, false, lift, false)], "FN1 glow 1.0: lifted once, then quiet");
+        app.world_mut().resource_mut::<FabricatorYard>().bench_glow = 0.0;
+        assert_eq!(fn_run(&mut app, 2), vec![fr(v, false, rest, true), fr(v, false, rest, false)], "FN1 glow 0.0: exact rest once, then quiet");
+    }
+    #[test] fn fabricator_slab_neq_1_fn2_visibility_steady_flip_restore() {
+        let (mut app, rest) = (slabs_regal_fab_app(0.0), fn_rest()); fn_arm(&mut app);
+        assert_eq!(fn_run(&mut app, 3), vec![fr(Visibility::Visible, false, rest, false); 3], "FN2 steady: Visible, unchanged after settle");
+        let done = std::mem::take(&mut app.world_mut().resource_mut::<FactoryYard>().factory);
+        assert_eq!(fn_run(&mut app, 2), vec![fr(Visibility::Hidden, true, rest, false), fr(Visibility::Hidden, false, rest, false)], "FN2 tutorial incomplete: Hidden once, then quiet");
+        app.world_mut().resource_mut::<FactoryYard>().factory = done;
+        assert_eq!(fn_run(&mut app, 2), vec![fr(Visibility::Visible, true, rest, false), fr(Visibility::Visible, false, rest, false)], "FN2 restore: Visible once, then quiet");
+    }
+    #[test] fn fabricator_slab_neq_1_fn3_direct_hidden_write_restored_once() {
+        let (mut app, rest) = (slabs_regal_fab_app(0.0), fn_rest()); fn_arm(&mut app);
+        let e = app.world_mut().query_filtered::<Entity, With<FabSlabRoot>>().single(app.world()).unwrap();
+        *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden;
+        assert_eq!(fn_run(&mut app, 2), vec![fr(Visibility::Visible, true, rest, false), fr(Visibility::Visible, false, rest, false)], "FN3 direct Hidden write: restored once, then quiet");
+    }
+    #[test] fn fabricator_slab_neq_1_fn4_real_hud_layout_clean_modal_r2() {
+        haul_gate("fn4", true, |app| {
+            bare_preset(app, crate::hud_presets::HudPresetId::Classic); q4(app); fn_arm(app);
+            let fab_yielded = |app: &mut App| app.world().resource::<crate::hud_presets::HudYielded>().0.contains(&crate::hud_anchor_registry::ID_FAB);
+            assert_eq!(fn_vis(app, 2), vec![(Visibility::Visible, false); 2], "FN4 clean steady: Fab Visible, unchanged");
+            assert_eq!((hud_vis(app, crate::hud_anchor_registry::ID_FAB), hud_vis(app, crate::hud_anchor_registry::ID_FACTORY), fab_yielded(app)), (Visibility::Visible, Visibility::Hidden, false));
+            app.insert_resource(crate::title_screen::HouseLabel { house: shared::house_name::HouseName::default(), persist_present: false, hour_two_held: false, book_held: false, settings_open: true, draft: String::new(), naming_offered: false, seals_offered: false });
+            assert_eq!(fn_vis(app, 2), vec![(Visibility::Hidden, true); 2], "FN4 settings open: Hidden each frame");
+            app.world_mut().resource_mut::<crate::title_screen::HouseLabel>().settings_open = false;
+            assert_eq!(fn_vis(app, 2), vec![(Visibility::Visible, true), (Visibility::Visible, false)], "FN4 settings close: Visible once, then quiet");
+            app.world_mut().resource_mut::<LivedHourBind>().hour.allocation.flow = 1;
+            app.world_mut().resource_mut::<crate::hud_presets::ActiveHudPreset>().id = Some(crate::hud_presets::HudPresetId::Management);
+            assert_eq!(fn_vis(app, 2), vec![(Visibility::Hidden, true); 2], "FN4 R2 yield: Hidden each frame");
+            assert!(fab_yielded(app), "FN4 R2 yield: Fab in HudYielded");
+            app.world_mut().resource_mut::<crate::hud_presets::ActiveHudPreset>().id = Some(crate::hud_presets::HudPresetId::Classic);
+            app.world_mut().resource_mut::<LivedHourBind>().hour.allocation.flow = 0;
+            assert_eq!(fn_vis(app, 2), vec![(Visibility::Visible, true), (Visibility::Visible, false)], "FN4 back to Classic: Visible once, then quiet");
+        });
+    }
 }
