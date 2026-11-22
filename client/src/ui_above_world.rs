@@ -44,6 +44,10 @@ pub const LIVED_UI_Z_PAUSE: i32 = 130;
 #[derive(Component, Debug, Clone, Copy)]
 pub struct LivedUiCamera;
 
+/// CAPTURE-NO-UI-1: `POWRUSH_CAPTURE_NO_UI` set keeps the lived UI camera off (capture only). Read once in `build`.
+#[derive(Resource, Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct CaptureNoUi(pub bool);
+
 /// Marker on lived UI plate roots that must stay on the UI camera after Settled.
 #[derive(Component, Debug, Clone, Copy)]
 pub struct LivedUiPlate;
@@ -72,6 +76,9 @@ pub struct UiAboveWorldPlugin;
 
 impl Plugin for UiAboveWorldPlugin {
     fn build(&self, app: &mut App) {
+        let no_ui = std::env::var_os("POWRUSH_CAPTURE_NO_UI").is_some();
+        if no_ui { info!(target: "powrush::capture", "lived UI camera off (POWRUSH_CAPTURE_NO_UI)"); }
+        app.insert_resource(CaptureNoUi(no_ui));
         // Sample4 MSAA writeback across Camera3d → Camera2d re-buries mid-screen
         // plates on lavapipe after Settled/Continue (F3). Off keeps UI honest.
         app.add_systems(Startup, spawn_lived_ui_camera)
@@ -165,6 +172,7 @@ fn stamp_lived_ui_camera(
     mut cams: Query<&mut Camera, With<LivedUiCamera>>,
     missing_marker: Query<Entity, (With<LivedUiCamera>, Without<IsDefaultUiCamera>)>,
     mut commands: Commands,
+    no_ui: Res<CaptureNoUi>,
 ) {
     for mut cam in &mut cams {
         if cam.order != UI_CAMERA_ORDER {
@@ -173,8 +181,8 @@ fn stamp_lived_ui_camera(
         if !matches!(cam.clear_color, ClearColorConfig::None) {
             cam.clear_color = ClearColorConfig::None;
         }
-        if !cam.is_active {
-            cam.is_active = true;
+        if cam.is_active == no_ui.0 {
+            cam.is_active = !no_ui.0;
         }
     }
     for entity in &missing_marker {
@@ -433,5 +441,41 @@ mod tests {
         assert!(!bloom_on_ui, "{label} bloom on ui");
         let world_bloom = app.world().get::<Bloom>(world_cam).is_some();
         assert_eq!(world_bloom, expect_hdr, "{label} world bloom");
+    }
+
+    /// CAPTURE-NO-UI-1 CN1–CN4. MinimalPlugins + UiAboveWorldPlugin, with CaptureNoUi inserted after the plugin (build inserts it from the env; no test sets the env).
+    fn cn_app(no_ui: bool) -> App { let mut app = App::new(); app.add_plugins(MinimalPlugins).add_plugins(UiAboveWorldPlugin).insert_resource(CaptureNoUi(no_ui)); app }
+    fn cn_cam(app: &mut App) -> (Entity, bool, isize, bool, bool) {
+        let w = app.world_mut(); let e = w.query_filtered::<Entity, With<LivedUiCamera>>().single(w).unwrap(); let c = w.get::<Camera>(e).unwrap();
+        (e, c.is_active, c.order, matches!(c.clear_color, ClearColorConfig::None), w.get::<IsDefaultUiCamera>(e).is_some())
+    }
+    #[test] fn capture_no_ui_1_cn1_flag_keeps_lived_camera_off_then_back_on() {
+        let mut app = cn_app(true); (app.update(), app.update()); let (_, active, order, clear_none, marker) = cn_cam(&mut app);
+        assert!(!active && order == UI_CAMERA_ORDER && clear_none && marker, "CN1 flag on: lived camera inactive, order 10, clear None, marker kept (active={active})");
+        app.insert_resource(CaptureNoUi(false)); app.update(); assert!(cn_cam(&mut app).1, "CN1 flag off again: lived camera active");
+    }
+    #[test] fn capture_no_ui_1_cn2_flag_off_restores_planted_inactive() {
+        let mut app = cn_app(false); (app.update(), app.update()); let e = cn_cam(&mut app).0;
+        app.world_mut().get_mut::<Camera>(e).unwrap().is_active = false; app.update();
+        assert!(cn_cam(&mut app).1, "CN2 flag off: planted inactive lived camera restored");
+    }
+    #[derive(Resource, Default)] struct CnTape(Vec<bool>);
+    fn cn_tape(q: Query<Ref<Camera>, With<LivedUiCamera>>, mut t: ResMut<CnTape>) { t.0.extend(q.iter().map(|c| c.is_changed())); }
+    #[test] fn capture_no_ui_1_cn3_lived_camera_quiet_under_both_flags() {
+        for no_ui in [false, true] {
+            let mut app = cn_app(no_ui); app.init_resource::<CnTape>().add_systems(Last, cn_tape); (app.update(), app.update());
+            app.world_mut().resource_mut::<CnTape>().0.clear(); (app.update(), app.update(), app.update());
+            assert_eq!(app.world().resource::<CnTape>().0, vec![false; 3], "CN3 no_ui={no_ui}: no per-frame Camera write");
+        }
+    }
+    #[test] fn capture_no_ui_1_cn4_ui_routes_to_lived_camera_with_flag_on() {
+        let mut app = cn_app(true);
+        let world_cam = app.world_mut().spawn((Camera3d::default(), Camera { order: WORLD_CAMERA_ORDER, ..default() }, IsDefaultUiCamera)).id();
+        let (root, plate) = (app.world_mut().spawn(Node::default()).id(), app.world_mut().spawn((Node::default(), LivedUiPlate)).id());
+        (app.update(), app.update()); let lived = cn_cam(&mut app).0;
+        let marked: Vec<Entity> = app.world_mut().query_filtered::<Entity, With<IsDefaultUiCamera>>().iter(app.world()).collect();
+        let default_ui = bevy::ecs::system::RunSystemOnce::run_system_once(app.world_mut(), |d: bevy::ui::DefaultUiCamera| d.get()).unwrap();
+        let targets = (app.world().get::<UiTargetCamera>(plate).map(|t| t.0), app.world().get::<UiTargetCamera>(root).is_none());
+        assert!(world_cam != lived && marked == vec![lived] && default_ui == Some(lived) && targets == (Some(lived), true), "CN4 one IsDefaultUiCamera on the lived camera, DefaultUiCamera::get() is it, plate targets it, untargeted root stays untargeted");
     }
 }
