@@ -208,18 +208,18 @@ fn update_soft_visibility(
     mut realm: Query<&mut Visibility, (With<RealmSoftRoot>, Without<MercySoftRoot>)>,
 ) {
     for mut vis in &mut mercy {
-        *vis = if panels.mercy_open {
+        vis.set_if_neq(if panels.mercy_open {
             Visibility::Visible
         } else {
             Visibility::Hidden
-        };
+        });
     }
     for mut vis in &mut realm {
-        *vis = if panels.realm_open {
+        vis.set_if_neq(if panels.realm_open {
             Visibility::Visible
         } else {
             Visibility::Hidden
-        };
+        });
     }
 }
 
