@@ -2581,4 +2581,41 @@ mod tests {
         assert_eq!(titles[0].1, Some(want));
         assert!(rows.iter().all(|(t, s)| t == PLACES_TITLE || s.is_none()));
     }
+
+    /// TRAVEL-VIS-NEQ-1 TR1–TR5. Last tape of (Visibility, Visibility changed, Node changed) on PausePlacesBtn over yard_app; settle 2 then clear.
+    #[derive(Resource, Default)] struct TrTape(Vec<(Visibility, bool, bool)>);
+    fn tr_tape(q: Query<(Ref<Visibility>, Ref<Node>), With<PausePlacesBtn>>, mut t: ResMut<TrTape>) { t.0.extend(q.iter().map(|(v, n)| (*v, v.is_changed(), n.is_changed()))); }
+    fn tr_take(app: &mut App) -> Vec<(Visibility, bool, bool)> { std::mem::take(&mut app.world_mut().resource_mut::<TrTape>().0) }
+    fn tr_run(app: &mut App, n: usize) -> Vec<(Visibility, bool, bool)> { for _ in 0..n { app.update(); } tr_take(app) }
+    fn tr_app() -> App { let mut app = yard_app(PlaceId::Sanctuary); app.init_resource::<TrTape>().add_systems(Last, tr_tape); app.update(); app.update(); tr_take(&mut app); app }
+    /// Exactly one frame marks both flags, landing on `want`, and the tape ends quiet on `want`.
+    fn tr_once(t: &[(Visibility, bool, bool)], want: Visibility) -> bool { t.iter().filter(|r| r.1 || r.2).collect::<Vec<_>>() == [&(want, true, true)] && t.last() == Some(&(want, false, false)) }
+    const TV: Visibility = Visibility::Visible;
+    const TH: Visibility = Visibility::Hidden;
+    #[test] fn travel_vis_neq_1_tr1_row_steady_hidden_unmarked() { let mut app = tr_app(); assert_eq!(tr_run(&mut app, 3), vec![(TH, false, false); 3], "TR1 yard, pause closed: row steady hidden, Visibility and Node quiet"); }
+    #[test] fn travel_vis_neq_1_tr2_pause_open_close_once_each() {
+        let mut app = tr_app(); tap_escape(&mut app); app.update(); let t = tr_take(&mut app);
+        assert!(pause_is_open(&app) && places_row_live(&mut app) && tr_once(&t, TV), "TR2 pause opens: one (Visible, true, true) frame with Display::Flex, then quiet: {t:?}");
+        tap_escape(&mut app); app.update(); let t = tr_take(&mut app);
+        assert!(!pause_is_open(&app) && tr_once(&t, TH), "TR2 pause closes: one (Hidden, true, true) frame, then quiet: {t:?}");
+    }
+    #[test] fn travel_vis_neq_1_tr3_places_open_hides_row_once() {
+        let mut app = tr_app(); tap_escape(&mut app); app.update(); tr_take(&mut app);
+        app.world_mut().resource_mut::<PlacesPlate>().open = true; let t = tr_run(&mut app, 3);
+        assert!(!places_row_live(&mut app) && tr_once(&t, TH), "TR3 Places open over pause: Hidden and Display::None once, then quiet: {t:?}");
+    }
+    #[test] fn travel_vis_neq_1_tr4_direct_hidden_and_none_restored_once() {
+        let mut app = tr_app(); tap_escape(&mut app); app.update(); tr_take(&mut app);
+        let e = app.world_mut().query_filtered::<Entity, With<PausePlacesBtn>>().single(app.world()).unwrap();
+        *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden; app.world_mut().get_mut::<Node>(e).unwrap().display = Display::None;
+        assert_eq!(tr_run(&mut app, 2), vec![(TV, true, true), (TV, false, false)], "TR4 direct Hidden + Display::None poke while live: both restored once, then quiet");
+        assert!(places_row_live(&mut app), "TR4 restored row is live");
+    }
+    #[test] fn travel_vis_neq_1_tr5_row_value_parity() {
+        let mut app = tr_app(); assert!(!places_row_live(&mut app), "TR5 yard: row not live");
+        tap_escape(&mut app); assert!(places_row_live(&mut app), "TR5 pause open: Places stays on the pause plate after Settled + book");
+        app.world_mut().resource_mut::<PlacesPlate>().open = true; app.update(); assert!(!places_row_live(&mut app), "TR5 Places open: row not live");
+        tap_escape(&mut app); assert!(pause_is_open(&app) && places_row_live(&mut app), "TR5 Esc from Places lands back on the pause plate with the row live");
+        tap_escape(&mut app); assert!(!pause_is_open(&app) && !places_row_live(&mut app), "TR5 Esc closes pause: row not live");
+    }
 }

@@ -507,4 +507,41 @@ mod tests {
         assert!(!app.world().resource::<HourSacred>().complete);
         assert_eq!(slab_text(&mut app), "Q next · reserve 3 · nodes 0 · stops 0");
     }
+
+    /// TRAVEL-VIS-NEQ-1 TR6–TR10. Last tape of (Visibility, changed) on FactorySlabRoot; settle 2 then clear.
+    #[derive(Resource, Default)] struct TrTape(Vec<(Visibility, bool)>);
+    fn tr_tape(q: Query<Ref<Visibility>, With<FactorySlabRoot>>, mut t: ResMut<TrTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn tr_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<TrTape>().0) }
+    /// factory_app's world (MinimalPlugins + VerticalFactoryPlugin); `hud` adds the real HudLayoutPlugin at InYard.
+    fn tr_app(hour: HourSacred, factory: VerticalFactory, hud: Option<crate::hud_presets::HudPresetId>) -> App {
+        let mut app = App::new();
+        app.insert_resource(hour).insert_resource(FactoryYard { factory }).insert_resource(PlayerInput::default()).insert_resource(ThrivingMoments::default()).init_resource::<TrTape>()
+            .add_plugins((MinimalPlugins, bevy::input::InputPlugin, VerticalFactoryPlugin)).add_systems(Last, tr_tape);
+        if let Some(id) = hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(id) }).insert_resource(crate::title_screen::LaunchDoor::InYard).init_resource::<crate::hex_travel::PlacesPlate>(); }
+        app.update(); app.update(); app.world_mut().resource_mut::<TrTape>().0.clear(); app
+    }
+    fn tr_off_peace(hud: Option<crate::hud_presets::HudPresetId>) -> App { let (hour, factory) = held_hour(false); tr_app(hour, factory, hud) }
+    fn tr_hide(app: &mut App) { let e = app.world_mut().query_filtered::<Entity, With<FactorySlabRoot>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden; }
+    const TV: Visibility = Visibility::Visible;
+    const TH: Visibility = Visibility::Hidden;
+    #[test] fn travel_vis_neq_1_tr6_factory_peace_steady_hidden_unmarked() { let mut app = tr_app(HourSacred::default(), VerticalFactory::default(), None); assert_eq!(tr_run(&mut app, 3), vec![(TH, false); 3], "TR6 factory Peace steady hidden"); }
+    #[test] fn travel_vis_neq_1_tr7_factory_off_peace_steady_visible_unmarked() { let mut app = tr_off_peace(None); assert_eq!(tr_run(&mut app, 3), vec![(TV, false); 3], "TR7 factory off Peace steady visible"); }
+    #[test] fn travel_vis_neq_1_tr8_factory_peace_and_back_once_each() {
+        let mut app = tr_off_peace(None); app.insert_resource(HourSacred::default());
+        assert_eq!(tr_run(&mut app, 2), vec![(TH, true), (TH, false)], "TR8 factory back to Peace: Hidden once, then quiet");
+        app.insert_resource(held_hour(false).0);
+        assert_eq!(tr_run(&mut app, 2), vec![(TV, true), (TV, false)], "TR8 factory off Peace again: Visible once, then quiet");
+    }
+    #[test] fn travel_vis_neq_1_tr9_factory_direct_hidden_restored_once() { let mut app = tr_off_peace(None); tr_hide(&mut app); assert_eq!(tr_run(&mut app, 2), vec![(TV, true), (TV, false)], "TR9 factory direct Hidden write while shown: restored once, then quiet"); }
+    #[test] fn travel_vis_neq_1_tr10_factory_real_hud_layout() {
+        let mut app = tr_off_peace(Some(crate::hud_presets::HudPresetId::Classic));
+        assert_eq!(tr_run(&mut app, 2), vec![(TH, true); 2], "TR10 Classic InYard off Peace: clean-hidden, changed every frame on main and branch alike");
+        let mut app = tr_off_peace(Some(crate::hud_presets::HudPresetId::Management));
+        let t = tr_run(&mut app, 2); let yielded = app.world().resource::<crate::hud_presets::HudYielded>().0.contains(&crate::hud_anchor_registry::ID_FACTORY);
+        assert_eq!((t, yielded), (vec![(TV, false); 2], false), "TR10 Management InYard: steady Visible, quiet, not yielded (rank 1)");
+        app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = true;
+        assert_eq!(tr_run(&mut app, 2), vec![(TH, true); 2], "TR10 Places open (R5): Hidden, changed every frame on main and branch alike");
+        app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = false;
+        assert_eq!(tr_run(&mut app, 2), vec![(TV, true), (TV, false)], "TR10 Places closed: restored once, then quiet");
+    }
 }
