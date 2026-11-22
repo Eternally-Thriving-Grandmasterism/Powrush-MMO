@@ -205,8 +205,9 @@ fn update_skills_panel(skills: Res<SkillXp>, mut texts: Query<&mut Text, With<Sk
         .map(|i| format!("{} · Lv {}", SKILL_NAMES[i], level_for_xp(skills.xp[i])))
         .collect();
     let lines = with_total_line(lines, &skills.xp);
+    let body = format!("SKILLS\n{}", lines.join("\n"));
     for mut text in &mut texts {
-        **text = format!("SKILLS\n{}", lines.join("\n"));
+        if text.as_str() != body { **text = body.clone(); }
     }
 }
 
