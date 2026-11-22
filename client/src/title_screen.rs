@@ -2438,13 +2438,17 @@ fn breath_title_border(
     }
 }
 
-fn refresh_title_cue(label: Res<HouseLabel>, mut q: Query<&mut Text, With<TitleCueText>>) {
+fn refresh_title_cue(label: Res<HouseLabel>, door: Res<LaunchDoor>, mut roster: Local<Option<Option<String>>>, mut q: Query<&mut Text, With<TitleCueText>>) {
     let house_cue = continue_cue_when_persist(label.persist_present, &label.house)
         .unwrap_or_else(|| "Play opens the yard · no account wall".into());
     // CARD FLESH-CONTINUE-LINE — same beat, Guide peak (`yard remembered`).
     let house_cue = continue_yard_remembered_line(&house_cue);
     // CARD S3 — sealed souls shown as People dress · last Place. Not a portraits grid.
-    let cue = match s3_continue_roster_cue(read_hour_two_json().as_deref()) {
+    // CARD TITLE-CUE-DISK-1 — the roster is read from disk once, then again only when the door changes.
+    if roster.is_none() || door.is_changed() {
+        *roster = Some(s3_continue_roster_cue(read_hour_two_json().as_deref()));
+    }
+    let cue = match roster.as_ref().and_then(|r| r.as_ref()) {
         Some(roster) => format!("{house_cue} · {roster}"),
         None => house_cue,
     };
