@@ -2624,11 +2624,7 @@ fn refresh_garden_boot_want(
             FontSize::Px(current) if (current - font_px / 1.2).abs() <= 0.01 => {}
             _ => font_face.font_size = FontSize::Px(font_px / 1.2),
         }
-        *vis = if spoken.is_some() {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if spoken.is_some() { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
@@ -2863,21 +2859,13 @@ pub(crate) fn sync_title_visibility(
 ) {
     let show = *door == LaunchDoor::Title;
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     // Continue dims when no persist
     let enabled = label.persist_present;
     for (mut bg, mut border) in &mut cont_style {
-        *bg = if enabled {
-            TITLE_BTN_BG.into()
-        } else {
-            TITLE_BTN_DISABLED_BG.into()
-        };
-        *border = TITLE_BORDER.into();
+        bg.set_if_neq(if enabled { TITLE_BTN_BG } else { TITLE_BTN_DISABLED_BG }.into());
+        border.set_if_neq(TITLE_BORDER.into());
     }
     let _ = net.mode; // Online stays Offline; peer count never shown
 }
