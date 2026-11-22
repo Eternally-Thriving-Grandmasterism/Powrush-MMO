@@ -806,11 +806,7 @@ pub(crate) fn update_world_care_prompt(
         guidance_hidden,
     );
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     let line = world_care_prompt_line(
         nearby.in_range,
@@ -865,11 +861,7 @@ fn update_harvest_pulse(
     let held = calm.as_deref().filter(|c| !c.done(now) && c.held_line == state.pulse_line); // UI-CALM-1: combat cues never wait
     let show = held.map_or(now < state.pulse_until, |c| c.live(CalmStep::Pulse, now)) && !state.pulse_line.is_empty();
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if show {
         for mut text in &mut text_q {
@@ -895,31 +887,27 @@ fn update_welcome_back(
     let show = welcome_visible(&state, time.elapsed_secs_f64());
     let glow = state.welcome_glow;
     for (mut vis, mut border, mut bg) in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
         if show {
             // Rest colors stay the existing welcome card; lift matches well_glow.
             let a = 0.40 + glow * 0.40;
             // state: welcome-back pulse — palette rest base + the existing glow lift.
             let rim = TITLE_BORDER.to_srgba();
             let plate = TITLE_PLATE_BG.to_srgba();
-            *border = Color::srgba(
+            border.set_if_neq(Color::srgba(
                 (rim.red + glow * 0.20).min(1.0),
                 (rim.green + glow * 0.16).min(1.0),
                 (rim.blue + glow * 0.04).min(1.0),
                 a,
             )
-            .into();
-            *bg = Color::srgba(
+            .into());
+            bg.set_if_neq(Color::srgba(
                 plate.red + glow * 0.08,
                 plate.green + glow * 0.10,
                 plate.blue + glow * 0.06,
                 1.0,
             )
-            .into();
+            .into());
         }
     }
 }
