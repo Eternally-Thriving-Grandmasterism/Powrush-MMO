@@ -205,7 +205,7 @@ fn update_toast_ui(
     }
     if let Some(kind) = moments.current {
         for mut text in &mut text_q {
-            **text = kind.line().to_string();
+            if text.as_str() != kind.line() { **text = kind.line().to_string(); }
         }
     }
 }
@@ -420,5 +420,35 @@ mod tests {
         let grew = app.world().resource::<ThrivingMoments>().display_until - before;
         assert_eq!((t, yielded), (vec![(TH, true); 2], true), "TV8 Management with a Pulse sentinel: Thriving yields by R2 into HudYielded");
         assert!((grew - 0.2).abs() < 1e-9, "TV8 CL-Y3 hold: display_until grows by dt per yielded frame, got {grew}");
+    }
+
+    /// THRIVING-TOAST-TEXT-NEQ-1 TT1–TT5. Last tape of (Text, changed) on ThrivingToastText over the tv_app builder; settle 2 then clear.
+    /// Rows are compared as (text == kind.line(), changed), so no copy is quoted.
+    #[derive(Resource, Default)] struct TtTape(Vec<(String, bool)>);
+    fn tt_tape(q: Query<Ref<Text>, With<ThrivingToastText>>, mut t: ResMut<TtTape>) { t.0.extend(q.iter().map(|x| (x.0.clone(), x.is_changed()))); }
+    fn tt_app() -> App { let mut app = tv_app(None); app.init_resource::<TtTape>().add_systems(Last, tt_tape); (app.update(), app.update()); tt_run(&mut app, 0); app }
+    fn tt_run(app: &mut App, n: usize) -> Vec<(String, bool)> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<TtTape>().0) }
+    fn tt_is(rows: &[(String, bool)], kind: ThrivingKind) -> Vec<(bool, bool)> { rows.iter().map(|(s, c)| (s == kind.line(), *c)).collect() }
+    fn tt_text(app: &mut App) -> Entity { app.world_mut().query_filtered::<Entity, With<ThrivingToastText>>().single(app.world()).unwrap() }
+    #[test] fn thriving_toast_text_neq_1_tt1_current_line_written_once() {
+        let mut app = tt_app(); tv_current(&mut app, Some(ThrivingKind::FirstShare));
+        assert_eq!(tt_is(&tt_run(&mut app, 4), ThrivingKind::FirstShare), vec![(true, true), (true, false), (true, false), (true, false)], "TT1 FirstShare current: line written once, then quiet");
+    }
+    #[test] fn thriving_toast_text_neq_1_tt2_none_steady_quiet() {
+        let mut app = tt_app(); let t = tt_run(&mut app, 3);
+        assert!(t.len() == 3 && t.iter().all(|r| !r.1 && r.0.is_empty()), "TT2 nothing current: text keeps its spawn value, quiet: {:?}", t.iter().map(|r| r.1).collect::<Vec<_>>());
+    }
+    #[test] fn thriving_toast_text_neq_1_tt3_switch_changes_once() {
+        let mut app = tt_app(); tv_current(&mut app, Some(ThrivingKind::FirstShare)); tt_run(&mut app, 2); tv_current(&mut app, Some(ThrivingKind::FirstArrival));
+        assert_eq!(tt_is(&tt_run(&mut app, 2), ThrivingKind::FirstArrival), vec![(true, true), (true, false)], "TT3 switch to FirstArrival: new line once, then quiet");
+    }
+    #[test] fn thriving_toast_text_neq_1_tt4_poke_restored_once() {
+        let mut app = tt_app(); tv_current(&mut app, Some(ThrivingKind::FirstShare)); tt_run(&mut app, 2);
+        let e = tt_text(&mut app); app.world_mut().get_mut::<Text>(e).unwrap().0.clear();
+        assert_eq!(tt_is(&tt_run(&mut app, 2), ThrivingKind::FirstShare), vec![(true, true), (true, false)], "TT4 text poked empty: restored once, then quiet");
+    }
+    #[test] fn thriving_toast_text_neq_1_tt5_cleared_keeps_last_line_quiet() {
+        let mut app = tt_app(); tv_current(&mut app, Some(ThrivingKind::FirstShare)); tt_run(&mut app, 2); tv_current(&mut app, None);
+        assert_eq!(tt_is(&tt_run(&mut app, 2), ThrivingKind::FirstShare), vec![(true, false); 2], "TT5 current cleared: text keeps the last line, quiet");
     }
 }
