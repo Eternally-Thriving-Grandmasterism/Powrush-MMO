@@ -104,7 +104,7 @@ fn toggle_lattice_panel(
     mut lattice: ResMut<FoundationLattice>,
 ) {
     // Slice 6: Charter L is The Ledger. Peace already swallows L.
-    lattice.panel_open = false;
+    if lattice.panel_open { lattice.panel_open = false; }
     let _ = (keyboard, hour);
 }
 
