@@ -88,6 +88,7 @@ pub struct LocalSessionPersist {
     pub loaded: bool,
     pub dirty: bool,
     pub whisper_lived: bool,
+    last_saved: Option<String>,
 }
 
 impl Default for LocalSessionPersist {
@@ -96,6 +97,7 @@ impl Default for LocalSessionPersist {
             loaded: false,
             dirty: false,
             whisper_lived: false,
+            last_saved: None,
         }
     }
 }
@@ -120,21 +122,21 @@ fn read_session_blob(path: &Path) -> Option<SessionBlob> {
     serde_json::from_slice(&bytes).ok()
 }
 
-fn save_blob(blob: &SessionBlob) {
-    save_blob_at(&persist_path(), blob);
+fn save_blob(blob: &SessionBlob) -> bool {
+    save_blob_at(&persist_path(), blob)
 }
 
-fn save_blob_at(path: &Path, blob: &SessionBlob) {
+fn save_blob_at(path: &Path, blob: &SessionBlob) -> bool {
     if let Some(parent) = path.parent() {
         let _ = fs::create_dir_all(parent);
     }
     let Ok(json) = serde_json::to_string_pretty(blob) else {
-        return;
+        return false;
     };
     let tmp = path.with_extension("json.tmp");
     if let Err(e) = fs::write(&tmp, json) {
         warn!(target: "powrush::session", "local session write failed: {e}");
-        return;
+        return false;
     }
     // A bad live file must not replace the last good `.bak`.
     if path.exists() && read_session_blob(path).is_some() {
@@ -145,7 +147,9 @@ fn save_blob_at(path: &Path, blob: &SessionBlob) {
     }
     if let Err(e) = fs::rename(&tmp, path) {
         warn!(target: "powrush::session", "local session write failed: {e}");
+        return false;
     }
+    true
 }
 
 pub struct LocalSessionPersistPlugin;
@@ -264,8 +268,10 @@ fn save_local_session(
         difficulty: saved.map(|s| s.0), area_difficulty: saved.map(|s| s.1), area_clears: saved.map(|s| s.2),
         run_best: ledger.as_ref().map(|l| l.best),
     };
-    save_blob(&blob);
     persist.dirty = false;
+    let Ok(json) = serde_json::to_string_pretty(&blob) else { return };
+    if persist.last_saved.as_deref() == Some(json.as_str()) { return; }
+    if save_blob(&blob) { persist.last_saved = Some(json); }
 }
 
 #[cfg(test)]
