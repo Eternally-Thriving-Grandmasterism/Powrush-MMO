@@ -4910,11 +4910,7 @@ fn sync_name_house_visibility(
 ) {
     let show = *door == LaunchDoor::NameHouse;
     for mut vis in &mut q {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
@@ -5052,11 +5048,7 @@ fn sync_house_dress_visibility(
 ) {
     let show = *door == LaunchDoor::HouseDress;
     for mut vis in &mut q {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
@@ -5067,11 +5059,7 @@ fn sync_persona_creator_visibility(
 ) {
     let show = persona.open && PERSONA_CREATOR_ENABLED;
     for mut vis in &mut q {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
@@ -10900,5 +10888,50 @@ mod tests {
         app.insert_resource(crate::launch_menu::LaunchFocus(crate::launch_menu::LaunchRow::Continue)); app.world_mut().spawn(bevy::input::gamepad::Gamepad::default());
         let t = tp_run(&mut app, 2).cont;
         assert!(t.len() == 2 && t.iter().all(|r| (r.0, r.1) == (TITLE_BTN_ACTIVE_BG, TITLE_BORDER)), "TS6 pad focus on Continue: ends on the active fill (values only, nil): {t:?}");
+    }
+
+    /// TITLE-DOORS-VIS-NEQ-1 TS12–TS14. Last tape of (Visibility, changed) on NameHouseRoot, HouseDressRoot and PersonaCreatorRoot over the
+    /// fd_app spawns with the three door sync systems; settle 2 then clear.
+    #[derive(Resource, Default)]
+    struct DvTape { name: Vec<(Visibility, bool)>, dress: Vec<(Visibility, bool)>, persona: Vec<(Visibility, bool)> }
+    #[allow(clippy::type_complexity)]
+    fn dv_tape(name: Query<Ref<Visibility>, With<NameHouseRoot>>, dress: Query<Ref<Visibility>, With<HouseDressRoot>>, persona: Query<Ref<Visibility>, With<PersonaCreatorRoot>>, mut t: ResMut<DvTape>) {
+        t.name.extend(name.iter().map(|v| (*v, v.is_changed())));
+        t.dress.extend(dress.iter().map(|v| (*v, v.is_changed())));
+        t.persona.extend(persona.iter().map(|v| (*v, v.is_changed())));
+    }
+    fn dv_run(app: &mut App, n: usize) -> DvTape { for _ in 0..n { app.update(); } std::mem::take(&mut *app.world_mut().resource_mut::<DvTape>()) }
+    fn dv_app() -> App {
+        let mut app = fd_app();
+        app.insert_resource(LaunchDoor::Title).insert_resource(bf2_house(false)).init_resource::<PersonaCreatorState>().init_resource::<DvTape>()
+            .add_systems(Update, (sync_name_house_visibility, sync_house_dress_visibility, sync_persona_creator_visibility)).add_systems(Last, dv_tape);
+        app.update(); app.update(); dv_run(&mut app, 0); app
+    }
+    fn dv_poke<M: Component>(app: &mut App) { let e = app.world_mut().query_filtered::<Entity, With<M>>().single(app.world()).unwrap(); *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden; }
+    const DV_QUIET_H: (Visibility, bool) = (Visibility::Hidden, false);
+    const DV_ONCE_V: [(Visibility, bool); 2] = [(Visibility::Visible, true), (Visibility::Visible, false)];
+    #[test] fn title_doors_vis_neq_1_ts12_name_house_steady_flip_and_restore() {
+        let mut app = dv_app();
+        assert_eq!(dv_run(&mut app, 3).name, vec![DV_QUIET_H; 3], "TS12 Title door: NameHouseRoot steady Hidden, quiet");
+        app.insert_resource(LaunchDoor::NameHouse);
+        assert_eq!(dv_run(&mut app, 2).name, DV_ONCE_V.to_vec(), "TS12 door to NameHouse: NameHouseRoot shows once, then quiet");
+        dv_poke::<NameHouseRoot>(&mut app);
+        assert_eq!(dv_run(&mut app, 2).name, DV_ONCE_V.to_vec(), "TS12 direct Hidden poke on NameHouse: restored once, then quiet");
+    }
+    #[test] fn title_doors_vis_neq_1_ts13_house_dress_steady_flip_and_restore() {
+        let mut app = dv_app();
+        assert_eq!(dv_run(&mut app, 3).dress, vec![DV_QUIET_H; 3], "TS13 Title door: HouseDressRoot steady Hidden, quiet");
+        app.insert_resource(LaunchDoor::HouseDress);
+        assert_eq!(dv_run(&mut app, 2).dress, DV_ONCE_V.to_vec(), "TS13 door to HouseDress: HouseDressRoot shows once, then quiet");
+        dv_poke::<HouseDressRoot>(&mut app);
+        assert_eq!(dv_run(&mut app, 2).dress, DV_ONCE_V.to_vec(), "TS13 direct Hidden poke on HouseDress: restored once, then quiet");
+    }
+    #[test] fn title_doors_vis_neq_1_ts14_persona_steady_flip_and_restore() {
+        let mut app = dv_app();
+        assert_eq!(dv_run(&mut app, 3).persona, vec![DV_QUIET_H; 3], "TS14 persona closed: PersonaCreatorRoot steady Hidden, quiet");
+        app.world_mut().resource_mut::<PersonaCreatorState>().open = true;
+        assert_eq!(dv_run(&mut app, 2).persona, DV_ONCE_V.to_vec(), "TS14 persona opened: PersonaCreatorRoot shows once, then quiet");
+        dv_poke::<PersonaCreatorRoot>(&mut app);
+        assert_eq!(dv_run(&mut app, 2).persona, DV_ONCE_V.to_vec(), "TS14 direct Hidden poke while open: restored once, then quiet");
     }
 }
