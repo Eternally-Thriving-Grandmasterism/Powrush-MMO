@@ -126,11 +126,7 @@ fn update_crownstone_slab(
 ) {
     let show = stone_live(&hour, &embassy);
     for mut vis in &mut root {
-        *vis = if show {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden });
     }
     if !show {
         return;
@@ -200,5 +196,29 @@ mod tests {
         let r = crate::heartwood_plaque::kh_sync::ord(&mut app, Sys::system_type_id(&handle_crownstone));
         let b = crate::heartwood_plaque::kh_sync::ord(&mut app, Sys::system_type_id(&crate::feel_move::raise_buffered_use));
         assert!(i < r && r < b, "KH-O order {i} {r} {b}");
+    }
+
+    /// CLIMATE-CROWN-VIS-NEQ-1 CS1–CS2. crown_app (stone live) with a Last (Visibility, is_changed) tape on the Crownstone slab root.
+    #[derive(Resource, Default)] struct CsTape(Vec<(Visibility, bool)>);
+    fn cs_tape(q: Query<Ref<Visibility>, With<CrownstoneSlabRoot>>, mut t: ResMut<CsTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
+    fn cs_app() -> App {
+        let mut app = crown_app(shared::local_settings::LocalSettings::peace_defaults()); app.init_resource::<CsTape>().add_systems(Last, cs_tape);
+        app.update(); app.update(); app.world_mut().resource_mut::<CsTape>().0.clear(); app
+    }
+    fn cs_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> {
+        let mut out = Vec::new();
+        for _ in 0..n { app.update(); let v = *app.world_mut().query_filtered::<&Visibility, With<CrownstoneSlabRoot>>().single(app.world()).unwrap(); let e = *app.world().resource::<CsTape>().0.last().unwrap(); assert_eq!(v, e.0, "final Visibility each step"); out.push(e); }
+        app.world_mut().resource_mut::<CsTape>().0.clear(); out
+    }
+    #[test] fn climate_crown_vis_neq_1_cs1_live_stone_slab_steady_unmarked() {
+        let mut app = cs_app();
+        assert_eq!(cs_run(&mut app, 3), vec![(Visibility::Visible, false); 3], "CS1 live steady: Visible, no is_changed after settle");
+    }
+    #[test] fn climate_crown_vis_neq_1_cs2_embassy_unseat_then_reseat_marks_once_each() {
+        let (mut app, v, h) = (cs_app(), Visibility::Visible, Visibility::Hidden);
+        app.insert_resource(EmbassyYard::default());
+        assert_eq!(cs_run(&mut app, 3), vec![(h, true), (h, false), (h, false)], "CS2 unseat: Hidden changed once, then quiet");
+        app.world_mut().resource_mut::<EmbassyYard>().embassy.seated = true;
+        assert_eq!(cs_run(&mut app, 2), vec![(v, true), (v, false)], "CS2 reseat: Visible changed once, then quiet");
     }
 }
