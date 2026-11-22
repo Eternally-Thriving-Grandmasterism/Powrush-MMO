@@ -323,11 +323,7 @@ fn update_echo_visibility(
     mut q: Query<&mut Visibility, With<JourneyEchoRoot>>,
 ) {
     for mut vis in &mut q {
-        *vis = if echo.panel_open {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if echo.panel_open { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 

@@ -113,11 +113,7 @@ fn update_lattice_visibility(
     mut q: Query<&mut Visibility, With<FoundationLatticeRoot>>,
 ) {
     for mut vis in &mut q {
-        *vis = if lattice.panel_open {
-            Visibility::Visible
-        } else {
-            Visibility::Hidden
-        };
+        vis.set_if_neq(if lattice.panel_open { Visibility::Visible } else { Visibility::Hidden });
     }
 }
 
