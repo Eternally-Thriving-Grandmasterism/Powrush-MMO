@@ -204,13 +204,13 @@ pub(crate) mod tests {
 
     /// Exact bytes the pre-JSON `encode` wrote for NAMED_FINDS[1] then [4].
     pub(crate) const OLD_FINDS: &[u8] = b"Steady Climate Pick\nQuiet Harmony Loom";
-    /// Runs `body` with `POWRUSH_USER_DIR` on a fresh temp dir, under the crate env lock.
+    /// Runs `body` with `POWRUSH_USER_DIR` on a fresh temp dir. The crate env lock covers the whole span, from the dir reset through cleanup.
     pub(crate) fn in_user_dir<R>(tag: &str, body: impl FnOnce(&std::path::Path) -> R) -> R {
         let dir = std::env::temp_dir().join(format!("powrush-finds-{tag}-{}", std::process::id()));
+        let _guard = crate::test_env::lock();
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("powrush_seal.json"), b"{}").unwrap();
-        let _guard = crate::test_env::lock();
         let (env, prev) = (shared::user_persist::USER_DIR_OVERRIDE_ENV, std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok());
         std::env::set_var(env, &dir);
         let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| body(&dir)));
