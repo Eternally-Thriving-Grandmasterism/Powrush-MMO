@@ -160,6 +160,9 @@ fn handle_ledger(
     mut bind: ResMut<LivedHourBind>,
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
+    pads: Query<&Gamepad>,
+    settings: Option<Res<LocalSettingsState>>,
+    edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
 ) {
     // L / pad North — Peace stays closed; off Peace the sash may wait or Bind.
     if keyboard.just_pressed(soft_play_bindings::LEDGER) || player_input.sheet_l {
@@ -210,7 +213,11 @@ fn handle_ledger(
         return;
     }
     let go = keyboard.just_pressed(soft_play_bindings::INTERACT)
-        || keyboard.just_pressed(KeyCode::Digit1);
+        || keyboard.just_pressed(KeyCode::Digit1)
+        || (!edit.as_ref().is_some_and(|mode| mode.active)
+            && settings.as_ref().is_some_and(|s| pads.iter().next().is_some_and(|pad| {
+                crate::input::pad_use_just_pressed(pad, s.inner.gamepad_south_use)
+            })));
     if !go {
         return;
     }
@@ -1284,4 +1291,74 @@ mod tests {
         assert_eq!(sv_run(&mut app, 2), vec![(SH, true), (SH, false)], "SV11 ledger sash closed: Hidden once, then quiet");
     }
     #[test] fn status_vis_neq_1_sv12_ledger_direct_hidden_restored_once() { let mut app = sv_app(true); sv_hide(&mut app); assert_eq!(sv_run(&mut app, 2), vec![(SV, true), (SV, false)], "SV12 ledger direct Hidden write while open: restored once, then quiet"); }
+    /// CARD PAD-BIND-1 — `LedgerBindPlugin` schedule, sash open, charter skin live.
+    fn pad_bind_app(south_use: bool, editing: bool) -> App {
+        let mut edit = crate::hud_edit_mode::HudEditMode::default();
+        edit.active = editing;
+        let mut app = App::new();
+        app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin)).configure_sets(Update, InputMapSet);
+        insert_ledger_scale_world(&mut app, true, Some(1.0));
+        app.world_mut().resource_mut::<LocalSettingsState>().inner.gamepad_south_use = south_use;
+        app.insert_resource(edit);
+        app.insert_resource(crate::infra_spill::EvidenceYard { witness: shared::infra_spill::InfraWitness::default() });
+        app.insert_resource(PlayerInput::default());
+        app.insert_resource(crate::thriving_moments::ThrivingMoments::default());
+        app.insert_resource(crate::first_harvest_epiphany::FirstHarvestEpiphany::default());
+        app.add_plugins(LedgerBindPlugin);
+        app
+    }
+    fn board_state(app: &App) -> Option<ContractState> { app.world().resource::<LedgerYard>().board.open().map(|c| c.state) }
+    fn hold(app: &mut App, button: GamepadButton, frames: usize) {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent, RawGamepadEvent};
+        let found = app.world_mut().query_filtered::<Entity, With<Gamepad>>().iter(app.world()).next();
+        let id = found.unwrap_or_else(|| {
+            let id = app.world_mut().spawn_empty().id();
+            app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None }));
+            app.update();
+            id
+        });
+        for _ in 0..frames {
+            app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, button, 1.0)));
+            app.update();
+        }
+    }
+    #[test] fn pad_bind_b1_one_south_press_advances_one_step() {
+        let mut app = pad_bind_app(true, false);
+        app.update();
+        assert_eq!(board_state(&app), Some(ContractState::Posted));
+        hold(&mut app, GamepadButton::South, 1);
+        assert_eq!(board_state(&app), Some(ContractState::Taken), "B1 one South press advances exactly one board step");
+    }
+    #[test] fn pad_bind_b2_held_south_is_one_step() {
+        let mut app = pad_bind_app(true, false);
+        app.update();
+        hold(&mut app, GamepadButton::South, 4);
+        assert_eq!(board_state(&app), Some(ContractState::Taken), "B2 South held several frames gives one step, not repeats");
+    }
+    #[test] fn pad_bind_b3_hud_edit_south_does_nothing() {
+        let mut app = pad_bind_app(true, true);
+        app.update();
+        hold(&mut app, GamepadButton::South, 1);
+        assert_eq!(board_state(&app), Some(ContractState::Posted), "B3 HUD edit active, South does nothing");
+    }
+    #[test] fn pad_bind_b4_south_use_off_does_nothing() {
+        let mut app = pad_bind_app(false, false);
+        app.update();
+        hold(&mut app, GamepadButton::South, 1);
+        assert_eq!(board_state(&app), Some(ContractState::Posted), "B4 gamepad_south_use false, South does nothing");
+    }
+    #[test] fn pad_bind_b5_west_east_dpad_do_nothing() {
+        let mut app = pad_bind_app(true, false);
+        app.update();
+        for button in [GamepadButton::West, GamepadButton::East, GamepadButton::DPadUp, GamepadButton::DPadDown, GamepadButton::DPadLeft, GamepadButton::DPadRight] {
+            hold(&mut app, button, 1);
+        }
+        assert_eq!(board_state(&app), Some(ContractState::Posted), "B5 West, East and D-pad do nothing");
+    }
+    #[test] fn pad_bind_no_settings_e_binds_south_idle() {
+        use bevy::input::{keyboard::{Key, KeyboardInput}, ButtonState};
+        let mut app = pad_bind_app(true, false); app.world_mut().remove_resource::<LocalSettingsState>(); app.update(); hold(&mut app, GamepadButton::South, 1);
+        assert_eq!(board_state(&app), Some(ContractState::Posted), "no settings, South does nothing");
+        app.world_mut().write_message(KeyboardInput { key_code: soft_play_bindings::INTERACT, logical_key: Key::Character("e".into()), state: ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER }); app.update();
+        assert_eq!(board_state(&app), Some(ContractState::Taken), "no settings, E binds one step"); }
 }
