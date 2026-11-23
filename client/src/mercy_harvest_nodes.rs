@@ -1566,4 +1566,42 @@ mod tests {
         let mut app = pv_app(true, Some((crate::hud_presets::HudPresetId::Classic, crate::title_screen::LaunchDoor::Title)));
         assert_eq!(pv_run(&mut app, 2), vec![(PH, true); 2], "PV11 Title door (R5): Hidden, changed every frame on main and branch alike");
     }
+
+    /// PAD-ROUTES-G-1 F1-F10. Real InputPlugin events. single_thread after plugins. offer_shell false. No test_env lock.
+    fn cc_app(active: bool, panel: Option<bool>) -> (App, Entity) {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let mut app = App::new(); app.add_plugins((MinimalPlugins, bevy::input::InputPlugin)).insert_resource(CareCycleOffer { active, offer_shell: false, ..Default::default() }).insert_resource(FabricatorYard::default()).add_systems(Update, handle_care_cycle_input);
+        if let Some(open) = panel { app.insert_resource(RbeAllocateChoice { panel_open: open, ..Default::default() }); }
+        let pad = app.world_mut().spawn_empty().id(); app.world_mut().write_message(GamepadConnectionEvent::new(pad, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None }));
+        crate::test_env::single_thread(&mut app); app.update(); (app, pad)
+    }
+    fn cc_pair(app: &App) -> (Option<CareCycleChoice>, bool) { let o = app.world().resource::<CareCycleOffer>(); (o.choice, o.active) }
+    fn cc_btn(app: &mut App, pad: Entity, b: GamepadButton, v: f32) { use bevy::input::gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent}; app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(pad, b, v))); app.update(); }
+    fn cc_tap(app: &mut App, pad: Entity, b: GamepadButton) { cc_btn(app, pad, b, 1.0); cc_btn(app, pad, b, 0.0); }
+    fn cc_key(app: &mut App, code: KeyCode, key: bevy::input::keyboard::Key) { use bevy::input::{keyboard::KeyboardInput, ButtonState}; app.world_mut().write_message(KeyboardInput { key_code: code, logical_key: key, state: ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER }); app.update(); }
+    fn cc_gate(app: &mut App, kind: u8, on: bool) {
+        match kind {
+            0 => if app.world().get_resource::<crate::title_screen::HouseLabel>().is_none() { app.insert_resource(crate::title_screen::HouseLabel { house: shared::house_name::HouseName::default(), persist_present: false, hour_two_held: false, book_held: false, settings_open: on, draft: String::new(), naming_offered: false, seals_offered: false }); } else { app.world_mut().resource_mut::<crate::title_screen::HouseLabel>().settings_open = on; }
+            1 => if app.world().get_resource::<crate::licences_screen::LicencesScreen>().is_none() { let mut s = crate::licences_screen::LicencesScreen::default(); s.open = on; app.insert_resource(s); } else { app.world_mut().resource_mut::<crate::licences_screen::LicencesScreen>().open = on; }
+            2 => if app.world().get_resource::<crate::hex_travel::PlacesPlate>().is_none() { let mut p = crate::hex_travel::PlacesPlate::default(); p.open = on; app.insert_resource(p); } else { app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = on; }
+            3 => if app.world().get_resource::<crate::hud_edit_mode::HudEditMode>().is_none() { let mut e = crate::hud_edit_mode::HudEditMode::default(); e.active = on; app.insert_resource(e); } else { app.world_mut().resource_mut::<crate::hud_edit_mode::HudEditMode>().active = on; }
+            _ => { app.insert_resource(if on { crate::title_screen::LaunchDoor::Title } else { crate::title_screen::LaunchDoor::InYard }); }
+        }
+    }
+    fn cc_vis(app: &mut App) -> Visibility { let w = app.world_mut(); *w.query_filtered::<&Visibility, With<CareCycleStrip>>().single(w).unwrap() }
+    #[test] fn pad_routes_g1_f1_left_temper() { let (mut app, pad) = cc_app(true, None); cc_tap(&mut app, pad, GamepadButton::DPadLeft); assert_eq!(cc_pair(&app), (Some(CareCycleChoice::TemperTool), false), "F1"); }
+    #[test] fn pad_routes_g1_f2_right_ward() { let (mut app, pad) = cc_app(true, None); cc_tap(&mut app, pad, GamepadButton::DPadRight); assert_eq!(cc_pair(&app), (Some(CareCycleChoice::DistillWard), false), "F2"); }
+    #[test] fn pad_routes_g1_f3_east_dismiss() { let (mut app, pad) = cc_app(true, None); cc_tap(&mut app, pad, GamepadButton::East); assert_eq!(cc_pair(&app), (Some(CareCycleChoice::Dismiss), false), "F3"); }
+    #[test] fn pad_routes_g1_f4_alloc_yield() { let (mut app, pad) = cc_app(true, Some(true)); for b in [GamepadButton::DPadLeft, GamepadButton::DPadRight] { cc_tap(&mut app, pad, b); assert_eq!(cc_pair(&app), (None, true), "F4 {b:?}"); } cc_tap(&mut app, pad, GamepadButton::East); assert_eq!(cc_pair(&app), (Some(CareCycleChoice::Dismiss), false), "F4 east"); }
+    #[test] fn pad_routes_g1_f5_gates() { for kind in 0..5u8 { let (mut app, pad) = cc_app(true, None); cc_gate(&mut app, kind, true); for b in [GamepadButton::DPadLeft, GamepadButton::DPadRight, GamepadButton::East] { cc_tap(&mut app, pad, b); assert_eq!(cc_pair(&app), (None, true), "F5 {kind} {b:?}"); } cc_gate(&mut app, kind, false); cc_tap(&mut app, pad, GamepadButton::East); assert_eq!(cc_pair(&app), (Some(CareCycleChoice::Dismiss), false), "F5 clear {kind}"); } }
+    #[test] fn pad_routes_g1_f6_other() { let (mut app, pad) = cc_app(true, None); for b in [GamepadButton::South, GamepadButton::West, GamepadButton::North, GamepadButton::Start, GamepadButton::Select, GamepadButton::DPadUp, GamepadButton::DPadDown, GamepadButton::LeftTrigger, GamepadButton::RightTrigger, GamepadButton::RightThumb] { cc_tap(&mut app, pad, b); assert_eq!(cc_pair(&app), (None, true), "F6 {b:?}"); } }
+    #[test] fn pad_routes_g1_f7_edge() { let (mut app, pad) = cc_app(true, None); cc_btn(&mut app, pad, GamepadButton::DPadLeft, 1.0); assert_eq!(cc_pair(&app), (Some(CareCycleChoice::TemperTool), false), "F7"); { let mut o = app.world_mut().resource_mut::<CareCycleOffer>(); o.active = true; o.choice = None; } app.update(); app.update(); app.update(); assert_eq!(cc_pair(&app), (None, true), "F7 held"); }
+    #[test] fn pad_routes_g1_f8_inactive() { let (mut app, pad) = cc_app(false, None); for b in [GamepadButton::DPadLeft, GamepadButton::DPadRight, GamepadButton::East] { cc_tap(&mut app, pad, b); assert_eq!(app.world().resource::<CareCycleOffer>().choice, None, "F8 {b:?}"); assert!(!app.world().resource::<CareCycleOffer>().active, "F8 raise"); } }
+    #[test] fn pad_routes_g1_f9_keys() { use bevy::input::keyboard::Key; let (mut app, _) = cc_app(true, None); cc_key(&mut app, KeyCode::Digit1, Key::Character("1".into())); assert_eq!(cc_pair(&app), (Some(CareCycleChoice::TemperTool), false), "F9 1"); let (mut app, _) = cc_app(true, None); cc_key(&mut app, KeyCode::Digit2, Key::Character("2".into())); assert_eq!(cc_pair(&app), (Some(CareCycleChoice::DistillWard), false), "F9 2"); let (mut app, _) = cc_app(true, None); cc_key(&mut app, KeyCode::Escape, Key::Escape); assert_eq!(cc_pair(&app), (Some(CareCycleChoice::Dismiss), false), "F9 esc"); let (mut app, _) = cc_app(true, None); cc_key(&mut app, KeyCode::Digit3, Key::Character("3".into())); assert_eq!(cc_pair(&app), (Some(CareCycleChoice::Dismiss), false), "F9 3"); }
+    #[test] fn pad_routes_g1_f10_strip() {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent, RawGamepadEvent};
+        let mut app = App::new(); app.add_plugins((MinimalPlugins, bevy::input::InputPlugin)).insert_resource(CareCycleOffer { active: true, offer_shell: false, ..Default::default() }).insert_resource(FabricatorYard::default()).add_systems(Startup, spawn_care_cycle_strip).add_systems(Update, (handle_care_cycle_input, update_care_cycle_strip)).add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(crate::hud_presets::HudPresetId::Classic) }).insert_resource(crate::title_screen::LaunchDoor::InYard).init_resource::<crate::hex_travel::PlacesPlate>();
+        let pad = app.world_mut().spawn_empty().id(); app.world_mut().write_message(GamepadConnectionEvent::new(pad, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None })); crate::test_env::single_thread(&mut app); app.update(); assert_eq!(cc_vis(&mut app), Visibility::Visible, "F10 active");
+        app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(pad, GamepadButton::East, 1.0))); app.update(); app.update(); assert_eq!(cc_vis(&mut app), Visibility::Hidden, "F10 east");
+    }
 }
