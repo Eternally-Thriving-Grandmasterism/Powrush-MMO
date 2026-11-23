@@ -819,6 +819,8 @@ mod tests {
             for _ in 0..90 { pw_tick(&mut app, &root, 1); let now = ids(&mut app); if now.len() == 7 && now.iter().all(|(_, _, h)| *h == bw || *h == br) { ok = true; break; } }
             assert!(ok, "reentry");
         }
+        let pin = app.world().resource::<AssetServer>().load::<Mesh>(bevy::gltf::GltfAssetLabel::Primitive { mesh: 0, primitive: 0 }.from_asset("models/kenney-fantasy-town-kit/pillar-wood.glb")); for _ in 0..900 { pw_tick(&mut app, &root, 1); if app.world().resource::<Assets<Mesh>>().get(&pin).is_some() { break; } }
+        { let (w, s) = (app.world(), app.world().resource::<AssetServer>()); assert!(w.resource::<Assets<Mesh>>().get(&pin).is_some() && s.get_path(pin.id()).is_some() && s.get_path(bw).is_none() && s.get_path(br).is_none(), "pin"); }
         assert_eq!(settle(&mut app, &root), n0, "mesh leak");
     }
     #[test]
