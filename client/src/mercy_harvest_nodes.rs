@@ -553,11 +553,15 @@ fn handle_care_cycle_input(
     mut offer: ResMut<CareCycleOffer>,
     mut yard: ResMut<FabricatorYard>,
     allocate: Option<Res<RbeAllocateChoice>>,
+    pads: Query<&Gamepad>,
+    (door, label, licences, places, edit): (Option<Res<crate::title_screen::LaunchDoor>>, Option<Res<crate::title_screen::HouseLabel>>, Option<Res<crate::licences_screen::LicencesScreen>>, Option<Res<crate::hex_travel::PlacesPlate>>, Option<Res<crate::hud_edit_mode::HudEditMode>>),
 ) {
     if !offer.active {
         return;
     }
-    if keyboard.just_pressed(KeyCode::Escape) || keyboard.just_pressed(KeyCode::Digit3) {
+    let pad_live = door.is_none_or(|d| *d == crate::title_screen::LaunchDoor::InYard) && !label.is_some_and(|l| l.settings_open) && !licences.is_some_and(|l| l.open) && !places.is_some_and(|p| p.open) && !edit.is_some_and(|e| e.active);
+    let pad = |b| pad_live && pads.iter().any(|g| g.just_pressed(b));
+    if keyboard.just_pressed(KeyCode::Escape) || keyboard.just_pressed(KeyCode::Digit3) || pad(GamepadButton::East) {
         offer.dismiss();
         return;
     }
@@ -569,7 +573,7 @@ fn handle_care_cycle_input(
     {
         return;
     }
-    if keyboard.just_pressed(KeyCode::Digit1) {
+    if keyboard.just_pressed(KeyCode::Digit1) || pad(GamepadButton::DPadLeft) {
         match craft_hands_tend_hook(&mut yard.fab) {
             Ok(item) => info!(
                 target: "powrush::temper",
@@ -584,7 +588,7 @@ fn handle_care_cycle_input(
         offer.choose(CareCycleChoice::TemperTool);
         return;
     }
-    if keyboard.just_pressed(KeyCode::Digit2) {
+    if keyboard.just_pressed(KeyCode::Digit2) || pad(GamepadButton::DPadRight) {
         // T5: Stressed→Idle Digit2 is real Distill Shell Ward (seat empty Lumen).
         if offer.offer_shell {
             match yard.fab.last_tempered.as_mut() {
