@@ -548,6 +548,12 @@ pub(crate) fn mark_epiphany_place(
 pub(crate) struct HarvestClock<'w> {
     time: Res<'w, Time>,
     wood: Option<Res<'w, crate::wood_expedition::WoodClaim>>,
+    settings: Option<Res<'w, crate::local_settings::LocalSettingsState>>,
+}
+
+fn connected_use_label(connected: bool, settings: Option<&crate::local_settings::LocalSettingsState>) -> Option<&'static str> {
+    let fallback = shared::local_settings::LocalSettings::default();
+    connected.then(|| crate::input::pad_hint(crate::input::PadVerb::Use, settings.map(|s| &s.inner).unwrap_or(&fallback))).flatten()
 }
 
 pub(crate) fn handle_interact_harvest(
@@ -625,11 +631,12 @@ pub(crate) fn handle_interact_harvest(
         return;
     }
 
+    let use_label = connected_use_label(!gamepads.is_empty(), clock.settings.as_deref()).unwrap_or("E");
     if pad_tap {
         resolve_take(
             now, &mut state, &mut guidance, &mut moments, &mut echo,
             &mut nearby, &mut nodes, &mut pool, global.as_deref_mut(),
-            &mut rumble, gamepads.iter(), rbe_ui.as_deref_mut(), &mut answer,
+            &mut rumble, gamepads.iter(), rbe_ui.as_deref_mut(), &mut answer, use_label,
         );
         return;
     }
@@ -641,7 +648,7 @@ pub(crate) fn handle_interact_harvest(
         if nearby.nodes_exist && !nearby.in_range {
             state.pulse_until = now + 2.0;
             let name = nearby.name.unwrap_or("the glowing node");
-            state.pulse_line = format!("Step closer to {name} · tap E take · hold E tend");
+            state.pulse_line = format!("Step closer to {name} · tap {use_label} take · hold {use_label} tend");
         }
     }
 
@@ -660,7 +667,7 @@ pub(crate) fn handle_interact_harvest(
             resolve_take(
                 now, &mut state, &mut guidance, &mut moments, &mut echo,
                 &mut nearby, &mut nodes, &mut pool, global.as_deref_mut(),
-                &mut rumble, gamepads.iter(), rbe_ui.as_deref_mut(), &mut answer,
+                &mut rumble, gamepads.iter(), rbe_ui.as_deref_mut(), &mut answer, use_label,
             );
         }
         hold.holding = false;
@@ -682,6 +689,7 @@ fn resolve_take(
     gamepads: impl IntoIterator<Item = Entity>,
     rbe_ui: Option<&mut RbeUiSync>,
     answer: &mut WorldAnswer,
+    use_label: &str,
 ) {
     if now - state.last_interact_at.abs() < REPEAT_COOLDOWN && state.last_interact_at > 0.0 {
         return;
@@ -689,7 +697,7 @@ fn resolve_take(
     if nearby.nodes_exist && !nearby.in_range {
         state.pulse_until = now + 2.2;
         let name = nearby.name.unwrap_or("the glowing node");
-        state.pulse_line = format!("Step closer to {name} · then E");
+        state.pulse_line = format!("Step closer to {name} · then {use_label}");
         return;
     }
 
@@ -722,7 +730,7 @@ fn resolve_take(
     state.pulse_until = now + PULSE_SECS;
     let node_name = nearby.name.unwrap_or("the node");
     state.pulse_line = if first {
-        format!("{node_name} still glows · +{credited:.1} vitality · hold E to tend")
+        format!("{node_name} still glows · +{credited:.1} vitality · hold {use_label} to tend")
     } else {
         format!("Take at {node_name} · +{credited:.1} · {}", pool.line())
     };
@@ -792,7 +800,7 @@ pub(crate) fn update_world_care_prompt(
     bind: Option<Res<LivedHourBind>>,
     mut root: Query<&mut Visibility, With<WorldCarePromptRoot>>,
     mut text_q: Query<&mut Text, With<WorldCarePromptText>>,
-    (offer, gate): (Option<Res<crate::human_presence::CloseUpOffer>>, crate::human_presence::CloseUpGate),
+    (offer, gate, pads, settings): (Option<Res<crate::human_presence::CloseUpOffer>>, crate::human_presence::CloseUpGate, Query<(), With<Gamepad>>, Option<Res<crate::local_settings::LocalSettingsState>>),
     mut arm: Local<CloseUpOfferArm>,
 ) {
     let now = time.elapsed_secs_f64();
@@ -813,6 +821,7 @@ pub(crate) fn update_world_care_prompt(
         nearby.nodes_exist,
         state.first_harvest_lived,
     );
+    let line = if line == tap_vs_hold_prompt() { connected_use_label(!pads.is_empty(), settings.as_deref()).map(|u| line.replace("E ", &format!("{u} "))).unwrap_or_else(|| line.to_string()) } else { line.to_string() };
     if nearby.distance > crate::mercy_harvest_nodes::HARVEST_REACH + CLOSE_UP_REARM_PAD {
         arm.latched = false;
     }
@@ -2188,6 +2197,7 @@ mod tests {
         app.add_plugins(bevy::MinimalPlugins).init_resource::<FirstHarvestEpiphany>().init_resource::<FirstSessionGuidance>().insert_resource(NearbyMercyNode { in_range: true, nodes_exist: true, ..default() }).insert_resource(CareCycleOffer::default()).init_resource::<FhTape>()
             .insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(100))).add_systems(Startup, spawn_lived_surfaces).add_systems(Update, (update_world_care_prompt, update_harvest_pulse, update_welcome_back).chain()).add_systems(Last, fh_tape);
         if hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(crate::hud_presets::HudPresetId::Classic) }).insert_resource(crate::title_screen::LaunchDoor::InYard); }
+        crate::test_env::single_thread(&mut app);
         app.update(); app.update(); app.world_mut().insert_resource(FhTape::default()); app
     }
     fn fh_run(app: &mut App, n: usize) -> FhTape { for _ in 0..n { app.update(); } std::mem::take(&mut *app.world_mut().resource_mut::<FhTape>()) }
@@ -2243,5 +2253,125 @@ mod tests {
         app.world_mut().resource_mut::<crate::hud_presets::ActiveHudPreset>().id = Some(crate::hud_presets::HudPresetId::Management);
         let t = fh_run(&mut app, 2); let yielded = app.world().resource::<crate::hud_presets::HudYielded>().0.contains(&WELCOME.id);
         assert_eq!((t.1.last().unwrap().0, t.2.last().unwrap().0, yielded), (FV, FH, true), "FH11 Management: Welcome yields by R2 into HudYielded, Pulse Visible");
+    }
+
+    /// PAD-PROMPTS-2a — real connection event, then one `Update` so the `Gamepad` exists before the writer.
+    fn pad_connect(app: &mut App) -> Entity {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let id = app.world_mut().spawn_empty().id();
+        app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None }));
+        app.update(); id
+    }
+    fn care_text(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<WorldCarePromptText>>().single(app.world()).unwrap().as_str().to_string() }
+    fn care_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin)).init_resource::<FirstHarvestEpiphany>().init_resource::<FirstSessionGuidance>().insert_resource(NearbyMercyNode { in_range: true, nodes_exist: true, distance: 0.0, ..default() }).insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(100))).add_systems(Startup, spawn_lived_surfaces).add_systems(Update, update_world_care_prompt);
+        crate::test_env::single_thread(&mut app); app
+    }
+    /// PAD-PROMPTS-2a F6. In range with a pad, both E tokens are the literal `A`. A live close-up tail stays the K suffix.
+    #[test]
+    fn pad_prompts_2a_f6_care_prompt() {
+        let s = shared::local_settings::LocalSettings::default();
+        assert_eq!(crate::input::pad_hint(crate::input::PadVerb::Use, &s), Some("A"));
+        let mut app = care_app(); pad_connect(&mut app);
+        let text = care_text(&mut app);
+        assert_eq!(text, "tap A take  ·  hold A tend");
+        assert_eq!(tap_vs_hold_prompt(), "tap E take  ·  hold E tend");
+        { let mut n = app.world_mut().resource_mut::<NearbyMercyNode>(); n.in_range = false; n.distance = f32::MAX; }
+        app.update();
+        app.world_mut().resource_mut::<FirstHarvestEpiphany>().first_harvest_lived = true;
+        { let mut n = app.world_mut().resource_mut::<NearbyMercyNode>(); n.in_range = true; n.distance = 0.0; }
+        app.update();
+        let live = care_text(&mut app); let suffix = close_up_offer_suffix();
+        assert_eq!(suffix, format!("{CLOSE_UP_JOINER}{}", CLOSE_UP_OFFER_LINE.replace("{key}", "K")));
+        assert_eq!(live, format!("tap A take  ·  hold A tend{suffix}"));
+    }
+    fn pulse_of(app: &App) -> String { app.world().resource::<FirstHarvestEpiphany>().pulse_line.clone() }
+    fn south(app: &mut App, id: Entity, value: f32) {
+        app.world_mut().write_message(bevy::input::gamepad::RawGamepadEvent::Button(bevy::input::gamepad::RawGamepadButtonChangedEvent::new(id, GamepadButton::South, value)));
+        app.update();
+    }
+    fn pulse_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin, crate::input::InputPlugin)).insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).init_resource::<FirstHarvestEpiphany>().init_resource::<FirstSessionGuidance>().init_resource::<ThrivingMoments>().init_resource::<AbundanceJourneyEcho>().init_resource::<NearbyMercyNode>().init_resource::<SoftRbePool>().init_resource::<WorldAnswer>().add_systems(Update, handle_interact_harvest.after(crate::input::InputMapSet));
+        crate::test_env::single_thread(&mut app);
+        { let mut n = app.world_mut().resource_mut::<NearbyMercyNode>(); n.nodes_exist = true; n.in_range = false; n.name = Some("North Well"); }
+        app
+    }
+    /// PAD-PROMPTS-2a F7. Real South out of range writes `then A`, then the held tap/hold line. In range, the first take ends `hold A to tend`.
+    #[test]
+    fn pad_prompts_2a_f7_pulses_via_real_south() {
+        let mut app = pulse_app(); let id = pad_connect(&mut app);
+        south(&mut app, id, 1.0); let then_line = pulse_of(&app); app.update(); let hold_line = pulse_of(&app);
+        assert_eq!(then_line, "Step closer to North Well · then A");
+        assert_eq!(hold_line, "Step closer to North Well · tap A take · hold A tend");
+        south(&mut app, id, 0.0);
+        { let mut n = app.world_mut().resource_mut::<NearbyMercyNode>(); n.in_range = true; n.nodes_exist = true; n.name = Some("North Well"); }
+        let node = app.world_mut().spawn(MercyHarvestNode { name: "North Well", climate_id: 1, vitality: 1.0, harvests: 0, pulse: 0.0 }).id();
+        app.world_mut().resource_mut::<NearbyMercyNode>().entity = Some(node);
+        south(&mut app, id, 1.0); let take = pulse_of(&app); south(&mut app, id, 0.0);
+        assert!(take.contains("still glows") && take.ends_with("hold A to tend"), "F7 {take}");
+        assert!(take.starts_with("North Well still glows"), "F7 {take}");
+    }
+    #[test]
+    fn pad_prompts_2a_f1_keyboard_floor() {
+        let mut care = care_app(); care.update();
+        assert_eq!(care_text(&mut care), "tap E take  ·  hold E tend");
+        assert_eq!(tap_vs_hold_prompt(), "tap E take  ·  hold E tend");
+        let mut app = player_input_tend_app(); crate::test_env::single_thread(&mut app);
+        { let mut n = app.world_mut().resource_mut::<NearbyMercyNode>(); n.in_range = false; n.nodes_exist = true; n.name = Some("North Well"); }
+        set_use_level(&mut app, false, true); advance_secs(&mut app, 0.0);
+        assert_eq!(app.world().resource::<FirstHarvestEpiphany>().pulse_line, "Step closer to North Well · tap E take · hold E tend");
+        set_use_level(&mut app, true, true); advance_secs(&mut app, 0.0);
+        assert_eq!(app.world().resource::<FirstHarvestEpiphany>().pulse_line, "Step closer to North Well · then E");
+        { let mut n = app.world_mut().resource_mut::<NearbyMercyNode>(); n.in_range = true; }
+        set_use_level(&mut app, true, true); advance_secs(&mut app, 0.0);
+        let take = app.world().resource::<FirstHarvestEpiphany>().pulse_line.clone();
+        assert!(take.contains("still glows") && take.ends_with("hold E to tend"), "F1 {take}");
+    }
+    fn pulse_vis(app: &mut App) -> Visibility { *app.world_mut().query_filtered::<&Visibility, With<HarvestPulseRoot>>().single(app.world()).unwrap() }
+    fn pulse_text(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<HarvestPulseText>>().single(app.world()).unwrap().as_str().to_string() }
+    fn f8_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin, crate::input::InputPlugin, crate::hud_presets::HudLayoutPlugin)).init_resource::<FirstHarvestEpiphany>().init_resource::<FirstSessionGuidance>().insert_resource(NearbyMercyNode { in_range: true, nodes_exist: true, name: Some("North Well"), distance: 0.0, ..default() }).insert_resource(CareCycleOffer::default()).insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).init_resource::<ThrivingMoments>().init_resource::<AbundanceJourneyEcho>().init_resource::<SoftRbePool>().init_resource::<WorldAnswer>().insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(crate::hud_presets::HudPresetId::Classic) }).insert_resource(crate::title_screen::LaunchDoor::InYard).insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(100))).add_systems(Startup, spawn_lived_surfaces).add_systems(Update, (handle_interact_harvest.after(crate::input::InputMapSet), update_world_care_prompt, update_harvest_pulse, update_welcome_back).chain());
+        crate::test_env::single_thread(&mut app);
+        let node = app.world_mut().spawn(MercyHarvestNode { name: "North Well", climate_id: 1, vitality: 1.0, harvests: 0, pulse: 0.0 }).id();
+        app.world_mut().resource_mut::<NearbyMercyNode>().entity = Some(node); app
+    }
+    #[test]
+    fn pad_prompts_2a_f8_pulse_clean_hide() {
+        let mut app = f8_app(); let id = pad_connect(&mut app); south(&mut app, id, 1.0);
+        assert_eq!(pulse_vis(&mut app), Visibility::Hidden, "F8 classic");
+        app.world_mut().resource_mut::<crate::hud_presets::ActiveHudPreset>().id = Some(crate::hud_presets::HudPresetId::Management);
+        app.update(); let text = pulse_text(&mut app);
+        assert_eq!((pulse_vis(&mut app), text.contains("still glows"), text.ends_with("hold A to tend")), (Visibility::Visible, true, true), "F8 {text}");
+    }
+    /// PAD-PROMPTS-2a F9. A connected pad with south_use off keeps the keyboard E on the care prompt and the pulses.
+    #[test]
+    fn pad_prompts_2a_f9_south_use_off_keeps_e() {
+        let mut care = care_app();
+        let mut inner = shared::local_settings::LocalSettings::default(); inner.gamepad_south_use = false;
+        care.insert_resource(crate::local_settings::LocalSettingsState { inner, dirty: false });
+        pad_connect(&mut care);
+        assert_eq!(care_text(&mut care), "tap E take  ·  hold E tend");
+        let mut app = pulse_app();
+        app.world_mut().resource_mut::<crate::local_settings::LocalSettingsState>().inner.gamepad_south_use = false;
+        pad_connect(&mut app);
+        app.world_mut().write_message(bevy::input::keyboard::KeyboardInput { key_code: bevy::input::keyboard::KeyCode::KeyE, logical_key: bevy::input::keyboard::Key::Character("e".into()), state: bevy::input::ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER });
+        app.update();
+        assert_eq!(pulse_of(&app), "Step closer to North Well · then E");
+        app.update();
+        assert_eq!(pulse_of(&app), "Step closer to North Well · tap E take · hold E tend");
+    }
+    /// PAD-PROMPTS-2a F10. Care prompt goes keyboard, then A, then disconnects back to that same keyboard text.
+    #[test]
+    fn pad_prompts_2a_f10_care_hotplug() {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let mut app = care_app(); app.update();
+        assert_eq!(care_text(&mut app), "tap E take  ·  hold E tend");
+        let id = pad_connect(&mut app);
+        assert_eq!(care_text(&mut app), "tap A take  ·  hold A tend");
+        app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Disconnected)); app.update();
+        assert_eq!(care_text(&mut app), "tap E take  ·  hold E tend");
     }
 }
