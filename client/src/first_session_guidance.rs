@@ -1256,6 +1256,7 @@ pub(crate) fn track_simple_progress_signals(
     presence: Option<Res<SoftPresence>>,
     mut last_xz: Local<Option<Vec2>>,
     nodes: Query<&MercyHarvestNode>,
+    inv: Option<Res<crate::human_inventory::HumanInventory>>,
 ) {
     if guidance.dismissed {
         return;
@@ -1274,7 +1275,7 @@ pub(crate) fn track_simple_progress_signals(
         *last_xz = Some(now);
     }
 
-    if keyboard.just_pressed(KeyCode::KeyI) {
+    if keyboard.just_pressed(KeyCode::KeyI) || inv.is_some_and(|i| i.open) {
         guidance.inventory_opened = true;
     }
 

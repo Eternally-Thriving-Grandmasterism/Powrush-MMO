@@ -236,8 +236,12 @@ fn toggle_satchel(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut inv: ResMut<HumanInventory>,
     harvest: Res<FirstHarvestEpiphany>,
+    pads: Query<&Gamepad>,
+    (door, label, licences, places, edit): (Option<Res<crate::title_screen::LaunchDoor>>, Option<Res<crate::title_screen::HouseLabel>>, Option<Res<crate::licences_screen::LicencesScreen>>, Option<Res<crate::hex_travel::PlacesPlate>>, Option<Res<crate::hud_edit_mode::HudEditMode>>),
 ) {
-    if !keyboard.just_pressed(soft_play_bindings::INVENTORY) {
+    let pad_live = door.is_none_or(|d| *d == crate::title_screen::LaunchDoor::InYard) && !label.is_some_and(|l| l.settings_open) && !licences.is_some_and(|l| l.open) && !places.is_some_and(|p| p.open) && !edit.is_some_and(|e| e.active);
+    let pad = |b| pad_live && pads.iter().any(|g| g.just_pressed(b));
+    if !(keyboard.just_pressed(soft_play_bindings::INVENTORY) || pad(GamepadButton::DPadDown)) {
         return;
     }
     inv.open = !inv.open;
@@ -1358,18 +1362,53 @@ mod tests {
         }
     }
     fn release(app: &mut App, button: GamepadButton) {
-        use bevy::input::gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent};
-        let id = app.world_mut().query_filtered::<Entity, With<Gamepad>>().iter(app.world()).next().unwrap();
-        app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, button, 0.0))); app.update();
+        use bevy::input::gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent}; let id = app.world_mut().query_filtered::<Entity, With<Gamepad>>().iter(app.world()).next().unwrap(); app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, button, 0.0))); app.update();
     }
     #[test] fn pad_satchel_s1_tap_opens_then_closes() {
-        let mut app = satchel_app(); hold(&mut app, GamepadButton::DPadDown, 1);
-        assert!(app.world().resource::<HumanInventory>().open && app.world().resource::<HumanInventory>().first_open_lived, "S1 tap opens");
-        release(&mut app, GamepadButton::DPadDown); hold(&mut app, GamepadButton::DPadDown, 1);
-        assert!(!satchel_open(&app), "S1 tap closes");
+        let mut app = satchel_app(); hold(&mut app, GamepadButton::DPadDown, 1); assert!(app.world().resource::<HumanInventory>().open && app.world().resource::<HumanInventory>().first_open_lived, "S1 tap opens");
+        release(&mut app, GamepadButton::DPadDown); hold(&mut app, GamepadButton::DPadDown, 1); assert!(!satchel_open(&app), "S1 tap closes");
     }
     #[test] fn pad_satchel_s2_hold_opens_once() {
         let mut app = satchel_app(); hold(&mut app, GamepadButton::DPadDown, 4);
         assert!(app.world().resource::<HumanInventory>().open && app.world().resource::<HumanInventory>().first_open_lived, "S2 held 4 frames opens once, no flicker");
+    }
+    fn key_i(app: &mut App) {
+        use bevy::input::{keyboard::{Key, KeyboardInput}, ButtonState};
+        for state in [ButtonState::Released, ButtonState::Pressed] { app.world_mut().write_message(KeyboardInput { key_code: KeyCode::KeyI, logical_key: Key::Character("i".into()), state, repeat: false, text: None, window: Entity::PLACEHOLDER }); app.update(); }
+    }
+    fn arm_gate(app: &mut App, kind: u8, on: bool) {
+        use crate::title_screen::LaunchDoor;
+        match kind {
+            0 => app.world_mut().resource_mut::<HouseLabel>().settings_open = on,
+            1 => if app.world().get_resource::<crate::licences_screen::LicencesScreen>().is_none() { let mut s = crate::licences_screen::LicencesScreen::default(); s.open = on; app.insert_resource(s); } else { app.world_mut().resource_mut::<crate::licences_screen::LicencesScreen>().open = on; },
+            2 => if app.world().get_resource::<crate::hex_travel::PlacesPlate>().is_none() { let mut p = crate::hex_travel::PlacesPlate::default(); p.open = on; app.insert_resource(p); } else { app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = on; },
+            3 => if app.world().get_resource::<crate::hud_edit_mode::HudEditMode>().is_none() { let mut e = crate::hud_edit_mode::HudEditMode::default(); e.active = on; app.insert_resource(e); } else { app.world_mut().resource_mut::<crate::hud_edit_mode::HudEditMode>().active = on; },
+            _ => { app.insert_resource(if on { [LaunchDoor::Title, LaunchDoor::NameHouse, LaunchDoor::HouseDress][(kind - 4) as usize] } else { LaunchDoor::InYard }); }
+        }
+    }
+    #[test] fn pad_satchel_s3_i_and_dpad_down_flip_once() {
+        use bevy::input::gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent}; use bevy::input::{keyboard::{Key, KeyboardInput}, ButtonState};
+        let mut app = satchel_app(); hold(&mut app, GamepadButton::DPadDown, 0);
+        let id = app.world_mut().query_filtered::<Entity, With<Gamepad>>().iter(app.world()).next().unwrap();
+        app.world_mut().write_message(KeyboardInput { key_code: KeyCode::KeyI, logical_key: Key::Character("i".into()), state: ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER });
+        app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, GamepadButton::DPadDown, 1.0))); app.update();
+        assert!(satchel_open(&app), "S3 I and D-pad Down in one frame flip once");
+    }
+    #[test] fn pad_satchel_s4_gates_block_then_clear_missing_fails_closed() {
+        for kind in 0..7 {
+            let mut closed = satchel_app(); arm_gate(&mut closed, kind, true); hold(&mut closed, GamepadButton::DPadDown, 1); assert!(!satchel_open(&closed), "S4 gate {kind} from closed stays closed");
+            release(&mut closed, GamepadButton::DPadDown); arm_gate(&mut closed, kind, false); hold(&mut closed, GamepadButton::DPadDown, 1); assert!(satchel_open(&closed), "S4 gate {kind} clear toggles open");
+            let mut opened = satchel_app(); opened.world_mut().resource_mut::<HumanInventory>().open = true; arm_gate(&mut opened, kind, true); hold(&mut opened, GamepadButton::DPadDown, 1); assert!(satchel_open(&opened), "S4 gate {kind} from open stays open");
+            release(&mut opened, GamepadButton::DPadDown); arm_gate(&mut opened, kind, false); hold(&mut opened, GamepadButton::DPadDown, 1); assert!(!satchel_open(&opened), "S4 gate {kind} clear toggles closed");
+        }
+        let mut app = satchel_app(); let id = app.world_mut().spawn_empty().id(); app.world_mut().write_message(bevy::input::gamepad::RawGamepadEvent::Button(bevy::input::gamepad::RawGamepadButtonChangedEvent::new(id, GamepadButton::DPadDown, 1.0))); app.update(); assert!(!satchel_open(&app), "S4 missing gamepad resource fails closed");
+    }
+    #[test] fn pad_satchel_s5_other_buttons_idle_no_pad_no_panic() {
+        let mut app = satchel_app(); for button in [GamepadButton::DPadUp, GamepadButton::DPadLeft, GamepadButton::DPadRight, GamepadButton::Select, GamepadButton::South, GamepadButton::East, GamepadButton::West, GamepadButton::North] { hold(&mut app, button, 1); release(&mut app, button); }
+        assert!(!satchel_open(&app), "S5 other buttons do not toggle");
+        let mut bare = satchel_app(); key_i(&mut bare); assert!(satchel_open(&bare), "S5 no pad, I toggles, no panic");
+    }
+    #[test] fn pad_satchel_s6_keyboard_parity_under_settings() {
+        let mut app = satchel_app(); app.world_mut().resource_mut::<HouseLabel>().settings_open = true; key_i(&mut app); assert!(satchel_open(&app), "S6 I opens under settings_open"); key_i(&mut app); assert!(!satchel_open(&app), "S6 I closes under settings_open");
     }
 }

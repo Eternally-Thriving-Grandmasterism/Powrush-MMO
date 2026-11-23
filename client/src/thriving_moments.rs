@@ -214,8 +214,9 @@ fn soft_inventory_moment(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
+    inv: Option<Res<crate::human_inventory::HumanInventory>>,
 ) {
-    if keyboard.just_pressed(KeyCode::KeyI) {
+    if keyboard.just_pressed(KeyCode::KeyI) || inv.is_some_and(|i| i.open) {
         moments.try_fire(ThrivingKind::FirstInventoryOpen, time.elapsed_secs_f64());
     }
 }
@@ -471,7 +472,8 @@ mod tests {
         }
     }
     #[test] fn pad_satchel_t1_dpad_down_fires_first_inventory_open_once() {
-        let mut app = thrive_app(); hold(&mut app, GamepadButton::DPadDown, 1); app.update();
+        let mut app = thrive_app();
+        hold(&mut app, GamepadButton::DPadDown, 1); app.update();
         let fired = app.world().resource::<ThrivingMoments>().fired.iter().filter(|k| **k == ThrivingKind::FirstInventoryOpen).count();
         assert_eq!(fired, 1, "T1 D-pad Down fires FirstInventoryOpen once");
     }
