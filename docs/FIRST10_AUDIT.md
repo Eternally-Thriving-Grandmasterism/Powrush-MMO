@@ -46,7 +46,7 @@ The pre-Return Title frame is not in the artifact (the hidden `.pre.png` is not 
 | --- | --- | --- | --- | --- | --- |
 | B1 | Walk card text: WASD · Space jump · Shift sprint | 0-1 | None; the card reads as the doc says | frames 01-06; `client/src/first_session_guidance.rs:390`, `:853` | CONFIRMED-IN-FRAME |
 | B2 | Body moves, stops on release; idle camera glance | 0-1 | Not exercised, no input after Return | `client/src/main.rs:2` (key list) | NEEDS-REAL-GPU |
-| B3 | Breath: wells pulse; tended hint *let it breathe · R 1 flow* | 1-3 | The literal `let it breathe` is not found in `client/src`; only the `R 1 flow` rewrite is | `client/src/climate_visible.rs:445` | SOURCE-ONLY |
+| B3 | Breath: wells pulse; tended hint *let it breathe · R 1 flow* | 1-3 | None; hint lives in `shared/climate_node.rs:34`, rendered at `client/src/climate_visible.rs:444-445` | `shared/climate_node.rs:34`, `client/src/climate_visible.rs:444-445`, `:1898`, `:1901` | SOURCE-ONLY |
 | B4 | Take: tap E, prompt *tap E take · hold E tend* | 1-3 | Prompt is source-only; glow, camera punch and rumble are motion or pad | `client/src/first_harvest_epiphany.rs:197`, `client/src/harvest_feel.rs:121` | NEEDS-REAL-GPU |
 | B5 | Tend: hold E about 0.42 s, *tended — the node breathes* | 2-4 | None found | `client/src/first_harvest_epiphany.rs:72`, `:220` | SOURCE-ONLY |
 | B6 | Satchel: I | 3-5 | None found | `client/src/soft_play_bindings.rs:28`, `client/src/human_inventory.rs:235` | SOURCE-ONLY |
@@ -77,6 +77,6 @@ CONFIRMED-IN-FRAME 3 · SOURCE-ONLY 17 · NEEDS-REAL-GPU 3 · total 23.
 
 | # | Candidate | PATH | Rough size |
 | --- | --- | --- | --- |
-| 1 | Re-pin the drifted cites in the playtest doc (A2, A3) and the missing `let it breathe` literal (B3) | `docs/FIRST_HOUR_PLAYTEST.md` | about +3/−3 |
+| 1 | Re-pin the drifted cites in the playtest doc (A2, A3) | `docs/FIRST_HOUR_PLAYTEST.md` | about +2/−2 |
 | 2 | Upload the pre-Return Title frame with the capture, so Title rows can be judged in frame | `.github/workflows/offline-build.yml` | about +1/−1 |
 | 3 | Fit the yard climate line on one row at 1080p (layout only, no new words) | `client/src/climate_visible.rs` | about +10/−5 |
