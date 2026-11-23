@@ -1970,4 +1970,62 @@ mod tests {
         app.world_mut().resource_mut::<WeekFeelGlow>().glow = 0.0;
         assert_eq!(cf_run(&mut app, 2), vec![cf_rest(true), cf_rest(false)], "CF3 glow 0.0: back to exact rest once, then quiet");
     }
+
+    fn pad_on(app: &mut App) -> Entity {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let id = app.world_mut().spawn_empty().id(); app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None })); app.update(); id
+    }
+    fn pad_off(app: &mut App, id: Entity) {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Disconnected)); app.update();
+    }
+    fn slab_app(state: NodeState, inner: shared::local_settings::LocalSettings) -> App {
+        let mut hour = shared::climate_node::LivedHour::new_demo(); hour.nodes[0] = ClimateNode { id: 1, state, fatigue: 0.0 };
+        let mut app = App::new();
+        app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin)).insert_resource(NearbyMercyNode { in_range: true, nodes_exist: true, ..Default::default() }).insert_resource(LivedHourBind { hour, climate: Default::default(), standing: Default::default(), week: Default::default(), last_line: String::new(), guidance_hidden: false, focus_id: None, climate_slab: None }).insert_resource(HexTravelState { current: PlaceId::Sanctuary }).insert_resource(WeekFeelGlow::default()).insert_resource(WardsNoticeGlow::default()).insert_resource(LocalColorblindWells::default()).insert_resource(LocalSettingsState { inner, dirty: false }).add_systems(Startup, spawn_climate_state_slab).add_systems(Update, update_climate_state_slab);
+        crate::test_env::single_thread(&mut app); let e = app.world_mut().spawn(MercyHarvestNode { name: "North Well", climate_id: 1, vitality: 1.0, harvests: 0, pulse: 0.0 }).id(); app.world_mut().resource_mut::<NearbyMercyNode>().entity = Some(e); app
+    }
+    fn slab_text(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<ClimateStateText>>().single(app.world()).unwrap().as_str().to_string() }
+    fn slab_state(app: &mut App, state: NodeState) -> String { app.world_mut().resource_mut::<LivedHourBind>().hour.nodes[0].state = state; app.update(); slab_text(app) }
+    #[test]
+    fn pad_prompts_2a_f2_slab_under_pad() {
+        use shared::local_settings::{LocalSettings, PeaceKey};
+        let s = LocalSettings::default();
+        assert_eq!((crate::input::pad_hint(crate::input::PadVerb::Use, &s), crate::input::pad_hint(crate::input::PadVerb::Allocate, &s), crate::input::pad_hint(crate::input::PadVerb::Flow, &s)), (Some("A"), Some("D-pad Up"), Some("D-pad Left")));
+        let mut app = slab_app(NodeState::Glowing, s); pad_on(&mut app); let glow = slab_text(&mut app);
+        assert_eq!(glow, flow_slab(PeaceKey::R, PeaceKey::E, NodeState::Glowing).replacen("[E]", "[A]", 1), "F2 {glow}");
+        assert!(glow.contains("[A] Use · North Well"), "F2 {glow}");
+        for state in [NodeState::Tended, NodeState::Resting, NodeState::Stressed] {
+            let got = slab_state(&mut app, state);
+            assert_eq!(got, flow_slab(PeaceKey::R, PeaceKey::E, state).replace("R 1 flow", "D-pad Up D-pad Left flow"), "F2 {state:?} {got}");
+        }
+    }
+    #[test]
+    fn pad_prompts_2a_f3_slab_hotplug() {
+        let mut app = slab_app(NodeState::Glowing, shared::local_settings::LocalSettings::default()); app.update();
+        let kb_glow = slab_text(&mut app); let kb_tend = slab_state(&mut app, NodeState::Tended);
+        let id = pad_on(&mut app); let pad_tend = slab_text(&mut app); let pad_glow = slab_state(&mut app, NodeState::Glowing);
+        assert_eq!((pad_glow.as_str(), pad_tend.as_str()), (kb_glow.replacen("[E]", "[A]", 1).as_str(), kb_tend.replace("R 1 flow", "D-pad Up D-pad Left flow").as_str()), "F3 {pad_glow} {pad_tend}");
+        pad_off(&mut app, id);
+        assert_eq!((slab_text(&mut app), slab_state(&mut app, NodeState::Tended)), (kb_glow, kb_tend), "F3 keyboard");
+    }
+    #[test]
+    fn pad_prompts_2a_f4_south_use_off() {
+        let mut inner = shared::local_settings::LocalSettings::default(); inner.gamepad_south_use = false;
+        let mut app = slab_app(NodeState::Glowing, inner); app.update();
+        let kb_glow = slab_text(&mut app); let kb_tend = slab_state(&mut app, NodeState::Tended); pad_on(&mut app);
+        assert!(kb_glow.contains("[E] Use · North Well") && slab_state(&mut app, NodeState::Glowing) == kb_glow, "F4 Use stays E");
+        assert_eq!(slab_state(&mut app, NodeState::Tended), kb_tend.replace("R 1 flow", "D-pad Up D-pad Left flow"), "F4 flow");
+    }
+    #[test]
+    fn pad_prompts_2a_f5_remap_interplay() {
+        use shared::local_settings::{LocalSettings, PeaceKey};
+        let mut inner = LocalSettings::default(); inner.key_use = PeaceKey::F; inner.key_allocate = PeaceKey::N;
+        let mut app = slab_app(NodeState::Glowing, inner); app.update();
+        let kb_glow = slab_text(&mut app); let kb_tend = slab_state(&mut app, NodeState::Tended);
+        assert!(kb_glow.contains("[F] Use · North Well") && kb_tend.contains("N 1 flow") && !kb_tend.contains("R 1 flow"), "F5 kb {kb_glow} {kb_tend}");
+        pad_on(&mut app); let pad_tend = slab_text(&mut app);
+        assert_eq!(slab_state(&mut app, NodeState::Glowing), kb_glow.replacen("[F]", "[A]", 1), "F5 glow");
+        assert_eq!(pad_tend, kb_tend.replace("N 1 flow", "D-pad Up D-pad Left flow"), "F5 {pad_tend}");
+    }
 }

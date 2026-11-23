@@ -2244,4 +2244,63 @@ mod tests {
         let t = fh_run(&mut app, 2); let yielded = app.world().resource::<crate::hud_presets::HudYielded>().0.contains(&WELCOME.id);
         assert_eq!((t.1.last().unwrap().0, t.2.last().unwrap().0, yielded), (FV, FH, true), "FH11 Management: Welcome yields by R2 into HudYielded, Pulse Visible");
     }
+
+    /// PAD-PROMPTS-2a — real connection event, then one `Update` so the `Gamepad` exists before the writer.
+    fn pad_connect(app: &mut App) -> Entity {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let id = app.world_mut().spawn_empty().id();
+        app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None }));
+        app.update(); id
+    }
+    fn care_text(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<WorldCarePromptText>>().single(app.world()).unwrap().as_str().to_string() }
+    fn care_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin)).init_resource::<FirstHarvestEpiphany>().init_resource::<FirstSessionGuidance>().insert_resource(NearbyMercyNode { in_range: true, nodes_exist: true, distance: 0.0, ..default() }).insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(100))).add_systems(Startup, spawn_lived_surfaces).add_systems(Update, update_world_care_prompt);
+        crate::test_env::single_thread(&mut app); app
+    }
+    /// PAD-PROMPTS-2a F6. In range with a pad, both E tokens are the literal `A`. A live close-up tail stays the K suffix.
+    #[test]
+    fn pad_prompts_2a_f6_care_prompt() {
+        let s = shared::local_settings::LocalSettings::default();
+        assert_eq!(crate::input::pad_hint(crate::input::PadVerb::Use, &s), Some("A"));
+        let mut app = care_app(); pad_connect(&mut app);
+        let text = care_text(&mut app);
+        assert_eq!(text, "tap A take  ·  hold A tend");
+        assert_eq!(tap_vs_hold_prompt(), "tap E take  ·  hold E tend");
+        { let mut n = app.world_mut().resource_mut::<NearbyMercyNode>(); n.in_range = false; n.distance = f32::MAX; }
+        app.update();
+        app.world_mut().resource_mut::<FirstHarvestEpiphany>().first_harvest_lived = true;
+        { let mut n = app.world_mut().resource_mut::<NearbyMercyNode>(); n.in_range = true; n.distance = 0.0; }
+        app.update();
+        let live = care_text(&mut app); let suffix = close_up_offer_suffix();
+        assert_eq!(suffix, format!("{CLOSE_UP_JOINER}{}", CLOSE_UP_OFFER_LINE.replace("{key}", "K")));
+        assert_eq!(live, format!("tap A take  ·  hold A tend{suffix}"));
+    }
+    fn pulse_of(app: &App) -> String { app.world().resource::<FirstHarvestEpiphany>().pulse_line.clone() }
+    fn south(app: &mut App, id: Entity, value: f32) {
+        app.world_mut().write_message(bevy::input::gamepad::RawGamepadEvent::Button(bevy::input::gamepad::RawGamepadButtonChangedEvent::new(id, GamepadButton::South, value)));
+        app.update();
+    }
+    fn pulse_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin, crate::input::InputPlugin)).insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).init_resource::<FirstHarvestEpiphany>().init_resource::<FirstSessionGuidance>().init_resource::<ThrivingMoments>().init_resource::<AbundanceJourneyEcho>().init_resource::<NearbyMercyNode>().init_resource::<SoftRbePool>().init_resource::<WorldAnswer>().add_systems(Update, handle_interact_harvest.after(crate::input::InputMapSet));
+        crate::test_env::single_thread(&mut app);
+        { let mut n = app.world_mut().resource_mut::<NearbyMercyNode>(); n.nodes_exist = true; n.in_range = false; n.name = Some("North Well"); }
+        app
+    }
+    /// PAD-PROMPTS-2a F7. Real South out of range writes `then A`, then the held tap/hold line. In range, the first take ends `hold A to tend`.
+    #[test]
+    fn pad_prompts_2a_f7_pulses_via_real_south() {
+        let mut app = pulse_app(); let id = pad_connect(&mut app);
+        south(&mut app, id, 1.0); let then_line = pulse_of(&app); app.update(); let hold_line = pulse_of(&app);
+        assert_eq!(then_line, "Step closer to North Well · then A");
+        assert_eq!(hold_line, "Step closer to North Well · tap A take · hold A tend");
+        south(&mut app, id, 0.0);
+        { let mut n = app.world_mut().resource_mut::<NearbyMercyNode>(); n.in_range = true; n.nodes_exist = true; n.name = Some("North Well"); }
+        let node = app.world_mut().spawn(MercyHarvestNode { name: "North Well", climate_id: 1, vitality: 1.0, harvests: 0, pulse: 0.0 }).id();
+        app.world_mut().resource_mut::<NearbyMercyNode>().entity = Some(node);
+        south(&mut app, id, 1.0); let take = pulse_of(&app); south(&mut app, id, 0.0);
+        assert!(take.contains("still glows") && take.ends_with("hold A to tend"), "F7 {take}");
+        assert!(take.starts_with("North Well still glows"), "F7 {take}");
+    }
 }
