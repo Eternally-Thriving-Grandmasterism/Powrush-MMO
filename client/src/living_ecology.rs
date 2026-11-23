@@ -516,8 +516,12 @@ fn dress_for_climate(
 fn move_deer(
     eco: Res<EcologyState>,
     time: Res<Time>,
+    bond: Option<Res<crate::companion_bond::CompanionBond>>,
     mut q: Query<&mut Transform, With<ResonantDeer>>,
 ) {
+    if bond.is_some_and(|b| b.mounted) {
+        return;
+    }
     // Care (Tend / Flow / Reserve→Mend bank) draws the deer near; Take keeps it far.
     let target = match eco.last_kind {
         AnswerKind::Tend | AnswerKind::Flow | AnswerKind::Reserve => DEER_NEAR,
