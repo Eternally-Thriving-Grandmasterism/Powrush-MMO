@@ -42,6 +42,7 @@ pub mod first_session_guidance;
 pub mod first_hour_camera;
 pub mod harvest_feel;
 pub mod peace_audio;
+pub mod move_sfx;
 pub mod feel_move;
 pub mod first_harvest_epiphany;
 pub mod mercy_harvest_nodes;
@@ -247,6 +248,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(first_harvest_epiphany::FirstHarvestEpiphanyPlugin);
         // After FirstHarvest so the same-frame well Use credits the sting.
         app.add_plugins(peace_audio::PeaceAudioPlugin);
+        app.add_plugins(move_sfx::MoveSfxPlugin);
         app.add_plugins(feel_move::FeelMovePlugin);
         app.add_plugins(human_inventory::HumanInventoryPlugin);
         app.add_plugins(local_session_persist::LocalSessionPersistPlugin);
