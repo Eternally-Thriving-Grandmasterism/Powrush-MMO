@@ -812,13 +812,15 @@ mod tests {
             else { let size = hi - lo; let mid = (lo + hi) * 0.5; assert!((size.x - 0.16).abs() < 0.01 && (size.y - 0.16).abs() < 0.01 && (size.z - 3.0).abs() < 0.01 && (mid - Vec3::from_array(inst.center)).length() < 0.01, "{name} {size} {mid}"); ribs.push(*id); eprintln!("PW1B rib {name} y0={} y1={} mid_y={}", lo.y, hi.y, mid.y); }
         }
         assert!(walks.len() == 2 && ribs.len() == 5 && walks.iter().all(|h| *h == walks[0]) && ribs.iter().all(|h| *h == ribs[0])); let (bw, br) = (walks[0], ribs[0]);
-        let settle = |app: &mut App, root: &std::path::Path| { let (mut prev, mut same) = (usize::MAX, 0); for _ in 0..40 { pw_tick(app, root, 1); let n = app.world().resource::<Assets<Mesh>>().len(); if n == prev { same += 1; if same >= 4 { return n; } } else { prev = n; same = 0; } } prev }; let n0 = settle(&mut app, &root);
+        let settle = |app: &mut App, root: &std::path::Path| { let (mut prev, mut same) = (usize::MAX, 0); for _ in 0..40 { pw_tick(app, root, 1); let n = { let w = app.world(); let s = w.resource::<AssetServer>(); w.resource::<Assets<Mesh>>().ids().filter(|id| s.get_path(*id).is_none()).count() }; if n == prev { same += 1; if same >= 4 { return n; } } else { prev = n; same = 0; } } prev }; let n0 = settle(&mut app, &root);
         for _ in 0..3 {
             app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Sanctuary; pw_tick(&mut app, &root, 2);
             app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Heartwood; let mut ok = false;
             for _ in 0..90 { pw_tick(&mut app, &root, 1); let now = ids(&mut app); if now.len() == 7 && now.iter().all(|(_, _, h)| *h == bw || *h == br) { ok = true; break; } }
             assert!(ok, "reentry");
         }
+        let pin = app.world().resource::<AssetServer>().load::<Mesh>(bevy::gltf::GltfAssetLabel::Primitive { mesh: 0, primitive: 0 }.from_asset("models/kenney-fantasy-town-kit/pillar-wood.glb")); for _ in 0..900 { pw_tick(&mut app, &root, 1); if app.world().resource::<Assets<Mesh>>().get(&pin).is_some() { break; } }
+        { let (w, s) = (app.world(), app.world().resource::<AssetServer>()); assert!(w.resource::<Assets<Mesh>>().get(&pin).is_some() && s.get_path(pin.id()).is_some() && s.get_path(bw).is_none() && s.get_path(br).is_none(), "pin"); }
         assert_eq!(settle(&mut app, &root), n0, "mesh leak");
     }
     #[test]
