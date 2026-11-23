@@ -237,7 +237,8 @@ mod tests {
     #[test]
     fn button_frame_bf9_one_image_writer() {
         let found: Vec<_> = client_prod().into_iter().filter_map(|(n, p)| { let c = p.matches("&mut ImageNode").count(); (c > 0).then_some((n, c)) }).collect();
-        assert_eq!(found, vec![("launch_menu.rs".into(), 1)]);
+        assert_eq!({ let mut f = found; f.sort(); f }, vec![("launch_menu.rs".into(), 1), ("title_screen.rs".into(), 1)]);
+        assert!(include_str!("title_screen.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap().contains("Without<LaunchRow>"));
         let menu = include_str!("launch_menu.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
         assert!(menu.contains("&mut ImageNode), With<LaunchRow>") && menu.matches("&mut BackgroundColor").count() == 2 && menu.matches("&mut BorderColor").count() == 0);
     }
@@ -295,7 +296,7 @@ mod tests {
     #[test] fn button_frame_bf2_9_scope_writer_and_places_hold() {
         let mut found: Vec<_> = client_prod().into_iter().filter_map(|(n, p)| { let c = p.matches("&mut ImageNode").count(); (c > 0).then_some((n, c)) }).collect(); found.sort();
         let mut lit: Vec<_> = client_prod().into_iter().filter(|(_, src)| src.contains("FRAME_LIT_IMAGE")).map(|(n, _)| n).collect(); lit.sort();
-        assert_eq!((found, lit), (vec![("launch_menu.rs".into(), 1)], vec!["launch_menu.rs".into(), "ui_frame.rs".into()]));
+        assert_eq!((found, lit), (vec![("launch_menu.rs".into(), 1), ("title_screen.rs".into(), 1)], vec!["launch_menu.rs".into(), "title_screen.rs".into(), "ui_frame.rs".into()]));
         let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")); for path in [root.join("Cargo.toml"), root.join("../Cargo.toml"), root.join("../Cargo.lock")] { assert!(!std::fs::read_to_string(&path).unwrap().contains("button_frame"), "{}", path.display()); }
         let mut places = App::new(); places.add_plugins((MinimalPlugins, crate::hex_travel::HexTravelPlugin)); places.world_mut().run_schedule(Startup); assert_eq!(places.world_mut().query::<&ImageNode>().iter(places.world()).count(), 0, "places");
         assert!(include_str!("ui_kit.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap().contains("pub fn button(bg: Color) -> (Button, Interaction, BorderColor, BackgroundColor) {\n    (Button, Interaction::default(), BorderColor::all(TITLE_BORDER), BackgroundColor(bg))\n}"));

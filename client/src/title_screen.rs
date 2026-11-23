@@ -145,6 +145,7 @@ use shared::persona::{
 };
 
 use crate::embassy::EmbassyYard;
+use crate::launch_menu::LaunchRow;
 use crate::first_session_guidance::{
     f7_garden_guidance_after_land, first_minutes_people_want_line, FirstSessionGuidance,
 };
@@ -1369,6 +1370,7 @@ impl Plugin for TitleScreenPlugin {
             .init_resource::<HouseLabel>()
             .init_resource::<NameRiteLine>()
             .init_resource::<PauseTab>()
+            .init_resource::<PauseFocus>()
             .init_resource::<LocalSettingsState>()
             .init_resource::<PeaceRebindState>()
             .init_resource::<PersonaCreatorState>()
@@ -1468,6 +1470,8 @@ impl Plugin for TitleScreenPlugin {
                 refresh_peace_rebind_labels.after(capture_peace_rebind),
             )
             .add_systems(Update, esc_yard_pause.after(InputMapSet))
+            .add_systems(PreUpdate, pause_pad_nav.after(bevy::input::InputSystems).after(bevy::ui::UiSystems::Focus).run_if(crate::age_gate::age_gate_clear))
+            .add_systems(Update, paint_pause_focus.after(sync_pause_tabs))
             .add_systems(
                 Update,
                 scripted_title_play
@@ -3288,6 +3292,95 @@ fn sync_pause_tabs(
         let active = btn.0 == *tab;
         bg.set_if_neq(if active { TITLE_BTN_ACTIVE_BG } else { TITLE_BTN_BG }.into());
         border.set_if_neq(if active { TITLE_BORDER } else { TITLE_BORDER_MUTED }.into());
+    }
+}
+
+#[derive(Resource, Default)]
+struct PauseFocus { at: Option<Entity>, pressed: Option<Entity>, was_open: bool, licences_was_open: bool }
+
+fn pause_focus_ring(root: Entity, children: &Query<&Children>, nodes: &Query<&Node>, take: &impl Fn(Entity) -> bool, out: &mut Vec<Entity>) {
+    let Ok(kids) = children.get(root) else { return };
+    let kids: Vec<Entity> = kids.iter().collect();
+    for child in kids {
+        if nodes.get(child).is_ok_and(|n| n.display == Display::None) { continue; }
+        if take(child) { out.push(child); }
+        pause_focus_ring(child, children, nodes, take, out);
+    }
+}
+
+#[allow(deprecated)]
+fn pause_pad_nav(
+    mut pads: Query<&mut Gamepad>,
+    door: Res<LaunchDoor>,
+    label: Res<HouseLabel>,
+    persona: Res<PersonaCreatorState>,
+    places: Option<Res<PlacesPlate>>,
+    edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
+    licences: Option<Res<crate::licences_screen::LicencesScreen>>,
+    mut focus: ResMut<PauseFocus>,
+    children: Query<&Children>,
+    nodes: Query<&Node>,
+    mut clicks: Query<&mut Interaction>,
+    skip: Query<(), Or<(With<SettingsOnlineStubBtn>, With<SettingsPeaceConflictBtn>, With<SettingsPeaceBindBtn>, With<SettingsHudEditBtn>)>>,
+    roots: Query<Entity, With<SettingsStubRoot>>,
+    resume: Query<Entity, With<PauseResumeBtn>>,
+) {
+    if let Some(e) = focus.pressed.take() {
+        if let Ok(mut click) = clicks.get_mut(e) { if *click == Interaction::Pressed { *click = Interaction::None; } }
+    }
+    let places_open = places.as_ref().is_some_and(|p| p.open);
+    let licences_open = licences.as_ref().is_some_and(|l| l.open);
+    let handoff = std::mem::replace(&mut focus.licences_was_open, licences_open);
+    let live = label.settings_open && settings_visible_with_places(label.settings_open, places_open) && *door != LaunchDoor::NameHouse && *door != LaunchDoor::HouseDress && !persona.open && !edit.as_ref().is_some_and(|mode| mode.active) && !licences_open && !handoff;
+    if !live { focus.was_open = false; return; }
+    let mut ring = Vec::new();
+    if let Ok(root) = roots.single() {
+        pause_focus_ring(root, &children, &nodes, &|e| clicks.get(e).is_ok() && skip.get(e).is_err(), &mut ring);
+    }
+    let (down, up, south) = (pads.iter().any(|g| g.just_pressed(GamepadButton::DPadDown)), pads.iter().any(|g| g.just_pressed(GamepadButton::DPadUp)), pads.iter().any(|g| g.just_pressed(GamepadButton::South)));
+    let east = *door == LaunchDoor::InYard && pads.iter().any(|g| g.just_pressed(GamepadButton::East));
+    if let Some(next) = (!ring.is_empty()).then(|| {
+        if !focus.was_open || focus.at.is_none_or(|e| !ring.contains(&e)) { focus.at = Some(ring[0]); }
+        focus.was_open = true;
+        let at = focus.at.and_then(|e| ring.iter().position(|row| *row == e)).unwrap_or(0) as isize;
+        ring[(at + down as isize - up as isize).rem_euclid(ring.len() as isize) as usize]
+    }) {
+        focus.at = Some(next);
+        if south { if let Ok(mut click) = clicks.get_mut(next) { *click = Interaction::Pressed; focus.pressed = Some(next); } }
+        if east { if let Ok(e) = resume.single() { if let Ok(mut click) = clicks.get_mut(e) { *click = Interaction::Pressed; focus.pressed = Some(e); } } }
+    }
+    let yard = *door == LaunchDoor::InYard;
+    for mut pad in &mut pads {
+        let buttons = pad.digital_mut();
+        buttons.reset(GamepadButton::South); buttons.reset(GamepadButton::DPadUp); buttons.reset(GamepadButton::DPadDown);
+        if yard { buttons.reset(GamepadButton::East); }
+    }
+}
+
+#[allow(deprecated)]
+fn paint_pause_focus(
+    pads: Query<(), With<Gamepad>>,
+    focus: Res<PauseFocus>,
+    children: Query<&Children>,
+    nodes: Query<&Node>,
+    clicks: Query<(), With<Interaction>>,
+    skip: Query<(), Or<(With<SettingsOnlineStubBtn>, With<SettingsPeaceConflictBtn>, With<SettingsPeaceBindBtn>, With<SettingsHudEditBtn>)>>,
+    roots: Query<Entity, With<SettingsStubRoot>>,
+    mut images: Query<&mut ImageNode, (Without<LaunchRow>, Or<(With<PauseTabBtn>, With<crate::licences_screen::LicencesOpenBtn>)>)>,
+    mut fills: Query<&mut BackgroundColor>,
+) {
+    if pads.is_empty() { return; }
+    let Ok(root) = roots.single() else { return };
+    let mut ring = Vec::new();
+    pause_focus_ring(root, &children, &nodes, &|e| clicks.get(e).is_ok() && skip.get(e).is_err(), &mut ring);
+    for row in ring {
+        let on = focus.at == Some(row);
+        if let Ok(mut image) = images.get_mut(row) {
+            let want = if on { crate::ui_frame::FRAME_LIT_IMAGE } else { crate::ui_frame::FRAME_IMAGE };
+            if image.image.id() != want.id() { image.image = want; }
+        } else if let Ok(mut bg) = fills.get_mut(row) {
+            bg.set_if_neq(BackgroundColor(if on { TITLE_BTN_ACTIVE_BG } else { TITLE_BTN_BG }));
+        }
     }
 }
 
@@ -11134,5 +11227,138 @@ mod tests {
         for button in inert { pad_hold(&mut app, pad, button); }
         let (name, seals, heritage, seals_resolved, open) = { let l = app.world().resource::<HouseLabel>(); (l.house.name.clone(), l.house.seals.clone(), l.house.heritage.clone(), l.house.seals_resolved, l.settings_open) };
         assert_eq!((pad_door(&app), name, seals, heritage, seals_resolved, open), (LaunchDoor::HouseDress, snap.name, snap.seals, snap.heritage, snap.seals_resolved, false), "F3 inert faces stay on HouseDress");
+    }
+    use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent, RawGamepadEvent};
+    fn pf_app(title: bool) -> App {
+        let mut app = App::new();
+        app.insert_resource(LivedHourBind::default()).insert_resource(crate::hud_presets::ActiveHudPreset::default()).insert_resource(SessionNetMode::from_powrush_net(shared::hex_listen::PowrushNet::Off)).insert_resource(if title { LaunchDoor::Title } else { LaunchDoor::InYard }).add_message::<bevy::input::gamepad::GamepadRumbleRequest>().add_plugins((MinimalPlugins, bevy::input::InputPlugin, crate::input::InputPlugin, crate::local_settings::LocalSettingsPlugin, TitleScreenPlugin, crate::licences_screen::LicencesScreenPlugin, crate::human_inventory::HumanInventoryPlugin));
+        if title { app.add_plugins(crate::launch_menu::LaunchMenuPlugin); }
+        app.init_resource::<crate::first_harvest_epiphany::FirstHarvestEpiphany>().init_resource::<crate::human_soft_panels::HumanSoftPanels>().init_resource::<crate::rbe_allocate_choice::RbeAllocateChoice>().init_resource::<crate::harvest_feel::SoftRbePool>().init_resource::<crate::loot_drops::FoundFinds>().add_systems(Update, crate::rbe_allocate_choice::toggle_allocate_panel); app
+    }
+    fn pf_boot(title: bool) -> App {
+        let mut app = pf_app(title); crate::test_env::single_thread(&mut app); app.update();
+        app.world_mut().resource_mut::<LocalSettingsState>().inner.comfort_graphics_banner_dismissed = true; app.world_mut().resource_mut::<crate::rbe_allocate_choice::RbeAllocateChoice>().eligible = true; app.update(); app
+    }
+    fn pf_id(app: &mut App) -> Entity {
+        if let Some(id) = app.world_mut().query_filtered::<Entity, With<Gamepad>>().iter(app.world()).next() { return id; }
+        let id = app.world_mut().spawn_empty().id(); app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None })); app.update(); id
+    }
+    fn pf_btn(app: &mut App, button: GamepadButton, values: &[f32]) { let id = pf_id(app); for &value in values { app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, button, value))); app.update(); } }
+    fn pf_tap(app: &mut App, b: GamepadButton) { pf_btn(app, b, &[1.0, 0.0]); } fn pf_down(app: &mut App, b: GamepadButton) { pf_btn(app, b, &[1.0]); } fn pf_up(app: &mut App, b: GamepadButton) { pf_btn(app, b, &[0.0]); }
+    fn pf_ent<T: Component>(app: &mut App) -> Entity { app.world_mut().query_filtered::<Entity, With<T>>().iter(app.world()).next().unwrap() }
+    fn pf_bg<T: Component>(app: &mut App) -> Color { let e = app.world_mut().query_filtered::<Entity, With<T>>().iter(app.world()).next().unwrap(); app.world().get::<BackgroundColor>(e).unwrap().0 } fn pf_open(app: &App) -> bool { app.world().resource::<HouseLabel>().settings_open }
+    fn pf_use(app: &App) -> (bool, bool) { let i = app.world().resource::<PlayerInput>(); (i.interact, i.interact_held) }
+    fn pf_tab(app: &mut App, tab: PauseTab) -> Entity { app.world_mut().query::<(Entity, &PauseTabBtn)>().iter(app.world()).find(|(_, b)| b.0 == tab).unwrap().0 }
+    fn pf_quiet(app: &mut App) -> bool {
+        pf_bg::<SettingsOnlineStubBtn>(app) == TITLE_BTN_DISABLED_BG && pf_bg::<SettingsPeaceConflictBtn>(app) != TITLE_BTN_ACTIVE_BG && pf_bg::<SettingsHudEditBtn>(app) != TITLE_BTN_ACTIVE_BG && app.world_mut().query::<(&SettingsPeaceBindBtn, &BackgroundColor)>().iter(app.world()).all(|(_, bg)| bg.0 != TITLE_BTN_ACTIVE_BG)
+    }
+    #[allow(deprecated)] fn pf_snap(app: &mut App) -> Vec<String> {
+        let root = pf_ent::<SettingsStubRoot>(app); let mut stack = vec![root]; let mut rows = Vec::new();
+        while let Some(e) = stack.pop() {
+            if let Some(kids) = app.world().get::<Children>(e) { stack.extend(kids.iter()); }
+            if e != root && app.world().get::<Interaction>(e).is_some() { rows.push(format!("{e:?} {:?} {:?}", app.world().get::<BackgroundColor>(e).map(|c| c.0), app.world().get::<ImageNode>(e).map(|i| i.image.id()))); }
+        }
+        rows.sort(); rows
+    }
+    #[test] fn pad_focus_ring_f1_wrap_to_resume_without_use() {
+        let _dir = NameRiteUserDir::new("pf1"); let mut app = pf_boot(false); pf_tap(&mut app, GamepadButton::Start); let tab = pf_tab(&mut app, PauseTab::Comfort);
+        assert_eq!((pf_open(&app), app.world().get::<ImageNode>(tab).map(|i| i.image.id())), (true, Some(crate::ui_frame::FRAME_LIT_IMAGE.id())), "F1");
+        pf_tap(&mut app, GamepadButton::DPadUp); assert_eq!(pf_bg::<PauseQuitBtn>(&mut app), TITLE_BTN_ACTIVE_BG, "F1 quit");
+        pf_tap(&mut app, GamepadButton::DPadUp); assert_eq!(pf_bg::<PauseTitleBtn>(&mut app), TITLE_BTN_ACTIVE_BG, "F1 title");
+        pf_tap(&mut app, GamepadButton::DPadUp); assert_eq!(pf_bg::<PauseResumeBtn>(&mut app), TITLE_BTN_ACTIVE_BG, "F1 resume");
+        pf_down(&mut app, GamepadButton::South); assert_eq!((pf_open(&app), pf_use(&app)), (false, (false, false)), "F1 south");
+    }
+    #[test] fn pad_focus_ring_f2_south_presses_mute_row() {
+        let _dir = NameRiteUserDir::new("pf2"); let mut app = pf_boot(false); pf_tap(&mut app, GamepadButton::Start);
+        for _ in 0..7 { pf_tap(&mut app, GamepadButton::DPadDown); }
+        assert_eq!(pf_bg::<SettingsMuteBtn>(&mut app), TITLE_BTN_ACTIVE_BG, "F2 mute lit");
+        let before = app.world().resource::<LocalSettingsState>().inner.mute;
+        pf_down(&mut app, GamepadButton::South);
+        let (mute, inv, panel) = (app.world().resource::<LocalSettingsState>().inner.mute, app.world().resource::<crate::human_inventory::HumanInventory>().open, app.world().resource::<crate::rbe_allocate_choice::RbeAllocateChoice>().panel_open);
+        assert!(mute != before && pf_open(&app) && !inv && !panel && pf_use(&app) == (false, false), "F2");
+    }
+    #[test] fn pad_focus_ring_f3_east_closes_and_stays_closed() {
+        let _dir = NameRiteUserDir::new("pf3"); let mut app = pf_boot(false); pf_tap(&mut app, GamepadButton::Start);
+        pf_down(&mut app, GamepadButton::East); assert!(!pf_open(&app), "F3 east");
+        pf_up(&mut app, GamepadButton::East); pf_down(&mut app, GamepadButton::East); assert!(!pf_open(&app), "F3 east again");
+    }
+    #[test] fn pad_focus_ring_f4_tab_then_preset_skips_hidden() {
+        let _dir = NameRiteUserDir::new("pf4"); let mut app = pf_boot(false); pf_tap(&mut app, GamepadButton::Start);
+        pf_tap(&mut app, GamepadButton::DPadDown); pf_down(&mut app, GamepadButton::South);
+        assert_eq!(*app.world().resource::<PauseTab>(), PauseTab::Controls, "F4 tab");
+        pf_up(&mut app, GamepadButton::South);
+        for _ in 0..3 { pf_tap(&mut app, GamepadButton::DPadDown); }
+        assert_eq!(pf_bg::<SettingsControlPresetBtn>(&mut app), TITLE_BTN_ACTIVE_BG, "F4 preset lit");
+        let before = app.world().resource::<LocalSettingsState>().inner.control_preset.clone();
+        pf_down(&mut app, GamepadButton::South);
+        assert_ne!(app.world().resource::<LocalSettingsState>().inner.control_preset, before, "F4 cycled");
+    }
+    #[test] fn pad_focus_ring_f5_title_south_does_not_play() {
+        let _dir = NameRiteUserDir::new("pf5"); let mut app = pf_boot(true);
+        for _ in 0..6 { if app.world().resource::<crate::launch_menu::LaunchFocus>().0 == crate::launch_menu::LaunchRow::Settings { break; } pf_tap(&mut app, GamepadButton::DPadDown); }
+        assert_eq!(app.world().resource::<crate::launch_menu::LaunchFocus>().0, crate::launch_menu::LaunchRow::Settings, "F5 row");
+        pf_tap(&mut app, GamepadButton::South); let held = app.world().resource::<crate::launch_menu::LaunchFocus>().0;
+        for _ in 0..3 { pf_tap(&mut app, GamepadButton::DPadUp); }
+        pf_down(&mut app, GamepadButton::South);
+        assert_eq!((pf_open(&app), *app.world().resource::<LaunchDoor>(), app.world().resource::<crate::launch_menu::LaunchFocus>().0), (false, LaunchDoor::Title, held), "F5");
+        pf_up(&mut app, GamepadButton::South); pf_tap(&mut app, GamepadButton::South); assert!(pf_open(&app), "F5 reopened");
+        pf_tap(&mut app, GamepadButton::East); assert!(!pf_open(&app), "F5 east");
+    }
+    #[test] fn pad_focus_ring_f6_licences_east_handoff() {
+        let _dir = NameRiteUserDir::new("pf6"); let mut app = pf_boot(false); pf_tap(&mut app, GamepadButton::Start);
+        for _ in 0..3 { pf_tap(&mut app, GamepadButton::DPadDown); }
+        pf_down(&mut app, GamepadButton::South); assert_eq!(*app.world().resource::<PauseTab>(), PauseTab::Guide, "F6 guide");
+        pf_up(&mut app, GamepadButton::South); pf_tap(&mut app, GamepadButton::DPadDown); pf_down(&mut app, GamepadButton::South);
+        assert!(app.world().resource::<crate::licences_screen::LicencesScreen>().open, "F6 open");
+        pf_up(&mut app, GamepadButton::South); pf_down(&mut app, GamepadButton::East);
+        assert!(!app.world().resource::<crate::licences_screen::LicencesScreen>().open && pf_open(&app), "F6 handoff");
+        pf_up(&mut app, GamepadButton::East); pf_down(&mut app, GamepadButton::East); assert!(!pf_open(&app), "F6 close");
+    }
+    #[test] fn pad_focus_ring_f7_excluded_rows_never_light() {
+        let _dir = NameRiteUserDir::new("pf7"); let mut app = pf_boot(false); pf_tap(&mut app, GamepadButton::Start);
+        for tab in PauseTab::ALL { *app.world_mut().resource_mut::<PauseTab>() = tab; app.update(); for _ in 0..32 { pf_tap(&mut app, GamepadButton::DPadDown); assert!(pf_quiet(&mut app), "F7 {tab:?}"); } }
+    }
+    #[test] fn pad_focus_ring_f8_no_pad_leaves_paint() {
+        let _dir = NameRiteUserDir::new("pf8"); let mut app = pf_boot(false); let before = pf_snap(&mut app);
+        app.world_mut().resource_mut::<HouseLabel>().settings_open = true; app.update(); app.update(); app.world_mut().resource_mut::<HouseLabel>().settings_open = false; app.update(); app.update();
+        assert_eq!(pf_snap(&mut app), before, "F8");
+    }
+    #[allow(deprecated)] fn pf_excluded_hit(app: &mut App) -> bool {
+        let at = app.world().resource::<PauseFocus>().at;
+        let ids: Vec<Entity> = app.world_mut().query_filtered::<Entity, Or<(With<SettingsOnlineStubBtn>, With<SettingsPeaceConflictBtn>, With<SettingsPeaceBindBtn>, With<SettingsHudEditBtn>)>>().iter(app.world()).collect();
+        ids.into_iter().any(|e| at == Some(e) || app.world().get::<Interaction>(e).is_some_and(|i| *i == Interaction::Pressed))
+    }
+    #[test] fn pad_focus_ring_f9_handoff_frame_stays_guide() {
+        let _dir = NameRiteUserDir::new("pf9"); let mut app = pf_boot(false); pf_tap(&mut app, GamepadButton::Start);
+        for _ in 0..3 { pf_tap(&mut app, GamepadButton::DPadDown); }
+        pf_down(&mut app, GamepadButton::South); pf_up(&mut app, GamepadButton::South); pf_tap(&mut app, GamepadButton::DPadDown); pf_down(&mut app, GamepadButton::South);
+        assert!(app.world().resource::<crate::licences_screen::LicencesScreen>().open, "F9 open");
+        pf_up(&mut app, GamepadButton::South); pf_down(&mut app, GamepadButton::East);
+        assert!(!app.world().resource::<crate::licences_screen::LicencesScreen>().open && pf_open(&app), "F9 east");
+        pf_down(&mut app, GamepadButton::South);
+        assert!(pf_open(&app) && *app.world().resource::<PauseTab>() == PauseTab::Guide && !app.world().resource::<crate::licences_screen::LicencesScreen>().open, "F9 latch");
+    }
+    #[test] fn pad_focus_ring_f10_south_skips_excluded() {
+        let _dir = NameRiteUserDir::new("pf10"); let mut app = pf_boot(false);
+        for tab in [PauseTab::Controls, PauseTab::Hud] {
+            if !pf_open(&app) { pf_tap(&mut app, GamepadButton::Start); }
+            *app.world_mut().resource_mut::<PauseTab>() = tab; app.update();
+            for _ in 0..30 {
+                assert!(!pf_excluded_hit(&mut app), "F10 focus {tab:?}");
+                pf_down(&mut app, GamepadButton::South); assert!(!pf_excluded_hit(&mut app), "F10 press {tab:?}"); pf_up(&mut app, GamepadButton::South);
+                *app.world_mut().resource_mut::<PauseTab>() = tab; app.update();
+                if !pf_open(&app) { break; }
+                pf_tap(&mut app, GamepadButton::DPadDown);
+            }
+        }
+    }
+    #[test] fn pad_focus_ring_f11_age_gate_blocks_pad() {
+        let _dir = NameRiteUserDir::new("pf11"); let mut app = pf_boot(false);
+        app.insert_resource(crate::age_gate::AgeGate { open: true });
+        let preset = app.world().resource::<LocalSettingsState>().inner.graphics_preset;
+        pf_tap(&mut app, GamepadButton::Start);
+        for _ in 0..4 { pf_tap(&mut app, GamepadButton::DPadDown); }
+        pf_down(&mut app, GamepadButton::South);
+        assert!(app.world().resource::<PauseFocus>().at.is_none() && *app.world().resource::<PauseTab>() == PauseTab::Comfort && app.world().resource::<LocalSettingsState>().inner.graphics_preset == preset, "F11");
     }
 }
