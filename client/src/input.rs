@@ -746,9 +746,9 @@ mod tests {
     #[test]
     fn sprint_mode_key_is_peace_default() {
         let s = LocalSettings::peace_defaults();
-        assert!(s.sprint_mode_is_key());
+        assert!(!s.sprint_mode_is_key());
         assert!(!s.sprint_mode_is_stick());
-        assert!(!s.sprint_mode_is_trigger());
+        assert!(s.sprint_mode_is_trigger());
     }
 
     #[test]
@@ -1769,6 +1769,25 @@ mod tests {
         app.world_mut().spawn(pad);
         app.update();
         assert!(app.world().resource::<PlayerInput>().sprint);
+        let marked = r#"{"schema":"powrush_settings_v1","sprint_mode":"key","sprint_cycled":true}"#;
+        app.world_mut().resource_mut::<LocalSettingsState>().inner =
+            LocalSettings::from_json(marked).unwrap();
+        app.update();
+        assert!(!app.world().resource::<PlayerInput>().sprint);
+        app.world_mut()
+            .query::<&mut Gamepad>()
+            .single_mut(app.world_mut())
+            .unwrap()
+            .digital_mut()
+            .release(GamepadButton::LeftTrigger2);
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::ShiftLeft);
+        for mode in ["key", "stick", "trigger"] {
+            app.world_mut().resource_mut::<LocalSettingsState>().inner.sprint_mode = mode.into();
+            app.update();
+            assert!(app.world().resource::<PlayerInput>().sprint, "{mode}");
+        }
     }
     #[test] fn pp1_s8_source_one_slot_writer_one_rb_edge_and_combat_fire_unchanged() {
         let prod = include_str!("input.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
