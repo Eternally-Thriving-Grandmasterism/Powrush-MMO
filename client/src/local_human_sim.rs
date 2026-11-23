@@ -236,12 +236,13 @@ mod tests {
     fn with_root<R>(root: &PathBuf, f: impl FnOnce() -> R) -> R {
         crate::test_env::with_bevy_asset_root(root, f)
     }
+    /// Runs `body` with `POWRUSH_USER_DIR` on a fresh temp dir. The crate env lock covers the whole span, from the dir reset through cleanup.
     fn with_user_dir<R>(tag: &str, body: impl FnOnce(&Path) -> R) -> R {
         let dir = std::env::temp_dir().join(format!("powrush-char-{tag}-{}", std::process::id()));
+        let _ud = crate::test_env::lock();
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("powrush_seal.json"), b"{}").unwrap();
-        let _ud = crate::test_env::lock();
         let env = shared::user_persist::USER_DIR_OVERRIDE_ENV;
         let prev = std::env::var(env).ok();
         std::env::set_var(env, &dir);
