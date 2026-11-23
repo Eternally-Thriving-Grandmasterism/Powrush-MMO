@@ -979,7 +979,7 @@ impl LocalSettings {
         };
     }
 
-    /// Clamp sprint_mode to stick|trigger|key. Unknown → key.
+    /// Clamp sprint_mode to stick|trigger|key. Unknown → key only once cycled (sprint_cycled); else trigger.
     pub fn normalize_sprint_mode(&mut self) {
         let t = self.sprint_mode.trim().to_ascii_lowercase();
         self.sprint_mode = match t.as_str() {
