@@ -4509,4 +4509,12 @@ mod tests {
         assert_eq!(pp_show(&mut app, &GuidanceObjective::EmbassySeat), card_line(GuidanceObjective::EmbassySeat.prompt()));
         assert!(pp_show(&mut app, &GuidanceObjective::MoveAround).ends_with("  · H hides"));
     }
+    #[test] fn pad_prompts_f7_refine_cue() {
+        let (_l, _d, _r, mut app) = pp_boot("f7"); let (hour, fac, fab) = refine_gate();
+        app.insert_resource(hour).insert_resource(FactoryYard { factory: fac }).insert_resource(FabricatorYard { fab, bench_glow: 0.0 }).insert_resource(HexTravelState { current: PlaceId::Sanctuary }).insert_resource(WoodView { unit: 1, standing: false });
+        let kb = pp_show(&mut app, &GuidanceObjective::OpenLedger);
+        assert!(kb.ends_with(&format!("\n{LOOP_REFINE_CUE}")), "F7 kb {kb}");
+        pp_pad(&mut app); let pad = guidance_card_section(&mut app).1;
+        assert_eq!(pad.rsplit_once('\n').unwrap().1, LOOP_REFINE_CUE.replacen('Q', "X", 1), "F7 {pad}");
+    }
 }
