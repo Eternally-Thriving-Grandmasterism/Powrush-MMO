@@ -236,12 +236,13 @@ mod tests {
     fn with_root<R>(root: &PathBuf, f: impl FnOnce() -> R) -> R {
         crate::test_env::with_bevy_asset_root(root, f)
     }
+    /// Runs `body` with `POWRUSH_USER_DIR` on a fresh temp dir. The crate env lock covers the whole span, from the dir reset through cleanup.
     fn with_user_dir<R>(tag: &str, body: impl FnOnce(&Path) -> R) -> R {
         let dir = std::env::temp_dir().join(format!("powrush-char-{tag}-{}", std::process::id()));
+        let _ud = crate::test_env::lock();
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("powrush_seal.json"), b"{}").unwrap();
-        let _ud = crate::test_env::lock();
         let env = shared::user_persist::USER_DIR_OVERRIDE_ENV;
         let prev = std::env::var(env).ok();
         std::env::set_var(env, &dir);
@@ -377,5 +378,43 @@ mod tests {
             let peer = shared::user_persist::persist_path(PEER_PATH);
             assert!(shared::user_persist::named_exists(PEER_PATH) && peer.starts_with(dir) && std::fs::read_to_string(peer).unwrap_or_default().contains("powrush_lattice_flow_share_v1"));
         });
+    }
+
+    #[test]
+    fn fsw2_with_user_dir_takes_the_lock_before_the_dir() {
+        let env = shared::user_persist::USER_DIR_OVERRIDE_ENV;
+        let pre = format!("powrush-char-fsw2-{}", std::process::id());
+        let planted = std::env::temp_dir().join(&pre);
+        let held = crate::test_env::lock();
+        let before = std::env::var_os(env);
+        std::fs::create_dir_all(&planted).unwrap();
+        std::fs::write(planted.join("sentinel"), b"1").unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || { tx.send(()).unwrap(); with_user_dir("fsw2", |d| (
+            d.join("powrush_seal.json").exists() && !d.join("sentinel").exists(), crate::test_env::USER_DIR_ENV_LOCK.try_lock().is_err(),
+            std::env::var_os(env).as_deref() == Some(d.as_os_str()), d.to_path_buf())) });
+        rx.recv().unwrap();
+        let until = std::time::Instant::now() + std::time::Duration::from_millis(300);
+        while std::time::Instant::now() < until {
+            let sealed = std::fs::read_dir(std::env::temp_dir()).unwrap().flatten().any(|e| e.file_name().to_string_lossy().starts_with(&pre) && e.path().join("powrush_seal.json").exists());
+            assert!(planted.join("sentinel").exists(), "FSW2: sentinel removed before the lock was released");
+            assert!(!sealed, "FSW2: seal written before the lock was released");
+            assert_eq!(std::env::var_os(env), before, "FSW2: env set before the lock was released");
+            std::thread::sleep(std::time::Duration::from_millis(15));
+        }
+        drop(held);
+        let (fresh, locked, env_ok, dir) = worker.join().unwrap();
+        assert!(fresh && locked && env_ok, "FSW2: fresh={fresh} locked={locked} env_ok={env_ok}");
+        let _again = crate::test_env::lock();
+        assert!(!dir.exists() && std::env::var_os(env) == before, "FSW2: removed={} restored={}", !dir.exists(), std::env::var_os(env) == before);
+    }
+    #[test]
+    fn fsw2_panic_restores_env_and_removes_dir() {
+        let env = shared::user_persist::USER_DIR_OVERRIDE_ENV;
+        let dir = std::env::temp_dir().join(format!("powrush-char-fsw2p-{}", std::process::id()));
+        let _held = crate::test_env::lock();
+        let before = std::env::var_os(env);
+        let caught = std::panic::catch_unwind(AssertUnwindSafe(|| with_user_dir("fsw2p", |_| panic!("fsw2p"))));
+        assert!(caught.is_err() && std::env::var_os(env) == before && !dir.exists(), "FSW2: unwind={} restored={} removed={}", caught.is_err(), std::env::var_os(env) == before, !dir.exists());
     }
 }
