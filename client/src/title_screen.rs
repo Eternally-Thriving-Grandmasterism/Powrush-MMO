@@ -11323,4 +11323,42 @@ mod tests {
         app.world_mut().resource_mut::<HouseLabel>().settings_open = true; app.update(); app.update(); app.world_mut().resource_mut::<HouseLabel>().settings_open = false; app.update(); app.update();
         assert_eq!(pf_snap(&mut app), before, "F8");
     }
+    #[allow(deprecated)] fn pf_excluded_hit(app: &mut App) -> bool {
+        let at = app.world().resource::<PauseFocus>().at;
+        let ids: Vec<Entity> = app.world_mut().query_filtered::<Entity, Or<(With<SettingsOnlineStubBtn>, With<SettingsPeaceConflictBtn>, With<SettingsPeaceBindBtn>, With<SettingsHudEditBtn>)>>().iter(app.world()).collect();
+        ids.into_iter().any(|e| at == Some(e) || app.world().get::<Interaction>(e).is_some_and(|i| *i == Interaction::Pressed))
+    }
+    #[test] fn pad_focus_ring_f9_handoff_frame_stays_guide() {
+        let _dir = NameRiteUserDir::new("pf9"); let mut app = pf_boot(false); pf_tap(&mut app, GamepadButton::Start);
+        for _ in 0..3 { pf_tap(&mut app, GamepadButton::DPadDown); }
+        pf_down(&mut app, GamepadButton::South); pf_up(&mut app, GamepadButton::South); pf_tap(&mut app, GamepadButton::DPadDown); pf_down(&mut app, GamepadButton::South);
+        assert!(app.world().resource::<crate::licences_screen::LicencesScreen>().open, "F9 open");
+        pf_up(&mut app, GamepadButton::South); pf_down(&mut app, GamepadButton::East);
+        assert!(!app.world().resource::<crate::licences_screen::LicencesScreen>().open && pf_open(&app), "F9 east");
+        pf_down(&mut app, GamepadButton::South);
+        assert!(pf_open(&app) && *app.world().resource::<PauseTab>() == PauseTab::Guide && !app.world().resource::<crate::licences_screen::LicencesScreen>().open, "F9 latch");
+    }
+    #[test] fn pad_focus_ring_f10_south_skips_excluded() {
+        let _dir = NameRiteUserDir::new("pf10"); let mut app = pf_boot(false);
+        for tab in [PauseTab::Controls, PauseTab::Hud] {
+            if !pf_open(&app) { pf_tap(&mut app, GamepadButton::Start); }
+            *app.world_mut().resource_mut::<PauseTab>() = tab; app.update();
+            for _ in 0..30 {
+                assert!(!pf_excluded_hit(&mut app), "F10 focus {tab:?}");
+                pf_down(&mut app, GamepadButton::South); assert!(!pf_excluded_hit(&mut app), "F10 press {tab:?}"); pf_up(&mut app, GamepadButton::South);
+                *app.world_mut().resource_mut::<PauseTab>() = tab; app.update();
+                if !pf_open(&app) { break; }
+                pf_tap(&mut app, GamepadButton::DPadDown);
+            }
+        }
+    }
+    #[test] fn pad_focus_ring_f11_age_gate_blocks_pad() {
+        let _dir = NameRiteUserDir::new("pf11"); let mut app = pf_boot(false);
+        app.insert_resource(crate::age_gate::AgeGate { open: true });
+        let preset = app.world().resource::<LocalSettingsState>().inner.graphics_preset;
+        pf_tap(&mut app, GamepadButton::Start);
+        for _ in 0..4 { pf_tap(&mut app, GamepadButton::DPadDown); }
+        pf_down(&mut app, GamepadButton::South);
+        assert!(app.world().resource::<PauseFocus>().at.is_none() && *app.world().resource::<PauseTab>() == PauseTab::Comfort && app.world().resource::<LocalSettingsState>().inner.graphics_preset == preset, "F11");
+    }
 }
