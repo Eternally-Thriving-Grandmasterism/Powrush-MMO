@@ -124,6 +124,8 @@ pub(crate) mod test_env {
     }
 
     pub(crate) fn lock() -> UserDirEnvGuard {
+        debug_assert!(!std::thread::current().name().is_some_and(|n| n.contains("Task Pool") || n.starts_with("TaskPool (")),
+            "CI-HANG-1: test_env::lock() on a Bevy pool worker; call crate::test_env::single_thread on this test App");
         DEPTH.with(|depth| {
             let n = depth.get();
             if n == 0 {
@@ -166,6 +168,29 @@ pub(crate) mod test_env {
         match out {
             Ok(r) => r,
             Err(e) => std::panic::resume_unwind(e),
+        }
+    }
+
+    /// CARD CI-HANG-1 — every schedule of every sub-app on `SingleThreadedExecutor`, so a test App
+    /// run while a test holds `USER_DIR_ENV_LOCK` (or `BEVY_ASSET_ROOT_ENV_LOCK`) never waits on, and
+    /// never blocks, a Compute Task Pool worker. Call after the last `add_plugins` / `finish` /
+    /// `cleanup` and before the first `update` / `run_schedule`. Main and Fixed order labels are
+    /// created first, so later `add_systems` on them inherit this executor; custom schedules or
+    /// sub-apps added after the call do not.
+    pub(crate) fn single_thread(app: &mut bevy::app::App) {
+        use bevy::app::{FixedMainScheduleOrder, MainScheduleOrder};
+        use bevy::ecs::schedule::{Schedules, SingleThreadedExecutor};
+        for sub in app.sub_apps_mut().iter_mut() {
+            let world = sub.world_mut();
+            let mut labels: Vec<_> = world.get_resource::<MainScheduleOrder>().map_or_else(Vec::new, |o| o.startup_labels.iter().chain(&o.labels).copied().collect());
+            labels.extend(world.get_resource::<FixedMainScheduleOrder>().map_or_else(Vec::new, |o| o.labels.clone()));
+            let Some(mut schedules) = world.get_resource_mut::<Schedules>() else { continue };
+            for label in labels {
+                schedules.entry(label);
+            }
+            for (_, schedule) in schedules.iter_mut() {
+                schedule.set_executor(SingleThreadedExecutor::new());
+            }
         }
     }
 }

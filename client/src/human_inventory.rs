@@ -1038,6 +1038,7 @@ mod tests {
             .add_systems(Startup, spawn_inventory_surfaces).add_systems(Update, (equip_when_open.before(update_satchel), update_satchel));
         if let Some(bytes) = old { std::fs::write(dir.join(FINDS_SAVE), bytes).unwrap(); app.init_resource::<FoundFinds>().add_systems(Startup, load_finds); }
         if let Some(f) = finds { app.insert_resource(f); } else { app.init_resource::<FoundFinds>(); }
+        crate::test_env::single_thread(&mut app);
         app.update();
         app
     }
@@ -1194,7 +1195,7 @@ mod tests {
     fn g5_load_finds_restores_equipped_fail_closed() {
         in_user_dir("g5", |dir| {
             tap4(&mut dir_satchel(dir, None, Some(two())));
-            let mut r = App::new(); r.add_plugins(MinimalPlugins).init_resource::<FoundFinds>().add_systems(Startup, load_finds); r.update();
+            let mut r = App::new(); r.add_plugins(MinimalPlugins).init_resource::<FoundFinds>().add_systems(Startup, load_finds); crate::test_env::single_thread(&mut r); r.update();
             assert_eq!(r.world().resource::<FoundFinds>().equipped, Some(NAMED_FINDS[1].name));
         });
         for json in [r#"{"schema":"powrush_finds_v1","names":["Steady Climate Pick"],"equipped":"Quiet Harmony Loom"}"#, r#"{"schema":"powrush_finds_v1","names":["Steady Climate Pick"],"equipped":"no such"}"#] {

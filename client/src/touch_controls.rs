@@ -479,6 +479,7 @@ mod tests {
             .insert_resource(LaunchDoor::InYard)
             .insert_resource(quiet_house(false));
         app.world_mut().resource_mut::<crate::hud_edit_mode::HudEditMode>().active = true;
+        crate::test_env::single_thread(&mut app);
         app.update();
         {
             let mut use_btn = app

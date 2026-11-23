@@ -1508,6 +1508,7 @@ mod tests {
             schedule.set_executor(SingleThreadedExecutor::new());
         }
         app.edit_schedule(Update, use_single_thread);
+        crate::test_env::single_thread(app);
     }
     fn hp2_ui(w: u32, h: u32, s: f32) -> App {
         let mut app = App::new(); app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default(), bevy::input::InputPlugin, bevy::text::TextPlugin, bevy::ui::UiPlugin, crate::ui_font::UiFontPlugin)).init_asset::<Image>().init_asset::<TextureAtlasLayout>().add_message::<bevy::picking::pointer::PointerInput>().add_message::<bevy::picking::backend::PointerHits>().init_resource::<bevy::picking::hover::HoverMap>().init_resource::<bevy::picking::events::PointerState>().add_systems(Startup, spawn_care_cycle_strip);

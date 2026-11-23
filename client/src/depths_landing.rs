@@ -226,6 +226,7 @@ mod tests {
         app.edit_schedule(bevy::prelude::Update, |schedule| {
             schedule.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new());
         });
+        crate::test_env::single_thread(&mut app);
 
         app.update();
 

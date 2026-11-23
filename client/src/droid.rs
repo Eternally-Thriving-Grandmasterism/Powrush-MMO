@@ -587,7 +587,7 @@ mod tests {
         assert_eq!(q.events[0].amount, state.taken.saturating_sub(before));
     }
 
-    fn thread(app: &mut App) { fn set(app: &mut App, label: impl bevy::ecs::schedule::ScheduleLabel) { app.edit_schedule(label, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); }); } set(app, Startup); set(app, First); set(app, PreUpdate); set(app, Update); set(app, PostUpdate); set(app, Last); }
+    fn thread(app: &mut App) { fn set(app: &mut App, label: impl bevy::ecs::schedule::ScheduleLabel) { app.edit_schedule(label, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); }); } set(app, Startup); set(app, First); set(app, PreUpdate); set(app, Update); set(app, PostUpdate); set(app, Last); crate::test_env::single_thread(app); }
     fn tick(app: &mut App, dt: f32) { app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(dt))); app.update(); }
     fn rings<C: Component>(app: &mut App) -> Vec<Visibility> { app.world_mut().query_filtered::<&Visibility, With<C>>().iter(app.world()).copied().collect() }
     fn pulse_of(app: &mut App) -> (String, Visibility) {

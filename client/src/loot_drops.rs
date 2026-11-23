@@ -222,6 +222,7 @@ pub(crate) mod tests {
     fn loaded() -> FoundFinds {
         let mut app = App::new();
         app.init_resource::<FoundFinds>().add_systems(Startup, load_finds);
+        crate::test_env::single_thread(&mut app);
         app.update();
         app.world().resource::<FoundFinds>().clone()
     }

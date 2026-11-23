@@ -264,6 +264,7 @@ mod tests {
             .add_plugins(LocalHumanSimPlugin);
         a.finish();
         a.cleanup();
+        crate::test_env::single_thread(&mut a);
         a
     }
     fn mk(gltf: bool) -> App {
@@ -277,6 +278,7 @@ mod tests {
         a.set_error_handler(bevy::ecs::error::ignore).init_asset::<Mesh>().init_asset::<StandardMaterial>().insert_resource(SoftPresence::default()).insert_resource(FlowWeather::default()).add_plugins(LocalHumanSimPlugin);
         a.finish();
         a.cleanup();
+        crate::test_env::single_thread(&mut a);
         a
     }
     fn boot(app: &mut App) {

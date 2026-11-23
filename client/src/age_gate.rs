@@ -182,6 +182,7 @@ mod tests {
         let mut app = App::new();
         app.insert_resource(crate::lived_hour_bind::LivedHourBind::default()).insert_resource(crate::hud_presets::ActiveHudPreset::default()).insert_resource(crate::net_mode::SessionNetMode::from_powrush_net(PowrushNet::Off)).add_message::<bevy::input::gamepad::GamepadRumbleRequest>().add_plugins((MinimalPlugins, bevy::input::InputPlugin, InputPlugin, LocalSettingsPlugin, TitleScreenPlugin));
         if gate { app.add_plugins(AgeGatePlugin); }
+        crate::test_env::single_thread(&mut app);
         app
     }
     fn key(app: &mut App, code: KeyCode, logical: Key, state: ButtonState) {

@@ -380,6 +380,7 @@ mod tests {
         use bevy::prelude::*;
         let mut app = crate::heartwood_plaque::kh_sync::app(inner);
         app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(100))).insert_resource(super::NearbyMercyNode { in_range: true, ..Default::default() }).insert_resource(crate::lived_hour_bind::LivedHourBind { hour: shared::climate_node::LivedHour::new_demo(), climate: shared::shard_climate::ShardClimate::default(), standing: Default::default(), week: Default::default(), last_line: String::new(), guidance_hidden: false, focus_id: None, climate_slab: None }).insert_resource(epi).init_resource::<GlobalAmbientLight>().add_plugins(super::ShardClimatePlugin);
+        crate::test_env::single_thread(&mut app);
         app
     }
     fn harmony(app: &bevy::prelude::App) -> f32 { app.world().resource::<crate::lived_hour_bind::LivedHourBind>().climate.harmony }

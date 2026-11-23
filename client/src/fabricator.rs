@@ -739,6 +739,7 @@ mod tests {
             .insert_resource(bind)
             .insert_resource(hub)
             .add_systems(Update, handle_fab_q);
+        crate::test_env::single_thread(&mut app);
         (app, fab)
     }
 
@@ -842,6 +843,7 @@ mod tests {
         let mut bind = LivedHourBind::default(); bind.climate = shared::shard_climate::ShardClimate::from_json(CLIMATE_V0).unwrap();
         let mut app = App::new();
         app.add_plugins(MinimalPlugins).configure_sets(Update, InputMapSet).edit_schedule(Update, |schedule| { schedule.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); }).insert_resource(hour).insert_resource(FactoryYard { factory }).insert_resource(FabricatorYard { fab: Fabricator::default(), bench_glow: 0.0 }).insert_resource(bind).insert_resource(hub).insert_resource(HexTravelState { current: PlaceId::Sanctuary }).init_resource::<ButtonInput<KeyCode>>().init_resource::<PlayerInput>().init_resource::<ThrivingMoments>().init_resource::<FirstSessionGuidance>().init_resource::<Signpost>().init_resource::<WoodView>().add_plugins(crate::vertical_factory::VerticalFactoryPlugin).add_systems(Startup, (spawn_fab_slab, spawn_guidance_strip)).add_systems(Update, (handle_fab_q, update_fab_slab, update_guidance_text).chain().after(InputMapSet));
+        crate::test_env::single_thread(&mut app);
         app
     }
     struct GateShut(App);

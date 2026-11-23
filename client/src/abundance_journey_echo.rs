@@ -545,6 +545,7 @@ mod tests {
                 bevy::prelude::Update,
                 (absorb_practice_and_allocate, save_journey_persist).chain(),
             );
+        crate::test_env::single_thread(&mut app);
         app
     }
 

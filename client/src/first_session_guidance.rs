@@ -1726,6 +1726,7 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .init_resource::<Signpost>()
             .add_systems(Startup, load_signpost);
+        crate::test_env::single_thread(&mut app);
         app.update();
         let mut sign = app.world().resource::<Signpost>().clone();
         let free = FirstSessionGuidance { objective: GuidanceObjective::FreeExploration, ..Default::default() };
@@ -3816,6 +3817,7 @@ mod tests {
         app.edit_schedule(Update, |schedule| {
             schedule.set_executor(SingleThreadedExecutor::new());
         });
+        crate::test_env::single_thread(&mut app);
         app.update();
         {
             let mut guidance = app.world_mut().resource_mut::<FirstSessionGuidance>();
@@ -3882,6 +3884,7 @@ mod tests {
         app.world_mut()
             .resource_mut::<ButtonInput<KeyCode>>()
             .press(KeyCode::KeyH);
+        crate::test_env::single_thread(&mut app);
         app.update();
         let guidance = app.world().resource::<FirstSessionGuidance>();
         assert!(guidance.dismissed);
@@ -4180,6 +4183,7 @@ mod tests {
             let mut guidance = app.world_mut().resource_mut::<FirstSessionGuidance>();
             (guidance.objective, guidance.free_since, guidance.active, guidance.dismissed) = (objective, free_since, true, false);
         }
+        crate::test_env::single_thread(&mut app);
         app
     }
 
@@ -4385,6 +4389,7 @@ mod tests {
             .init_resource::<FirstHarvestEpiphany>().init_resource::<crate::human_soft_panels::HumanSoftPanels>().init_resource::<crate::rbe_allocate_choice::RbeAllocateChoice>()
             .init_resource::<crate::harvest_feel::SoftRbePool>().init_resource::<LivedHourBind>().init_resource::<crate::title_screen::HouseLabel>().init_resource::<FoundFinds>()
             .insert_resource(LaunchDoor::InYard).insert_resource(crate::human_inventory::HumanInventory { open, ..default() });
+        crate::test_env::single_thread(&mut app);
         app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::OpenInventory;
         app
     }

@@ -600,6 +600,7 @@ mod tests {
         app.insert_resource(PlayerInput::default());
         app.insert_resource(ThrivingMoments::default());
         app.add_systems(Update, handle_ledger);
+        crate::test_env::single_thread(&mut app);
         app.update();
 
         let window = Entity::PLACEHOLDER;
@@ -1124,6 +1125,7 @@ mod tests {
             .resource_mut::<LivedHourBind>()
             .guidance_hidden = true;
 
+        crate::test_env::single_thread(&mut app);
         app.update();
         assert_eq!(ledger_vis(&mut app), Visibility::Hidden);
         let (hidden_px, _) = ledger_text_font(&mut app);

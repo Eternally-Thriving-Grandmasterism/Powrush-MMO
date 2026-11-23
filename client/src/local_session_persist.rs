@@ -490,6 +490,7 @@ mod tests {
                 |mut p: ResMut<SoftRbePool>| p.tick_juice(0.016),
                 |mut e: ResMut<FirstHarvestEpiphany>| e.well_in_reach = false,
             ));
+        crate::test_env::single_thread(&mut app);
         for _ in 0..3 { app.update(); }
         let live = dir.join("powrush_local_session.json");
         assert!(live.is_file(), "settle frames save the session once");

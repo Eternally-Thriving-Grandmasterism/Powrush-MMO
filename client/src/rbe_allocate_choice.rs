@@ -842,6 +842,7 @@ mod tests {
         let mut bind = test_bind(); assert!(matches!(bind.tend(1), TendResult::Taken { .. }) && matches!(bind.tend(2), TendResult::Taken { .. }), "satchel of 2");
         let mut app = App::new(); app.add_plugins((MinimalPlugins, bevy::input::InputPlugin)).insert_resource(bind).init_resource::<ThrivingMoments>().init_resource::<FirstSessionGuidance>().add_message::<GamepadRumbleRequest>().add_plugins(RbeAllocateChoicePlugin);
         let pad = if with_pad { let pad = app.world_mut().spawn_empty().id(); app.world_mut().write_message(GamepadConnectionEvent::new(pad, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None })); pad } else { Entity::PLACEHOLDER };
+        crate::test_env::single_thread(&mut app);
         app.update(); { let mut choice = app.world_mut().resource_mut::<RbeAllocateChoice>(); choice.panel_open = open; choice.eligible = true; choice.surplus_signal = 4.0; choice.choices_made = 0; choice.last_choice = None; } (app, pad)
     }
     fn pad_set(app: &mut App, pad: Entity, button: GamepadButton, value: f32) { use bevy::input::gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent}; app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(pad, button, value))); app.update(); }

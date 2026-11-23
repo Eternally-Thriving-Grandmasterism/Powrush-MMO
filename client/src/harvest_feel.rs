@@ -245,6 +245,7 @@ mod tests {
             .resource_mut::<SoftRbePool>()
             .credit_mercy_harvest(1.0);
         assert_eq!(app.world().resource::<SoftRbePool>().harvests, 1);
+        crate::test_env::single_thread(&mut app);
         app.update();
 
         let bind = app.world().resource::<LivedHourBind>();
