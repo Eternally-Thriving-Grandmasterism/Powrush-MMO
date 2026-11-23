@@ -2217,6 +2217,29 @@ mod tests {
         assert!(w.resource::<CombatState>().strikes > 0 && w.query::<&AudioPlayer>().iter(&mut w).count() <= n);
     }
 
+    /// COMBAT-SFX-2 — one `play_swing` in `combat_fire`; mute and zero gain are silent; the licence row; one spawn per attempt.
+    #[test]
+    fn combat_sfx_2_one_swing_per_strike() {
+        let src = include_str!("combat_core.rs");
+        let fire = &src[src.find("pub fn combat_fire(").unwrap()..];
+        let fire = &fire[..fire.find("\n}\n").unwrap()];
+        assert_eq!(fire.matches("play_swing(").count(), 1);
+        let (muted, zero) = (crate::local_settings::MasterMuteGain { gain: 1.0, muted: true }, crate::local_settings::MasterMuteGain { gain: 0.0, muted: false });
+        assert_eq!((swing_volume(Some(&muted)), swing_volume(Some(&zero))), (None, None));
+        assert!(include_str!("../../assets/asset-licenses.csv").contains("assets/audio/combat_swing.ogg"));
+        use bevy::ecs::system::RunSystemOnce;
+        let n = audio_output_safe() as usize;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default())).init_asset::<AudioSource>();
+        let mut lmb = ButtonInput::<MouseButton>::default();
+        lmb.press(FIRE);
+        app.insert_resource(lmb).insert_resource(LaunchDoor::InYard).insert_resource(HexTravelState { current: PlaceId::Heartwood }).insert_resource(SoftPresence { position: Vec3::new(80.0, STAND_HEIGHT, 80.0), ..Default::default() }).insert_resource(CombatState::default()).insert_resource(SkillXp::default()).insert_resource(crate::local_settings::MasterMuteGain { gain: 1.0, muted: false });
+        app.world_mut().spawn((Window { focused: true, ..default() }, PrimaryWindow));
+        app.world_mut().run_system_once(combat_fire).unwrap();
+        let (strikes, taken) = { let c = app.world().resource::<CombatState>(); (c.strikes, c.predator_taken) };
+        assert_eq!((strikes, taken, app.world_mut().query::<&AudioPlayer>().iter(app.world_mut()).count()), (1, 0, n));
+    }
+
     #[test]
     fn sfx_wire_missing_asset_no_panic_find() { use bevy::ecs::system::RunSystemOnce; sfx_find_app("x").world_mut().run_system_once(show_find).unwrap(); }
 
