@@ -42,6 +42,7 @@ pub mod first_session_guidance;
 pub mod first_hour_camera;
 pub mod harvest_feel;
 pub mod peace_audio;
+pub mod move_sfx;
 pub mod feel_move;
 pub mod first_harvest_epiphany;
 pub mod mercy_harvest_nodes;
