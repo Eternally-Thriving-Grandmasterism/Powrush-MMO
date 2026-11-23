@@ -422,4 +422,19 @@ mod tests {
         *app.world_mut().get_mut::<Visibility>(root).unwrap() = SN_H;
         assert_eq!(sn_run(&mut app, 1)[0][0], (SN_V, true), "SN3 guard: Mercy hidden externally while open is restored Visible with is_changed");
     }
+    /// SOFT-PANEL-HUD-GUARD-1: an open Mercy or Realm panel shows in the Classic yard (control) and is Hidden on Title and under Pause (R5).
+    #[test] fn soft_panels_final_hidden_on_title_and_pause_under_real_hud_layout() {
+        use crate::{hud_presets::{ActiveHudPreset, HudLayoutPlugin, HudPresetId}, title_screen::{HouseLabel, LaunchDoor}};
+        for mercy in [true, false] {
+            let (mut app, name) = (App::new(), if mercy { "Mercy" } else { "Realm" });
+            app.add_plugins((MinimalPlugins, HudLayoutPlugin)).insert_resource(ActiveHudPreset { id: Some(HudPresetId::Classic) })
+                .init_resource::<crate::hex_travel::PlacesPlate>().insert_resource(LaunchDoor::InYard)
+                .insert_resource(HumanSoftPanels { mercy_open: mercy, realm_open: !mercy }).add_systems(Startup, spawn_soft_panels).add_systems(Update, update_soft_visibility);
+            let vis = |app: &mut App| { (app.update(), app.update()); let root = hp3_root(app, mercy); *app.world().get::<Visibility>(root).unwrap() };
+            assert_eq!(vis(&mut app), Visibility::Visible, "{name} control: open in the Classic yard shows");
+            app.insert_resource(LaunchDoor::Title); assert_eq!(vis(&mut app), Visibility::Hidden, "{name} on Title: R5 yields");
+            app.insert_resource(LaunchDoor::InYard).insert_resource(HouseLabel { house: Default::default(), persist_present: false, hour_two_held: false, book_held: false, settings_open: true, draft: String::new(), naming_offered: false, seals_offered: false });
+            assert_eq!(vis(&mut app), Visibility::Hidden, "{name} under Pause: R5 yields");
+        }
+    }
 }
