@@ -516,8 +516,12 @@ fn dress_for_climate(
 fn move_deer(
     eco: Res<EcologyState>,
     time: Res<Time>,
+    bond: Option<Res<crate::companion_bond::CompanionBond>>,
     mut q: Query<&mut Transform, With<ResonantDeer>>,
 ) {
+    if bond.is_some_and(|b| b.mounted) {
+        return;
+    }
     // Care (Tend / Flow / Reserve→Mend bank) draws the deer near; Take keeps it far.
     let target = match eco.last_kind {
         AnswerKind::Tend | AnswerKind::Flow | AnswerKind::Reserve => DEER_NEAR,
@@ -1154,5 +1158,27 @@ mod tests {
             let f = app.world().resource::<BiomeFeel>(); assert!(step != Some(Some(4)) || (f.place == SchedulePlace::Threshold && f.regen_mul == 1.6), "after ->4: {f:?}");
         }
         assert_eq!(app.world().resource::<BfTape>().0, [false, false, true, false, true, false, true, false], "steady, steady, ->2, steady, ->1, ->4, ->None, ->0");
+    }
+    // DEER-ONE-WRITER-1 — mounted ends where follow_or_wait put the deer; free and no-bond still care-lerp.
+    #[test]
+    fn deer_one_writer_1_mounted_seat_holds_care_lerp_when_free() {
+        let start = Vec3::new(4.0, 0.55, 3.0); let dt = std::time::Duration::from_millis(16).as_secs_f32();
+        let follow = start.lerp(Vec3::new(0.0, 0.15, 0.0), (8.0 * dt).min(1.0)); let care = start.lerp(DEER_NEAR, (1.6 * dt).min(1.0));
+        let run = |mounted: Option<bool>| -> Vec3 { let mut app = App::new();
+            app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>().init_resource::<WorldAnswer>().init_resource::<SoftPlayerRealm>().init_resource::<crate::human_presence::SoftPresence>().insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(16))).add_plugins(LivingEcologyPlugin);
+            if mounted.is_some() { app.init_resource::<ButtonInput<KeyCode>>().init_resource::<crate::input::PlayerInput>().init_resource::<crate::mercy_harvest_nodes::NearbyMercyNode>().add_plugins(crate::companion_bond::CompanionBondPlugin); }
+            app.update();
+            let deer = { let mut q = app.world_mut().query_filtered::<Entity, With<ResonantDeer>>(); q.single(app.world()).unwrap() };
+            app.world_mut().get_mut::<Transform>(deer).unwrap().translation = start;
+            app.world_mut().resource_mut::<EcologyState>().last_kind = AnswerKind::Tend;
+            app.world_mut().resource_mut::<crate::human_presence::SoftPresence>().position = Vec3::ZERO;
+            if let Some(m) = mounted { let mut b = app.world_mut().resource_mut::<crate::companion_bond::CompanionBond>(); b.mounted = m; b.trust = 0.2; }
+            app.update();
+            app.world().get::<Transform>(deer).unwrap().translation
+        };
+        let (a, b, c) = (run(Some(true)), run(Some(false)), run(None));
+        assert!((b - care).length() < 1e-4, "free {b:?} {care:?}");
+        assert!((c - care).length() < 1e-4, "unbound {c:?} {care:?}");
+        assert!((a - follow).length() < 1e-4, "mounted {a:?} {follow:?}");
     }
 }
