@@ -204,13 +204,13 @@ pub(crate) mod tests {
 
     /// Exact bytes the pre-JSON `encode` wrote for NAMED_FINDS[1] then [4].
     pub(crate) const OLD_FINDS: &[u8] = b"Steady Climate Pick\nQuiet Harmony Loom";
-    /// Runs `body` with `POWRUSH_USER_DIR` on a fresh temp dir, under the crate env lock.
+    /// Runs `body` with `POWRUSH_USER_DIR` on a fresh temp dir. The crate env lock covers the whole span, from the dir reset through cleanup.
     pub(crate) fn in_user_dir<R>(tag: &str, body: impl FnOnce(&std::path::Path) -> R) -> R {
         let dir = std::env::temp_dir().join(format!("powrush-finds-{tag}-{}", std::process::id()));
+        let _guard = crate::test_env::lock();
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         std::fs::write(dir.join("powrush_seal.json"), b"{}").unwrap();
-        let _guard = crate::test_env::lock();
         let (env, prev) = (shared::user_persist::USER_DIR_OVERRIDE_ENV, std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok());
         std::env::set_var(env, &dir);
         let out = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| body(&dir)));
@@ -218,6 +218,45 @@ pub(crate) mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         out.unwrap_or_else(|p| std::panic::resume_unwind(p))
     }
+
+    /// FSW1 — the finds dir is not reset or sealed until `test_env::lock` is held.
+    #[test]
+    fn fsw1_seal_dir_untouched_until_lock() {
+        let held = crate::test_env::lock();
+        let temp = std::env::temp_dir();
+        let name = format!("powrush-finds-fsw1-{}", std::process::id());
+        let dir = temp.join(&name);
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("sentinel"), b"1").unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            tx.send(()).unwrap();
+            in_user_dir("fsw1", |d| (
+                d.join("powrush_seal.json").exists(),
+                crate::test_env::USER_DIR_ENV_LOCK.try_lock().is_err(),
+                std::env::var_os(shared::user_persist::USER_DIR_OVERRIDE_ENV).as_deref() == Some(d.as_os_str()),
+            ))
+        });
+        rx.recv().unwrap();
+        let deadline = std::time::Instant::now() + std::time::Duration::from_millis(300);
+        while std::time::Instant::now() < deadline {
+            let sealed = std::fs::read_dir(&temp).unwrap().flatten().any(|ent| {
+                ent.file_name().to_str().is_some_and(|n| n.starts_with(&name)) && ent.path().join("powrush_seal.json").exists()
+            });
+            assert!(!sealed, "FSW1: seal written before the lock was released");
+            assert!(dir.join("sentinel").exists(), "FSW1: sentinel removed before the lock was released");
+            std::thread::sleep(std::time::Duration::from_millis(15));
+        }
+        let env = shared::user_persist::USER_DIR_OVERRIDE_ENV;
+        let recorded = std::env::var_os(env);
+        drop(held);
+        assert_eq!(worker.join().unwrap(), (true, true, true), "FSW1: seal, lock held, env is the dir");
+        assert!(!dir.exists(), "FSW1: finds dir removed after the body");
+        let _again = crate::test_env::lock();
+        assert_eq!(std::env::var_os(env), recorded, "FSW1: env restored after the body");
+    }
+
     /// What the Startup `load_finds` system leaves in `FoundFinds`.
     fn loaded() -> FoundFinds {
         let mut app = App::new();
