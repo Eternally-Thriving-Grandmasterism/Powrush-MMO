@@ -1001,8 +1001,12 @@ fn take_ridge_door(
     keyboard: Res<ButtonInput<KeyCode>>,
     bind: Option<Res<LivedHourBind>>,
     mut hour: ResMut<HourSacred>,
+    pads: Query<&Gamepad>,
+    (door, label, licences, places, edit): (Option<Res<crate::title_screen::LaunchDoor>>, Option<Res<crate::title_screen::HouseLabel>>, Option<Res<crate::licences_screen::LicencesScreen>>, Option<Res<crate::hex_travel::PlacesPlate>>, Option<Res<crate::hud_edit_mode::HudEditMode>>),
 ) {
-    if !keyboard.just_pressed(soft_play_bindings::CHART) {
+    let pad_live = door.is_none_or(|d| *d == crate::title_screen::LaunchDoor::InYard) && !label.is_some_and(|l| l.settings_open) && !licences.is_some_and(|l| l.open) && !places.is_some_and(|p| p.open) && !edit.is_some_and(|e| e.active);
+    let pad = |b| pad_live && pads.iter().any(|g| g.just_pressed(b));
+    if !(keyboard.just_pressed(soft_play_bindings::CHART) || pad(GamepadButton::Select)) {
         return;
     }
     let ready = bind
@@ -2789,5 +2793,62 @@ mod tests {
             true,
             sealed_soul_stance_from_hour_two_json(&sealed)
         ));
+    }
+    fn ridge_label(open: bool) -> crate::title_screen::HouseLabel { crate::title_screen::HouseLabel { house: shared::house_name::HouseName::default(), persist_present: false, hour_two_held: false, book_held: false, settings_open: open, draft: String::new(), naming_offered: false, seals_offered: false } }
+    fn ridge_pad(flow: u32) -> (App, Entity) {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let mut lived = shared::climate_node::LivedHour::new_demo(); lived.allocation.flow = flow; let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::input::InputPlugin, HourSacredPlugin)).insert_resource(peace_hour()).insert_resource(LivedHourBind { hour: lived, climate: Default::default(), standing: Default::default(), week: Default::default(), last_line: String::new(), guidance_hidden: false, focus_id: None, climate_slab: None });
+        let pad = app.world_mut().spawn_empty().id(); app.world_mut().write_message(GamepadConnectionEvent::new(pad, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None })); app.update(); (app, pad)
+    }
+    fn pad_set(app: &mut App, pad: Entity, button: GamepadButton, value: f32) { use bevy::input::gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent}; app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(pad, button, value))); app.update(); }
+    fn pad_hold(app: &mut App, pad: Entity, button: GamepadButton) { for value in [1.0, 1.0, 0.0] { pad_set(app, pad, button, value); } }
+    #[test] fn pad_tab_alloc_t1_select_hold_steps_frontier() {
+        let (mut app, pad) = ridge_pad(1); pad_hold(&mut app, pad, GamepadButton::Select);
+        assert_eq!(app.world().resource::<HourSacred>().hex(), HexFlag::Frontier, "T1 Select hold steps Peace to Frontier");
+    }
+    #[test] fn pad_tab_alloc_t2_select_without_bank_stays_peace() {
+        let (mut app, pad) = ridge_pad(0); pad_hold(&mut app, pad, GamepadButton::Select);
+        assert_eq!(app.world().resource::<HourSacred>().hex(), HexFlag::Peace, "T2 flow 0 Select stays Peace");
+    }
+    #[test] fn pad_tab_alloc_t3_held_select_stays_peace_when_flow_lands() {
+        let (mut app, pad) = ridge_pad(0); pad_set(&mut app, pad, GamepadButton::Select, 1.0);
+        assert_eq!(app.world().resource::<HourSacred>().hex(), HexFlag::Peace, "T3 press with flow 0 stays Peace");
+        app.world_mut().resource_mut::<LivedHourBind>().hour.allocation.flow = 1; app.update();
+        assert_eq!(app.world().resource::<HourSacred>().hex(), HexFlag::Peace, "T3 held Select after flow lands stays Peace");
+    }
+    #[test] fn pad_tab_alloc_t4_gates_block_select_then_clear_steps() {
+        use crate::title_screen::LaunchDoor;
+        for kind in 0..7 {
+            let (mut app, pad) = ridge_pad(1);
+            match kind {
+                0 => { app.insert_resource(ridge_label(true)); }
+                1 => { let mut screen = crate::licences_screen::LicencesScreen::default(); screen.open = true; app.insert_resource(screen); }
+                2 => { let mut plate = crate::hex_travel::PlacesPlate::default(); plate.open = true; app.insert_resource(plate); }
+                3 => { let mut edit = crate::hud_edit_mode::HudEditMode::default(); edit.active = true; app.insert_resource(edit); }
+                4 => { app.insert_resource(LaunchDoor::Title); } 5 => { app.insert_resource(LaunchDoor::NameHouse); } _ => { app.insert_resource(LaunchDoor::HouseDress); }
+            }
+            pad_set(&mut app, pad, GamepadButton::Select, 1.0);
+            assert_eq!(app.world().resource::<HourSacred>().hex(), HexFlag::Peace, "T4 gate {kind} Select stays Peace");
+            pad_set(&mut app, pad, GamepadButton::Select, 0.0);
+            match kind {
+                0 => app.world_mut().resource_mut::<crate::title_screen::HouseLabel>().settings_open = false,
+                1 => app.world_mut().resource_mut::<crate::licences_screen::LicencesScreen>().open = false,
+                2 => app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = false,
+                3 => app.world_mut().resource_mut::<crate::hud_edit_mode::HudEditMode>().active = false,
+                _ => { app.insert_resource(LaunchDoor::InYard); }
+            }
+            pad_set(&mut app, pad, GamepadButton::Select, 1.0);
+            assert_eq!(app.world().resource::<HourSacred>().hex(), HexFlag::Frontier, "T4 gate {kind} clear then Select steps");
+        }
+    }
+    #[test] fn pad_tab_alloc_t5_other_buttons_idle_and_tab_without_pad() {
+        use bevy::input::{keyboard::{Key, KeyboardInput}, ButtonState};
+        let (mut app, pad) = ridge_pad(1);
+        for button in [GamepadButton::South, GamepadButton::West, GamepadButton::North, GamepadButton::Start, GamepadButton::DPadUp, GamepadButton::DPadDown, GamepadButton::DPadLeft, GamepadButton::DPadRight, GamepadButton::East] { pad_hold(&mut app, pad, button); }
+        assert_eq!(app.world().resource::<HourSacred>().hex(), HexFlag::Peace, "T5 South West North Start D-pad and East stay Peace");
+        app.world_mut().despawn(pad);
+        app.world_mut().write_message(KeyboardInput { key_code: soft_play_bindings::CHART, logical_key: Key::Tab, state: ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER }); app.update();
+        assert_eq!(app.world().resource::<HourSacred>().hex(), HexFlag::Frontier, "T5 Tab steps with no pad and no gate resources");
     }
 }

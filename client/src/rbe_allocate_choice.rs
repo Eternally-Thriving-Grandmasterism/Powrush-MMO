@@ -383,8 +383,12 @@ fn soft_surplus_from_rbe_feedback(
 pub(crate) fn toggle_allocate_panel(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut allocate: ResMut<RbeAllocateChoice>,
+    pads: Query<&Gamepad>,
+    (door, label, licences, places, edit): (Option<Res<crate::title_screen::LaunchDoor>>, Option<Res<crate::title_screen::HouseLabel>>, Option<Res<crate::licences_screen::LicencesScreen>>, Option<Res<crate::hex_travel::PlacesPlate>>, Option<Res<crate::hud_edit_mode::HudEditMode>>),
 ) {
-    if keyboard.just_pressed(soft_play_bindings::ALLOCATE) {
+    let pad_live = door.is_none_or(|d| *d == crate::title_screen::LaunchDoor::InYard) && !label.is_some_and(|l| l.settings_open) && !licences.is_some_and(|l| l.open) && !places.is_some_and(|p| p.open) && !edit.is_some_and(|e| e.active);
+    let pad = |b| pad_live && pads.iter().any(|g| g.just_pressed(b));
+    if keyboard.just_pressed(soft_play_bindings::ALLOCATE) || pad(GamepadButton::DPadUp) {
         if allocate.panel_open {
             allocate.panel_open = false;
         } else if allocate.eligible || allocate.surplus_signal > 0.0 {
@@ -479,14 +483,18 @@ fn handle_allocate_buttons(
     time: Res<Time>,
     flow_q: Query<&Interaction, (Changed<Interaction>, With<AllocateFlowButton>)>,
     reserve_q: Query<&Interaction, (Changed<Interaction>, With<AllocateReserveButton>)>,
+    pads: Query<&Gamepad>,
+    (door, label, licences, places, edit): (Option<Res<crate::title_screen::LaunchDoor>>, Option<Res<crate::title_screen::HouseLabel>>, Option<Res<crate::licences_screen::LicencesScreen>>, Option<Res<crate::hex_travel::PlacesPlate>>, Option<Res<crate::hud_edit_mode::HudEditMode>>),
 ) {
     if !allocate.panel_open {
         return;
     }
+    let pad_live = door.is_none_or(|d| *d == crate::title_screen::LaunchDoor::InYard) && !label.is_some_and(|l| l.settings_open) && !licences.is_some_and(|l| l.open) && !places.is_some_and(|p| p.open) && !edit.is_some_and(|e| e.active);
+    let pad = |b| pad_live && pads.iter().any(|g| g.just_pressed(b));
     let now = time.elapsed_secs_f64();
-    let path = if keyboard.just_pressed(KeyCode::Digit1) {
+    let path = if keyboard.just_pressed(KeyCode::Digit1) || pad(GamepadButton::DPadLeft) {
         Some(AllocatePath::FlowOutward)
-    } else if keyboard.just_pressed(KeyCode::Digit2) {
+    } else if keyboard.just_pressed(KeyCode::Digit2) || pad(GamepadButton::DPadRight) {
         Some(AllocatePath::StewardReserve)
     } else {
         None
@@ -827,5 +835,79 @@ mod tests {
         assert_eq!(pv_run(&mut app, 2), vec![(PV, false); 2], "PV15 Management InYard open: steady Visible, quiet");
         app.insert_resource(crate::title_screen::HouseLabel { house: shared::house_name::HouseName::default(), persist_present: false, hour_two_held: false, book_held: false, settings_open: true, draft: String::new(), naming_offered: false, seals_offered: false });
         assert_eq!(pv_run(&mut app, 2), vec![(PH, true); 2], "PV15 settings open (R5 pause): Hidden, changed every frame on main and branch alike");
+    }
+    fn alloc_label(open: bool) -> crate::title_screen::HouseLabel { crate::title_screen::HouseLabel { house: shared::house_name::HouseName::default(), persist_present: false, hour_two_held: false, book_held: false, settings_open: open, draft: String::new(), naming_offered: false, seals_offered: false } }
+    fn alloc_app(open: bool, with_pad: bool) -> (App, Entity) {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let mut bind = test_bind(); assert!(matches!(bind.tend(1), TendResult::Taken { .. }) && matches!(bind.tend(2), TendResult::Taken { .. }), "satchel of 2");
+        let mut app = App::new(); app.add_plugins((MinimalPlugins, bevy::input::InputPlugin)).insert_resource(bind).init_resource::<ThrivingMoments>().init_resource::<FirstSessionGuidance>().add_message::<GamepadRumbleRequest>().add_plugins(RbeAllocateChoicePlugin);
+        let pad = if with_pad { let pad = app.world_mut().spawn_empty().id(); app.world_mut().write_message(GamepadConnectionEvent::new(pad, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None })); pad } else { Entity::PLACEHOLDER };
+        app.update(); { let mut choice = app.world_mut().resource_mut::<RbeAllocateChoice>(); choice.panel_open = open; choice.eligible = true; choice.surplus_signal = 4.0; choice.choices_made = 0; choice.last_choice = None; } (app, pad)
+    }
+    fn pad_set(app: &mut App, pad: Entity, button: GamepadButton, value: f32) { use bevy::input::gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent}; app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(pad, button, value))); app.update(); }
+    fn pad_hold(app: &mut App, pad: Entity, button: GamepadButton) { for value in [1.0, 1.0, 0.0] { pad_set(app, pad, button, value); } }
+    fn key_tap(app: &mut App, key_code: KeyCode, logical_key: bevy::input::keyboard::Key) { use bevy::input::{keyboard::KeyboardInput, ButtonState}; app.world_mut().write_message(KeyboardInput { key_code, logical_key, state: ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER }); app.update(); }
+    fn arm_gate(app: &mut App, kind: u8, on: bool) {
+        use crate::title_screen::LaunchDoor;
+        match kind {
+            0 => if app.world().get_resource::<crate::title_screen::HouseLabel>().is_none() { app.insert_resource(alloc_label(on)); } else { app.world_mut().resource_mut::<crate::title_screen::HouseLabel>().settings_open = on; }
+            1 => if app.world().get_resource::<crate::licences_screen::LicencesScreen>().is_none() { let mut screen = crate::licences_screen::LicencesScreen::default(); screen.open = on; app.insert_resource(screen); } else { app.world_mut().resource_mut::<crate::licences_screen::LicencesScreen>().open = on; }
+            2 => if app.world().get_resource::<crate::hex_travel::PlacesPlate>().is_none() { let mut plate = crate::hex_travel::PlacesPlate::default(); plate.open = on; app.insert_resource(plate); } else { app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = on; }
+            3 => if app.world().get_resource::<crate::hud_edit_mode::HudEditMode>().is_none() { let mut edit = crate::hud_edit_mode::HudEditMode::default(); edit.active = on; app.insert_resource(edit); } else { app.world_mut().resource_mut::<crate::hud_edit_mode::HudEditMode>().active = on; }
+            _ => { app.insert_resource(if on { [LaunchDoor::Title, LaunchDoor::NameHouse, LaunchDoor::HouseDress][(kind - 4) as usize] } else { LaunchDoor::InYard }); }
+        }
+    }
+    #[test] fn pad_tab_alloc_a1_dpad_up_toggles() {
+        let (mut app, pad) = alloc_app(false, true); pad_hold(&mut app, pad, GamepadButton::DPadUp);
+        assert!(app.world().resource::<RbeAllocateChoice>().panel_open, "A1 DPadUp opens"); pad_hold(&mut app, pad, GamepadButton::DPadUp);
+        assert!(!app.world().resource::<RbeAllocateChoice>().panel_open, "A1 DPadUp again closes");
+    }
+    #[test] fn pad_tab_alloc_a2_dpad_left_flow_right_reserve() {
+        let (mut app, pad) = alloc_app(true, true); pad_hold(&mut app, pad, GamepadButton::DPadLeft);
+        assert_eq!(app.world().resource::<LivedHourBind>().hour.allocation.flow, 1, "A2 DPadLeft flow +1"); assert_eq!(app.world().resource::<RbeAllocateChoice>().last_choice, Some(AllocatePath::FlowOutward), "A2 DPadLeft is FlowOutward");
+        let (mut app, pad) = alloc_app(true, true); pad_hold(&mut app, pad, GamepadButton::DPadRight);
+        assert_eq!(app.world().resource::<LivedHourBind>().hour.allocation.reserve, 1, "A2 DPadRight reserve +1"); assert_eq!(app.world().resource::<RbeAllocateChoice>().last_choice, Some(AllocatePath::StewardReserve), "A2 DPadRight is StewardReserve");
+    }
+    #[test] fn pad_tab_alloc_a3_held_dpad_left_commits_once() {
+        let (mut app, pad) = alloc_app(true, true); pad_hold(&mut app, pad, GamepadButton::DPadLeft);
+        assert_eq!(app.world().resource::<RbeAllocateChoice>().choices_made, 1, "A3 DPadLeft hold commits once");
+    }
+    #[test] fn pad_tab_alloc_a4_gates_block_then_clear() {
+        for kind in 0..7 {
+            let (mut app, pad) = alloc_app(false, true); arm_gate(&mut app, kind, true); pad_set(&mut app, pad, GamepadButton::DPadUp, 1.0);
+            assert!(!app.world().resource::<RbeAllocateChoice>().panel_open, "A4 gate {kind} DPadUp stays closed");
+            pad_set(&mut app, pad, GamepadButton::DPadUp, 0.0); arm_gate(&mut app, kind, false); pad_set(&mut app, pad, GamepadButton::DPadUp, 1.0);
+            assert!(app.world().resource::<RbeAllocateChoice>().panel_open, "A4 gate {kind} clear DPadUp opens");
+            let (mut app, pad) = alloc_app(true, true); arm_gate(&mut app, kind, true); pad_set(&mut app, pad, GamepadButton::DPadLeft, 1.0);
+            assert_eq!(app.world().resource::<LivedHourBind>().hour.allocation.flow, 0, "A4 gate {kind} DPadLeft flow unchanged"); assert_eq!(app.world().resource::<RbeAllocateChoice>().choices_made, 0, "A4 gate {kind} DPadLeft choices unchanged");
+            pad_set(&mut app, pad, GamepadButton::DPadLeft, 0.0); arm_gate(&mut app, kind, false); pad_set(&mut app, pad, GamepadButton::DPadLeft, 1.0);
+            assert_eq!(app.world().resource::<LivedHourBind>().hour.allocation.flow, 1, "A4 gate {kind} clear DPadLeft commits");
+        }
+    }
+    #[test] fn pad_tab_alloc_a5_same_frame_once() {
+        use bevy::input::gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent}; use bevy::input::{keyboard::{Key, KeyboardInput}, ButtonState};
+        let (mut app, pad) = alloc_app(false, true);
+        app.world_mut().write_message(KeyboardInput { key_code: KeyCode::KeyR, logical_key: Key::Character("r".into()), state: ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER }); app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(pad, GamepadButton::DPadUp, 1.0))); app.update();
+        assert!(app.world().resource::<RbeAllocateChoice>().panel_open, "A5 R and DPadUp in one frame stay open once");
+        let (mut app, pad) = alloc_app(true, true);
+        app.world_mut().write_message(KeyboardInput { key_code: KeyCode::Digit1, logical_key: Key::Character("1".into()), state: ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER }); app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(pad, GamepadButton::DPadLeft, 1.0))); app.update();
+        assert_eq!(app.world().resource::<RbeAllocateChoice>().choices_made, 1, "A5 Digit1 and DPadLeft in one frame commit once");
+    }
+    #[test] fn pad_tab_alloc_a6_keyboard_under_settings_open() {
+        use bevy::input::keyboard::Key;
+        let (mut app, _) = alloc_app(true, false); app.insert_resource(alloc_label(true)); key_tap(&mut app, KeyCode::Escape, Key::Escape);
+        assert!(!app.world().resource::<RbeAllocateChoice>().panel_open, "A6 Esc closes under settings_open"); key_tap(&mut app, KeyCode::KeyR, Key::Character("r".into()));
+        assert!(app.world().resource::<RbeAllocateChoice>().panel_open, "A6 R opens under settings_open"); key_tap(&mut app, KeyCode::Digit1, Key::Character("1".into()));
+        assert_eq!(app.world().resource::<LivedHourBind>().hour.allocation.flow, 1, "A6 Digit1 commits under settings_open");
+    }
+    #[test] fn pad_tab_alloc_a7_inert_and_keyboard_without_pad() {
+        use bevy::input::keyboard::Key;
+        let (mut app, pad) = alloc_app(false, true); pad_hold(&mut app, pad, GamepadButton::DPadLeft); pad_hold(&mut app, pad, GamepadButton::DPadRight);
+        assert!(!app.world().resource::<RbeAllocateChoice>().panel_open, "A7 closed panel stays closed"); assert_eq!(app.world().resource::<LivedHourBind>().hour.allocation.flow, 0, "A7 no flow"); assert_eq!(app.world().resource::<LivedHourBind>().hour.allocation.reserve, 0, "A7 no reserve"); assert_eq!(app.world().resource::<RbeAllocateChoice>().choices_made, 0, "A7 no commit");
+        for button in [GamepadButton::DPadDown, GamepadButton::Select, GamepadButton::West, GamepadButton::North] { pad_hold(&mut app, pad, button); }
+        assert!(!app.world().resource::<RbeAllocateChoice>().panel_open, "A7 DPadDown Select West North do not toggle");
+        let (mut app, _) = alloc_app(false, false); key_tap(&mut app, KeyCode::KeyR, Key::Character("r".into()));
+        assert!(app.world().resource::<RbeAllocateChoice>().panel_open, "A7 R opens with no pad"); key_tap(&mut app, KeyCode::Digit1, Key::Character("1".into()));
+        assert_eq!(app.world().resource::<LivedHourBind>().hour.allocation.flow, 1, "A7 Digit1 commits with no pad");
     }
 }
