@@ -1001,8 +1001,12 @@ fn take_ridge_door(
     keyboard: Res<ButtonInput<KeyCode>>,
     bind: Option<Res<LivedHourBind>>,
     mut hour: ResMut<HourSacred>,
+    pads: Query<&Gamepad>,
+    (door, label, licences, places, edit): (Option<Res<crate::title_screen::LaunchDoor>>, Option<Res<crate::title_screen::HouseLabel>>, Option<Res<crate::licences_screen::LicencesScreen>>, Option<Res<crate::hex_travel::PlacesPlate>>, Option<Res<crate::hud_edit_mode::HudEditMode>>),
 ) {
-    if !keyboard.just_pressed(soft_play_bindings::CHART) {
+    let pad_live = door.is_none_or(|d| *d == crate::title_screen::LaunchDoor::InYard) && !label.is_some_and(|l| l.settings_open) && !licences.is_some_and(|l| l.open) && !places.is_some_and(|p| p.open) && !edit.is_some_and(|e| e.active);
+    let pad = |b| pad_live && pads.iter().any(|g| g.just_pressed(b));
+    if !(keyboard.just_pressed(soft_play_bindings::CHART) || pad(GamepadButton::Select)) {
         return;
     }
     let ready = bind

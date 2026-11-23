@@ -383,8 +383,12 @@ fn soft_surplus_from_rbe_feedback(
 pub(crate) fn toggle_allocate_panel(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut allocate: ResMut<RbeAllocateChoice>,
+    pads: Query<&Gamepad>,
+    (door, label, licences, places, edit): (Option<Res<crate::title_screen::LaunchDoor>>, Option<Res<crate::title_screen::HouseLabel>>, Option<Res<crate::licences_screen::LicencesScreen>>, Option<Res<crate::hex_travel::PlacesPlate>>, Option<Res<crate::hud_edit_mode::HudEditMode>>),
 ) {
-    if keyboard.just_pressed(soft_play_bindings::ALLOCATE) {
+    let pad_live = door.is_none_or(|d| *d == crate::title_screen::LaunchDoor::InYard) && !label.is_some_and(|l| l.settings_open) && !licences.is_some_and(|l| l.open) && !places.is_some_and(|p| p.open) && !edit.is_some_and(|e| e.active);
+    let pad = |b| pad_live && pads.iter().any(|g| g.just_pressed(b));
+    if keyboard.just_pressed(soft_play_bindings::ALLOCATE) || pad(GamepadButton::DPadUp) {
         if allocate.panel_open {
             allocate.panel_open = false;
         } else if allocate.eligible || allocate.surplus_signal > 0.0 {
@@ -479,14 +483,18 @@ fn handle_allocate_buttons(
     time: Res<Time>,
     flow_q: Query<&Interaction, (Changed<Interaction>, With<AllocateFlowButton>)>,
     reserve_q: Query<&Interaction, (Changed<Interaction>, With<AllocateReserveButton>)>,
+    pads: Query<&Gamepad>,
+    (door, label, licences, places, edit): (Option<Res<crate::title_screen::LaunchDoor>>, Option<Res<crate::title_screen::HouseLabel>>, Option<Res<crate::licences_screen::LicencesScreen>>, Option<Res<crate::hex_travel::PlacesPlate>>, Option<Res<crate::hud_edit_mode::HudEditMode>>),
 ) {
     if !allocate.panel_open {
         return;
     }
+    let pad_live = door.is_none_or(|d| *d == crate::title_screen::LaunchDoor::InYard) && !label.is_some_and(|l| l.settings_open) && !licences.is_some_and(|l| l.open) && !places.is_some_and(|p| p.open) && !edit.is_some_and(|e| e.active);
+    let pad = |b| pad_live && pads.iter().any(|g| g.just_pressed(b));
     let now = time.elapsed_secs_f64();
-    let path = if keyboard.just_pressed(KeyCode::Digit1) {
+    let path = if keyboard.just_pressed(KeyCode::Digit1) || pad(GamepadButton::DPadLeft) {
         Some(AllocatePath::FlowOutward)
-    } else if keyboard.just_pressed(KeyCode::Digit2) {
+    } else if keyboard.just_pressed(KeyCode::Digit2) || pad(GamepadButton::DPadRight) {
         Some(AllocatePath::StewardReserve)
     } else {
         None
