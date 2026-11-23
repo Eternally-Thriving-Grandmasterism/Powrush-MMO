@@ -998,7 +998,17 @@ fn mercy_card_stamp(
 }
 
 fn lived_card_line(guidance: &FirstSessionGuidance, place: Option<&str>) -> String {
-    lived_card_line_for(guidance, place, false, 0)
+    lived_card_line_for(guidance, place, false, 0, None)
+}
+fn pad_row(o: &GuidanceObjective) -> &'static [(&'static str, crate::input::PadVerb)] {
+    use crate::input::PadVerb::*; use GuidanceObjective::*;
+    match o {
+        MoveAround => &[("WASD", Move), ("Space", Jump), ("Shift", Sprint)],
+        HarvestWithInteract | BindEscort | FreeExploration => &[("E", Use)],
+        OpenInventory => &[("I", Satchel)], ShareAbundance => &[("R", Allocate), ("1", Flow), ("2", Reserve)],
+        StepCharter => &[("Tab", Chart)], PlantHouse | PlantFabricator => &[("Q", SheetQ)],
+        OpenLedger => &[("L", Ledger)], EmbassySeat => &[("E", Embassy)], _ => &[],
+    }
 }
 
 pub(crate) fn loop_cue(g: &FirstSessionGuidance, w: Option<&WoodView>, y: Option<&FabricatorYard>, f: Option<&FactoryYard>, h: Option<&HourSacred>, place: Option<PlaceId>, realm: Option<u8>) -> Option<&'static str> {
@@ -1016,6 +1026,7 @@ fn lived_card_line_for(
     place: Option<&str>,
     out_of_reach: bool,
     actual_nodes: usize,
+    pad: Option<&shared::local_settings::LocalSettings>,
 ) -> String {
     if guidance.dismissed {
         return String::new();
@@ -1030,6 +1041,7 @@ fn lived_card_line_for(
     } else {
         spoken_guidance(&guidance.objective, place)
     };
+    if let Some(cfg) = pad { crate::input::apply_pad_tokens(&mut spoken, pad_row(&guidance.objective), cfg); }
     // CARD PT-QUEST1-1 H-Q4 — the 1/3 counter is formatted at draw time.
     // prompt() stays &'static str.
     if guidance.objective == GuidanceObjective::HarvestWithInteract && need > 0 {
@@ -1118,7 +1130,7 @@ pub(crate) fn update_guidance_text(
     yard: Option<Res<FabricatorYard>>,
     factory: Option<Res<FactoryYard>>,
     hour: Option<Res<HourSacred>>,
-    call: (Option<Res<FoundFinds>>, Option<Res<AreaDifficulty>>),
+    mut call: (Option<Res<FoundFinds>>, Option<Res<AreaDifficulty>>, Query<(), With<Gamepad>>, Local<Option<bool>>),
     realm: Option<Res<SoftPlayerRealm>>,
     mut last_place: Local<Option<&'static str>>,
     mut last_loop: Local<Option<Option<&'static str>>>,
@@ -1154,6 +1166,8 @@ pub(crate) fn update_guidance_text(
     // override, and dismissal. The next range check compares this tuple.
     *last_mercy = Some(mercy_now);
     *last_loop = Some(cue);
+    let pad_on = !call.2.is_empty();
+    let pad_changed = std::mem::replace(&mut *call.3, Some(pad_on)) != Some(pad_on);
     if !guidance.is_changed()
         && !place_changed
         && !settings_changed
@@ -1161,16 +1175,21 @@ pub(crate) fn update_guidance_text(
         && !sign_changed
         && !mercy_changed
         && !loop_changed
+        && !pad_changed
     {
         return;
     }
+    let pad_cfg = pad_on.then(|| settings.as_ref().map(|s| &s.inner)).flatten();
+    let cue_swap = (cue == Some(LOOP_REFINE_CUE)).then(|| pad_cfg.and_then(|c| crate::input::pad_hint(crate::input::PadVerb::SheetQ, c)).map(|h| LOOP_REFINE_CUE.replacen('Q', h, 1))).flatten();
+    let cue = cue_swap.as_deref().or(cue);
     *last_place = place;
     let showing = sign.as_deref().is_some_and(signpost_showing);
     let mut prompt = if showing {
         card_line(SIGNPOST_LINE)
     } else {
-        lived_card_line_for(&guidance, place, out_of_reach, actual_nodes)
+        lived_card_line_for(&guidance, place, out_of_reach, actual_nodes, pad_cfg)
     };
+    if let Some(h) = pad_cfg.and_then(|c| crate::input::pad_hint(crate::input::PadVerb::Hide, c)) { prompt = prompt.replacen("H hides", &format!("{h} hides"), 1); }
     if !showing {
         if let Some(cue) = cue {
             if !prompt.is_empty() { prompt.push('\n'); }

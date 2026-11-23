@@ -487,6 +487,36 @@ pub fn pad_sprint_pressed(gamepad: &Gamepad, sprint_mode: &str) -> bool {
     }
 }
 
+#[derive(Clone, Copy, Debug)]
+pub(crate) enum PadVerb { Move, Jump, Sprint, Use, Satchel, Allocate, Flow, Reserve, Chart, SheetQ, Ledger, Embassy, Hide }
+pub(crate) fn pad_hint(verb: PadVerb, settings: &LocalSettings) -> Option<&'static str> {
+    let south = settings.gamepad_south_use;
+    let mode = settings.sprint_mode.trim().to_ascii_lowercase();
+    match verb {
+        PadVerb::Embassy | PadVerb::Hide => None,
+        PadVerb::Use if !south => None,
+        PadVerb::Sprint if mode != "stick" && mode != "trigger" => None,
+        PadVerb::Move => Some("left stick"),
+        PadVerb::Jump => Some(if south { "LB" } else { "A" }),
+        PadVerb::Sprint => Some(if mode == "stick" { "LS" } else { "LT" }),
+        PadVerb::Use => Some("A"),
+        PadVerb::Satchel => Some("D-pad Down"),
+        PadVerb::Allocate => Some("D-pad Up"),
+        PadVerb::Flow => Some("D-pad Left"),
+        PadVerb::Reserve => Some("D-pad Right"),
+        PadVerb::Chart => Some("View"),
+        PadVerb::SheetQ => Some("X"),
+        PadVerb::Ledger => Some("Y"),
+    }
+}
+pub(crate) fn apply_pad_tokens(line: &mut String, row: &[(&str, PadVerb)], settings: &LocalSettings) {
+    for &(key, verb) in row {
+        if let Some(hint) = pad_hint(verb, settings) {
+            if let Some(at) = line.find(key) { line.replace_range(at..at + key.len(), hint); }
+        }
+    }
+}
+
 /// Resolve overlay visibility from settings + last pointer (pure).
 pub fn overlay_sticks_visible(settings: &LocalSettings, last: LastPointerKind) -> bool {
     settings.resolve_on_screen_sticks(last == LastPointerKind::Touch)
@@ -1802,5 +1832,24 @@ mod tests {
     fn pad_prompts_p1_readers() {
         let (input, inv, alloc, ridge) = (pad_prod(include_str!("input.rs")), pad_prod(include_str!("human_inventory.rs")), pad_prod(include_str!("rbe_allocate_choice.rs")), pad_prod(include_str!("hour_sacred.rs")));
         assert!(input.contains("GamepadButton::West") && input.contains("GamepadButton::North") && inv.contains("GamepadButton::DPadDown") && alloc.contains("GamepadButton::DPadUp") && alloc.contains("GamepadButton::DPadLeft") && alloc.contains("GamepadButton::DPadRight") && ridge.contains("GamepadButton::Select"));
+        for south in [false, true] {
+            for mode in ["stick", "trigger", "key"] {
+                let mut s = LocalSettings::default();
+                (s.gamepad_south_use, s.sprint_mode) = (south, mode.into());
+                for (i, v) in [PadVerb::Move, PadVerb::Jump, PadVerb::Sprint, PadVerb::Use, PadVerb::Satchel, PadVerb::Allocate, PadVerb::Flow, PadVerb::Reserve, PadVerb::Chart, PadVerb::SheetQ, PadVerb::Ledger, PadVerb::Embassy, PadVerb::Hide].into_iter().enumerate() {
+                    let b = match i {
+                        1 if south => Some(GamepadButton::LeftTrigger), 1 => Some(GamepadButton::South),
+                        2 if mode == "stick" => Some(GamepadButton::LeftThumb), 2 if mode == "trigger" => Some(GamepadButton::LeftTrigger2),
+                        3 if south => Some(GamepadButton::South),
+                        4 => Some(GamepadButton::DPadDown), 5 => Some(GamepadButton::DPadUp), 6 => Some(GamepadButton::DPadLeft), 7 => Some(GamepadButton::DPadRight),
+                        8 => Some(GamepadButton::Select), 9 => Some(GamepadButton::West), 10 => Some(GamepadButton::North), _ => None,
+                    };
+                    let mut pad = Gamepad::default();
+                    if let Some(button) = b { pad.digital_mut().press(button); }
+                    let live = match i { 1 => pad_jump_just_pressed(&pad, south), 2 => pad_sprint_pressed(&pad, mode), 3 => pad_use_just_pressed(&pad, south), 0 => true, 4..=10 => pad.just_pressed(b.unwrap()), _ => false };
+                    assert_eq!(pad_hint(v, &s).is_some(), live, "{i} south={south} {mode}");
+                }
+            }
+        }
     }
 }
