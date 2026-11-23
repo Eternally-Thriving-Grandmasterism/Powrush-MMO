@@ -248,6 +248,7 @@ impl Plugin for PowrushClientBundle {
         app.add_plugins(first_harvest_epiphany::FirstHarvestEpiphanyPlugin);
         // After FirstHarvest so the same-frame well Use credits the sting.
         app.add_plugins(peace_audio::PeaceAudioPlugin);
+        app.add_plugins(move_sfx::MoveSfxPlugin);
         app.add_plugins(feel_move::FeelMovePlugin);
         app.add_plugins(human_inventory::HumanInventoryPlugin);
         app.add_plugins(local_session_persist::LocalSessionPersistPlugin);

@@ -1,3 +1,37 @@
+//! MOVE-SFX-1 — grounded footsteps. Distance on horizontal speed. Reads only.
+use bevy::audio::{AudioPlayer, AudioSource, PlaybackSettings, Volume};
+use bevy::prelude::*;
+use shared::peace_audio::audio_output_safe;
+use crate::companion_bond::CompanionBond;
+use crate::human_presence::{SoftPresence, STRIDE_SPEED};
+use crate::local_settings::MasterMuteGain;
+pub const STEP_ASSET: &str = "audio/footstep.ogg";
+pub const STEP_GAIN: f32 = 0.04; // committed peak −3.0 dBFS; x0.04 stays under −27.7
+const STEP_METRES: f32 = 1.6;
+pub fn step_due(acc: f32, speed: f32, grounded: bool, mounted: bool, dt: f32) -> (f32, bool) {
+    if !grounded || mounted || speed <= STRIDE_SPEED { return (acc, false); }
+    let next = acc + speed * dt;
+    if next >= STEP_METRES { (next - STEP_METRES, true) } else { (next, false) }
+}
+pub fn step_volume(mute: Option<&MasterMuteGain>) -> Option<f32> {
+    let gain = mute.map_or(1.0, |m| if m.muted { 0.0 } else { m.gain }) * STEP_GAIN;
+    (gain > 0.0).then_some(gain)
+}
+fn play_step(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&MasterMuteGain>) {
+    if let (true, Some(gain), Some(assets)) = (audio_output_safe(), step_volume(mute), assets) {
+        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(STEP_ASSET)), PlaybackSettings::DESPAWN.with_volume(Volume::Linear(gain))));
+    }
+}
+fn footstep(time: Res<Time>, presence: Option<Res<SoftPresence>>, bond: Option<Res<CompanionBond>>, mut acc: Local<f32>, mut cmd: Commands, assets: Option<Res<AssetServer>>, mute: Option<Res<MasterMuteGain>>) {
+    let Some(body) = presence.as_deref() else { return };
+    let (next, due) = step_due(*acc, Vec2::new(body.velocity.x, body.velocity.z).length(), body.grounded, bond.as_ref().is_some_and(|b| b.mounted), time.delta_secs());
+    *acc = next;
+    if due { play_step(&mut cmd, assets.as_deref(), mute.as_deref()); }
+}
+pub struct MoveSfxPlugin;
+impl Plugin for MoveSfxPlugin {
+    fn build(&self, app: &mut App) { app.add_systems(Update, footstep); }
+}
 #[cfg(test)]
 mod tests {
     use bevy::ecs::system::RunSystemOnce;
