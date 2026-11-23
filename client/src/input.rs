@@ -746,9 +746,9 @@ mod tests {
     #[test]
     fn sprint_mode_key_is_peace_default() {
         let s = LocalSettings::peace_defaults();
-        assert!(s.sprint_mode_is_key());
+        assert!(!s.sprint_mode_is_key());
         assert!(!s.sprint_mode_is_stick());
-        assert!(!s.sprint_mode_is_trigger());
+        assert!(s.sprint_mode_is_trigger());
     }
 
     #[test]
@@ -1747,6 +1747,47 @@ mod tests {
         for (b, n) in [(GamepadButton::South, 0), (GamepadButton::LeftTrigger, 1), (GamepadButton::West, 2), (GamepadButton::North, 3), (GamepadButton::Start, 4)] { assert_eq!(read("key", b), want(n), "{b:?}"); }
         assert!(read("stick", GamepadButton::LeftThumb)[5] && read("trigger", GamepadButton::LeftTrigger2)[5]);
         for mode in ["key", "stick", "trigger"] { assert_eq!(read(mode, RB), [false; 6], "{mode}"); }
+    }
+    #[test]
+    fn pad_sprint_t6_default_lt_sprints_only() {
+        let mut app = input_app();
+        let mut pad = Gamepad::default();
+        pad.digital_mut().press(GamepadButton::LeftTrigger2);
+        app.world_mut().spawn(pad);
+        app.update();
+        let i = app.world().resource::<PlayerInput>();
+        assert!(i.sprint && !i.interact && !i.jump && !i.sheet_q && !i.sheet_l && !i.pause_toggle);
+    }
+    #[test]
+    fn pad_sprint_t7_legacy_key_lt_sprints_shift_in_every_mode() {
+        let mut app = input_app();
+        let legacy = r#"{"schema":"powrush_settings_v1","sprint_mode":"key"}"#;
+        app.world_mut().resource_mut::<LocalSettingsState>().inner =
+            LocalSettings::from_json(legacy).unwrap();
+        let mut pad = Gamepad::default();
+        pad.digital_mut().press(GamepadButton::LeftTrigger2);
+        app.world_mut().spawn(pad);
+        app.update();
+        assert!(app.world().resource::<PlayerInput>().sprint);
+        let marked = r#"{"schema":"powrush_settings_v1","sprint_mode":"key","sprint_cycled":true}"#;
+        app.world_mut().resource_mut::<LocalSettingsState>().inner =
+            LocalSettings::from_json(marked).unwrap();
+        app.update();
+        assert!(!app.world().resource::<PlayerInput>().sprint);
+        app.world_mut()
+            .query::<&mut Gamepad>()
+            .single_mut(app.world_mut())
+            .unwrap()
+            .digital_mut()
+            .release(GamepadButton::LeftTrigger2);
+        app.world_mut()
+            .resource_mut::<ButtonInput<KeyCode>>()
+            .press(KeyCode::ShiftLeft);
+        for mode in ["key", "stick", "trigger"] {
+            app.world_mut().resource_mut::<LocalSettingsState>().inner.sprint_mode = mode.into();
+            app.update();
+            assert!(app.world().resource::<PlayerInput>().sprint, "{mode}");
+        }
     }
     #[test] fn pp1_s8_source_one_slot_writer_one_rb_edge_and_combat_fire_unchanged() {
         let prod = include_str!("input.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();

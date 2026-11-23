@@ -403,9 +403,11 @@ pub struct LocalSettings {
     /// I0 Nintendo face remap stub: "auto" (unknown → auto). Keeps South = Use.
     #[serde(default = "default_nintendo_face")]
     pub nintendo_face: String,
-    /// I0 sprint: "stick" | "trigger" | "key". Default **key** (Peace desktop = Shift).
+    /// I0 sprint: "stick" | "trigger" | "key". Default **trigger** (LT).
     #[serde(default = "default_sprint_mode")]
     pub sprint_mode: String,
+    #[serde(default)]
+    pub sprint_cycled: bool,
     /// I0 soft Use cue when in range. Default true.
     #[serde(default = "default_true")]
     pub show_use_prompt: bool,
@@ -535,7 +537,7 @@ fn default_nintendo_face() -> String {
 }
 
 fn default_sprint_mode() -> String {
-    "key".into()
+    "trigger".into()
 }
 
 fn default_hud_preset() -> String {
@@ -604,6 +606,7 @@ impl Default for LocalSettings {
             gamepad_south_use: true,
             nintendo_face: default_nintendo_face(),
             sprint_mode: default_sprint_mode(),
+            sprint_cycled: false,
             show_use_prompt: true,
             hud_preset: default_hud_preset(),
             control_preset: default_control_preset(),
@@ -976,13 +979,13 @@ impl LocalSettings {
         };
     }
 
-    /// Clamp sprint_mode to stick|trigger|key. Unknown → key.
+    /// Clamp sprint_mode to stick|trigger|key. Unknown → key only once cycled (sprint_cycled); else trigger.
     pub fn normalize_sprint_mode(&mut self) {
         let t = self.sprint_mode.trim().to_ascii_lowercase();
         self.sprint_mode = match t.as_str() {
             "stick" => "stick".into(),
             "trigger" => "trigger".into(),
-            _ => "key".into(),
+            _ => if self.sprint_cycled { "key".into() } else { default_sprint_mode() },
         };
     }
 
@@ -1037,6 +1040,7 @@ impl LocalSettings {
             "stick" => "trigger".into(),
             _ => "key".into(),
         };
+        self.sprint_cycled = true;
     }
 
     pub fn sprint_mode_is_stick(&self) -> bool {
@@ -1246,7 +1250,7 @@ mod tests {
         assert!(!s.tap_to_use);
         assert!(s.gamepad_south_use);
         assert_eq!(s.nintendo_face, "auto");
-        assert_eq!(s.sprint_mode, "key");
+        assert_eq!(s.sprint_mode, "trigger");
         assert!(s.show_use_prompt);
         assert_eq!(s.hud_preset, "classic");
         assert_eq!(s.hud_preset_face(), "Classic");
@@ -1582,7 +1586,7 @@ mod tests {
         assert!(!s.tap_to_use);
         assert!(s.gamepad_south_use);
         assert_eq!(s.nintendo_face, "auto");
-        assert_eq!(s.sprint_mode, "key");
+        assert_eq!(s.sprint_mode, "trigger");
         assert!(s.show_use_prompt);
         // Legacy JSON without Controls fields still loads (Peace desktop defaults).
         let legacy = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.0,"mute":false,"invert_y":false,"hide_slabs":false,"brightness":1.0,"text_scale":1.0,"grove":"off"}"#;
@@ -1591,7 +1595,7 @@ mod tests {
         assert!(!back.tap_to_use);
         assert!(back.gamepad_south_use);
         assert_eq!(back.nintendo_face, "auto");
-        assert_eq!(back.sprint_mode, "key");
+        assert_eq!(back.sprint_mode, "trigger");
         assert!(back.show_use_prompt);
         assert!(back.peace_keys_are_default());
         // Unknown normalizes
@@ -1599,7 +1603,7 @@ mod tests {
         let junked = LocalSettings::from_json(junk).unwrap();
         assert_eq!(junked.on_screen_sticks, "auto");
         assert_eq!(junked.nintendo_face, "auto");
-        assert_eq!(junked.sprint_mode, "key");
+        assert_eq!(junked.sprint_mode, "trigger");
         let mut cyc = LocalSettings::default();
         cyc.cycle_on_screen_sticks();
         assert_eq!(cyc.on_screen_sticks, "on");
@@ -1608,11 +1612,11 @@ mod tests {
         cyc.cycle_on_screen_sticks();
         assert_eq!(cyc.on_screen_sticks, "auto");
         cyc.cycle_sprint_mode();
+        assert_eq!(cyc.sprint_mode, "key");
+        cyc.cycle_sprint_mode();
         assert_eq!(cyc.sprint_mode, "stick");
         cyc.cycle_sprint_mode();
         assert_eq!(cyc.sprint_mode, "trigger");
-        cyc.cycle_sprint_mode();
-        assert_eq!(cyc.sprint_mode, "key");
         assert!(!cyc.resolve_on_screen_sticks(false));
         cyc.on_screen_sticks = "on".into();
         assert!(cyc.resolve_on_screen_sticks(false));
@@ -2074,6 +2078,63 @@ mod tests {
             let needle = format!("\"{key}\"");
             assert!(!bytes.windows(needle.len()).any(|w| w == needle.as_bytes()), "{needle}");
         }
+    }
+
+    #[test]
+    fn pad_sprint_t1_default_is_trigger_marker_false() {
+        let s = LocalSettings::default();
+        assert_eq!(s.sprint_mode, "trigger");
+        let v: serde_json::Value = serde_json::from_str(&s.to_json().unwrap()).unwrap();
+        assert_eq!(v.get("sprint_cycled").and_then(|b| b.as_bool()), Some(false));
+    }
+
+    #[test]
+    fn pad_sprint_t2_old_save_keeps_unrelated_setting() {
+        let raw = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.5}"#;
+        let s = LocalSettings::from_json(raw).unwrap_or_default();
+        assert!((s.look_sensitivity - 1.5).abs() < f32::EPSILON);
+        assert_eq!(s.sprint_mode, "trigger");
+    }
+
+    #[test]
+    fn pad_sprint_t3_unmarked_key_and_junk_become_trigger() {
+        let key = r#"{"schema":"powrush_settings_v1","sprint_mode":"key"}"#;
+        let s = LocalSettings::from_json(key).unwrap();
+        assert_eq!(s.sprint_mode, "trigger");
+        let back = LocalSettings::from_json(&s.to_json().unwrap()).unwrap();
+        assert_eq!(back.sprint_mode, "trigger");
+        let junk = r#"{"schema":"powrush_settings_v1","sprint_mode":"turbo"}"#;
+        assert_eq!(LocalSettings::from_json(junk).unwrap().sprint_mode, "trigger");
+    }
+
+    #[test]
+    fn pad_sprint_t5_cycle_reaches_key_and_keeps_it() {
+        let mut s = LocalSettings::default();
+        for _ in 0..3 {
+            if s.sprint_mode == "key" {
+                break;
+            }
+            s.cycle_sprint_mode();
+        }
+        assert_eq!(s.sprint_mode, "key");
+        let v: serde_json::Value = serde_json::from_str(&s.to_json().unwrap()).unwrap();
+        assert_eq!(v.get("sprint_cycled").and_then(|b| b.as_bool()), Some(true));
+        let mut back = LocalSettings::from_json(&s.to_json().unwrap()).unwrap();
+        assert_eq!(back.sprint_mode, "key");
+        back.cycle_sprint_mode();
+        assert_eq!(back.sprint_mode, "stick");
+    }
+
+    #[test]
+    fn pad_sprint_t4_marked_key_and_saved_modes_stay() {
+        let key = r#"{"schema":"powrush_settings_v1","sprint_mode":"key","sprint_cycled":true}"#;
+        assert_eq!(LocalSettings::from_json(key).unwrap().sprint_mode, "key");
+        for mode in ["stick", "trigger"] {
+            let raw = format!(r#"{{"schema":"powrush_settings_v1","sprint_mode":"{mode}"}}"#);
+            assert_eq!(LocalSettings::from_json(&raw).unwrap().sprint_mode, mode);
+        }
+        let junk = r#"{"schema":"powrush_settings_v1","sprint_mode":"turbo","sprint_cycled":true}"#;
+        assert_eq!(LocalSettings::from_json(junk).unwrap().sprint_mode, "key");
     }
 
 }

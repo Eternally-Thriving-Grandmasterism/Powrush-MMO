@@ -106,7 +106,7 @@ Live next to Grove (same Settings plate / same JSON). Docs stamp only — `soft_
 | `tap_to_use` | bool | **`false`** | false = tap-focus then Use |
 | `gamepad_south_use` | bool | **`true`** | South face = Use |
 | `nintendo_face` | `auto` \| fixed layout | **`auto`** | keep South = Use on Switch |
-| `sprint_mode` | `stick` \| `trigger` \| `key` | (steward pick; key ≈ Shift) | one sprint story across devices |
+| `sprint_mode` | `stick` \| `trigger` \| `key` | **`trigger`** (LT) | one sprint story across devices |
 | `show_use_prompt` | bool | **`true`** | soft “Use” cue when in range |
 
 Grove `off|light` already persists here; Controls fields sit beside it. Env not required for Grove light path.
