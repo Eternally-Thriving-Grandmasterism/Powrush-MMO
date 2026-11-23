@@ -160,6 +160,9 @@ fn handle_ledger(
     mut bind: ResMut<LivedHourBind>,
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
+    pads: Query<&Gamepad>,
+    settings: Res<LocalSettingsState>,
+    edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
 ) {
     // L / pad North — Peace stays closed; off Peace the sash may wait or Bind.
     if keyboard.just_pressed(soft_play_bindings::LEDGER) || player_input.sheet_l {
@@ -210,7 +213,11 @@ fn handle_ledger(
         return;
     }
     let go = keyboard.just_pressed(soft_play_bindings::INTERACT)
-        || keyboard.just_pressed(KeyCode::Digit1);
+        || keyboard.just_pressed(KeyCode::Digit1)
+        || (!edit.as_ref().is_some_and(|mode| mode.active)
+            && pads.iter().next().is_some_and(|pad| {
+                crate::input::pad_use_just_pressed(pad, settings.inner.gamepad_south_use)
+            }));
     if !go {
         return;
     }
@@ -591,6 +598,7 @@ mod tests {
             climate_slab: None,
         });
         app.insert_resource(PlayerInput::default());
+        app.insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings::peace_defaults(), dirty: false });
         app.insert_resource(ThrivingMoments::default());
         app.add_systems(Update, handle_ledger);
         app.update();
