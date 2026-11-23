@@ -1398,7 +1398,8 @@ impl Plugin for TitleScreenPlugin {
                     name_house_text_input,
                     name_house_buttons,
                     sync_name_house_visibility,
-                    house_dress_buttons,
+                    // Dress first: one South or East press must not resolve both plates.
+                    house_dress_buttons.before(name_house_buttons),
                     refresh_house_dress_labels,
                     sync_house_dress_visibility,
                     refresh_pause_cue,
@@ -4825,14 +4826,16 @@ fn name_house_buttons(
     mut label: ResMut<HouseLabel>,
     mut rite: ResMut<NameRiteLine>,
     keyboard: Res<ButtonInput<KeyCode>>,
+    pads: Query<&Gamepad>,
     confirm: Query<&Interaction, (Changed<Interaction>, With<NameConfirmBtn>)>,
     skip: Query<&Interaction, (Changed<Interaction>, With<NameSkipBtn>)>,
 ) {
     if *door != LaunchDoor::NameHouse {
         return;
     }
-    let mut do_confirm = keyboard.just_pressed(KeyCode::Enter);
-    let mut do_skip = keyboard.just_pressed(KeyCode::Escape);
+    let pad = |b| pads.iter().any(|g| g.just_pressed(b));
+    let mut do_confirm = keyboard.just_pressed(KeyCode::Enter) || pad(GamepadButton::South);
+    let mut do_skip = keyboard.just_pressed(KeyCode::Escape) || pad(GamepadButton::East);
     for i in &confirm {
         if *i == Interaction::Pressed {
             do_confirm = true;
@@ -4968,6 +4971,7 @@ fn house_dress_buttons(
     mut label: ResMut<HouseLabel>,
     mut rite: ResMut<NameRiteLine>,
     keyboard: Res<ButtonInput<KeyCode>>,
+    pads: Query<&Gamepad>,
     well: Query<&Interaction, (Changed<Interaction>, With<DressSealWellBtn>)>,
     grove: Query<&Interaction, (Changed<Interaction>, With<DressSealGroveBtn>)>,
     ember: Query<&Interaction, (Changed<Interaction>, With<DressSealEmberBtn>)>,
@@ -5016,8 +5020,9 @@ fn house_dress_buttons(
             return;
         }
     }
-    let mut do_confirm = keyboard.just_pressed(KeyCode::Enter);
-    let mut do_skip = keyboard.just_pressed(KeyCode::Escape);
+    let pad = |b| pads.iter().any(|g| g.just_pressed(b));
+    let mut do_confirm = keyboard.just_pressed(KeyCode::Enter) || pad(GamepadButton::South);
+    let mut do_skip = keyboard.just_pressed(KeyCode::Escape) || pad(GamepadButton::East);
     for i in &confirm {
         if *i == Interaction::Pressed {
             do_confirm = true;
@@ -11060,5 +11065,63 @@ mod tests {
         app.world_mut().spawn(Text::new("Prototype build")); app.update();
         assert_eq!(fb_hits(&mut app), vec!["prototype"], "FB3 planted text must trip the same checker");
         assert!(fb_marks("TODO").len() + fb_marks("Debug").len() + fb_marks("build v0.20").len() == 3 && fb_marks("vivid 2.5").is_empty(), "FB3 every marker class trips; a non-version v does not");
+    }
+    /// Two pressed frames then release on the real TitleScreenPlugin schedule (`pressed` would chain both plates).
+    fn pad_name_boot() -> (App, Entity, String) {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let mut hour = HourSacred::default(); hour.complete = true;
+        let mut app = App::new();
+        app.insert_resource(LivedHourBind::default()).insert_resource(crate::hud_presets::ActiveHudPreset::default()).insert_resource(SessionNetMode::from_powrush_net(shared::hex_listen::PowrushNet::Off)).add_message::<bevy::input::gamepad::GamepadRumbleRequest>().add_plugins((MinimalPlugins, bevy::input::InputPlugin, crate::input::InputPlugin, crate::local_settings::LocalSettingsPlugin, TitleScreenPlugin)).insert_resource(hour).insert_resource(LaunchDoor::InYard).insert_resource(rite_label(HouseName::default(), true));
+        let pad = app.world_mut().spawn_empty().id();
+        app.world_mut().write_message(GamepadConnectionEvent::new(pad, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None }));
+        app.update();
+        let (offered, seed) = { let l = app.world().resource::<HouseLabel>(); (l.draft.clone(), l.house.seed) };
+        assert_eq!((pad_door(&app), offered.is_empty(), offered.clone()), (LaunchDoor::NameHouse, false, shared::house_name::name_rite::offer(seed)), "boot opens NameHouse on the offered draft");
+        (app, pad, offered)
+    }
+    fn pad_hold(app: &mut App, pad: Entity, button: GamepadButton) {
+        use bevy::input::gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent};
+        for value in [1.0, 1.0, 0.0] { app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(pad, button, value))); app.update(); }
+    }
+    fn pad_door(app: &App) -> LaunchDoor { *app.world().resource::<LaunchDoor>() }
+    #[test]
+    fn pad_namehouse_f1_south_names_offered_then_yard() {
+        let _dir = NameRiteUserDir::new("pad-f1");
+        let (mut app, pad, offered) = pad_name_boot();
+        pad_hold(&mut app, pad, GamepadButton::South);
+        let (resolved, name) = { let h = &app.world().resource::<HouseLabel>().house; (h.resolved, h.display_name().to_string()) };
+        assert_eq!((pad_door(&app), resolved, name), (LaunchDoor::HouseDress, true, offered.clone()), "F1 South stays on HouseDress with the offered name");
+        let saved = HouseName::load_or_default();
+        assert!(saved.resolved && saved.display_name() == offered, "F1 offered name is saved");
+        pad_hold(&mut app, pad, GamepadButton::South);
+        let (seals, open) = { let l = app.world().resource::<HouseLabel>(); (l.house.seals_resolved, l.settings_open) };
+        assert_eq!((pad_door(&app), seals, open), (LaunchDoor::InYard, true, false), "F1 South again lands InYard");
+    }
+    #[test]
+    fn pad_namehouse_f2_east_skips_unnamed_then_yard() {
+        let _dir = NameRiteUserDir::new("pad-f2");
+        let (mut app, pad, _) = pad_name_boot();
+        pad_hold(&mut app, pad, GamepadButton::East);
+        let (resolved, empty, unnamed) = { let h = &app.world().resource::<HouseLabel>().house; (h.resolved, h.name.is_empty(), h.display_name() == UNNAMED) };
+        assert_eq!((pad_door(&app), resolved, empty, unnamed), (LaunchDoor::HouseDress, true, true, true), "F2 East stays on HouseDress still Unnamed");
+        let saved = HouseName::load_or_default();
+        assert!(saved.resolved && saved.name.is_empty(), "F2 Unnamed is saved");
+        pad_hold(&mut app, pad, GamepadButton::East);
+        let open = app.world().resource::<HouseLabel>().settings_open;
+        assert_eq!((pad_door(&app), open), (LaunchDoor::InYard, false), "F2 East again lands InYard");
+    }
+    #[test]
+    fn pad_namehouse_f3_other_buttons_do_nothing() {
+        let _dir = NameRiteUserDir::new("pad-f3");
+        let (mut app, pad, _) = pad_name_boot();
+        let inert = [GamepadButton::West, GamepadButton::North, GamepadButton::Start, GamepadButton::DPadUp, GamepadButton::DPadDown, GamepadButton::DPadLeft, GamepadButton::DPadRight];
+        for button in inert { pad_hold(&mut app, pad, button); }
+        let (resolved, open) = { let l = app.world().resource::<HouseLabel>(); (l.house.resolved, l.settings_open) };
+        assert_eq!((pad_door(&app), resolved, open, HouseName::load_or_default().resolved), (LaunchDoor::NameHouse, false, false, false), "F3 inert faces stay on NameHouse");
+        pad_hold(&mut app, pad, GamepadButton::South);
+        let snap = app.world().resource::<HouseLabel>().house.clone();
+        for button in inert { pad_hold(&mut app, pad, button); }
+        let (name, seals, heritage, seals_resolved, open) = { let l = app.world().resource::<HouseLabel>(); (l.house.name.clone(), l.house.seals.clone(), l.house.heritage.clone(), l.house.seals_resolved, l.settings_open) };
+        assert_eq!((pad_door(&app), name, seals, heritage, seals_resolved, open), (LaunchDoor::HouseDress, snap.name, snap.seals, snap.heritage, snap.seals_resolved, false), "F3 inert faces stay on HouseDress");
     }
 }
