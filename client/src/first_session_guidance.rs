@@ -4517,4 +4517,21 @@ mod tests {
         pp_pad(&mut app); let pad = guidance_card_section(&mut app).1;
         assert_eq!(pad.rsplit_once('\n').unwrap().1, LOOP_REFINE_CUE.replacen('Q', "X", 1), "F7 {pad}");
     }
+    #[test] fn pad_prompts_f8_no_key_token_survives() {
+        let (_l, _d, _r, mut app) = pp_boot("f8");
+        pp_pad(&mut app);
+        let cfg = app.world().resource::<LocalSettingsState>().inner.clone();
+        let jump = pp_show(&mut app, &GuidanceObjective::MoveAround);
+        assert_eq!(jump, card_line("left stick walk · LB jump · LT sprint"), "F8 jump");
+        let share = pp_show(&mut app, &GuidanceObjective::ShareAbundance);
+        assert_eq!(share.rsplit_once("flow, ").unwrap().1.split("  · H hides").next().unwrap(), "D-pad Right keeps in reserve", "F8 reserve");
+        assert_eq!(share, card_line("D-pad Up share · D-pad Left gives to flow, D-pad Right keeps in reserve"), "F8 flow");
+        for obj in pp_rows().into_iter().map(|row| row.0).chain([GuidanceObjective::EmbassySeat]) {
+            let text = pp_show(&mut app, &obj);
+            for &(key, verb) in super::pad_row(&obj) {
+                if crate::input::pad_hint(verb, &cfg).is_none() { continue; }
+                assert!(!text.split_whitespace().any(|word| word == key), "F8 {obj:?} {key} {text}");
+            }
+        }
+    }
 }
