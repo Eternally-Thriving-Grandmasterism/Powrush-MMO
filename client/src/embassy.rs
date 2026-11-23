@@ -55,7 +55,7 @@ impl Plugin for EmbassyPlugin {
         app.init_resource::<EmbassyYard>()
             .add_systems(Startup, spawn_embassy_slab)
             .add_systems(PreUpdate, mark_embassy_lamp)
-            .add_systems(Update, (handle_embassy, update_embassy_slab));
+            .add_systems(Update, (handle_embassy.after(crate::input::InputMapSet).before(crate::feel_move::raise_buffered_use), update_embassy_slab));
     }
 }
 
@@ -158,6 +158,7 @@ pub fn try_request_embassy_seat(
 
 fn handle_embassy(
     keyboard: Res<ButtonInput<KeyCode>>,
+    input: Option<Res<crate::input::PlayerInput>>,
     hour: Res<HourSacred>,
     fab: Res<FabricatorYard>,
     voice: Res<VoiceYard>,
@@ -166,7 +167,9 @@ fn handle_embassy(
     mut yard: ResMut<EmbassyYard>,
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
+    (door, label, licences, places, edit): (Option<Res<crate::title_screen::LaunchDoor>>, Option<Res<crate::title_screen::HouseLabel>>, Option<Res<crate::licences_screen::LicencesScreen>>, Option<Res<crate::hex_travel::PlacesPlate>>, Option<Res<crate::hud_edit_mode::HudEditMode>>),
 ) {
+    let pad_live = door.is_none_or(|d| *d == crate::title_screen::LaunchDoor::InYard) && !label.is_some_and(|l| l.settings_open) && !licences.is_some_and(|l| l.open) && !places.is_some_and(|p| p.open) && !edit.is_some_and(|e| e.active);
     // Heartwood stub: same Peace E (tend), not Embassy seat.
     if on_heartwood_stub(travel.as_deref()) {
         return;
@@ -177,7 +180,7 @@ fn handle_embassy(
     if voice.sash_open || ledger.sash_open {
         return;
     }
-    if !keyboard.just_pressed(soft_play_bindings::INTERACT) {
+    if !(keyboard.just_pressed(soft_play_bindings::INTERACT) || (pad_live && input.as_ref().is_some_and(|i| i.interact))) {
         return;
     }
     let Some(step) = try_request_embassy_seat(&hour, &fab.fab.pack, &mut yard.embassy) else {
