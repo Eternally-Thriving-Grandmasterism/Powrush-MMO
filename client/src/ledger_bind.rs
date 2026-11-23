@@ -161,7 +161,7 @@ fn handle_ledger(
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
     pads: Query<&Gamepad>,
-    settings: Res<LocalSettingsState>,
+    settings: Option<Res<LocalSettingsState>>,
     edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
 ) {
     // L / pad North — Peace stays closed; off Peace the sash may wait or Bind.
@@ -215,9 +215,9 @@ fn handle_ledger(
     let go = keyboard.just_pressed(soft_play_bindings::INTERACT)
         || keyboard.just_pressed(KeyCode::Digit1)
         || (!edit.as_ref().is_some_and(|mode| mode.active)
-            && pads.iter().next().is_some_and(|pad| {
-                crate::input::pad_use_just_pressed(pad, settings.inner.gamepad_south_use)
-            }));
+            && settings.as_ref().is_some_and(|s| pads.iter().next().is_some_and(|pad| {
+                crate::input::pad_use_just_pressed(pad, s.inner.gamepad_south_use)
+            })));
     if !go {
         return;
     }
@@ -598,7 +598,6 @@ mod tests {
             climate_slab: None,
         });
         app.insert_resource(PlayerInput::default());
-        app.insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings::peace_defaults(), dirty: false });
         app.insert_resource(ThrivingMoments::default());
         app.add_systems(Update, handle_ledger);
         app.update();
@@ -1356,4 +1355,10 @@ mod tests {
         }
         assert_eq!(board_state(&app), Some(ContractState::Posted), "B5 West, East and D-pad do nothing");
     }
+    #[test] fn pad_bind_no_settings_e_binds_south_idle() {
+        use bevy::input::{keyboard::{Key, KeyboardInput}, ButtonState};
+        let mut app = pad_bind_app(true, false); app.world_mut().remove_resource::<LocalSettingsState>(); app.update(); hold(&mut app, GamepadButton::South, 1);
+        assert_eq!(board_state(&app), Some(ContractState::Posted), "no settings, South does nothing");
+        app.world_mut().write_message(KeyboardInput { key_code: soft_play_bindings::INTERACT, logical_key: Key::Character("e".into()), state: ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER }); app.update();
+        assert_eq!(board_state(&app), Some(ContractState::Taken), "no settings, E binds one step"); }
 }
