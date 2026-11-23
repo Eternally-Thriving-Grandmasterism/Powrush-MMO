@@ -911,4 +911,53 @@ mod tests {
         assert!(app.world().resource::<RbeAllocateChoice>().panel_open, "A7 R opens with no pad"); key_tap(&mut app, KeyCode::Digit1, Key::Character("1".into()));
         assert_eq!(app.world().resource::<LivedHourBind>().hour.allocation.flow, 1, "A7 Digit1 commits with no pad");
     }
+    fn g_legend(app: &mut App) -> String {
+        let mut q = app.world_mut().query::<(&Text, &TextFont)>();
+        for (text, font) in q.iter(app.world()) {
+            if font.font_size == FontSize::Px(12.0 / 1.2) { return text.as_str().to_string(); }
+        }
+        panic!("allocate legend");
+    }
+    fn g_pad(app: &mut App) -> Entity {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let id = app.world_mut().spawn_empty().id();
+        app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None }));
+        app.update();
+        id
+    }
+    fn g_unpad(app: &mut App, id: Entity) {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Disconnected));
+        app.update();
+    }
+    /// PAD-PROMPTS-2b G1. No pad: the allocate legend stays the keyboard literal.
+    #[test]
+    fn pad_prompts_2b_g1_allocate_keyboard() {
+        let (mut app, _) = alloc_app(true, false);
+        assert_eq!(g_legend(&mut app), "1 Flow · 2 Reserve · R close · credit logistics");
+    }
+    /// PAD-PROMPTS-2b G2. A connected pad swaps 1, 2, then R close.
+    #[test]
+    fn pad_prompts_2b_g2_allocate_legend_under_pad() {
+        let (mut app, _) = alloc_app(true, true);
+        assert_eq!(g_legend(&mut app), "D-pad Left Flow · D-pad Right Reserve · D-pad Up close · credit logistics");
+    }
+    /// PAD-PROMPTS-2b G3. Hot-plug repaints keyboard, then pad, then keyboard again.
+    #[test]
+    fn pad_prompts_2b_g3_allocate_hotplug() {
+        let (mut app, _) = alloc_app(true, false);
+        assert_eq!(g_legend(&mut app), "1 Flow · 2 Reserve · R close · credit logistics");
+        let id = g_pad(&mut app);
+        assert_eq!(g_legend(&mut app), "D-pad Left Flow · D-pad Right Reserve · D-pad Up close · credit logistics");
+        g_unpad(&mut app, id);
+        assert_eq!(g_legend(&mut app), "1 Flow · 2 Reserve · R close · credit logistics");
+    }
+    /// PAD-PROMPTS-2b G6. The allocate legend keeps no key token and neither collision.
+    #[test]
+    fn pad_prompts_2b_g6_allocate_no_collision() {
+        let (mut app, _) = alloc_app(true, true);
+        let line = g_legend(&mut app);
+        assert_eq!(line, "D-pad Left Flow · D-pad Right Reserve · D-pad Up close · credit logistics");
+        assert!(!line.contains('1') && !line.contains('2') && !line.contains("R close") && !line.contains("Upeserve") && !line.contains("Upight"), "{line}");
+    }
 }

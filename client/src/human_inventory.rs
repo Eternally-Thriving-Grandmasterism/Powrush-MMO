@@ -1345,6 +1345,7 @@ mod tests {
     fn satchel_app() -> App {
         let mut app = App::new();
         app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin, HumanInventoryPlugin)).init_resource::<FirstHarvestEpiphany>().init_resource::<HumanSoftPanels>().init_resource::<RbeAllocateChoice>().init_resource::<SoftRbePool>().init_resource::<LivedHourBind>().init_resource::<HouseLabel>().init_resource::<FoundFinds>();
+        crate::test_env::single_thread(&mut app);
         app
     }
     fn satchel_open(app: &App) -> bool { app.world().resource::<HumanInventory>().open }
@@ -1411,5 +1412,77 @@ mod tests {
     }
     #[test] fn pad_satchel_s6_keyboard_parity_under_settings() {
         let mut app = satchel_app(); app.world_mut().resource_mut::<HouseLabel>().settings_open = true; key_i(&mut app); assert!(satchel_open(&app), "S6 I opens under settings_open"); key_i(&mut app); assert!(!satchel_open(&app), "S6 I closes under settings_open");
+    }
+    fn g_legend(app: &mut App) -> String {
+        let mut q = app.world_mut().query::<(&Text, &SatchelFontBase)>();
+        for (text, base) in q.iter(app.world()) {
+            if base.0 == ui_kit::TYPE_HINT { return text.as_str().to_string(); }
+        }
+        panic!("satchel legend");
+    }
+    fn g_off(app: &mut App) {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let id = app.world_mut().query_filtered::<Entity, With<Gamepad>>().single(app.world()).unwrap();
+        app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Disconnected));
+        app.update();
+    }
+    /// PAD-PROMPTS-2b G1. No pad: the satchel legend and all three tooltips stay the keyboard literals.
+    #[test]
+    fn pad_prompts_2b_g1_satchel_keyboard() {
+        let mut app = satchel_app();
+        app.world_mut().resource_mut::<HumanInventory>().open = true;
+        app.update();
+        assert_eq!(g_legend(&mut app), "I close · 1–3 highlight · R allocate surplus · 4: equip next find");
+        assert!(body(&mut app).ends_with("Vitality · grows with each tend (E) · R allocate surplus"));
+        app.world_mut().resource_mut::<HumanInventory>().selected = SatchelSlot::Harmony;
+        app.update();
+        assert!(body(&mut app).ends_with("Harmony · held, not hoarded · R allocate surplus"));
+        app.world_mut().resource_mut::<HumanInventory>().selected = SatchelSlot::Joy;
+        app.update();
+        assert!(body(&mut app).ends_with("Joy · held, not hoarded · R allocate surplus"));
+    }
+    /// PAD-PROMPTS-2b G4. Real D-pad Down swaps I and R. "1–3 highlight" and "4: equip next find" stay.
+    #[test]
+    fn pad_prompts_2b_g4_satchel_legend_dpad() {
+        let mut app = satchel_app();
+        hold(&mut app, GamepadButton::DPadDown, 1);
+        let line = g_legend(&mut app);
+        assert_eq!(line, "D-pad Down close · 1–3 highlight · D-pad Up allocate surplus · 4: equip next find");
+        assert!(line.contains("1–3 highlight") && line.contains("4: equip next find"), "{line}");
+    }
+    /// PAD-PROMPTS-2b G5. Tooltip (E) becomes (A) and R becomes D-pad Up. south_use off keeps (E).
+    #[test]
+    fn pad_prompts_2b_g5_tooltip_under_pad() {
+        let mut app = satchel_app();
+        hold(&mut app, GamepadButton::DPadDown, 1);
+        assert!(body(&mut app).ends_with("Vitality · grows with each tend (A) · D-pad Up allocate surplus"));
+        app.world_mut().resource_mut::<HumanInventory>().selected = SatchelSlot::Harmony;
+        app.update();
+        assert!(body(&mut app).ends_with("Harmony · held, not hoarded · D-pad Up allocate surplus"));
+        app.world_mut().resource_mut::<HumanInventory>().selected = SatchelSlot::Joy;
+        app.update();
+        assert!(body(&mut app).ends_with("Joy · held, not hoarded · D-pad Up allocate surplus"));
+        let mut off = satchel_app();
+        off.insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings { gamepad_south_use: false, ..Default::default() }, dirty: false });
+        hold(&mut off, GamepadButton::DPadDown, 1);
+        assert!(body(&mut off).ends_with("Vitality · grows with each tend (E) · D-pad Up allocate surplus"), "{}", body(&mut off));
+        off.world_mut().resource_mut::<HumanInventory>().selected = SatchelSlot::Harmony;
+        off.update();
+        assert!(body(&mut off).ends_with("Harmony · held, not hoarded · D-pad Up allocate surplus"));
+    }
+    /// PAD-PROMPTS-2b G6. No swapped key token, Upeserve, or Upight. The kept phrases stay. Unplug restores keyboard text.
+    #[test]
+    fn pad_prompts_2b_g6_satchel_tokens() {
+        let mut app = satchel_app();
+        hold(&mut app, GamepadButton::DPadDown, 1);
+        let line = g_legend(&mut app);
+        let tip = body(&mut app);
+        assert_eq!(line, "D-pad Down close · 1–3 highlight · D-pad Up allocate surplus · 4: equip next find");
+        assert!(line.contains("1–3 highlight") && line.contains("4: equip next find"), "{line}");
+        assert!(!line.contains("I close") && !line.contains("R allocate") && !line.contains("Upeserve") && !line.contains("Upight"), "{line}");
+        assert!(tip.ends_with("Vitality · grows with each tend (A) · D-pad Up allocate surplus") && !tip.contains("(E)") && !tip.contains("R allocate") && !tip.contains("Upeserve") && !tip.contains("Upight"), "{tip}");
+        g_off(&mut app);
+        assert_eq!(g_legend(&mut app), "I close · 1–3 highlight · R allocate surplus · 4: equip next find");
+        assert!(body(&mut app).ends_with("Vitality · grows with each tend (E) · R allocate surplus"));
     }
 }
