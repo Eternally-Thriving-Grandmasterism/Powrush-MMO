@@ -66,7 +66,7 @@ The pre-Return Title frame is not in the artifact (the hidden `.pre.png` is not 
 | C5 | I: the take is in the satchel | 3-5 | None found | `client/src/human_inventory.rs:235` | SOURCE-ONLY |
 | C6 | R, 1, 2: flow changes a tired well, reserve banks rights | 4-6 | Card wording differs from the doc (see B7) | `client/src/first_session_guidance.rs:394` | SOURCE-ONLY |
 | C7 | H: still tend without the card | 5-7 | None found | `client/src/first_session_guidance.rs:1197` | SOURCE-ONLY |
-| C8 | Quit, rerun: satchel and allocation persist | 7-9 | None found | `client/src/local_session_persist.rs:229` | SOURCE-ONLY |
+| C8 | Quit, rerun: satchel and allocation persist | 7-9 | None found; satchel and allocation ride the lived-hour blob, named finds ride `save_finds` | `shared/climate_node.rs:219-220`, `client/src/lived_hour_bind.rs:109`, `:174`, `:229-231`, `client/src/loot_drops.rs:133`, `client/src/human_inventory.rs:282` | SOURCE-ONLY |
 | C9 | Teaching claim: E twice, *extract left it tired*; R 1, *flow restored the well* | 8-10 | The source lines carry the place prefix (`Sanctuary Prime · …`) | `client/src/climate_script.rs:40-41` | SOURCE-ONLY |
 
 ## Counts
