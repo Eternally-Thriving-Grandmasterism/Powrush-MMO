@@ -92,6 +92,10 @@ struct PickupFlashRoot;
 #[derive(Component)]
 struct PickupFlashText;
 
+const SATCHEL_LEGEND: &str = "I close · 1–3 highlight · R allocate surplus · 4: equip next find";
+#[derive(Component)]
+struct SatchelLegend;
+
 pub struct HumanInventoryPlugin;
 
 impl Plugin for HumanInventoryPlugin {
@@ -108,6 +112,7 @@ impl Plugin for HumanInventoryPlugin {
                     feed_allocate_surplus,
                     update_watch_strip,
                     update_satchel,
+                    update_satchel_legend,
                     update_pickup_flash,
                     scale_satchel_fonts,
                     scale_strip_and_flash_fonts,
@@ -191,11 +196,12 @@ TextColor(TITLE_TEXT_PRIMARY),
             ));
             p.spawn((
                 (
-Text::new("I close · 1–3 highlight · R allocate surplus · 4: equip next find"),
+Text::new(SATCHEL_LEGEND),
 ui_kit::font(ui_kit::TYPE_HINT),
 TextColor(TITLE_TEXT_SECONDARY),
 ),
                 SatchelFontBase(ui_kit::TYPE_HINT),
+                SatchelLegend,
             ));
         });
 
@@ -464,6 +470,8 @@ fn update_satchel(
     finds: Option<Res<FoundFinds>>,
     mut root: Query<&mut Visibility, With<SatchelRoot>>,
     mut body: Query<&mut Text, With<SatchelBody>>,
+    pads: Query<(), With<Gamepad>>,
+    settings: Option<Res<LocalSettingsState>>,
 ) {
     for mut vis in &mut root {
         vis.set_if_neq(if inv.open { Visibility::Visible } else { Visibility::Hidden });
@@ -514,6 +522,10 @@ fn update_satchel(
         .filter(|n| *n > 0)
         .map(|n| format!("\n\nLaneCrate {n}"))
         .unwrap_or_default();
+    let owned = shared::local_settings::LocalSettings::default();
+    let live = settings.as_ref().map(|s| &s.inner).unwrap_or(&owned);
+    let mut tip = satchel_slot_tooltip(inv.selected).to_string();
+    if !pads.is_empty() { crate::input::apply_pad_tokens(&mut tip, &[("E", crate::input::PadVerb::Use), ("R", crate::input::PadVerb::Allocate)], live); }
     let body_line = format!(
         "{face}
 
@@ -536,12 +548,22 @@ Harvests {}{find_block}{crate_block}{temper_block}
         mark(SatchelSlot::Joy),
         pool.joy,
         pool.harvests,
-        satchel_slot_tooltip(inv.selected)
+        tip
     );
     for mut text in &mut body {
         if text.as_str() != body_line {
             **text = body_line.clone();
         }
+    }
+}
+
+fn update_satchel_legend(pads: Query<(), With<Gamepad>>, settings: Option<Res<LocalSettingsState>>, mut legend: Query<&mut Text, With<SatchelLegend>>) {
+    let owned = shared::local_settings::LocalSettings::default();
+    let live = settings.as_ref().map(|s| &s.inner).unwrap_or(&owned);
+    let mut line = SATCHEL_LEGEND.to_string();
+    if !pads.is_empty() { crate::input::apply_pad_tokens(&mut line, &[("I", crate::input::PadVerb::Satchel), ("R", crate::input::PadVerb::Allocate)], live); }
+    for mut text in &mut legend {
+        if text.as_str() != line { **text = line.clone(); }
     }
 }
 
@@ -1455,7 +1477,8 @@ mod tests {
     fn pad_prompts_2b_g5_tooltip_under_pad() {
         let mut app = satchel_app();
         hold(&mut app, GamepadButton::DPadDown, 1);
-        assert!(body(&mut app).ends_with("Vitality · grows with each tend (A) · D-pad Up allocate surplus"));
+        app.update();
+        assert!(body(&mut app).ends_with("Vitality · grows with each tend (A) · D-pad Up allocate surplus"), "{}", body(&mut app));
         app.world_mut().resource_mut::<HumanInventory>().selected = SatchelSlot::Harmony;
         app.update();
         assert!(body(&mut app).ends_with("Harmony · held, not hoarded · D-pad Up allocate surplus"));
@@ -1465,6 +1488,7 @@ mod tests {
         let mut off = satchel_app();
         off.insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings { gamepad_south_use: false, ..Default::default() }, dirty: false });
         hold(&mut off, GamepadButton::DPadDown, 1);
+        off.update();
         assert!(body(&mut off).ends_with("Vitality · grows with each tend (E) · D-pad Up allocate surplus"), "{}", body(&mut off));
         off.world_mut().resource_mut::<HumanInventory>().selected = SatchelSlot::Harmony;
         off.update();
@@ -1475,6 +1499,7 @@ mod tests {
     fn pad_prompts_2b_g6_satchel_tokens() {
         let mut app = satchel_app();
         hold(&mut app, GamepadButton::DPadDown, 1);
+        app.update();
         let line = g_legend(&mut app);
         let tip = body(&mut app);
         assert_eq!(line, "D-pad Down close · 1–3 highlight · D-pad Up allocate surplus · 4: equip next find");

@@ -199,6 +199,10 @@ pub struct AllocateFlowButton;
 #[derive(Component)]
 pub struct AllocateReserveButton;
 
+const ALLOCATE_LEGEND: &str = "1 Flow · 2 Reserve · R close · credit logistics";
+#[derive(Component)]
+struct AllocateLegend;
+
 pub struct RbeAllocateChoicePlugin;
 
 impl Plugin for RbeAllocateChoicePlugin {
@@ -213,6 +217,7 @@ impl Plugin for RbeAllocateChoicePlugin {
                     toggle_allocate_panel,
                     update_allocate_visibility,
                     update_allocate_body,
+                    update_allocate_legend,
                     handle_allocate_buttons,
                 ),
             );
@@ -304,9 +309,10 @@ TextColor(TITLE_BTN_FG),
             });
 
             p.spawn((
-Text::new("1 Flow · 2 Reserve · R close · credit logistics"),
+Text::new(ALLOCATE_LEGEND),
 TextFont { font_size: FontSize::Px(12.0 / 1.2), ..default() },
 TextColor(TITLE_TEXT_SECONDARY),
+AllocateLegend,
 ));
         });
 }
@@ -544,6 +550,20 @@ fn handle_allocate_buttons(
             );
             return;
         }
+    }
+}
+
+fn update_allocate_legend(pads: Query<(), With<Gamepad>>, settings: Option<Res<crate::local_settings::LocalSettingsState>>, mut legend: Query<&mut Text, With<AllocateLegend>>) {
+    let owned = shared::local_settings::LocalSettings::default();
+    let live = settings.as_ref().map(|s| &s.inner).unwrap_or(&owned);
+    let mut line = ALLOCATE_LEGEND.to_string();
+    if !pads.is_empty() {
+        use crate::input::PadVerb::{Allocate, Flow, Reserve};
+        crate::input::apply_pad_tokens(&mut line, &[("1", Flow), ("2", Reserve)], live);
+        if let Some(h) = crate::input::pad_hint(Allocate, live) { line = line.replacen("R close", &format!("{h} close"), 1); }
+    }
+    for mut text in &mut legend {
+        if text.as_str() != line { **text = line.clone(); }
     }
 }
 
