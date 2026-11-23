@@ -812,7 +812,7 @@ mod tests {
             else { let size = hi - lo; let mid = (lo + hi) * 0.5; assert!((size.x - 0.16).abs() < 0.01 && (size.y - 0.16).abs() < 0.01 && (size.z - 3.0).abs() < 0.01 && (mid - Vec3::from_array(inst.center)).length() < 0.01, "{name} {size} {mid}"); ribs.push(*id); eprintln!("PW1B rib {name} y0={} y1={} mid_y={}", lo.y, hi.y, mid.y); }
         }
         assert!(walks.len() == 2 && ribs.len() == 5 && walks.iter().all(|h| *h == walks[0]) && ribs.iter().all(|h| *h == ribs[0])); let (bw, br) = (walks[0], ribs[0]);
-        let settle = |app: &mut App, root: &std::path::Path| { let (mut prev, mut same) = (usize::MAX, 0); for _ in 0..40 { pw_tick(app, root, 1); let n = app.world().resource::<Assets<Mesh>>().len(); if n == prev { same += 1; if same >= 4 { return n; } } else { prev = n; same = 0; } } prev }; let n0 = settle(&mut app, &root);
+        let settle = |app: &mut App, root: &std::path::Path| { let (mut prev, mut same) = (usize::MAX, 0); for _ in 0..40 { pw_tick(app, root, 1); let n = { let w = app.world(); let s = w.resource::<AssetServer>(); w.resource::<Assets<Mesh>>().ids().filter(|id| s.get_path(*id).is_none()).count() }; if n == prev { same += 1; if same >= 4 { return n; } } else { prev = n; same = 0; } } prev }; let n0 = settle(&mut app, &root);
         for _ in 0..3 {
             app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Sanctuary; pw_tick(&mut app, &root, 2);
             app.world_mut().resource_mut::<HexTravelState>().current = PlaceId::Heartwood; let mut ok = false;
