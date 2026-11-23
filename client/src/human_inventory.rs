@@ -1337,4 +1337,39 @@ mod tests {
         let t = hi_run(&mut app, 2); let yielded = app.world().resource::<crate::hud_presets::HudYielded>().0.contains(&PICKUP.id);
         assert_eq!((t.2.last().unwrap().0, yielded), (IH, true), "HI10 Management with a Pulse sentinel: Pickup yields by R2 into HudYielded");
     }
+    fn satchel_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin, HumanInventoryPlugin)).init_resource::<FirstHarvestEpiphany>().init_resource::<HumanSoftPanels>().init_resource::<RbeAllocateChoice>().init_resource::<SoftRbePool>().init_resource::<LivedHourBind>().init_resource::<HouseLabel>().init_resource::<FoundFinds>();
+        app
+    }
+    fn satchel_open(app: &App) -> bool { app.world().resource::<HumanInventory>().open }
+    fn hold(app: &mut App, button: GamepadButton, frames: usize) {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent, RawGamepadEvent};
+        let found = app.world_mut().query_filtered::<Entity, With<Gamepad>>().iter(app.world()).next();
+        let id = found.unwrap_or_else(|| {
+            let id = app.world_mut().spawn_empty().id();
+            app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None }));
+            app.update();
+            id
+        });
+        for _ in 0..frames {
+            app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, button, 1.0)));
+            app.update();
+        }
+    }
+    fn release(app: &mut App, button: GamepadButton) {
+        use bevy::input::gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent};
+        let id = app.world_mut().query_filtered::<Entity, With<Gamepad>>().iter(app.world()).next().unwrap();
+        app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, button, 0.0))); app.update();
+    }
+    #[test] fn pad_satchel_s1_tap_opens_then_closes() {
+        let mut app = satchel_app(); hold(&mut app, GamepadButton::DPadDown, 1);
+        assert!(app.world().resource::<HumanInventory>().open && app.world().resource::<HumanInventory>().first_open_lived, "S1 tap opens");
+        release(&mut app, GamepadButton::DPadDown); hold(&mut app, GamepadButton::DPadDown, 1);
+        assert!(!satchel_open(&app), "S1 tap closes");
+    }
+    #[test] fn pad_satchel_s2_hold_opens_once() {
+        let mut app = satchel_app(); hold(&mut app, GamepadButton::DPadDown, 4);
+        assert!(app.world().resource::<HumanInventory>().open && app.world().resource::<HumanInventory>().first_open_lived, "S2 held 4 frames opens once, no flicker");
+    }
 }
