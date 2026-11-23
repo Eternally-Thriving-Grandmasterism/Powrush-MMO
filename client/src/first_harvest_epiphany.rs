@@ -2346,4 +2346,32 @@ mod tests {
         app.update(); let text = pulse_text(&mut app);
         assert_eq!((pulse_vis(&mut app), text.contains("still glows"), text.ends_with("hold A to tend")), (Visibility::Visible, true, true), "F8 {text}");
     }
+    /// PAD-PROMPTS-2a F9. A connected pad with south_use off keeps the keyboard E on the care prompt and the pulses.
+    #[test]
+    fn pad_prompts_2a_f9_south_use_off_keeps_e() {
+        let mut care = care_app();
+        let mut inner = shared::local_settings::LocalSettings::default(); inner.gamepad_south_use = false;
+        care.insert_resource(crate::local_settings::LocalSettingsState { inner, dirty: false });
+        pad_connect(&mut care);
+        assert_eq!(care_text(&mut care), "tap E take  ·  hold E tend");
+        let mut app = pulse_app();
+        app.world_mut().resource_mut::<crate::local_settings::LocalSettingsState>().inner.gamepad_south_use = false;
+        pad_connect(&mut app);
+        app.world_mut().write_message(bevy::input::keyboard::KeyboardInput { key_code: bevy::input::keyboard::KeyCode::KeyE, logical_key: bevy::input::keyboard::Key::Character("e".into()), state: bevy::input::ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER });
+        app.update();
+        assert_eq!(pulse_of(&app), "Step closer to North Well · then E");
+        app.update();
+        assert_eq!(pulse_of(&app), "Step closer to North Well · tap E take · hold E tend");
+    }
+    /// PAD-PROMPTS-2a F10. Care prompt goes keyboard, then A, then disconnects back to that same keyboard text.
+    #[test]
+    fn pad_prompts_2a_f10_care_hotplug() {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let mut app = care_app(); app.update();
+        assert_eq!(care_text(&mut app), "tap E take  ·  hold E tend");
+        let id = pad_connect(&mut app);
+        assert_eq!(care_text(&mut app), "tap A take  ·  hold A tend");
+        app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Disconnected)); app.update();
+        assert_eq!(care_text(&mut app), "tap E take  ·  hold E tend");
+    }
 }
