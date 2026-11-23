@@ -1398,7 +1398,8 @@ impl Plugin for TitleScreenPlugin {
                     name_house_text_input,
                     name_house_buttons,
                     sync_name_house_visibility,
-                    house_dress_buttons,
+                    // Dress first: one South or East press must not resolve both plates.
+                    house_dress_buttons.before(name_house_buttons),
                     refresh_house_dress_labels,
                     sync_house_dress_visibility,
                     refresh_pause_cue,
@@ -4825,14 +4826,16 @@ fn name_house_buttons(
     mut label: ResMut<HouseLabel>,
     mut rite: ResMut<NameRiteLine>,
     keyboard: Res<ButtonInput<KeyCode>>,
+    pads: Query<&Gamepad>,
     confirm: Query<&Interaction, (Changed<Interaction>, With<NameConfirmBtn>)>,
     skip: Query<&Interaction, (Changed<Interaction>, With<NameSkipBtn>)>,
 ) {
     if *door != LaunchDoor::NameHouse {
         return;
     }
-    let mut do_confirm = keyboard.just_pressed(KeyCode::Enter);
-    let mut do_skip = keyboard.just_pressed(KeyCode::Escape);
+    let pad = |b| pads.iter().any(|g| g.just_pressed(b));
+    let mut do_confirm = keyboard.just_pressed(KeyCode::Enter) || pad(GamepadButton::South);
+    let mut do_skip = keyboard.just_pressed(KeyCode::Escape) || pad(GamepadButton::East);
     for i in &confirm {
         if *i == Interaction::Pressed {
             do_confirm = true;
@@ -4968,6 +4971,7 @@ fn house_dress_buttons(
     mut label: ResMut<HouseLabel>,
     mut rite: ResMut<NameRiteLine>,
     keyboard: Res<ButtonInput<KeyCode>>,
+    pads: Query<&Gamepad>,
     well: Query<&Interaction, (Changed<Interaction>, With<DressSealWellBtn>)>,
     grove: Query<&Interaction, (Changed<Interaction>, With<DressSealGroveBtn>)>,
     ember: Query<&Interaction, (Changed<Interaction>, With<DressSealEmberBtn>)>,
@@ -5016,8 +5020,9 @@ fn house_dress_buttons(
             return;
         }
     }
-    let mut do_confirm = keyboard.just_pressed(KeyCode::Enter);
-    let mut do_skip = keyboard.just_pressed(KeyCode::Escape);
+    let pad = |b| pads.iter().any(|g| g.just_pressed(b));
+    let mut do_confirm = keyboard.just_pressed(KeyCode::Enter) || pad(GamepadButton::South);
+    let mut do_skip = keyboard.just_pressed(KeyCode::Escape) || pad(GamepadButton::East);
     for i in &confirm {
         if *i == Interaction::Pressed {
             do_confirm = true;
@@ -11108,13 +11113,12 @@ mod tests {
     #[test]
     fn pad_namehouse_f3_other_buttons_do_nothing() {
         let _dir = NameRiteUserDir::new("pad-f3");
-        let (mut app, pad, offered) = pad_name_boot();
+        let (mut app, pad, _) = pad_name_boot();
         let inert = [GamepadButton::West, GamepadButton::North, GamepadButton::Start, GamepadButton::DPadUp, GamepadButton::DPadDown, GamepadButton::DPadLeft, GamepadButton::DPadRight];
         for button in inert { pad_hold(&mut app, pad, button); }
         let (resolved, open) = { let l = app.world().resource::<HouseLabel>(); (l.house.resolved, l.settings_open) };
         assert_eq!((pad_door(&app), resolved, open, HouseName::load_or_default().resolved), (LaunchDoor::NameHouse, false, false, false), "F3 inert faces stay on NameHouse");
-        app.world_mut().resource_mut::<HouseLabel>().house.confirm(&offered);
-        app.insert_resource(LaunchDoor::HouseDress);
+        pad_hold(&mut app, pad, GamepadButton::South);
         let snap = app.world().resource::<HouseLabel>().house.clone();
         for button in inert { pad_hold(&mut app, pad, button); }
         let (name, seals, heritage, seals_resolved, open) = { let l = app.world().resource::<HouseLabel>(); (l.house.name.clone(), l.house.seals.clone(), l.house.heritage.clone(), l.house.seals_resolved, l.settings_open) };
