@@ -40,6 +40,8 @@ pub const HIT_ASSET: &str = "audio/combat_hit.ogg";
 pub const HIT_GAIN: f32 = 0.05;
 pub const FIND_ASSET: &str = "audio/find_pickup.ogg";
 pub const FIND_GAIN: f32 = 0.05; // peak −14.6 dBFS; same ceiling as hit
+pub const SWING_ASSET: &str = "audio/combat_swing.ogg";
+pub const SWING_GAIN: f32 = 0.8; // file peak −28.5 dBFS; x0.8 stays under −27.7
 
 pub const PREDATOR_NAME: &str = "Heartwood Prowler";
 pub const HEALTH: u32 = 200; // player and predator pools, per CUT A1
@@ -625,6 +627,7 @@ pub fn combat_fire(
         let (hit, level) = land_hit_paid(&mut combat, &mut skills, reach, tier, row, finds.as_deref());
         crate::combat_text::hook_after_fire(&mut cmd, travel.current, pred_before, combat.predator_taken, hit, presence.position);
         play_hit(&mut cmd, assets.as_deref(), mute.as_deref(), hit); // COMBAT-FEEL-SFX-1: a landed hit only
+        play_swing(&mut cmd, assets.as_deref(), mute.as_deref());
         let down = hit && combat.predator_taken >= HEALTH;
         let defeat = down && clears_area(travel.current);
         if let (true, Some(mut diff)) = (defeat, diff) {
@@ -758,6 +761,17 @@ pub fn find_volume(mute: Option<&crate::local_settings::MasterMuteGain>) -> Opti
 pub fn play_find(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&crate::local_settings::MasterMuteGain>) {
     if let (true, Some(gain), Some(assets)) = (audio_output_safe(), find_volume(mute), assets) {
         cmd.spawn((AudioPlayer::<AudioSource>(assets.load(FIND_ASSET)), PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain))));
+    }
+}
+
+pub fn swing_volume(mute: Option<&crate::local_settings::MasterMuteGain>) -> Option<f32> {
+    let gain = mute.map_or(1.0, |m| if m.muted { 0.0 } else { m.gain }) * SWING_GAIN;
+    (gain > 0.0).then_some(gain)
+}
+
+pub fn play_swing(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&crate::local_settings::MasterMuteGain>) {
+    if let (true, Some(gain), Some(assets)) = (audio_output_safe(), swing_volume(mute), assets) {
+        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(SWING_ASSET)), PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain))));
     }
 }
 
@@ -2215,6 +2229,29 @@ mod tests {
         assert!(!(in_reach(PlaceId::Heartwood, &st, px, pz) && crate::droid::droid_in_reach(PlaceId::Heartwood, &Default::default(), px, pz)));
         let mut w = home_frame(combat_fire, None, st, DifficultyTier::Sheltered);
         assert!(w.resource::<CombatState>().strikes > 0 && w.query::<&AudioPlayer>().iter(&mut w).count() <= n);
+    }
+
+    /// COMBAT-SFX-2 — one `play_swing` in `combat_fire`; mute and zero gain are silent; the licence row; one spawn per attempt.
+    #[test]
+    fn combat_sfx_2_one_swing_per_strike() {
+        let src = include_str!("combat_core.rs");
+        let fire = &src[src.find("pub fn combat_fire(").unwrap()..];
+        let fire = &fire[..fire.find("\n}\n").unwrap()];
+        assert_eq!(fire.matches("play_swing(").count(), 1);
+        let (muted, zero) = (crate::local_settings::MasterMuteGain { gain: 1.0, muted: true }, crate::local_settings::MasterMuteGain { gain: 0.0, muted: false });
+        assert_eq!((swing_volume(Some(&muted)), swing_volume(Some(&zero))), (None, None));
+        assert!(include_str!("../../assets/asset-licenses.csv").contains("assets/audio/combat_swing.ogg"));
+        use bevy::ecs::system::RunSystemOnce;
+        let n = audio_output_safe() as usize;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default())).init_asset::<AudioSource>();
+        let mut lmb = ButtonInput::<MouseButton>::default();
+        lmb.press(FIRE);
+        app.insert_resource(lmb).insert_resource(LaunchDoor::InYard).insert_resource(HexTravelState { current: PlaceId::Heartwood }).insert_resource(SoftPresence { position: Vec3::new(80.0, STAND_HEIGHT, 80.0), ..Default::default() }).insert_resource(CombatState::default()).insert_resource(SkillXp::default()).insert_resource(crate::local_settings::MasterMuteGain { gain: 1.0, muted: false });
+        app.world_mut().spawn((Window { focused: true, ..default() }, PrimaryWindow));
+        app.world_mut().run_system_once(combat_fire).unwrap();
+        let (strikes, taken) = { let c = app.world().resource::<CombatState>(); (c.strikes, c.predator_taken) };
+        assert_eq!((strikes, taken, app.world_mut().query::<&AudioPlayer>().iter(app.world_mut()).count()), (1, 0, n));
     }
 
     #[test]
