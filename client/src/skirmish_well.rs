@@ -800,4 +800,19 @@ mod tests {
         *app.world_mut().get_mut::<Visibility>(e).unwrap() = Visibility::Hidden;
         assert_eq!(wc_run(&mut app, 2).1, vec![(Visibility::Visible, true), (Visibility::Visible, false)], "WV2 direct Hidden write: restored Visible once, then quiet");
     }
+    /// WELL-HUD-GUARD-1: at the first well the slab wants Visible; Places and Title (R5) and the Classic R2 yield to ClimateState keep it Hidden; Management shows it.
+    #[test] fn well_slab_final_hidden_on_places_title_and_classic_yield_under_real_hud_layout() {
+        use crate::{hex_travel::PlacesPlate, hud_anchor_registry::ID_CLIMATE_STATE, hud_presets::{ActiveHudPreset, HudLayoutPlugin, HudPresetId}, title_screen::LaunchDoor};
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, HudLayoutPlugin)).insert_resource(ActiveHudPreset { id: Some(HudPresetId::Management) }).insert_resource(LaunchDoor::InYard)
+            .init_resource::<PlacesPlate>().insert_resource(SoftPresence { position: Vec3::from(WELL_ANCHORS[0]), ..default() }).init_resource::<WellYard>()
+            .add_systems(Startup, spawn_well_slab).add_systems(Update, update_well_slab);
+        let climate = app.world_mut().spawn((Node::default(), Visibility::Visible, HudSlab(ID_CLIMATE_STATE))).id();
+        let vis = |app: &mut App| *app.world_mut().query_filtered::<&Visibility, With<WellSlabRoot>>().single(app.world()).unwrap();
+        (app.update(), app.update()); assert_eq!(vis(&mut app), Visibility::Visible, "control: Management LIST_4 rank 1 shows the well");
+        app.world_mut().resource_mut::<PlacesPlate>().open = true; app.update(); assert_eq!(vis(&mut app), Visibility::Hidden, "Places open: R5 hides the well");
+        app.world_mut().resource_mut::<PlacesPlate>().open = false; app.insert_resource(ActiveHudPreset { id: Some(HudPresetId::Classic) }); (app.update(), app.update()); assert_eq!(vis(&mut app), Visibility::Hidden, "Classic InYard: R2 yields the well to ClimateState on LEFT_STATUS_2");
+        app.insert_resource(LaunchDoor::Title); app.update(); assert_eq!(vis(&mut app), Visibility::Hidden, "Title: R5 hides the well");
+        app.world_mut().despawn(climate); app.insert_resource(LaunchDoor::InYard); (app.update(), app.update()); assert_eq!(vis(&mut app), Visibility::Visible, "control: Classic InYard without ClimateState shows the well (R2 is the only yard hide)");
+    }
 }
