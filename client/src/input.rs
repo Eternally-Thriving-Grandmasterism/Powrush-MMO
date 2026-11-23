@@ -1748,6 +1748,28 @@ mod tests {
         assert!(read("stick", GamepadButton::LeftThumb)[5] && read("trigger", GamepadButton::LeftTrigger2)[5]);
         for mode in ["key", "stick", "trigger"] { assert_eq!(read(mode, RB), [false; 6], "{mode}"); }
     }
+    #[test]
+    fn pad_sprint_t6_default_lt_sprints_only() {
+        let mut app = input_app();
+        let mut pad = Gamepad::default();
+        pad.digital_mut().press(GamepadButton::LeftTrigger2);
+        app.world_mut().spawn(pad);
+        app.update();
+        let i = app.world().resource::<PlayerInput>();
+        assert!(i.sprint && !i.interact && !i.jump && !i.sheet_q && !i.sheet_l && !i.pause_toggle);
+    }
+    #[test]
+    fn pad_sprint_t7_legacy_key_lt_sprints_shift_in_every_mode() {
+        let mut app = input_app();
+        let legacy = r#"{"schema":"powrush_settings_v1","sprint_mode":"key"}"#;
+        app.world_mut().resource_mut::<LocalSettingsState>().inner =
+            LocalSettings::from_json(legacy).unwrap();
+        let mut pad = Gamepad::default();
+        pad.digital_mut().press(GamepadButton::LeftTrigger2);
+        app.world_mut().spawn(pad);
+        app.update();
+        assert!(app.world().resource::<PlayerInput>().sprint);
+    }
     #[test] fn pp1_s8_source_one_slot_writer_one_rb_edge_and_combat_fire_unchanged() {
         let prod = include_str!("input.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
         assert!(prod.matches("player_input.ability_slot =").count() == 1 && prod.matches("just_pressed(GamepadButton::RightTrigger)").count() <= 1);

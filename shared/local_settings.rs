@@ -2076,4 +2076,49 @@ mod tests {
         }
     }
 
+    #[test]
+    fn pad_sprint_t1_default_is_trigger_marker_false() {
+        let s = LocalSettings::default();
+        assert_eq!(s.sprint_mode, "trigger");
+        let v: serde_json::Value = serde_json::from_str(&s.to_json().unwrap()).unwrap();
+        assert_eq!(v.get("sprint_cycled").and_then(|b| b.as_bool()), Some(false));
+    }
+
+    #[test]
+    fn pad_sprint_t2_old_save_keeps_unrelated_setting() {
+        let raw = r#"{"schema":"powrush_settings_v1","look_sensitivity":1.5}"#;
+        let s = LocalSettings::from_json(raw).unwrap_or_default();
+        assert!((s.look_sensitivity - 1.5).abs() < f32::EPSILON);
+        assert_eq!(s.sprint_mode, "trigger");
+    }
+
+    #[test]
+    fn pad_sprint_t3_unmarked_key_and_junk_become_trigger() {
+        let key = r#"{"schema":"powrush_settings_v1","sprint_mode":"key"}"#;
+        let s = LocalSettings::from_json(key).unwrap();
+        assert_eq!(s.sprint_mode, "trigger");
+        let back = LocalSettings::from_json(&s.to_json().unwrap()).unwrap();
+        assert_eq!(back.sprint_mode, "trigger");
+        let junk = r#"{"schema":"powrush_settings_v1","sprint_mode":"turbo"}"#;
+        assert_eq!(LocalSettings::from_json(junk).unwrap().sprint_mode, "trigger");
+    }
+
+    #[test]
+    fn pad_sprint_t5_cycle_reaches_key_and_keeps_it() {
+        let mut s = LocalSettings::default();
+        for _ in 0..3 {
+            if s.sprint_mode == "key" {
+                break;
+            }
+            s.cycle_sprint_mode();
+        }
+        assert_eq!(s.sprint_mode, "key");
+        let v: serde_json::Value = serde_json::from_str(&s.to_json().unwrap()).unwrap();
+        assert_eq!(v.get("sprint_cycled").and_then(|b| b.as_bool()), Some(true));
+        let mut back = LocalSettings::from_json(&s.to_json().unwrap()).unwrap();
+        assert_eq!(back.sprint_mode, "key");
+        back.cycle_sprint_mode();
+        assert_eq!(back.sprint_mode, "stick");
+    }
+
 }
