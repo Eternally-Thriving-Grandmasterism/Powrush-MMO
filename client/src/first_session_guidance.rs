@@ -1189,7 +1189,6 @@ pub(crate) fn update_guidance_text(
     } else {
         lived_card_line_for(&guidance, place, out_of_reach, actual_nodes, pad_cfg)
     };
-    if let Some(h) = pad_cfg.and_then(|c| crate::input::pad_hint(crate::input::PadVerb::Hide, c)) { prompt = prompt.replacen("H hides", &format!("{h} hides"), 1); }
     if !showing {
         if let Some(cue) = cue {
             if !prompt.is_empty() { prompt.push('\n'); }
