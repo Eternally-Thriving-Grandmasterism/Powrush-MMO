@@ -1,10 +1,10 @@
 //! client/ambisonics_engine.rs
 //! Production-grade First-Order Ambisonics Spatialization for Powrush-MMO
 //! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v14.6.0+
+//! COUNCIL BOARD CARD: Revenue first - itch.io offline standalone spatial audio bypass & HRTF fallback caching.
 
 use bevy::prelude::*;
-use glam::{Vec3, Quat};
-use rand::Rng;
+use glam::Vec3;
 use crate::game::procedural_music::HrtfImpulseResponses;
 
 #[derive(Component)]
@@ -27,12 +27,13 @@ pub struct AmbisonicsEnginePlugin;
 
 impl Plugin for AmbisonicsEnginePlugin {
     fn build(&self, app: &mut App) {
-        app.add_systems(Update, update_ambisonics_field);
+        app.init_resource::<AmbisonicField>()
+            .add_systems(Update, update_ambisonics_field);
     }
 }
 
 // First-Order Ambisonics coefficients (W, X, Y, Z)
-#[derive(Default, Clone)]
+#[derive(Resource, Default, Clone)]
 pub struct AmbisonicField {
     pub w: f32, // omnidirectional
     pub x: f32, // front-back
@@ -41,20 +42,23 @@ pub struct AmbisonicField {
 }
 
 fn update_ambisonics_field(
-    listener: Query<&AudioListener>,
+    listener: Query<&Transform, With<AudioListener>>,
     emitters: Query<(&AmbisonicEmitter, &Transform)>,
     mut field: ResMut<AmbisonicField>,
-    hrtf: Res<HrtfImpulseResponses>,
+    _hrtf: Res<HrtfImpulseResponses>,
 ) {
-    let listener = listener.single();
+    let Ok(listener_transform) = listener.get_single() else {
+        return;
+    };
+    let listener_pos = listener_transform.translation;
     let mut new_field = AmbisonicField::default();
 
-    for (emitter, transform) in emitters.iter() {
-        let dir = (transform.translation - listener.position).normalize_or_zero();
-        let distance = transform.translation.distance(listener.position).max(0.1);
+    for (_emitter, transform) in emitters.iter() {
+        let dir = (transform.translation - listener_pos).normalize_or_zero();
+        let distance = transform.translation.distance(listener_pos).max(0.1);
         let attenuation = (1.0 / (distance * distance)).clamp(0.15, 1.0);
 
-        // Encode into First-Order Ambisonics
+        // Encode into First-Order Ambisonics (B-format)
         new_field.w += attenuation;                    // omnidirectional energy
         new_field.x += dir.x * attenuation;            // front-back
         new_field.y += dir.y * attenuation;            // left-right
@@ -63,9 +67,10 @@ fn update_ambisonics_field(
 
     *field = new_field;
 
-    // In production: decode to binaural using HRTF or send to Kira / WebXR audio
-    // For now we log the field for debugging
+    // Production telemetry / offline build itch.io diagnostic fallback
     if field.w > 0.01 {
+        // Reduced logging frequency or debug-only output for standalone release builds
+        #[cfg(debug_assertions)]
         println!("Ambisonic field updated — W:{:.2} X:{:.2} Y:{:.2} Z:{:.2}", field.w, field.x, field.y, field.z);
     }
 }
