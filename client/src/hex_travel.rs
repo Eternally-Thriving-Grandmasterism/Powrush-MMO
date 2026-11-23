@@ -2615,4 +2615,73 @@ mod tests {
         tap_escape(&mut app); assert!(pause_is_open(&app) && places_row_live(&mut app), "TR5 Esc from Places lands back on the pause plate with the row live");
         tap_escape(&mut app); assert!(!pause_is_open(&app) && !places_row_live(&mut app), "TR5 Esc closes pause: row not live");
     }
+
+    use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent, RawGamepadEvent};
+    fn pp_ready(app: &mut App) { crate::test_env::single_thread(app); app.world_mut().resource_mut::<crate::local_settings::LocalSettingsState>().inner.comfort_graphics_banner_dismissed = true; app.update(); }
+    fn pp_id(app: &mut App) -> Entity { if let Some(id) = app.world_mut().query_filtered::<Entity, With<Gamepad>>().iter(app.world()).next() { return id; } let id = app.world_mut().spawn_empty().id(); app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None })); app.update(); id }
+    fn pp_btn(app: &mut App, b: GamepadButton, vs: &[f32]) { let id = pp_id(app); for &v in vs { app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, b, v))); app.update(); } }
+    fn pp_tap(app: &mut App, b: GamepadButton) { pp_btn(app, b, &[1.0, 0.0]); } fn pp_down(app: &mut App, b: GamepadButton) { pp_btn(app, b, &[1.0]); } fn pp_up(app: &mut App, b: GamepadButton) { pp_btn(app, b, &[0.0]); }
+    fn pp_bg<T: Component>(app: &mut App) -> Color { let e = app.world_mut().query_filtered::<Entity, With<T>>().iter(app.world()).next().unwrap(); app.world().get::<BackgroundColor>(e).unwrap().0 }
+    fn pp_use(app: &App) -> (bool, bool) { let i = app.world().resource::<crate::input::PlayerInput>(); (i.interact, i.interact_held) }
+    fn pp_ix<T: Component>(app: &mut App) -> Interaction { let e = app.world_mut().query_filtered::<Entity, With<T>>().iter(app.world()).next().unwrap(); app.world().get::<Interaction>(e).copied().unwrap() }
+    fn pp_six(app: &mut App) -> [Color; 6] { [pp_bg::<PlacesSanctuaryBtn>(app), pp_bg::<PlacesHeartwoodBtn>(app), pp_bg::<PlacesThresholdBtn>(app), pp_bg::<PlacesDepthsBtn>(app), pp_bg::<PlacesConfirmBtn>(app), pp_bg::<PlacesBackBtn>(app)] }
+    fn pp_none(app: &mut App) -> bool { pp_ix::<PlacesSanctuaryBtn>(app) == Interaction::None && pp_ix::<PlacesHeartwoodBtn>(app) == Interaction::None && pp_ix::<PlacesThresholdBtn>(app) == Interaction::None && pp_ix::<PlacesDepthsBtn>(app) == Interaction::None && pp_ix::<PlacesConfirmBtn>(app) == Interaction::None && pp_ix::<PlacesBackBtn>(app) == Interaction::None }
+    fn pp_enter(app: &mut App) { pp_tap(app, GamepadButton::Start); for _ in 0..4 { pp_tap(app, GamepadButton::DPadUp); } pp_down(app, GamepadButton::South); pp_up(app, GamepadButton::South); }
+    #[test] fn places_pad_nav_f1_route_and_first_focus() {
+        let mut app = yard_app(PlaceId::Sanctuary); pp_ready(&mut app);
+        pp_tap(&mut app, GamepadButton::Start); assert!(pause_is_open(&app), "F1 start");
+        for _ in 0..4 { pp_tap(&mut app, GamepadButton::DPadUp); } assert_eq!(pp_bg::<PausePlacesBtn>(&mut app), crate::title_screen::TITLE_BTN_ACTIVE_BG, "F1 row");
+        pp_down(&mut app, GamepadButton::South); assert!(app.world().resource::<PlacesPlate>().open && pause_is_open(&app) && pp_use(&app) == (false, false), "F1 south");
+        pp_up(&mut app, GamepadButton::South); let (off, on) = (TITLE_BTN_BG, crate::title_screen::TITLE_BTN_ACTIVE_BG); assert!(places_plate_showing(&mut app) && pp_six(&mut app) == [on, off, off, off, off, off], "F1 focus");
+        pp_tap(&mut app, GamepadButton::DPadDown); assert_eq!(pp_six(&mut app), [off, on, off, off, off, off], "F1 down");
+    }
+    #[test] fn places_pad_nav_f2_pad_travel() {
+        let (mut app, _hold, dir) = haul_app("ppf2", PlaceId::Sanctuary, None); pp_ready(&mut app);
+        pp_enter(&mut app); pp_tap(&mut app, GamepadButton::DPadDown); pp_down(&mut app, GamepadButton::South);
+        let (sel, pend) = { let p = app.world().resource::<PlacesPlate>(); (p.selected, p.confirm_pending) };
+        assert!(sel == Some(PlaceId::Heartwood) && pend && pp_use(&app) == (false, false), "F2 pick");
+        pp_up(&mut app, GamepadButton::South); app.update();
+        assert_eq!(app.world_mut().query_filtered::<&Text, With<PlacesCueText>>().single(app.world()).unwrap().as_str(), "Leave this hex · enter Heartwood? · walked · tended · week was the bill · yard remembered", "F2 cue");
+        assert_eq!(pp_ix::<PlacesHeartwoodBtn>(&mut app), Interaction::None, "F2 heart");
+        for _ in 0..3 { pp_tap(&mut app, GamepadButton::DPadDown); } assert_eq!(pp_bg::<PlacesConfirmBtn>(&mut app), crate::title_screen::TITLE_BTN_ACTIVE_BG, "F2 confirm");
+        pp_down(&mut app, GamepadButton::South); let cur = app.world().resource::<HexTravelState>().current; let open = app.world().resource::<PlacesPlate>().open; let use_ = pp_use(&app); assert!(cur == PlaceId::Heartwood && !open && !pause_is_open(&app) && use_ == (false, false), "F2 land");
+        pp_up(&mut app, GamepadButton::South); assert_eq!(pp_ix::<PlacesConfirmBtn>(&mut app), Interaction::None, "F2 clear");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+    #[test] fn places_pad_nav_f3_east_back_reopen() {
+        let mut app = yard_app(PlaceId::Sanctuary); pp_ready(&mut app); pp_enter(&mut app);
+        for _ in 0..5 { pp_tap(&mut app, GamepadButton::DPadDown); } assert_eq!(pp_bg::<PlacesBackBtn>(&mut app), crate::title_screen::TITLE_BTN_ACTIVE_BG, "F3 back");
+        pp_tap(&mut app, GamepadButton::East); let open = app.world().resource::<PlacesPlate>().open; assert!(!open && pause_is_open(&app) && places_row_live(&mut app), "F3 east");
+        app.update(); app.update(); assert!(pause_is_open(&app), "F3 stay");
+        for _ in 0..4 { pp_tap(&mut app, GamepadButton::DPadUp); } pp_tap(&mut app, GamepadButton::South); let (off, on) = (TITLE_BTN_BG, crate::title_screen::TITLE_BTN_ACTIVE_BG); assert!(app.world().resource::<PlacesPlate>().open && pp_six(&mut app) == [on, off, off, off, off, off], "F3 reopen");
+    }
+    #[test] fn places_pad_nav_f4_start_steps_back() {
+        let mut app = yard_app(PlaceId::Sanctuary); pp_ready(&mut app); pp_enter(&mut app); pp_tap(&mut app, GamepadButton::Start);
+        let open = app.world().resource::<PlacesPlate>().open; assert!(!open && pause_is_open(&app), "F4");
+    }
+    #[test] fn places_pad_nav_f5_wrap() {
+        let mut app = yard_app(PlaceId::Sanctuary); pp_ready(&mut app); pp_enter(&mut app);
+        pp_tap(&mut app, GamepadButton::DPadUp); assert_eq!(pp_bg::<PlacesBackBtn>(&mut app), crate::title_screen::TITLE_BTN_ACTIVE_BG, "F5 up");
+        pp_tap(&mut app, GamepadButton::DPadDown); assert_eq!(pp_bg::<PlacesSanctuaryBtn>(&mut app), crate::title_screen::TITLE_BTN_ACTIVE_BG, "F5 down");
+    }
+    #[test] fn places_pad_nav_f6_no_pad_leaves_fill() {
+        let mut app = yard_app(PlaceId::Sanctuary); pp_ready(&mut app); tap_escape(&mut app);
+        let btn = app.world_mut().query_filtered::<Entity, With<PausePlacesBtn>>().iter(app.world()).next().unwrap();
+        *app.world_mut().get_mut::<Interaction>(btn).unwrap() = Interaction::Pressed; app.update(); *app.world_mut().get_mut::<Interaction>(btn).unwrap() = Interaction::None; app.update();
+        let open = app.world().resource::<PlacesPlate>().open; assert!(open && pp_six(&mut app).iter().all(|c| *c == TITLE_BTN_BG), "F6");
+        tap_escape(&mut app); let open = app.world().resource::<PlacesPlate>().open; assert!(!open && pause_is_open(&app), "F6 esc");
+    }
+    #[test] fn places_pad_nav_f7_gate() {
+        let mut app = yard_app(PlaceId::Sanctuary); pp_ready(&mut app); pp_down(&mut app, GamepadButton::South);
+        let use_ = pp_use(&app); assert!(use_ == (true, true) && pp_none(&mut app), "F7a"); pp_up(&mut app, GamepadButton::South);
+        pp_tap(&mut app, GamepadButton::Start); for _ in 0..3 { pp_tap(&mut app, GamepadButton::DPadUp); } pp_down(&mut app, GamepadButton::South);
+        let open = app.world().resource::<PlacesPlate>().open; assert!(!pause_is_open(&app) && !open && pp_none(&mut app), "F7b");
+    }
+    #[derive(Resource, Default)] struct PpTape(Vec<bool>);
+    fn pp_rec(q: Query<Ref<BackgroundColor>, Or<(With<PlacesSanctuaryBtn>, With<PlacesHeartwoodBtn>, With<PlacesThresholdBtn>, With<PlacesDepthsBtn>, With<PlacesConfirmBtn>, With<PlacesBackBtn>)>>, mut t: ResMut<PpTape>) { t.0.extend(q.iter().map(|c| c.is_changed())); }
+    #[test] fn places_pad_nav_f8_quiet() {
+        let mut app = yard_app(PlaceId::Sanctuary); pp_ready(&mut app); pp_enter(&mut app);
+        app.insert_resource(PpTape(Vec::new())).add_systems(Last, pp_rec); app.update(); app.update(); app.world_mut().resource_mut::<PpTape>().0.clear();
+        app.update(); app.update(); app.update(); assert!(app.world().resource::<PpTape>().0.iter().all(|c| !*c), "F8");
+    }
 }
