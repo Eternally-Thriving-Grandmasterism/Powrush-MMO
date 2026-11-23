@@ -6,6 +6,7 @@ Third-party files in this repository and where their licence is recorded. For th
 |---|---|---|---|
 | assets/audio/ui_click.ogg | Kenney — Interface Sounds (1.0) | Creative Commons Zero, CC0 | assets/audio/LICENSE-kenney-interface-sounds.txt |
 | assets/audio/find_pickup.ogg, assets/audio/wood_chop.ogg | Kenney — RPG Audio | Creative Commons Zero, CC0 | assets/audio/LICENSE-kenney-rpg-audio.txt |
+| assets/audio/combat_swing.ogg | Kenney — RPG Audio | Creative Commons Zero, CC0 | assets/audio/LICENSE-kenney-rpg-audio.txt |
 | assets/audio/combat_hit.ogg | Kenney — Impact Sounds | CC0 1.0 | assets/audio/README.md:12; assets/asset-licenses.csv |
 | assets/models/kenney-nature-kit/ | Kenney — Nature Kit (2.1) | Creative Commons Zero, CC0 | assets/models/kenney-nature-kit/License.txt |
 | assets/models/kenney-fantasy-town-kit/ | Kenney — Fantasy Town Kit (2.0) | Creative Commons Zero, CC0 | assets/models/kenney-fantasy-town-kit/License.txt |

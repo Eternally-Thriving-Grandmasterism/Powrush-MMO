@@ -40,6 +40,8 @@ pub const HIT_ASSET: &str = "audio/combat_hit.ogg";
 pub const HIT_GAIN: f32 = 0.05;
 pub const FIND_ASSET: &str = "audio/find_pickup.ogg";
 pub const FIND_GAIN: f32 = 0.05; // peak −14.6 dBFS; same ceiling as hit
+pub const SWING_ASSET: &str = "audio/combat_swing.ogg";
+pub const SWING_GAIN: f32 = 0.8; // file peak −28.5 dBFS; x0.8 stays under −27.7
 
 pub const PREDATOR_NAME: &str = "Heartwood Prowler";
 pub const HEALTH: u32 = 200; // player and predator pools, per CUT A1
@@ -625,6 +627,7 @@ pub fn combat_fire(
         let (hit, level) = land_hit_paid(&mut combat, &mut skills, reach, tier, row, finds.as_deref());
         crate::combat_text::hook_after_fire(&mut cmd, travel.current, pred_before, combat.predator_taken, hit, presence.position);
         play_hit(&mut cmd, assets.as_deref(), mute.as_deref(), hit); // COMBAT-FEEL-SFX-1: a landed hit only
+        play_swing(&mut cmd, assets.as_deref(), mute.as_deref());
         let down = hit && combat.predator_taken >= HEALTH;
         let defeat = down && clears_area(travel.current);
         if let (true, Some(mut diff)) = (defeat, diff) {
@@ -758,6 +761,17 @@ pub fn find_volume(mute: Option<&crate::local_settings::MasterMuteGain>) -> Opti
 pub fn play_find(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&crate::local_settings::MasterMuteGain>) {
     if let (true, Some(gain), Some(assets)) = (audio_output_safe(), find_volume(mute), assets) {
         cmd.spawn((AudioPlayer::<AudioSource>(assets.load(FIND_ASSET)), PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain))));
+    }
+}
+
+pub fn swing_volume(mute: Option<&crate::local_settings::MasterMuteGain>) -> Option<f32> {
+    let gain = mute.map_or(1.0, |m| if m.muted { 0.0 } else { m.gain }) * SWING_GAIN;
+    (gain > 0.0).then_some(gain)
+}
+
+pub fn play_swing(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&crate::local_settings::MasterMuteGain>) {
+    if let (true, Some(gain), Some(assets)) = (audio_output_safe(), swing_volume(mute), assets) {
+        cmd.spawn((AudioPlayer::<AudioSource>(assets.load(SWING_ASSET)), PlaybackSettings::DESPAWN.with_volume(bevy::audio::Volume::Linear(gain))));
     }
 }
 
