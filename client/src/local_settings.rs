@@ -954,6 +954,7 @@ mod tests {
             .add_plugins(crate::hud_presets::HudLayoutPlugin)
             .init_resource::<HudCmdTape>()
             .add_systems(PostUpdate, tape_hud_cmds);
+        crate::test_env::single_thread(&mut app);
         app
     }
 

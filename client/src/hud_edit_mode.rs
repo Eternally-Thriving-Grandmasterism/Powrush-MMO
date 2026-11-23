@@ -1175,6 +1175,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins)
             .add_plugins(HudEditModePlugin);
+        crate::test_env::single_thread(&mut app);
         (dir, app)
     }
 
@@ -1539,6 +1540,7 @@ mod tests {
         app.add_plugins(MinimalPlugins)
             .add_systems(Startup, spawn_proof_window)
             .add_plugins(HudEditModePlugin);
+        crate::test_env::single_thread(&mut app);
         app.update();
         assert!(app.world().resource::<HudSessionLayout>().anchors.is_some());
         {
@@ -1631,6 +1633,7 @@ mod tests {
             peer.offset = HudOffset { x: 16.0, y: 200.0 };
         }
         app.insert_resource(edit);
+        crate::test_env::single_thread(&mut app);
         app.update();
         assert!(!app.world().resource::<HudEditMode>().save_enabled);
         let mut saves = app
@@ -1851,6 +1854,7 @@ mod tests {
                 edit.opened_base = HudPresetId::Classic;
             }
         }
+        crate::test_env::single_thread(&mut app);
         (dir, app)
     }
 

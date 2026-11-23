@@ -1152,6 +1152,7 @@ mod tests {
         app.edit_schedule(Update, use_single_thread);
         app.edit_schedule(PostUpdate, use_single_thread);
         app.edit_schedule(Last, use_single_thread);
+        crate::test_env::single_thread(app);
     }
 
     fn widen_clock(app: &mut App) {
@@ -1685,6 +1686,7 @@ mod tests {
             app.insert_resource(crate::human_presence::SoftPresence { position: Vec3::new(x, 0.9, z), grounded: true, ..default() }).insert_resource(AreaDifficulty { default: DifficultyTier::Sheltered, ..Default::default() }).init_resource::<crate::skill_xp::SkillXp>().insert_resource(LocalSettingsState { inner: LocalSettings::default(), dirty: false }).init_resource::<crate::hour_sacred::HourSacred>().init_resource::<crate::thriving_moments::ThrivingMoments>().init_resource::<crate::abundance_journey_echo::AbundanceJourneyEcho>().init_resource::<crate::mercy_harvest_nodes::NearbyMercyNode>().init_resource::<crate::harvest_feel::SoftRbePool>().init_resource::<crate::world_answer::WorldAnswer>().add_message::<KeyboardInput>().add_message::<MouseButtonInput>().add_message::<TouchInput>().add_message::<bevy::input::gamepad::GamepadRumbleRequest>();
             app.world_mut().spawn((Window { focused: true, ..default() }, bevy::window::PrimaryWindow));
             app.world_mut().spawn(Gamepad::default());
+            crate::test_env::single_thread(&mut app);
             pp1_tick(&mut app, 0.0);
             let mut f = app.world_mut().resource_mut::<crate::loot_drops::FoundFinds>(); f.names = shared::temper::NAMED_FINDS.iter().map(|n| n.name).collect();
             if let Some(i) = shell { for _ in 0..=i { assert!(f.cycle_equipped()); } } drop(f);

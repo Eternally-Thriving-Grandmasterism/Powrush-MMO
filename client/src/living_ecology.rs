@@ -637,6 +637,7 @@ mod tests {
             .add_systems(Startup, spawn_ecology);
         app.finish();
         app.cleanup();
+        crate::test_env::single_thread(&mut app);
         app.update();
         app
     }
@@ -1106,7 +1107,7 @@ mod tests {
         let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().unwrap();
         let mut app = App::new();
         app.set_error_handler(bevy::ecs::error::ignore).add_plugins((MinimalPlugins, AssetPlugin { file_path: root.join("assets").into_os_string().into_string().unwrap(), watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin)).init_resource::<crate::climate_plane::AmbientcgTexCache>().init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Medium }).insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) }).add_plugins((LivingEcologyPlugin, crate::climate_plane::ClimatePlanePlugin));
-        app.finish(); app.cleanup(); app.world_mut().run_schedule(Startup);
+        app.finish(); app.cleanup(); crate::test_env::single_thread(&mut app); app.world_mut().run_schedule(Startup);
         assert_eq!(app.world_mut().query::<&PropMesh>().iter(app.world()).count(), 22);
         let snap = |w: &mut World| { let mut v: Vec<_> = w.query::<(Entity, &PropMesh, &Mesh3d)>().iter(w).filter(|(_, p, _)| matches!(p.fit, PropMeshFit::Trunk | PropMeshFit::Stone)).map(|(e, p, m)| (e, p.fit, m.0.id())).collect(); v.sort_by_key(|a| a.0); v };
         let before = snap(app.world_mut());

@@ -7638,6 +7638,7 @@ mod tests {
             assert!(app.world().resource::<LocalSettingsState>().inner.mouse_look);
             // The press system writes Pressed in this frame, before the click
             // system. A label-query conflict (B0001) panics while initializing.
+            crate::test_env::single_thread(&mut app);
             app.update();
             let settings = &app.world().resource::<LocalSettingsState>().inner;
             assert!(!settings.mouse_look);
@@ -7931,6 +7932,7 @@ mod tests {
         let mut app = App::new();
         app.add_plugins(MinimalPlugins).insert_resource(LocalSettingsState { inner: LocalSettings::default(), dirty: false }).insert_resource(label).add_message::<HudLayoutCommand>()
             .add_systems(Startup, spawn_settings_stub).add_systems(Update, (super::combat_text_settings_clicks, super::refresh_combat_text_settings_labels).chain());
+        crate::test_env::single_thread(&mut app);
         app.update();
         let w = app.world_mut();
         let hud_root = w.query::<(Entity, &PauseTabPanel)>().iter(w).find(|(_, p)| p.0 == PauseTab::Hud).map(|(e, _)| e).unwrap();
@@ -8641,6 +8643,7 @@ mod tests {
             .write_message(bevy::window::WindowCloseRequested {
                 window: Entity::PLACEHOLDER,
             });
+        crate::test_env::single_thread(&mut app);
         app.update();
         assert!(dir.join("powrush_house.json").is_file());
         assert!(dir.join("powrush_lived_tick.json").is_file());
@@ -8667,6 +8670,7 @@ mod tests {
             .write_message(bevy::window::WindowCloseRequested {
                 window: Entity::PLACEHOLDER,
             });
+        crate::test_env::single_thread(&mut app);
         app.update();
         assert!(!dir.join("powrush_house.json").exists());
         assert!(!dir.join("powrush_lived_tick.json").exists());
@@ -9302,6 +9306,7 @@ mod tests {
                 Update,
                 (super::watch_settled_for_naming, super::name_house_buttons).chain(),
             );
+        crate::test_env::single_thread(&mut app);
         app
     }
 
@@ -9784,6 +9789,7 @@ mod tests {
                     super::control_preset_clicks,
                 ),
             );
+        crate::test_env::single_thread(&mut app);
         app.update();
         assert_eq!(
             control_preset_label_text(&mut app),
@@ -9881,6 +9887,7 @@ mod tests {
             edit.staged_base = crate::hud_presets::HudPresetId::Classic;
             edit.opened_base = crate::hud_presets::HudPresetId::Classic;
         }
+        crate::test_env::single_thread(&mut editing);
         editing.update();
         editing.world_mut().write_message(KeyboardInput {
             key_code: KeyCode::Escape,
@@ -9916,6 +9923,7 @@ mod tests {
             })
             .init_resource::<PeaceRebindState>()
             .add_systems(Update, esc_yard_pause);
+        crate::test_env::single_thread(&mut paused);
         paused.update();
         paused.world_mut().write_message(KeyboardInput {
             key_code: KeyCode::Escape,
@@ -10951,6 +10959,7 @@ mod tests {
         app.add_plugins(MinimalPlugins).insert_resource(LaunchDoor::Title).insert_resource(HouseLabel { persist_present: persist, ..bf2_house(false) })
             .insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).init_resource::<PersonaCreatorState>().init_resource::<PauseTab>()
             .add_systems(Startup, spawn_title_screen).add_systems(Update, refresh_title_cue);
+        crate::test_env::single_thread(&mut app);
         app.update(); app.update(); app
     }
     fn tc_text(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<TitleCueText>>().single(app.world()).unwrap().0.clone() }
@@ -11036,6 +11045,7 @@ mod tests {
         app.insert_resource(LocalSettingsState { inner, dirty: false }).insert_resource(crate::lived_hour_bind::LivedHourBind::default()).insert_resource(crate::hud_presets::ActiveHudPreset::default())
             .insert_resource(crate::net_mode::SessionNetMode::from_powrush_net(shared::hex_listen::PowrushNet::Off)).add_message::<bevy::input::gamepad::GamepadRumbleRequest>().add_message::<AppExit>()
             .add_plugins((MinimalPlugins, bevy::input::InputPlugin, crate::input::InputPlugin, TitleScreenPlugin, crate::age_gate::AgeGatePlugin));
+        crate::test_env::single_thread(&mut app);
         app.update(); app
     }
     fn fb_marks(s: &str) -> Vec<&'static str> {
@@ -11074,6 +11084,7 @@ mod tests {
         app.insert_resource(LivedHourBind::default()).insert_resource(crate::hud_presets::ActiveHudPreset::default()).insert_resource(SessionNetMode::from_powrush_net(shared::hex_listen::PowrushNet::Off)).add_message::<bevy::input::gamepad::GamepadRumbleRequest>().add_plugins((MinimalPlugins, bevy::input::InputPlugin, crate::input::InputPlugin, crate::local_settings::LocalSettingsPlugin, TitleScreenPlugin)).insert_resource(hour).insert_resource(LaunchDoor::InYard).insert_resource(rite_label(HouseName::default(), true));
         let pad = app.world_mut().spawn_empty().id();
         app.world_mut().write_message(GamepadConnectionEvent::new(pad, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None }));
+        crate::test_env::single_thread(&mut app);
         app.update();
         let (offered, seed) = { let l = app.world().resource::<HouseLabel>(); (l.draft.clone(), l.house.seed) };
         assert_eq!((pad_door(&app), offered.is_empty(), offered.clone()), (LaunchDoor::NameHouse, false, shared::house_name::name_rite::offer(seed)), "boot opens NameHouse on the offered draft");

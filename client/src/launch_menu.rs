@@ -232,6 +232,7 @@ mod tests {
             .add_message::<bevy::input::gamepad::GamepadRumbleRequest>()
             .add_plugins((MinimalPlugins, bevy::input::InputPlugin, crate::input::InputPlugin, crate::local_settings::LocalSettingsPlugin))
             .add_plugins((crate::title_screen::TitleScreenPlugin, LicencesScreenPlugin, LaunchMenuPlugin));
+        crate::test_env::single_thread(&mut app);
         app.update();
         app
     }
@@ -359,6 +360,7 @@ mod tests {
         let shown = |app: &mut App| {
             app.world_mut().query::<(&HudSlab, &Visibility)>().iter(app.world()).filter(|(_, v)| **v != Visibility::Hidden).map(|(s, _)| s.0).collect::<Vec<_>>()
         };
+        crate::test_env::single_thread(&mut app);
         (0..5).for_each(|_| app.update());
         assert_eq!(app.world_mut().query::<&LaunchRow>().iter(app.world()).filter(|r| matches!(r, LaunchRow::Credits | LaunchRow::Quit)).count(), 2, "shipping bundle has Credits and Quit");
         assert_eq!((ActiveHudPreset::default().id, app.world().resource::<ActiveHudPreset>().id), (None, Some(HudPresetId::Classic)));
@@ -416,6 +418,7 @@ mod tests {
         let info = Some(RenderTargetInfo { physical_size: UVec2::new(w, h), scale_factor: scale });
         app.world_mut().spawn((Camera2d, Camera { computed: ComputedCameraValues { target_info: info, ..default() }, ..default() }));
         app.world_mut().spawn((Window { resolution: WindowResolution::new(w, h).with_scale_factor_override(scale), ..default() }, PrimaryWindow));
+        crate::test_env::single_thread(&mut app);
         (app.update(), app.update());
         app
     }

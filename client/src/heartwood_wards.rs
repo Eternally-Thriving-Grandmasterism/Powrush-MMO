@@ -286,7 +286,7 @@ mod tests {
     fn ww_boot(root: &std::path::Path, preset: shared::local_settings::GraphicsPreset) -> App {
         use bevy::prelude::AssetPlugin; let mut app = App::new();
         app.set_error_handler(bevy::ecs::error::ignore).add_plugins((MinimalPlugins, AssetPlugin { file_path: root.join("assets").into_os_string().into_string().unwrap(), watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin)).init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().insert_resource(crate::local_settings::LocalMeshLodFeel { preset }).insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) }).insert_resource(HexTravelState { current: PlaceId::Heartwood }).insert_resource(SoftPresence { position: Vec3::from_array(WARD_POST_CENTERS[0]), velocity: Vec3::ZERO, grounded: true, ..Default::default() }).insert_resource(PlayerInput::default()).add_plugins((crate::climate_plane::ClimatePlanePlugin, crate::heartwood_lip::HeartwoodLipPlugin, HeartwoodWardsPlugin));
-        app.finish(); app.cleanup(); app.world_mut().run_schedule(Startup); app
+        app.finish(); app.cleanup(); crate::test_env::single_thread(&mut app); app.world_mut().run_schedule(Startup); app
     }
     #[test]
     fn props_wire_1b_ward_posts_swap_world_fit() {

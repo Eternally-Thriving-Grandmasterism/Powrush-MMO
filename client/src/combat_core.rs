@@ -2413,6 +2413,7 @@ mod tests {
             let expected = finds.pending.clone().unwrap_or_default();
             let mut app = App::new();
             app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default(), crate::input::InputPlugin, crate::first_session_guidance::FirstSessionGuidancePlugin, crate::first_harvest_epiphany::FirstHarvestEpiphanyPlugin, HudLayoutPlugin)).insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::ZERO)).insert_resource(ActiveHudPreset { id: Some(preset) }).insert_resource(LaunchDoor::InYard).insert_resource(HouseLabel::default()).insert_resource(PlacesPlate::default()).insert_resource(CalmQueue::default()).insert_resource(HexTravelState { current: place }).insert_resource(ButtonInput::<KeyCode>::default()).insert_resource(finds).insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).init_resource::<crate::hour_sacred::HourSacred>().init_resource::<crate::thriving_moments::ThrivingMoments>().init_resource::<crate::abundance_journey_echo::AbundanceJourneyEcho>().init_resource::<crate::mercy_harvest_nodes::NearbyMercyNode>().init_resource::<crate::harvest_feel::SoftRbePool>().init_resource::<crate::world_answer::WorldAnswer>().add_message::<bevy::input::keyboard::KeyboardInput>().add_message::<bevy::input::mouse::MouseButtonInput>().add_message::<bevy::input::touch::TouchInput>().add_message::<GamepadRumbleRequest>().add_systems(Update, show_find);
+            crate::test_env::single_thread(&mut app);
             body(&mut app, &expected)
         })
     }
@@ -2489,7 +2490,7 @@ mod tests {
         });
     }
 
-    fn thread(app: &mut App) { fn set(app: &mut App, label: impl bevy::ecs::schedule::ScheduleLabel) { app.edit_schedule(label, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); }); } set(app, Startup); set(app, First); set(app, PreUpdate); set(app, Update); set(app, PostUpdate); set(app, Last); }
+    fn thread(app: &mut App) { fn set(app: &mut App, label: impl bevy::ecs::schedule::ScheduleLabel) { app.edit_schedule(label, |s| { s.set_executor(bevy::ecs::schedule::SingleThreadedExecutor::new()); }); } set(app, Startup); set(app, First); set(app, PreUpdate); set(app, Update); set(app, PostUpdate); set(app, Last); crate::test_env::single_thread(app); }
     fn tick(app: &mut App, dt: f32) { app.insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_secs_f32(dt))); app.update(); }
     fn rings<C: Component>(app: &mut App) -> Vec<Visibility> { app.world_mut().query_filtered::<&Visibility, With<C>>().iter(app.world()).copied().collect() }
     fn yard<R>(tag: &str, preset: HudPresetId, place: PlaceId, tier: DifficultyTier, at: [f32; 2], body: impl FnOnce(&mut App) -> R) -> R {

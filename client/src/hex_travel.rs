@@ -891,6 +891,7 @@ mod tests {
         app.edit_schedule(bevy::prelude::Last, |schedule| {
             schedule.set_executor(SingleThreadedExecutor::new());
         });
+        crate::test_env::single_thread(app);
     }
 
     /// One real key edge: winit press event, frame, release event, frame.

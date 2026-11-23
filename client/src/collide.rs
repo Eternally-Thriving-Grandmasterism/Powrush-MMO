@@ -244,6 +244,7 @@ mod tests {
             .insert_resource(SoftPresence { position: Vec3::new(0.0, 0.9, 0.0), velocity: Vec3::new(0.0, 0.0, 0.5), grounded: true, ..default() })
             .insert_resource(PlayerInput { movement: Vec2::new(0.0, 1.0), ..default() })
             .insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(3) });
+        crate::test_env::single_thread(&mut app);
         app
     }
 

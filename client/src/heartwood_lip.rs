@@ -447,6 +447,7 @@ mod tests {
         app.edit_schedule(bevy::prelude::Update, |s| {
             s.set_executor(SingleThreadedExecutor::new());
         });
+        crate::test_env::single_thread(&mut app);
         let mut heartwood = shared::hex_travel::heartwood_stub_climate();
         heartwood.hex_id = PlaceId::Heartwood.as_str().into();
         app.insert_resource(LivedHourBind {
@@ -782,7 +783,7 @@ mod tests {
         use bevy::prelude::AssetPlugin;
         let mut app = App::new();
         app.set_error_handler(bevy::ecs::error::ignore).add_plugins((MinimalPlugins, AssetPlugin { file_path: root.join("assets").into_os_string().into_string().unwrap(), watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin)).init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().insert_resource(crate::local_settings::LocalMeshLodFeel { preset }).insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) }).insert_resource(HexTravelState { current: PlaceId::Heartwood }).insert_resource(SoftPresence::default()).insert_resource(PlayerInput::default()).add_plugins((crate::climate_plane::ClimatePlanePlugin, HeartwoodLipPlugin, crate::heartwood_wards::HeartwoodWardsPlugin));
-        app.finish(); app.cleanup(); app.world_mut().run_schedule(Startup); app
+        app.finish(); app.cleanup(); crate::test_env::single_thread(&mut app); app.world_mut().run_schedule(Startup); app
     }
     fn pw_drawn(mesh: &Mesh, tf: &Transform) -> (Vec3, Vec3, Vec3, f32, usize) {
         let pos = mesh.attribute(Mesh::ATTRIBUTE_POSITION).and_then(|a| a.as_float3()).unwrap();
