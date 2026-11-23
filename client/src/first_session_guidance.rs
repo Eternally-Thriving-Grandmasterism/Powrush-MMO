@@ -1256,6 +1256,7 @@ pub(crate) fn track_simple_progress_signals(
     presence: Option<Res<SoftPresence>>,
     mut last_xz: Local<Option<Vec2>>,
     nodes: Query<&MercyHarvestNode>,
+    inv: Option<Res<crate::human_inventory::HumanInventory>>,
 ) {
     if guidance.dismissed {
         return;
@@ -1274,7 +1275,7 @@ pub(crate) fn track_simple_progress_signals(
         *last_xz = Some(now);
     }
 
-    if keyboard.just_pressed(KeyCode::KeyI) {
+    if keyboard.just_pressed(KeyCode::KeyI) || inv.is_some_and(|i| i.open) {
         guidance.inventory_opened = true;
     }
 
@@ -4377,5 +4378,35 @@ mod tests {
             match i + 1 { 7 => assert!(y.contains(&ID_GUIDANCE), "GN1 R2 yield, step 7"), 9 => assert!(y.is_empty(), "GN1 R2 released, step 9"), _ => {} }
         }
         assert_eq!(app.world().resource::<GnTape>().0, want, "GN1 tape (final Visibility, is_changed) per tick");
+    }
+    fn guide_satchel(open: bool) -> App {
+        let mut app = App::new();
+        app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin, crate::human_inventory::HumanInventoryPlugin, FirstSessionGuidancePlugin))
+            .init_resource::<FirstHarvestEpiphany>().init_resource::<crate::human_soft_panels::HumanSoftPanels>().init_resource::<crate::rbe_allocate_choice::RbeAllocateChoice>()
+            .init_resource::<crate::harvest_feel::SoftRbePool>().init_resource::<LivedHourBind>().init_resource::<crate::title_screen::HouseLabel>().init_resource::<FoundFinds>()
+            .insert_resource(LaunchDoor::InYard).insert_resource(crate::human_inventory::HumanInventory { open, ..default() });
+        app.world_mut().resource_mut::<FirstSessionGuidance>().objective = GuidanceObjective::OpenInventory;
+        app
+    }
+    fn hold(app: &mut App, button: GamepadButton, frames: usize) {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent, RawGamepadEvent};
+        let found = app.world_mut().query_filtered::<Entity, With<Gamepad>>().iter(app.world()).next();
+        let id = found.unwrap_or_else(|| {
+            let id = app.world_mut().spawn_empty().id();
+            app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None }));
+            app.update();
+            id
+        });
+        for _ in 0..frames {
+            app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, button, 1.0)));
+            app.update();
+        }
+    }
+    #[test] fn pad_satchel_g1_dpad_down_and_open_satchel_finish_open_inventory() {
+        let mut already = guide_satchel(true); already.update(); already.update();
+        let g = already.world().resource::<FirstSessionGuidance>(); assert!(g.inventory_opened && g.objective == GuidanceObjective::ShareAbundance, "G1 satchel already open completes OpenInventory at once");
+        let mut app = guide_satchel(false); hold(&mut app, GamepadButton::DPadDown, 1); app.update();
+        let g = app.world().resource::<FirstSessionGuidance>();
+        assert!(g.inventory_opened && g.objective == GuidanceObjective::ShareAbundance, "G1 D-pad Down completes OpenInventory");
     }
 }

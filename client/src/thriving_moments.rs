@@ -214,8 +214,9 @@ fn soft_inventory_moment(
     keyboard: Res<ButtonInput<KeyCode>>,
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
+    inv: Option<Res<crate::human_inventory::HumanInventory>>,
 ) {
-    if keyboard.just_pressed(KeyCode::KeyI) {
+    if keyboard.just_pressed(KeyCode::KeyI) || inv.is_some_and(|i| i.open) {
         moments.try_fire(ThrivingKind::FirstInventoryOpen, time.elapsed_secs_f64());
     }
 }
@@ -450,5 +451,30 @@ mod tests {
     #[test] fn thriving_toast_text_neq_1_tt5_cleared_keeps_last_line_quiet() {
         let mut app = tt_app(); tv_current(&mut app, Some(ThrivingKind::FirstShare)); tt_run(&mut app, 2); tv_current(&mut app, None);
         assert_eq!(tt_is(&tt_run(&mut app, 2), ThrivingKind::FirstShare), vec![(true, false); 2], "TT5 current cleared: text keeps the last line, quiet");
+    }
+    fn thrive_app() -> App {
+        let mut app = App::new();
+        app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin, crate::human_inventory::HumanInventoryPlugin, ThrivingMomentsPlugin)).init_resource::<crate::first_harvest_epiphany::FirstHarvestEpiphany>().init_resource::<crate::human_soft_panels::HumanSoftPanels>().init_resource::<crate::rbe_allocate_choice::RbeAllocateChoice>().init_resource::<crate::harvest_feel::SoftRbePool>().init_resource::<crate::lived_hour_bind::LivedHourBind>().init_resource::<crate::title_screen::HouseLabel>().init_resource::<crate::loot_drops::FoundFinds>();
+        app
+    }
+    fn hold(app: &mut App, button: GamepadButton, frames: usize) {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent, RawGamepadButtonChangedEvent, RawGamepadEvent};
+        let found = app.world_mut().query_filtered::<Entity, With<Gamepad>>().iter(app.world()).next();
+        let id = found.unwrap_or_else(|| {
+            let id = app.world_mut().spawn_empty().id();
+            app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None }));
+            app.update();
+            id
+        });
+        for _ in 0..frames {
+            app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, button, 1.0)));
+            app.update();
+        }
+    }
+    #[test] fn pad_satchel_t1_dpad_down_fires_first_inventory_open_once() {
+        let mut app = thrive_app();
+        hold(&mut app, GamepadButton::DPadDown, 1); app.update();
+        let fired = app.world().resource::<ThrivingMoments>().fired.iter().filter(|k| **k == ThrivingKind::FirstInventoryOpen).count();
+        assert_eq!(fired, 1, "T1 D-pad Down fires FirstInventoryOpen once");
     }
 }

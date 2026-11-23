@@ -58,14 +58,17 @@ Soft GPU / phone / Deck: same layers; sticks only when `on_screen_sticks` resolv
 |---|---|---|---|---|
 | **Use** | **A (South)** | **✕ (South)** | **B (South)\*** | South face |
 | Pause | Start / Menu | Options | + | Start |
-| Sheets (satchel / ledger faces) | X / Y | □ / △ | Y / X\* | West / North |
+| Sheets (house / fabricator face · ledger face) | X / Y | □ / △ | Y / X\* | West / North |
+| Satchel | D-pad Down | D-pad Down | D-pad Down | D-pad Down |
+| Chart ridge | View | Create | − | Select |
+| Allocate | D-pad Up · Left flow · Right reserve | same | same | same |
 | Move | left stick | left stick | left stick | left stick |
 | Look | right stick | right stick | right stick | right stick |
 | Sprint | per `sprint_mode` (stick click / trigger / key) | same | same | same |
 
 \*With `nintendo_face` **auto**: Switch layout remaps so **South still = Use** (physical B on Nintendo = South). Prefer auto; do not hard-code brand SDKs.
 
-Quiet law: **South = Use**. **Start = Pause**. X/Y (or Nintendo-equivalent West/North) open sheets. No combat face buttons in Peace.
+Quiet law: **South = Use**. **Start = Pause**. West opens the house / fabricator face, North opens the ledger face, D-pad Down opens the satchel (RULING 7091830454). No combat face buttons in Peace.
 
 ## PeaceKey remaps (already on settings)
 
