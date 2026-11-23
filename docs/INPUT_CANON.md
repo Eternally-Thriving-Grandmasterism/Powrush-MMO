@@ -58,6 +58,7 @@ Soft GPU / phone / Deck: same layers; sticks only when `on_screen_sticks` resolv
 |---|---|---|---|---|
 | **Use** | **A (South)** | **✕ (South)** | **B (South)\*** | South face |
 | Pause | Start / Menu | Options | + | Start |
+| Menu focus (Title / Pause / Settings) | D-pad Up/Down move · South select · East back (Resume in the yard) | same | same | same |
 | Sheets (house / fabricator face · ledger face) | X / Y | □ / △ | Y / X\* | West / North |
 | Satchel | D-pad Down | D-pad Down | D-pad Down | D-pad Down |
 | Chart ridge | View | Create | − | Select |

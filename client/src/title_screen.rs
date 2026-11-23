@@ -145,6 +145,7 @@ use shared::persona::{
 };
 
 use crate::embassy::EmbassyYard;
+use crate::launch_menu::LaunchRow;
 use crate::first_session_guidance::{
     f7_garden_guidance_after_land, first_minutes_people_want_line, FirstSessionGuidance,
 };
@@ -1369,6 +1370,7 @@ impl Plugin for TitleScreenPlugin {
             .init_resource::<HouseLabel>()
             .init_resource::<NameRiteLine>()
             .init_resource::<PauseTab>()
+            .init_resource::<PauseFocus>()
             .init_resource::<LocalSettingsState>()
             .init_resource::<PeaceRebindState>()
             .init_resource::<PersonaCreatorState>()
@@ -1468,6 +1470,8 @@ impl Plugin for TitleScreenPlugin {
                 refresh_peace_rebind_labels.after(capture_peace_rebind),
             )
             .add_systems(Update, esc_yard_pause.after(InputMapSet))
+            .add_systems(PreUpdate, pause_pad_nav.after(bevy::input::InputSystems).after(bevy::ui::UiSystems::Focus).run_if(crate::age_gate::age_gate_clear))
+            .add_systems(Update, paint_pause_focus.after(sync_pause_tabs))
             .add_systems(
                 Update,
                 scripted_title_play
@@ -3288,6 +3292,95 @@ fn sync_pause_tabs(
         let active = btn.0 == *tab;
         bg.set_if_neq(if active { TITLE_BTN_ACTIVE_BG } else { TITLE_BTN_BG }.into());
         border.set_if_neq(if active { TITLE_BORDER } else { TITLE_BORDER_MUTED }.into());
+    }
+}
+
+#[derive(Resource, Default)]
+struct PauseFocus { at: Option<Entity>, pressed: Option<Entity>, was_open: bool, licences_was_open: bool }
+
+fn pause_focus_ring(root: Entity, children: &Query<&Children>, nodes: &Query<&Node>, take: &impl Fn(Entity) -> bool, out: &mut Vec<Entity>) {
+    let Ok(kids) = children.get(root) else { return };
+    let kids: Vec<Entity> = kids.iter().collect();
+    for child in kids {
+        if nodes.get(child).is_ok_and(|n| n.display == Display::None) { continue; }
+        if take(child) { out.push(child); }
+        pause_focus_ring(child, children, nodes, take, out);
+    }
+}
+
+#[allow(deprecated)]
+fn pause_pad_nav(
+    mut pads: Query<&mut Gamepad>,
+    door: Res<LaunchDoor>,
+    label: Res<HouseLabel>,
+    persona: Res<PersonaCreatorState>,
+    places: Option<Res<PlacesPlate>>,
+    edit: Option<Res<crate::hud_edit_mode::HudEditMode>>,
+    licences: Option<Res<crate::licences_screen::LicencesScreen>>,
+    mut focus: ResMut<PauseFocus>,
+    children: Query<&Children>,
+    nodes: Query<&Node>,
+    mut clicks: Query<&mut Interaction>,
+    skip: Query<(), Or<(With<SettingsOnlineStubBtn>, With<SettingsPeaceConflictBtn>, With<SettingsPeaceBindBtn>, With<SettingsHudEditBtn>)>>,
+    roots: Query<Entity, With<SettingsStubRoot>>,
+    resume: Query<Entity, With<PauseResumeBtn>>,
+) {
+    if let Some(e) = focus.pressed.take() {
+        if let Ok(mut click) = clicks.get_mut(e) { if *click == Interaction::Pressed { *click = Interaction::None; } }
+    }
+    let places_open = places.as_ref().is_some_and(|p| p.open);
+    let licences_open = licences.as_ref().is_some_and(|l| l.open);
+    let handoff = std::mem::replace(&mut focus.licences_was_open, licences_open);
+    let live = label.settings_open && settings_visible_with_places(label.settings_open, places_open) && *door != LaunchDoor::NameHouse && *door != LaunchDoor::HouseDress && !persona.open && !edit.as_ref().is_some_and(|mode| mode.active) && !licences_open && !handoff;
+    if !live { focus.was_open = false; return; }
+    let mut ring = Vec::new();
+    if let Ok(root) = roots.single() {
+        pause_focus_ring(root, &children, &nodes, &|e| clicks.get(e).is_ok() && skip.get(e).is_err(), &mut ring);
+    }
+    let (down, up, south) = (pads.iter().any(|g| g.just_pressed(GamepadButton::DPadDown)), pads.iter().any(|g| g.just_pressed(GamepadButton::DPadUp)), pads.iter().any(|g| g.just_pressed(GamepadButton::South)));
+    let east = *door == LaunchDoor::InYard && pads.iter().any(|g| g.just_pressed(GamepadButton::East));
+    if let Some(next) = (!ring.is_empty()).then(|| {
+        if !focus.was_open || focus.at.is_none_or(|e| !ring.contains(&e)) { focus.at = Some(ring[0]); }
+        focus.was_open = true;
+        let at = focus.at.and_then(|e| ring.iter().position(|row| *row == e)).unwrap_or(0) as isize;
+        ring[(at + down as isize - up as isize).rem_euclid(ring.len() as isize) as usize]
+    }) {
+        focus.at = Some(next);
+        if south { if let Ok(mut click) = clicks.get_mut(next) { *click = Interaction::Pressed; focus.pressed = Some(next); } }
+        if east { if let Ok(e) = resume.single() { if let Ok(mut click) = clicks.get_mut(e) { *click = Interaction::Pressed; focus.pressed = Some(e); } } }
+    }
+    let yard = *door == LaunchDoor::InYard;
+    for mut pad in &mut pads {
+        let buttons = pad.digital_mut();
+        buttons.reset(GamepadButton::South); buttons.reset(GamepadButton::DPadUp); buttons.reset(GamepadButton::DPadDown);
+        if yard { buttons.reset(GamepadButton::East); }
+    }
+}
+
+#[allow(deprecated)]
+fn paint_pause_focus(
+    pads: Query<(), With<Gamepad>>,
+    focus: Res<PauseFocus>,
+    children: Query<&Children>,
+    nodes: Query<&Node>,
+    clicks: Query<(), With<Interaction>>,
+    skip: Query<(), Or<(With<SettingsOnlineStubBtn>, With<SettingsPeaceConflictBtn>, With<SettingsPeaceBindBtn>, With<SettingsHudEditBtn>)>>,
+    roots: Query<Entity, With<SettingsStubRoot>>,
+    mut images: Query<&mut ImageNode, (Without<LaunchRow>, Or<(With<PauseTabBtn>, With<crate::licences_screen::LicencesOpenBtn>)>)>,
+    mut fills: Query<&mut BackgroundColor>,
+) {
+    if pads.is_empty() { return; }
+    let Ok(root) = roots.single() else { return };
+    let mut ring = Vec::new();
+    pause_focus_ring(root, &children, &nodes, &|e| clicks.get(e).is_ok() && skip.get(e).is_err(), &mut ring);
+    for row in ring {
+        let on = focus.at == Some(row);
+        if let Ok(mut image) = images.get_mut(row) {
+            let want = if on { crate::ui_frame::FRAME_LIT_IMAGE } else { crate::ui_frame::FRAME_IMAGE };
+            if image.image.id() != want.id() { image.image = want; }
+        } else if let Ok(mut bg) = fills.get_mut(row) {
+            bg.set_if_neq(BackgroundColor(if on { TITLE_BTN_ACTIVE_BG } else { TITLE_BTN_BG }));
+        }
     }
 }
 
