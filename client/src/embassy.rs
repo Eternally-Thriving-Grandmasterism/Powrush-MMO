@@ -55,7 +55,7 @@ impl Plugin for EmbassyPlugin {
         app.init_resource::<EmbassyYard>()
             .add_systems(Startup, spawn_embassy_slab)
             .add_systems(PreUpdate, mark_embassy_lamp)
-            .add_systems(Update, (handle_embassy, update_embassy_slab));
+            .add_systems(Update, (handle_embassy.after(crate::input::InputMapSet).before(crate::feel_move::raise_buffered_use), update_embassy_slab));
     }
 }
 
@@ -158,6 +158,7 @@ pub fn try_request_embassy_seat(
 
 fn handle_embassy(
     keyboard: Res<ButtonInput<KeyCode>>,
+    input: Option<Res<crate::input::PlayerInput>>,
     hour: Res<HourSacred>,
     fab: Res<FabricatorYard>,
     voice: Res<VoiceYard>,
@@ -166,7 +167,9 @@ fn handle_embassy(
     mut yard: ResMut<EmbassyYard>,
     mut moments: ResMut<ThrivingMoments>,
     time: Res<Time>,
+    (door, label, licences, places, edit): (Option<Res<crate::title_screen::LaunchDoor>>, Option<Res<crate::title_screen::HouseLabel>>, Option<Res<crate::licences_screen::LicencesScreen>>, Option<Res<crate::hex_travel::PlacesPlate>>, Option<Res<crate::hud_edit_mode::HudEditMode>>),
 ) {
+    let pad_live = door.is_none_or(|d| *d == crate::title_screen::LaunchDoor::InYard) && !label.is_some_and(|l| l.settings_open) && !licences.is_some_and(|l| l.open) && !places.is_some_and(|p| p.open) && !edit.is_some_and(|e| e.active);
     // Heartwood stub: same Peace E (tend), not Embassy seat.
     if on_heartwood_stub(travel.as_deref()) {
         return;
@@ -177,7 +180,7 @@ fn handle_embassy(
     if voice.sash_open || ledger.sash_open {
         return;
     }
-    if !keyboard.just_pressed(soft_play_bindings::INTERACT) {
+    if !(keyboard.just_pressed(soft_play_bindings::INTERACT) || (pad_live && input.as_ref().is_some_and(|i| i.interact))) {
         return;
     }
     let Some(step) = try_request_embassy_seat(&hour, &fab.fab.pack, &mut yard.embassy) else {
@@ -519,5 +522,73 @@ mod tests {
         assert_eq!(tv_run(&mut app, 3), vec![(TV, false); 3], "TV15 Management: steady Visible, quiet");
         let mut app = tv_app(Some(crate::hud_presets::HudPresetId::Minimal)); app.insert_resource(crate::title_screen::LaunchDoor::Title);
         assert!(tv_run(&mut app, 2).iter().all(|r| r.0 == TH), "TV15 Minimal off the yard door: R5 hides the band");
+    }
+
+    fn pad_app(peace: bool, hud: Option<crate::hud_presets::HudPresetId>, settle: bool) -> (App, Entity) {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let (bench, fabricator) = embassy_slab_1_bench();
+        let mut app = App::new();
+        app.insert_resource(EmbassyYard { embassy: Embassy::default() }).insert_resource(if peace { HourSacred::default() } else { bench }).insert_resource(fabricator).insert_resource(VoiceYard::default()).insert_resource(LedgerYard { board: shared::ledger_bind::LedgerBoard::default(), sash_open: false }).insert_resource(ThrivingMoments::default()).insert_resource(FirstHarvestEpiphany::default()).insert_resource(crate::hex_travel::HexTravelState { current: shared::hex_travel::PlaceId::Sanctuary }).insert_resource(crate::title_screen::LaunchDoor::InYard).insert_resource(crate::local_settings::LocalSettingsState { inner: shared::local_settings::LocalSettings::default(), dirty: false }).add_plugins((MinimalPlugins, bevy::input::InputPlugin, crate::input::InputPlugin, EmbassyPlugin));
+        if let Some(id) = hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(id) }).init_resource::<crate::hex_travel::PlacesPlate>(); }
+        crate::test_env::single_thread(&mut app); let id = app.world_mut().spawn_empty().id();
+        app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None })); if settle { app.update(); app.update(); } (app, id)
+    }
+    fn pad_btn(app: &mut App, id: Entity, button: GamepadButton, value: f32) {
+        use bevy::input::gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent};
+        app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, button, value))); app.update(); app.update();
+    }
+    fn south_tap(app: &mut App, id: Entity) { pad_btn(app, id, GamepadButton::South, 1.0); pad_btn(app, id, GamepadButton::South, 0.0); }
+    fn seated(app: &App) -> bool { app.world().resource::<EmbassyYard>().embassy.seated }
+    fn fires(app: &App) -> usize { app.world().resource::<ThrivingMoments>().fired.iter().filter(|k| **k == ThrivingKind::FirstEmbassy).count() }
+    fn slab(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<EmbassySlabText>>().single(app.world()).unwrap().as_str().to_string() }
+    fn vis(app: &mut App) -> Visibility { *app.world_mut().query_filtered::<&Visibility, With<EmbassySlabRoot>>().single(app.world()).unwrap() }
+    fn block(name: &str, set: impl FnOnce(&mut App), clear: impl FnOnce(&mut App)) { let (mut app, id) = pad_app(false, None, true); set(&mut app); south_tap(&mut app, id); assert!(!seated(&app), "E6 {name}"); clear(&mut app); south_tap(&mut app, id); assert!(seated(&app), "E6 clear {name}"); }
+    #[test] fn embassy_pad_1_e1_south_seats() { let (mut app, id) = pad_app(false, None, true); south_tap(&mut app, id); assert!(seated(&app) && fires(&app) == 1 && slab(&mut app).starts_with("Seated — one embassy seat · civic eligibility · "), "E1"); }
+    #[test] fn embassy_pad_1_e2_repeat_south_fires_once() { let (mut app, id) = pad_app(false, None, true); south_tap(&mut app, id); south_tap(&mut app, id); south_tap(&mut app, id); assert!(seated(&app) && fires(&app) == 1, "E2"); }
+    #[test] fn embassy_pad_1_e3_e_and_south_same_frame_once() {
+        use bevy::input::{gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent}, keyboard::{Key, KeyboardInput}, ButtonState};
+        let (mut app, id) = pad_app(false, None, true);
+        app.world_mut().write_message(KeyboardInput { key_code: soft_play_bindings::INTERACT, logical_key: Key::Character("e".into()), state: ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER });
+        app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, GamepadButton::South, 1.0))); app.update(); app.update();
+        assert!(seated(&app) && fires(&app) == 1, "E3");
+    }
+    #[test] fn embassy_pad_1_e4_heartwood_south_does_not_seat() { let (mut app, id) = pad_app(false, None, true); app.insert_resource(crate::hex_travel::HexTravelState { current: shared::hex_travel::PlaceId::Heartwood }); south_tap(&mut app, id); assert!(!seated(&app), "E4"); }
+    #[test] fn embassy_pad_1_e5_sash_blocks_until_clear() {
+        let (mut app, id) = pad_app(false, None, true);
+        app.world_mut().resource_mut::<VoiceYard>().sash_open = true; south_tap(&mut app, id); assert!(!seated(&app), "E5 voice");
+        app.world_mut().resource_mut::<LedgerYard>().sash_open = true; south_tap(&mut app, id); assert!(!seated(&app), "E5 ledger");
+        app.world_mut().resource_mut::<VoiceYard>().sash_open = false; app.world_mut().resource_mut::<LedgerYard>().sash_open = false; south_tap(&mut app, id); assert!(seated(&app), "E5 clear");
+    }
+    #[test] fn embassy_pad_1_e6_pad_live_blockers() {
+        use crate::title_screen::LaunchDoor::*;
+        for door in [NameHouse, HouseDress, Title] { let kept = door; block(&format!("{door:?}"), move |a| { a.insert_resource(kept); }, |a| { a.insert_resource(InYard); }); }
+        block("settings", |a| { a.insert_resource(crate::title_screen::HouseLabel { house: shared::house_name::HouseName::default(), persist_present: false, hour_two_held: false, book_held: false, settings_open: true, draft: String::new(), naming_offered: false, seals_offered: false }); }, |a| { a.world_mut().resource_mut::<crate::title_screen::HouseLabel>().settings_open = false; });
+        block("places", |a| { let mut p = crate::hex_travel::PlacesPlate::default(); p.open = true; a.insert_resource(p); }, |a| { a.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = false; });
+        block("licences", |a| { let mut s = crate::licences_screen::LicencesScreen::default(); s.open = true; a.insert_resource(s); }, |a| { a.world_mut().resource_mut::<crate::licences_screen::LicencesScreen>().open = false; });
+        block("edit", |a| { let mut edit = crate::hud_edit_mode::HudEditMode::default(); edit.active = true; a.insert_resource(edit); }, |a| a.world_mut().resource_mut::<crate::hud_edit_mode::HudEditMode>().active = false);
+    }
+    #[test] fn embassy_pad_1_e7_south_off_and_lb_do_not_seat() { let (mut app, id) = pad_app(false, None, true); app.world_mut().resource_mut::<crate::local_settings::LocalSettingsState>().inner.gamepad_south_use = false; south_tap(&mut app, id); assert!(!seated(&app), "E7 south"); pad_btn(&mut app, id, GamepadButton::LeftTrigger, 1.0); pad_btn(&mut app, id, GamepadButton::LeftTrigger, 0.0); assert!(!seated(&app), "E7 lb"); }
+    #[test] fn embassy_pad_1_e8_other_buttons_do_not_seat() { let (mut app, id) = pad_app(false, None, true); for b in [GamepadButton::East, GamepadButton::West, GamepadButton::North, GamepadButton::Start, GamepadButton::Select, GamepadButton::DPadUp, GamepadButton::DPadDown, GamepadButton::DPadLeft, GamepadButton::DPadRight, GamepadButton::LeftTrigger, GamepadButton::RightTrigger, GamepadButton::RightTrigger2, GamepadButton::LeftThumb, GamepadButton::RightThumb] { pad_btn(&mut app, id, b, 1.0); pad_btn(&mut app, id, b, 0.0); assert!(!seated(&app), "E8 {b:?}"); } }
+    #[test] fn embassy_pad_1_e9_peace_south_leaves_lamp_dark() { let (mut app, id) = pad_app(true, None, true); south_tap(&mut app, id); let n = fires(&app); let e = &app.world().resource::<EmbassyYard>().embassy; assert!(!e.seated && !e.lamp_live && n == 0, "E9"); }
+    #[test] fn embassy_pad_1_e10_lamp_clears_the_update_after_seat() { let (mut app, id) = pad_app(false, None, true); assert!(app.world().resource::<FirstHarvestEpiphany>().embassy_lamp, "E10 before"); south_tap(&mut app, id); assert!(!app.world().resource::<FirstHarvestEpiphany>().embassy_lamp, "E10 after"); }
+    #[test] fn embassy_pad_1_e11_after_input_before_raise() {
+        use bevy::ecs::schedule::{IntoSystemSet, NodeId, Schedules};
+        use bevy::ecs::system::{IntoSystem, System};
+        let (app, _) = pad_app(false, None, false);
+        let graph = app.world().resource::<Schedules>().get(Update).expect("Update").graph();
+        let key = graph.systems.iter().find_map(|(k, s, _)| (System::system_type(&**s) == IntoSystem::system_type_id(&handle_embassy)).then_some(k)).expect("handle_embassy");
+        let (map, raise) = (graph.system_sets.get_key(crate::input::InputMapSet.intern()), graph.system_sets.get_key(IntoSystemSet::into_system_set(crate::feel_move::raise_buffered_use).intern()));
+        let dep = graph.dependency().graph();
+        assert!(map.is_some_and(|set| dep.contains_edge(NodeId::Set(set), NodeId::System(key))), "E11 after");
+        assert!(raise.is_some_and(|set| dep.contains_edge(NodeId::System(key), NodeId::Set(set))), "E11 before");
+    }
+    #[test] fn embassy_pad_1_e12_hud_parity() {
+        use bevy::input::gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent};
+        let (mut classic, id) = pad_app(false, Some(crate::hud_presets::HudPresetId::Classic), true);
+        for v in [1.0f32, 0.0] { classic.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(id, GamepadButton::South, v))); classic.update(); assert_eq!(vis(&mut classic), Visibility::Hidden, "E12 classic"); classic.update(); assert_eq!(vis(&mut classic), Visibility::Hidden, "E12 classic"); }
+        assert!(seated(&classic), "E12 classic seated");
+        let (mut mgmt, id) = pad_app(false, Some(crate::hud_presets::HudPresetId::Management), true); south_tap(&mut mgmt, id);
+        let line = slab(&mut mgmt); let show = vis(&mut mgmt); let want = mgmt.world().resource::<EmbassyYard>().embassy.slab_line();
+        assert!(seated(&mgmt) && show == Visibility::Visible && line == want && line.starts_with("Seated — one embassy seat · civic eligibility · "), "E12 management {line}");
     }
 }
