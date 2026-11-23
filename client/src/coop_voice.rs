@@ -208,6 +208,24 @@ mod tests {
         );
     }
 
+    /// ID_VOICE-HUD-AUDIT-1: live charter plus open sash wants Voice Visible. Title (R5) and the Classic clean yard keep it Hidden. Management shows it.
+    #[test]
+    fn voice_slab_final_hidden_on_title_and_clean_yard_under_real_hud_layout() {
+        use crate::{hud_presets::{ActiveHudPreset, HudLayoutPlugin, HudPresetId}, title_screen::LaunchDoor};
+        use shared::space_law::{CharterKind, SpaceSession};
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, HudLayoutPlugin)).insert_resource(ActiveHudPreset { id: Some(HudPresetId::Classic) })
+            .init_resource::<crate::hex_travel::PlacesPlate>().insert_resource(LaunchDoor::Title)
+            .insert_resource(HourSacred { session: SpaceSession { charter_id: Some("house-local".into()), hex: HexFlag::Frontier, kind: CharterKind::House, ..Default::default() }, complete: true, hour_three_complete: true })
+            .insert_resource(VoiceYard { sash_open: true, ..default() })
+            .add_systems(Startup, spawn_voice_slab).add_systems(Update, update_voice_slab);
+        let vis = |app: &mut App| *app.world_mut().query_filtered::<&Visibility, With<VoiceSlabRoot>>().single(app.world()).unwrap();
+        (app.update(), app.update()); assert_eq!(vis(&mut app), Visibility::Hidden, "Title: R5 yields Voice");
+        app.insert_resource(LaunchDoor::InYard); (app.update(), app.update()); assert_eq!(vis(&mut app), Visibility::Hidden, "Classic clean yard hides Voice");
+        app.insert_resource(ActiveHudPreset { id: Some(HudPresetId::Management) }); (app.update(), app.update());
+        assert_eq!(vis(&mut app), Visibility::Visible, "control: Management WINDOW shows the open sash");
+    }
+
     #[test]
     fn peace_keeps_sash_closed() {
         let hour = HourSacred::default();
