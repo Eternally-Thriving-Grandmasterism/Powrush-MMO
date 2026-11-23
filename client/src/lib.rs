@@ -124,6 +124,8 @@ pub(crate) mod test_env {
     }
 
     pub(crate) fn lock() -> UserDirEnvGuard {
+        debug_assert!(!std::thread::current().name().is_some_and(|n| n.contains("Task Pool") || n.starts_with("TaskPool (")),
+            "CI-HANG-1: test_env::lock() on a Bevy pool worker; call crate::test_env::single_thread on this test App");
         DEPTH.with(|depth| {
             let n = depth.get();
             if n == 0 {
