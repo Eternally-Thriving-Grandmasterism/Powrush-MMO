@@ -365,7 +365,7 @@ fn update_climate_state_slab(
         With<ClimateStateRoot>,
     >,
     mut text_q: Query<(&mut Text, &mut TextFont), With<ClimateStateText>>,
-    (time, diff, mut hold): (Res<Time>, Option<Res<AreaDifficulty>>, Local<DangerHold>),
+    (time, diff, mut hold, pads): (Res<Time>, Option<Res<AreaDifficulty>>, Local<DangerHold>, Query<(), With<Gamepad>>),
 ) {
     if danger_line_due(hold.last, travel.current) {
         hold.last = Some(travel.current);
@@ -430,6 +430,11 @@ fn update_climate_state_slab(
     }
     let nearest = nearby.entity.and_then(|e| nodes.get(e).ok());
     let shapes = colorblind.show_shapes;
+    let pad_settings = shared::local_settings::LocalSettings::default();
+    let live = settings.as_ref().map(|s| &s.inner).unwrap_or(&pad_settings);
+    let pad = !pads.is_empty();
+    let use_pad = pad.then(|| crate::input::pad_hint(crate::input::PadVerb::Use, live)).flatten();
+    let (alloc_pad, flow_pad) = (pad.then(|| crate::input::pad_hint(crate::input::PadVerb::Allocate, live)).flatten(), pad.then(|| crate::input::pad_hint(crate::input::PadVerb::Flow, live)).flatten());
     let well_line = nearby
         .in_range
         .then(|| {
@@ -442,12 +447,13 @@ fn update_climate_state_slab(
                     .as_ref()
                     .and_then(|c| c.sentence_for(n.climate_id))
                     .unwrap_or(state.hand_hint());
-                let hint = hint.replace("R 1 flow", &format!("{} 1 flow", alloc_key_label(settings.as_deref())));
+                let flow = match (alloc_pad, flow_pad) { (Some(a), Some(f)) => format!("{a} {f} flow"), _ => format!("{} 1 flow", alloc_key_label(settings.as_deref())) };
+                let hint = hint.replace("R 1 flow", &flow);
                 let mut line = in_range_use_line(
                     n.name,
                     &place_color_well_caption(state, shapes, place),
                     &hint,
-                    use_key_label(settings.as_deref()),
+                    use_pad.unwrap_or_else(|| use_key_label(settings.as_deref())),
                 );
                 if let Some(slab) = bind.climate_slab.as_deref() {
                     line = format!("{line} · {slab}");
@@ -1887,6 +1893,7 @@ mod tests {
         let mut hour = shared::climate_node::LivedHour::new_demo(); hour.nodes[0] = ClimateNode { id: 1, state, fatigue: 0.0 };
         let mut app = App::new();
         app.add_plugins(bevy::MinimalPlugins).insert_resource(NearbyMercyNode { in_range: true, nodes_exist: true, ..Default::default() }).insert_resource(LivedHourBind { hour, climate: Default::default(), standing: Default::default(), week: Default::default(), last_line: String::new(), guidance_hidden: false, focus_id: None, climate_slab: None }).insert_resource(HexTravelState { current: PlaceId::Sanctuary }).insert_resource(WeekFeelGlow::default()).insert_resource(WardsNoticeGlow::default()).insert_resource(LocalColorblindWells::default()).insert_resource(LocalSettingsState { inner, dirty: false }).add_systems(Startup, spawn_climate_state_slab).add_systems(Update, update_climate_state_slab);
+        crate::test_env::single_thread(&mut app);
         let e = app.world_mut().spawn(MercyHarvestNode { name: "North Well", climate_id: 1, vitality: 1.0, harvests: 0, pulse: 0.0 }).id();
         app.world_mut().resource_mut::<NearbyMercyNode>().entity = Some(e); app.update();
         app.world_mut().query_filtered::<&Text, With<ClimateStateText>>().single(app.world()).unwrap().as_str().to_string()
@@ -1985,6 +1992,15 @@ mod tests {
         app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin)).insert_resource(NearbyMercyNode { in_range: true, nodes_exist: true, ..Default::default() }).insert_resource(LivedHourBind { hour, climate: Default::default(), standing: Default::default(), week: Default::default(), last_line: String::new(), guidance_hidden: false, focus_id: None, climate_slab: None }).insert_resource(HexTravelState { current: PlaceId::Sanctuary }).insert_resource(WeekFeelGlow::default()).insert_resource(WardsNoticeGlow::default()).insert_resource(LocalColorblindWells::default()).insert_resource(LocalSettingsState { inner, dirty: false }).add_systems(Startup, spawn_climate_state_slab).add_systems(Update, update_climate_state_slab);
         crate::test_env::single_thread(&mut app); let e = app.world_mut().spawn(MercyHarvestNode { name: "North Well", climate_id: 1, vitality: 1.0, harvests: 0, pulse: 0.0 }).id(); app.world_mut().resource_mut::<NearbyMercyNode>().entity = Some(e); app
     }
+    #[test]
+    fn pad_prompts_2a_f1_keyboard_floor() {
+        use shared::local_settings::LocalSettings;
+        let s = LocalSettings::default();
+        let mut app = slab_app(NodeState::Glowing, s.clone()); app.update();
+        for state in [NodeState::Glowing, NodeState::Tended, NodeState::Resting, NodeState::Stressed] {
+            assert_eq!(slab_state(&mut app, state), flow_slab(s.key_allocate, s.key_use, state), "F1 {state:?}");
+        }
+    }
     fn slab_text(app: &mut App) -> String { app.world_mut().query_filtered::<&Text, With<ClimateStateText>>().single(app.world()).unwrap().as_str().to_string() }
     fn slab_state(app: &mut App, state: NodeState) -> String { app.world_mut().resource_mut::<LivedHourBind>().hour.nodes[0].state = state; app.update(); slab_text(app) }
     #[test]
@@ -1997,7 +2013,7 @@ mod tests {
         assert!(glow.contains("[A] Use · North Well"), "F2 {glow}");
         for state in [NodeState::Tended, NodeState::Resting, NodeState::Stressed] {
             let got = slab_state(&mut app, state);
-            assert_eq!(got, flow_slab(PeaceKey::R, PeaceKey::E, state).replace("R 1 flow", "D-pad Up D-pad Left flow"), "F2 {state:?} {got}");
+            assert_eq!(got, flow_slab(PeaceKey::R, PeaceKey::E, state).replace("R 1 flow", "D-pad Up D-pad Left flow").replacen("[E]", "[A]", 1), "F2 {state:?} {got}");
         }
     }
     #[test]
@@ -2005,7 +2021,7 @@ mod tests {
         let mut app = slab_app(NodeState::Glowing, shared::local_settings::LocalSettings::default()); app.update();
         let kb_glow = slab_text(&mut app); let kb_tend = slab_state(&mut app, NodeState::Tended);
         let id = pad_on(&mut app); let pad_tend = slab_text(&mut app); let pad_glow = slab_state(&mut app, NodeState::Glowing);
-        assert_eq!((pad_glow.as_str(), pad_tend.as_str()), (kb_glow.replacen("[E]", "[A]", 1).as_str(), kb_tend.replace("R 1 flow", "D-pad Up D-pad Left flow").as_str()), "F3 {pad_glow} {pad_tend}");
+        assert_eq!((pad_glow.as_str(), pad_tend.as_str()), (kb_glow.replacen("[E]", "[A]", 1).as_str(), kb_tend.replace("R 1 flow", "D-pad Up D-pad Left flow").replacen("[E]", "[A]", 1).as_str()), "F3 {pad_glow} {pad_tend}");
         pad_off(&mut app, id);
         assert_eq!((slab_text(&mut app), slab_state(&mut app, NodeState::Tended)), (kb_glow, kb_tend), "F3 keyboard");
     }
@@ -2026,6 +2042,6 @@ mod tests {
         assert!(kb_glow.contains("[F] Use · North Well") && kb_tend.contains("N 1 flow") && !kb_tend.contains("R 1 flow"), "F5 kb {kb_glow} {kb_tend}");
         pad_on(&mut app); let pad_tend = slab_text(&mut app);
         assert_eq!(slab_state(&mut app, NodeState::Glowing), kb_glow.replacen("[F]", "[A]", 1), "F5 glow");
-        assert_eq!(pad_tend, kb_tend.replace("N 1 flow", "D-pad Up D-pad Left flow"), "F5 {pad_tend}");
+        assert_eq!(pad_tend, kb_tend.replace("N 1 flow", "D-pad Up D-pad Left flow").replacen("[F]", "[A]", 1), "F5 {pad_tend}");
     }
 }
