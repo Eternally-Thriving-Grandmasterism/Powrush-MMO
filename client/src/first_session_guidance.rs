@@ -4414,4 +4414,80 @@ mod tests {
         let g = app.world().resource::<FirstSessionGuidance>();
         assert!(g.inventory_opened && g.objective == GuidanceObjective::ShareAbundance, "G1 D-pad Down completes OpenInventory");
     }
+
+    fn pp_boot(tag: &str) -> (crate::test_env::UserDirEnvGuard, std::path::PathBuf, RestoreUserDir, App) {
+        let lock = crate::test_env::lock();
+        let (dir, restore) = hour_card_end_scratch(tag);
+        let mut app = App::new();
+        app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin, crate::human_inventory::HumanInventoryPlugin, FirstSessionGuidancePlugin, crate::local_settings::LocalSettingsPlugin))
+            .init_resource::<FirstHarvestEpiphany>().init_resource::<crate::human_soft_panels::HumanSoftPanels>().init_resource::<crate::rbe_allocate_choice::RbeAllocateChoice>()
+            .init_resource::<crate::harvest_feel::SoftRbePool>().init_resource::<LivedHourBind>().init_resource::<crate::title_screen::HouseLabel>().init_resource::<FoundFinds>()
+            .insert_resource(crate::hud_presets::ActiveHudPreset::default()).insert_resource(LaunchDoor::InYard).insert_resource(crate::human_inventory::HumanInventory { open: false, ..default() });
+        crate::test_env::single_thread(&mut app);
+        (lock, dir, restore, app)
+    }
+    fn pp_rows() -> [(GuidanceObjective, &'static str, &'static str); 10] {
+        use GuidanceObjective::*;
+        [(MoveAround, "WASD", " walk · "), (HarvestWithInteract, "E", " tend the glow"), (OpenInventory, "I", " open the satchel"), (ShareAbundance, "R", " share · "), (StepCharter, "Tab", " once · the ridge opens"), (PlantHouse, "Q", " plant a House stake"), (OpenLedger, "L", " opens the Ledger"), (BindEscort, "E", " bind at the Ledger"), (PlantFabricator, "Q", " plant the fabricator"), (FreeExploration, "E", " tend the well")]
+    }
+    fn pp_show(app: &mut App, obj: &GuidanceObjective) -> String {
+        { let mut g = app.world_mut().resource_mut::<FirstSessionGuidance>(); (g.objective, g.active, g.dismissed) = (obj.clone(), true, false); }
+        app.update(); guidance_card_section(app).1
+    }
+    fn pp_pad(app: &mut App) -> Entity {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let id = app.world_mut().spawn_empty().id();
+        app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None }));
+        app.update(); id
+    }
+    #[test] fn pad_prompts_f1_keyboard_floor() {
+        let (_l, _d, _r, mut app) = pp_boot("f1");
+        for (obj, _, _) in pp_rows() { assert_eq!(pp_show(&mut app, &obj), card_line(obj.prompt()), "{obj:?}"); }
+    }
+    #[test] fn pad_prompts_f2_pad_swaps_head_keeps_tail() {
+        let (_l, _d, _r, mut app) = pp_boot("f2"); pp_pad(&mut app);
+        for (obj, head, tail) in pp_rows() {
+            let text = pp_show(&mut app, &obj);
+            assert_ne!(text, card_line(obj.prompt()), "{obj:?}");
+            assert!(!text.starts_with(head) && text.contains(tail), "{obj:?} {text}");
+            let mut rest = text.as_str();
+            for word in obj.prompt()[head.len()..].split_whitespace() {
+                if ["WASD", "Space", "Shift", "E", "I", "R", "Tab", "Q", "L", "1", "2"].contains(&word) { continue; }
+                let i = rest.find(word).unwrap_or_else(|| panic!("{word} missing from {text}"));
+                rest = &rest[i + word.len()..];
+            }
+        }
+    }
+    #[test] fn pad_prompts_f3_hotplug_repaint() {
+        use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let (_l, _d, _r, mut app) = pp_boot("f3");
+        let kb = pp_show(&mut app, &GuidanceObjective::MoveAround);
+        let id = pp_pad(&mut app);
+        assert_ne!(guidance_card_section(&mut app).1, kb, "F3");
+        app.world_mut().write_message(GamepadConnectionEvent::new(id, GamepadConnection::Disconnected));
+        app.update();
+        assert_eq!(guidance_card_section(&mut app).1, kb, "F3 back");
+    }
+    #[test] fn pad_prompts_f4_settings_follow() {
+        let (_l, _d, _r, mut app) = pp_boot("f4"); pp_pad(&mut app);
+        let set = |app: &mut App, mode: &str, south: bool| { let mut s = app.world_mut().resource_mut::<LocalSettingsState>(); (s.inner.sprint_mode, s.inner.gamepad_south_use) = (mode.into(), south); };
+        set(&mut app, "trigger", true); let trigger = pp_show(&mut app, &GuidanceObjective::MoveAround);
+        set(&mut app, "key", true); assert_ne!(trigger, pp_show(&mut app, &GuidanceObjective::MoveAround), "F4 sprint");
+        set(&mut app, "trigger", true); let on = pp_show(&mut app, &GuidanceObjective::HarvestWithInteract);
+        set(&mut app, "trigger", false); assert_ne!(on, pp_show(&mut app, &GuidanceObjective::HarvestWithInteract), "F4 south");
+    }
+    #[test] fn pad_prompts_f5_counter_and_door() {
+        let (_l, _d, _r, mut app) = pp_boot("f5"); pp_pad(&mut app);
+        app.world_mut().spawn((crate::mercy_harvest_nodes::MercyHarvestNode { name: "glow", climate_id: 0, vitality: 1.0, harvests: 0, pulse: 0.0 }, Transform::from_xyz(0.0, 0.0, 0.0)));
+        let text = pp_show(&mut app, &GuidanceObjective::HarvestWithInteract);
+        assert!(text.split("  · H hides").next().unwrap().ends_with(" · 0/1"), "{text}");
+        { let mut g = app.world_mut().resource_mut::<FirstSessionGuidance>(); (g.house_live, g.harvests_completed, g.objective) = (true, 1, GuidanceObjective::OpenLedger); }
+        app.update();
+        assert!(guidance_card_section(&mut app).1.ends_with(&door_people_lines()), "F5 door");
+    }
+    #[test] fn pad_prompts_f6_embassy_and_h() {
+        let (_l, _d, _r, mut app) = pp_boot("f6"); pp_pad(&mut app);
+        assert_eq!(pp_show(&mut app, &GuidanceObjective::EmbassySeat), card_line(GuidanceObjective::EmbassySeat.prompt()));
+        assert!(pp_show(&mut app, &GuidanceObjective::MoveAround).ends_with("  · H hides"));
+    }
 }

@@ -1797,4 +1797,10 @@ mod tests {
         let combat = include_str!("combat_core.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
         assert!(combat.contains("let plate_key = gate && input.as_deref().and_then(|i| i.ability_slot) == Some(1);") && combat.contains("if plate_key && allowed { plate_arm(&mut combat, reach, shell_equipped(finds.as_deref())); }"));
     }
+    fn pad_prod(s: &'static str) -> &'static str { s.split("\n#[cfg(test)]\nmod tests {").next().unwrap() }
+    #[test]
+    fn pad_prompts_p1_readers() {
+        let (input, inv, alloc, ridge) = (pad_prod(include_str!("input.rs")), pad_prod(include_str!("human_inventory.rs")), pad_prod(include_str!("rbe_allocate_choice.rs")), pad_prod(include_str!("hour_sacred.rs")));
+        assert!(input.contains("GamepadButton::West") && input.contains("GamepadButton::North") && inv.contains("GamepadButton::DPadDown") && alloc.contains("GamepadButton::DPadUp") && alloc.contains("GamepadButton::DPadLeft") && alloc.contains("GamepadButton::DPadRight") && ridge.contains("GamepadButton::Select"));
+    }
 }
