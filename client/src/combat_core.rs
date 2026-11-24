@@ -47,7 +47,7 @@ pub const PREDATOR_NAME: &str = "Heartwood Prowler";
 pub const HEALTH: u32 = 200; // player and predator pools, per CUT A1
 /// COMBAT_AND_PVP.md:435/:676 — the basic player strike lands 8 (predator and droid alike). Gear adds on top; no tier scaling.
 pub const HIT: u32 = 8;
-/// COMBAT_AND_PVP.md:486/:678 — Predator "Lunge, 0.6 s" hits 15, before `enemy_hit` tier scaling and Plate.
+/// COMBAT_AND_PVP.md:486/:678 — Predator lunge hits 15, before `enemy_hit` tier scaling and Plate. Period is now 1.5 s per COMBAT-FAIR-1.
 pub const LUNGE_HIT: u32 = 15;
 pub const LUNGE_SECS: f32 = 1.5;
 pub const REACH: f32 = HARVEST_REACH; // both sides reuse the harvest reach
@@ -371,7 +371,7 @@ pub fn ground_shot_connects(grounded: bool) -> bool {
     grounded
 }
 
-/// One lunge per 0.6 s in reach. True when the player is defeated.
+/// One lunge per 1.5 s in reach (COMBAT-FAIR-1). True when the player is defeated.
 /// The clock, tell, and defeat return advance either way; damage is the due wrap only while grounded.
 pub fn predator_tick(combat: &mut CombatState, dt: f32, reach: bool, grounded: bool, tier: DifficultyTier) -> bool {
     let plate = combat.plate_secs > 0.0; // COMBAT-CORE-2a: Plate-off (every existing caller) is unchanged
@@ -604,7 +604,6 @@ pub fn combat_fire(
         #[allow(deprecated)]
         let ui_busy = ui.iter().any(|i| *i != Interaction::None);
         combat.strike_terms = Some((grab, plate_open, ui_busy, prompts));
-        let _ = strike_gates(grab, plate_open, ui_busy, prompts);
     }
     let (true, Some(travel), Some(presence), Some(mut skills)) = (pressed || pulse, travel, presence, skills) else {
         return;
@@ -1012,8 +1011,7 @@ fn spawn_ability_tip(mut commands: Commands) {
 }
 /// ABILITY-TOOLTIP-SHOW-1 A2 — the tip's own Visibility, set each frame after `combat_fire` (`set_if_neq`, TIP-NEQ-1):
 /// Visible in reach at this place, Shell or not. The Plate line itself is unchanged.
-#[allow(unused_variables)]
-fn ability_tip_show(combat: Res<CombatState>, finds: Option<Res<FoundFinds>>, (travel, presence): (Option<Res<HexTravelState>>, Option<Res<SoftPresence>>), mut slabs: Query<(&crate::hud_anchor_registry::HudSlab, &mut Visibility)>) {
+fn ability_tip_show(combat: Res<CombatState>, (travel, presence): (Option<Res<HexTravelState>>, Option<Res<SoftPresence>>), mut slabs: Query<(&crate::hud_anchor_registry::HudSlab, &mut Visibility)>) {
     let show = travel.zip(presence).is_some_and(|(t, p)| in_reach(t.current, &combat, p.position.x, p.position.z));
     for (_, mut vis) in slabs.iter_mut().filter(|(s, _)| s.0 == crate::hud_anchor_registry::ID_ABILITY_TIP) { vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden }); }
 }
@@ -3188,7 +3186,7 @@ mod tests {
         let reach = &reach[..reach.find("\n}").unwrap()];
         let droid = include_str!("droid.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
         assert_eq!(prod.matches("fn strike_gates(").count(), 1, "one helper");
-        assert!(fire.contains("strike_gates(") && lunge.contains("strike_gates(") && droid.contains("strike_gates("), "called from fire, lunge, droid");
+        assert!(fire.contains("combat.strike_terms = Some") && lunge.contains("strike_gates(") && droid.contains("strike_gates("), "sampled in fire, read by lunge and droid");
         assert!(prod.matches("fn facing_ok(").count() <= 1 && !reach.contains("facing"), "facing stays out of in_reach");
         assert!(["ControlPreset", "FollowOrbit", "BodyFacing", "Camera3d"].iter().all(|w| !prod.contains(w)));
         assert!(prod.contains("let plate_key = gate && input.as_deref().and_then(|i| i.ability_slot) == Some(1);"));
