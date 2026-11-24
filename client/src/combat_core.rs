@@ -47,9 +47,9 @@ pub const PREDATOR_NAME: &str = "Heartwood Prowler";
 pub const HEALTH: u32 = 200; // player and predator pools, per CUT A1
 /// COMBAT_AND_PVP.md:435/:676 — the basic player strike lands 8 (predator and droid alike). Gear adds on top; no tier scaling.
 pub const HIT: u32 = 8;
-/// COMBAT_AND_PVP.md:486/:678 — Predator "Lunge, 0.6 s" hits 15, before `enemy_hit` tier scaling and Plate.
+/// COMBAT_AND_PVP.md:486/:678 — Predator lunge hits 15, before `enemy_hit` tier scaling and Plate. Period is now 1.5 s per COMBAT-FAIR-1.
 pub const LUNGE_HIT: u32 = 15;
-pub const LUNGE_SECS: f32 = 0.6;
+pub const LUNGE_SECS: f32 = 1.5;
 pub const REACH: f32 = HARVEST_REACH; // both sides reuse the harvest reach
 pub const XP_PER_LANDED_HIT: u32 = 10; // tuning value, set in playtest
 /// Teeth band: past the lamp, pond, Wards and threshold node, inside PLAY_HALF.
@@ -85,6 +85,7 @@ pub struct CombatState {
     pub plate_secs: f32,
     /// COMBAT-CORE-2a — Plate already armed this lunge; clears on the timer wrap or reset and in `reseat_at`.
     pub plate_armed: bool,
+    pub strike_terms: Option<(bool, bool, bool, bool)>, // COMBAT-FAIR-1: grab, plate, ui, prompts; None stays open
 }
 
 /// COMBAT-CORE-2a — COMBAT_AND_PVP.md:456 "Plate, 3 s, incoming damage reduced by 30%".
@@ -243,6 +244,10 @@ pub fn fire_grab_terms(in_yard: bool, settings_open: bool, hud_edit: bool, focus
 pub fn fire_allowed(grab: bool, plate_open: bool, ui_busy: bool, prompts: bool) -> bool {
     grab && !plate_open && !ui_busy && !prompts
 }
+/// COMBAT-FAIR-1 — one formula for the six gates. The lunge and the shot read the same sample.
+pub fn strike_gates(grab: bool, plate_open: bool, ui_busy: bool, prompts: bool) -> bool {
+    fire_allowed(grab, plate_open, ui_busy, prompts)
+}
 
 /// SKILL-KEYS-1 — the digit path only: true when no digit-reading panel is open (INPUT_CANON K1).
 pub fn skill_gate_allows(allocate: bool, voice: bool, ledger: bool, satchel: bool, realm: bool) -> bool {
@@ -366,7 +371,7 @@ pub fn ground_shot_connects(grounded: bool) -> bool {
     grounded
 }
 
-/// One lunge per 0.6 s in reach. True when the player is defeated.
+/// One lunge per 1.5 s in reach (COMBAT-FAIR-1). True when the player is defeated.
 /// The clock, tell, and defeat return advance either way; damage is the due wrap only while grounded.
 pub fn predator_tick(combat: &mut CombatState, dt: f32, reach: bool, grounded: bool, tier: DifficultyTier) -> bool {
     let plate = combat.plate_secs > 0.0; // COMBAT-CORE-2a: Plate-off (every existing caller) is unchanged
@@ -566,7 +571,7 @@ pub fn combat_fire(
         Option<Res<HumanInventory>>,
         Option<Res<HumanSoftPanels>>,
     ),
-    (buffer, fixed, diff, runs, mut cmd, assets, mute, mut finds, body): (
+    (buffer, fixed, diff, runs, mut cmd, assets, mute, mut finds, mut body): (
         Option<ResMut<StrikeBuffer>>,
         Option<Res<Time<Fixed>>>,
         Option<ResMut<crate::difficulty::AreaDifficulty>>,
@@ -575,7 +580,7 @@ pub fn combat_fire(
         Option<Res<AssetServer>>,
         Option<Res<crate::local_settings::MasterMuteGain>>,
         Option<ResMut<FoundFinds>>,
-        Query<&Transform, With<crate::human_presence::HumanPresence>>,
+        Query<&mut Transform, With<crate::human_presence::HumanPresence>>,
     ),
 ) {
     let fire = buttons.is_some_and(|b| b.just_pressed(FIRE))
@@ -591,6 +596,15 @@ pub fn combat_fire(
     let pressed = strike_pressed(fire, input.and_then(|i| i.ability_slot), gate);
     let pulse = buffer.as_ref().is_some_and(|b| b.fire);
     let pulse = pulse || plate_key; // key 2 also wakes the fire path; the strike below re-reads the buffer
+    {
+        let grab = fire_grab_terms(door.as_deref().copied() == Some(LaunchDoor::InYard), house.as_deref().is_some_and(|l| l.settings_open), edit.as_deref().is_some_and(|m| m.active), windows.iter().any(|w| w.focused));
+        let hidden = bind.as_ref().is_some_and(|b| b.guidance_hidden);
+        let prompts = guidance.as_deref().is_some_and(|g| { let (strip, prompt) = action_bar_prompts_showing(care.as_deref(), epi.as_deref(), nearby.as_deref(), g, time.elapsed_secs_f64(), hidden); strip || prompt });
+        let plate_open = plate.as_deref().is_some_and(places_plate_open);
+        #[allow(deprecated)]
+        let ui_busy = ui.iter().any(|i| *i != Interaction::None);
+        combat.strike_terms = Some((grab, plate_open, ui_busy, prompts));
+    }
     let (true, Some(travel), Some(presence), Some(mut skills)) = (pressed || pulse, travel, presence, skills) else {
         return;
     };
@@ -609,7 +623,12 @@ pub fn combat_fire(
     let plate_open = plate.as_deref().is_some_and(places_plate_open);
     let allowed = fire_allowed(grab, plate_open, ui.iter().any(|i| *i != Interaction::None), prompts);
     let reach = in_reach(travel.current, &combat, presence.position.x, presence.position.z);
-    if plate_key && allowed { plate_arm(&mut combat, reach, shell_equipped(finds.as_deref())); }
+    if plate_key && allowed { plate_arm(&mut combat, reach, true); }
+    if (pressed || buffer.as_ref().is_some_and(|b| b.fire)) && reach {
+        let home = fight_home(travel.current);
+        let to = Vec2::new(home[0] - presence.position.x, home[1] - presence.position.z);
+        if to.length_squared() > 1e-4 { let yaw = to.x.atan2(to.y); for mut t in &mut body { t.rotation = Quat::from_rotation_y(yaw); } }
+    }
     let reach = reach && facing_ok(body.iter().next().map(|t| t.rotation * Vec3::Z), presence.position, fight_home(travel.current)); // STRIKE-FACING-1 A1
     if !(pressed || buffer.as_ref().is_some_and(|b| b.fire)) { return; }
     // COMBAT-FEEL-1: the hit lands here in Update; only expiry and reach run on the fixed tick.
@@ -701,7 +720,7 @@ pub(crate) fn predator_lunge(
         for (m, pred, rise) in &tinted { if let Some(mut mat) = mats.as_mut().and_then(|a| a.get_mut(&m.0)) { let want = if pred || rise { body } else { ring }; if mat.base_color != want { mat.base_color = want; } } }
     }
     let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
-    let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
+    let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z) && combat.strike_terms.map_or(true, |t| strike_gates(t.0, t.1, t.2, t.3));
     let grounded = presence.grounded;
     let before = combat.player_taken; // CL-C1: one edge per frame, read before the reseat
     let t0 = combat.lunge_timer;
@@ -872,6 +891,7 @@ fn lunge_tell(
     // The exact reach term of predator_lunge, combat_core.rs:634-635. No second formula.
     let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
+    let reach = reach && combat.strike_terms.map_or(true, |t| strike_gates(t.0, t.1, t.2, t.3));
     let (tell, tier) = (tell_visible(combat.lunge_timer, reach), diff.map_or(DifficultyTier::Sheltered, |d| d.tier(travel.current)));
     let tip_edge = !*armed && reach && tell;
     if tell_arm(&mut armed, reach, tell) {
@@ -989,10 +1009,10 @@ fn spawn_ability_tip(mut commands: Commands) {
         tip.spawn((Text::new(slot_tooltip(1).unwrap_or_default()), TextFont { font_size: FontSize::Px(15.5 / 1.2), ..default() }, TextColor(TITLE_TEXT_PRIMARY)));
     });
 }
-/// ABILITY-TOOLTIP-SHOW-1 A2 (T1 + Shell gate) — the tip's own Visibility, set each frame after `combat_fire` (`set_if_neq`, TIP-NEQ-1):
-/// Visible only with the Shell ward equipped and the fight in reach at this place, so it never offers Plate when Plate can't arm.
-fn ability_tip_show(combat: Res<CombatState>, finds: Option<Res<FoundFinds>>, (travel, presence): (Option<Res<HexTravelState>>, Option<Res<SoftPresence>>), mut slabs: Query<(&crate::hud_anchor_registry::HudSlab, &mut Visibility)>) {
-    let show = shell_equipped(finds.as_deref()) && travel.zip(presence).is_some_and(|(t, p)| in_reach(t.current, &combat, p.position.x, p.position.z));
+/// ABILITY-TOOLTIP-SHOW-1 A2 — the tip's own Visibility, set each frame after `combat_fire` (`set_if_neq`, TIP-NEQ-1):
+/// Visible in reach at this place, Shell or not. The Plate line itself is unchanged.
+fn ability_tip_show(combat: Res<CombatState>, (travel, presence): (Option<Res<HexTravelState>>, Option<Res<SoftPresence>>), mut slabs: Query<(&crate::hud_anchor_registry::HudSlab, &mut Visibility)>) {
+    let show = travel.zip(presence).is_some_and(|(t, p)| in_reach(t.current, &combat, p.position.x, p.position.z));
     for (_, mut vis) in slabs.iter_mut().filter(|(s, _)| s.0 == crate::hud_anchor_registry::ID_ABILITY_TIP) { vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden }); }
 }
 
@@ -1149,7 +1169,7 @@ mod tests {
 
     #[test]
     fn combat_feel_look_damage_and_timing_unchanged() {
-        assert!(HEALTH == 200 && HIT == 8 && LUNGE_HIT == 15 && LUNGE_SECS == 0.6 && LUNGE_TELL_SECS == 0.35 && REACH == HARVEST_REACH && HIT_KICK == 0.35);
+        assert!(HEALTH == 200 && HIT == 8 && LUNGE_HIT == 15 && LUNGE_SECS == 1.5 && LUNGE_TELL_SECS == 0.35 && REACH == HARVEST_REACH && HIT_KICK == 0.35);
         assert!(HURT_SPEED != 1.0 && hit_volume(true, None) == Some(HIT_GAIN));
     }
 
@@ -1161,19 +1181,19 @@ mod tests {
     #[test]
     fn tell_cadence_sting_once_per_entry() {
         let (mut c, mut armed) = (CombatState::default(), false);
-        assert!((0..15).filter(|_| cadence(&mut c, &mut armed, true, 0.125).0).count() == 1 && !cadence(&mut c, &mut armed, true, 0.0).0 && c.player_taken == 3 * LUNGE_HIT, "3 wraps, one sting");
+        assert!((0..36).filter(|_| cadence(&mut c, &mut armed, true, 0.125).0).count() == 1 && !cadence(&mut c, &mut armed, true, 0.0).0 && c.player_taken == 3 * LUNGE_HIT, "3 wraps, one sting");
     }
     #[test]
     fn tell_cadence_rearms_on_exit() {
         let (mut c, mut armed) = (CombatState::default(), false);
         (0..15).for_each(|_| { cadence(&mut c, &mut armed, true, 0.125); });
         assert!(!cadence(&mut c, &mut armed, false, 0.125).0 && !armed, "leaving reach hides the ring and re-arms");
-        assert_eq!((0..8).filter(|_| cadence(&mut c, &mut armed, true, 0.125).0).count(), 1, "one sting on re-entry");
+        assert_eq!((0..12).filter(|_| cadence(&mut c, &mut armed, true, 0.125).0).count(), 1, "one sting on re-entry");
     }
     #[test]
     fn tell_cadence_lean_every_lunge() {
         let (mut c, mut armed, mut per) = (CombatState::default(), false, vec![0.0f32]);
-        for _ in 0..15 {
+        for _ in 0..36 {
             let (before, lean) = (c.lunge_timer, cadence(&mut c, &mut armed, true, 0.125).1);
             if c.lunge_timer < before { per.push(0.0); }
             if let Some(last) = per.last_mut() { *last = last.max(lean); }
@@ -1185,24 +1205,24 @@ mod tests {
         let (mut c, mut armed) = (CombatState::default(), false);
         while !cadence(&mut c, &mut armed, true, 0.125).0 {}
         assert!((0..12).all(|_| { cadence(&mut c, &mut armed, true, 0.125); armed }), "steady across the wraps");
-        assert!(!(armed && !hides_cues(DifficultyTier::Sworn)) && tell_visible(0.375, true) && !tell_visible(0.125, true));
+        assert!(!(armed && !hides_cues(DifficultyTier::Sworn)) && tell_visible(1.25, true) && !tell_visible(0.125, true));
     }
 
     #[test]
     fn combat_feel_look_lean_only_inside_the_wind_up() {
-        assert!(lean_at(0.125, true) == 0.0 && lean_at(0.25, true) == 0.0 && lean_at(0.5, false) == 0.0 && lean_at(0.0, true) == 0.0);
-        let (a, b) = (lean_at(0.375, true), lean_at(0.5, true));
-        assert!(0.0 < a && a < b && b <= LUNGE_LEAN && lean_at(0.5625, true) <= LUNGE_LEAN);
-        assert!(tell_visible(0.375, true) && !tell_visible(0.125, true), "the tell window is unchanged");
+        assert!(lean_at(0.125, true) == 0.0 && lean_at(1.0, true) == 0.0 && lean_at(0.5, false) == 0.0 && lean_at(0.0, true) == 0.0);
+        let (a, b) = (lean_at(1.2, true), lean_at(1.4, true));
+        assert!(0.0 < a && a < b && b <= LUNGE_LEAN && lean_at(1.45, true) <= LUNGE_LEAN);
+        assert!(tell_visible(1.2, true) && !tell_visible(1.0, true), "the tell window");
     }
 
     #[test]
     fn combat_feel_look_hurt_edge_once_per_rise() {
         let mut c = CombatState::default();
         let step = |c: &mut CombatState, dt: f32| { let before = c.player_taken; predator_tick(c, dt, true, true, DifficultyTier::Sheltered); hurt_edge(before, c.player_taken) };
-        assert!((0..4).all(|_| !step(&mut c, 0.125)), "no edge before the strike");
+        assert!((0..11).all(|_| !step(&mut c, 0.125)), "no edge before the strike");
         assert!(step(&mut c, 0.125) && !step(&mut c, 0.0), "once on the wrap, not on an unchanged frame");
-        assert!(step(&mut c, 1.25) && c.player_taken == 3 * enemy_hit(DifficultyTier::Sheltered, LUNGE_HIT), "two wraps, one edge");
+        assert!(step(&mut c, 3.0) && c.player_taken == 3 * enemy_hit(DifficultyTier::Sheltered, LUNGE_HIT), "two wraps, one edge");
     }
 
     fn clock_after(start: f32, dt: f32, reach: bool) -> (f32, u32) {
@@ -1270,7 +1290,7 @@ mod tests {
         assert_eq!((mega.player_taken, mega.lunge_timer), (0, timer));
         let (start, dt) = (0.05f32, 3.7f32);
         let (timer, wraps) = clock_after(start, dt, true);
-        assert_eq!(wraps, 6);
+        assert_eq!(wraps, 2);
         let mut messy = CombatState { lunge_timer: start, ..Default::default() };
         let before = messy.player_taken;
         predator_tick(&mut messy, dt, true, false, tier);
@@ -1341,9 +1361,9 @@ mod tests {
         assert_eq!((c.player_taken, c.lunge_timer), (0, half));
         assert!(!predator_tick(&mut c, LUNGE_SECS - half, true, true, DifficultyTier::Sheltered));
         assert_eq!((c.player_taken, c.lunge_timer), (LUNGE_HIT, 0.0), "jump avoids due damage but no future immune");
-        let mut mid = CombatState { lunge_timer: 0.4, player_taken: 10, ..Default::default() };
+        let mut mid = CombatState { lunge_timer: 1.3, player_taken: 10, ..Default::default() };
         predator_tick(&mut mid, 0.1, true, false, DifficultyTier::Sheltered);
-        assert_eq!((mid.player_taken, mid.lunge_timer), (10, 0.5));
+        assert_eq!((mid.player_taken, mid.lunge_timer), (10, 1.4));
         assert!(!hurt_edge(10, mid.player_taken));
         predator_tick(&mut mid, 0.1, true, true, DifficultyTier::Sheltered);
         assert_eq!((mid.player_taken, mid.lunge_timer), (10 + LUNGE_HIT, 0.0));
@@ -1603,7 +1623,7 @@ mod tests {
         world.insert_resource(HexTravelState { current: PlaceId::Heartwood });
         world.insert_resource(LaunchDoor::InYard);
         world.insert_resource(SoftPresence { position: Vec3::new(PREDATOR_HOME[0], STAND_HEIGHT, PREDATOR_HOME[1]), ..Default::default() });
-        world.insert_resource(CombatState { lunge_timer: 0.5, ..Default::default() });
+        world.insert_resource(CombatState { lunge_timer: 1.4, ..Default::default() });
         world.insert_resource(FirstHarvestEpiphany::default());
         world.run_system_once(predator_lunge).unwrap();
         let (epi, c) = (world.resource::<FirstHarvestEpiphany>(), world.resource::<CombatState>()); assert!(c.player_taken == LUNGE_HIT && epi.pulse_line == "You 185 / 200" && epi.pulse_until == 0.125 + CUE_SECS);
@@ -2572,7 +2592,7 @@ mod tests {
     fn cc2a_s1_shell_key2_in_tell_plates_lunges_for_three_seconds() {
         cc2a("cc2a1", DifficultyTier::Sheltered, Some(0), |app| {
             cc2a_press_at(app, CC2A_TELL);
-            assert_eq!(cc2a_hits(app, 3.4), [11, 11, 11, 11, 11, 15], "plated wraps at +0.35 .. +2.75 s, plain at +3.35 s");
+            assert_eq!(cc2a_hits(app, 3.4), [11, 11, 15], "plated wraps, then a plain 15");
         });
     }
 
@@ -2596,7 +2616,7 @@ mod tests {
                 cc2a_press_at(app, timer);
                 let c = app.world().resource::<CombatState>();
                 assert_eq!((c.player_taken, c.strikes, c.predator_taken == HEALTH, cc2a_tints(app)), (0, 0, down, vec![crate::player_lineage::Lineage::Human.tint()]), "{tag}");
-                if !down && at == PREDATOR_HOME { assert_eq!(cc2a_hits(app, 0.62), [15], "{tag}"); }
+                if !down && at == PREDATOR_HOME { assert_eq!(cc2a_hits(app, 1.6), [15], "{tag}"); }
             });
         }
     }
@@ -2608,13 +2628,13 @@ mod tests {
             cc2a(&format!("cc2a4{tag}"), DifficultyTier::Sheltered, eq, |app| {
                 if let Some(i) = eq { assert_ne!(app.world().resource::<FoundFinds>().equipped_find().unwrap().ward, Some(shared::temper::WardKind::Shell), "{i}"); }
                 cc2a_press_at(app, CC2A_TELL);
-                assert_eq!(cc2a_hits(app, 0.4), [15], "{tag}");
+                assert_eq!(cc2a_hits(app, 0.4), [11], "{tag}");
             });
         }
         cc2a("cc2a4owned", DifficultyTier::Sheltered, None, |app| {
             app.world_mut().resource_mut::<FoundFinds>().names = vec![shared::temper::NAMED_FINDS[0].name];
             cc2a_press_at(app, CC2A_TELL);
-            assert_eq!(cc2a_hits(app, 0.4), [15], "owned but not equipped");
+            assert_eq!(cc2a_hits(app, 0.4), [11], "owned but not equipped");
         });
     }
 
@@ -2623,7 +2643,7 @@ mod tests {
         cc2a("cc2a5", DifficultyTier::Sheltered, Some(0), |app| {
             cc2a_press_at(app, CC2A_TELL);
             cc2a_keys(app, &[KeyCode::Digit2]);
-            assert_eq!(cc2a_hits(app, 3.4), [11, 11, 11, 11, 11, 15], "the same-lunge press changes nothing");
+            assert_eq!(cc2a_hits(app, 3.4), [11, 11, 15], "the same-lunge press changes nothing");
             let t = app.world().resource::<CombatState>().lunge_timer;
             assert!(t < CC2A_TELL, "{t}");
             tick(app, CC2A_TELL + 0.01 - t);
@@ -2636,10 +2656,10 @@ mod tests {
     fn cc2a_s6_repress_while_up_is_ignored_no_refresh() {
         cc2a("cc2a6", DifficultyTier::Sheltered, Some(0), |app| {
             cc2a_press_at(app, CC2A_TELL);
-            assert_eq!(cc2a_hits(app, 1.8), [11, 11, 11]);
+            assert_eq!(cc2a_hits(app, 1.8), [11]);
             assert!(app.world().resource::<CombatState>().lunge_timer >= CC2A_TELL);
             cc2a_keys(app, &[KeyCode::Digit2]);
-            assert_eq!(cc2a_hits(app, 1.6), [11, 11, 15], "Plate still ends 3 s after the first arm");
+            assert_eq!(cc2a_hits(app, 1.9), [11, 15], "Plate still ends 3 s after the first arm");
         });
     }
 
@@ -2664,7 +2684,7 @@ mod tests {
             assert_eq!(cc2a_hits(app, 0.4), Vec::<u32>::new(), "defeat reseats");
             assert_eq!((app.world().resource::<CombatState>().player_taken, cc2a_tints(app)), (0, vec![human]));
             app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(PREDATOR_HOME[0], 0.9, PREDATOR_HOME[1]);
-            assert_eq!(cc2a_hits(app, 0.62), [15], "no Plate after the wake");
+            assert_eq!(cc2a_hits(app, 1.6), [15], "no Plate after the wake");
         });
         cc2a("cc2a8b", DifficultyTier::Sheltered, Some(0), |app| {
             cc2a_press_at(app, CC2A_TELL);
@@ -2683,8 +2703,10 @@ mod tests {
                 match tag { "settings" => app.world_mut().resource_mut::<HouseLabel>().settings_open = true, "places" => app.world_mut().resource_mut::<PlacesPlate>().open = true, "satchel" => { app.insert_resource(HumanInventory { open: true, ..default() }); } _ => { app.insert_resource(LaunchDoor::Title); } }
                 cc2a_press_at(app, CC2A_TELL);
                 assert_eq!(cc2a_tints(app), [crate::player_lineage::Lineage::Human.tint()], "{tag}");
+                if tag == "settings" || tag == "places" { assert!(cc2a_hits(app, 1.6).is_empty(), "{tag} paused"); }
+                match tag { "settings" => app.world_mut().resource_mut::<HouseLabel>().settings_open = false, "places" => app.world_mut().resource_mut::<PlacesPlate>().open = false, _ => {} }
                 app.insert_resource(LaunchDoor::InYard);
-                assert_eq!(cc2a_hits(app, 0.62), [15], "{tag}");
+                assert_eq!(cc2a_hits(app, 1.6), [15], "{tag}");
             });
         }
     }
@@ -2800,10 +2822,10 @@ mod tests {
     fn sf1_hit(app: &mut App, keys: &[KeyCode]) -> (u32, u32) { cc2a_keys(app, keys); let c = app.world().resource::<CombatState>(); (c.strikes, c.predator_taken) }
     fn sf1_at(deg: f32) -> u32 { sf1(&format!("sf1d{deg}"), [0.0, -2.0], deg, |app| sf1_hit(app, &[KeyCode::Digit1]).1) }
     #[test] fn sf1_f1_facing_away_in_reach_is_a_counted_miss() {
-        sf1("sf1f1", [0.0, -2.0], 180.0, |app| { assert_eq!(sf1_hit(app, &[KeyCode::Digit1]), (1, 0)); assert_eq!(app.world().resource::<FirstHarvestEpiphany>().pulse_line, format!("Missed {PREDATOR_NAME}")); });
+        sf1("sf1f1", [0.0, -2.0], 180.0, |app| { assert_eq!(sf1_hit(app, &[KeyCode::Digit1]), (1, HIT)); assert_eq!(app.world().resource::<FirstHarvestEpiphany>().pulse_line, format!("{PREDATOR_NAME} {} / {HEALTH} · +{XP_PER_LANDED_HIT} combat XP", HEALTH - HIT)); });
     }
     #[test] fn sf1_f2_facing_the_predator_lands_8() { assert_eq!(sf1_at(0.0), 8); }
-    #[test] fn sf1_f3_59_lands_61_and_180_miss() { assert_eq!([59.0, 61.0, 180.0, -59.0, -61.0].map(sf1_at), [8, 0, 0, 8, 0]); }
+    #[test] fn sf1_f3_59_lands_61_and_180_miss() { assert_eq!([59.0, 61.0, 180.0, -59.0, -61.0].map(sf1_at), [8, 8, 8, 8, 8]); }
     #[test] fn sf1_f4_within_a_tenth_of_a_metre_or_no_body_counts_as_in_front() {
         assert_eq!(sf1("sf1f4a", [0.0, -0.05], 180.0, |app| sf1_hit(app, &[KeyCode::Digit1])), (1, 8));
         assert_eq!(yard("sf1f4b", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, [PREDATOR_HOME[0], PREDATOR_HOME[1] - 2.0], |app| sf1_hit(app, &[KeyCode::Digit1])), (1, 8));
@@ -2945,7 +2967,7 @@ mod tests {
     }
     #[test]
     fn ats1_r10_no_shell_or_out_of_reach_stays_hidden() {
-        ats("ats1r10a", false, |app| { tick(app, 0.0); assert!(ats_all(app, Visibility::Hidden) && !ats_yielded(app), "no Shell, in reach"); });
+        ats("ats1r10a", false, |app| { tick(app, 0.0); assert!(ats_all(app, Visibility::Visible) && !ats_yielded(app), "fresh save, in reach"); });
         ats("ats1r10b", true, |app| {
             app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(PREDATOR_HOME[0] + 2.0 * REACH, 0.9, PREDATOR_HOME[1]);
             tick(app, 0.0);
@@ -2962,7 +2984,7 @@ mod tests {
     fn tn_tape(q: Query<(&HudSlab, Ref<Visibility>)>, mut tape: ResMut<TnTape>) { tape.0.extend(q.iter().filter(|(s, _)| s.0 == ID_ABILITY_TIP).map(|(_, v)| v.is_changed())); }
     #[test]
     fn tn1_n1_steady_tip_is_not_marked_changed() {
-        for (tag, shell, want) in [("tn1a", true, Visibility::Visible), ("tn1b", false, Visibility::Hidden)] {
+        for (tag, shell, want) in [("tn1a", true, Visibility::Visible), ("tn1b", false, Visibility::Visible)] {
             ats(tag, shell, |app| {
                 app.init_resource::<TnTape>().add_systems(Last, tn_tape);
                 tick(app, 0.0); tick(app, 0.0); app.world_mut().resource_mut::<TnTape>().0.clear(); // warm-up: first run and Added read as changed
@@ -2971,5 +2993,206 @@ mod tests {
                 assert_eq!(app.world().resource::<TnTape>().0, [false, false], "{tag}");
             });
         }
+    }
+
+    // COMBAT-FAIR-1 CF1-F1..F7. Real yard systems; `single_thread` on every App; no `test_env::lock`.
+    const CF1_N: usize = 21;
+    const CF1_Q: usize = 30;
+    const CF1_P: usize = 30;
+    fn cf1_thread(app: &mut App) { crate::test_env::single_thread(app); }
+    fn cf1_arm(app: &mut App) {
+        if app.world_mut().query::<&crate::human_presence::HumanPresence>().iter(app.world()).next().is_none() { app.world_mut().spawn((crate::human_presence::HumanPresence, Transform::default())); }
+        app.init_resource::<ButtonInput<MouseButton>>();
+        if app.world_mut().query::<&Gamepad>().iter(app.world()).next().is_none() { app.world_mut().spawn(Gamepad::default()); }
+    }
+    fn cf1_place(app: &mut App, at: [f32; 2], yaw: f32) {
+        { let mut p = app.world_mut().resource_mut::<SoftPresence>(); (p.position, p.grounded) = (Vec3::new(at[0], 0.9, at[1]), true); }
+        { let mut c = app.world_mut().resource_mut::<CombatState>(); (c.player_taken, c.predator_taken, c.lunge_timer, c.strikes) = (0, 0, 0.0, 0); }
+        sf1_yaw(app, yaw);
+    }
+    fn cf1_lmb(app: &mut App) { app.world_mut().resource_mut::<ButtonInput<MouseButton>>().press(FIRE); tick(app, 0.0); app.world_mut().resource_mut::<ButtonInput<MouseButton>>().reset(FIRE); }
+    fn cf1_rt2(app: &mut App) {
+        { let mut q = app.world_mut().query::<&mut Gamepad>(); q.single_mut(app.world_mut()).unwrap().digital_mut().press(FIRE_PAD); }
+        tick(app, 0.0);
+        { let mut q = app.world_mut().query::<&mut Gamepad>(); let mut p = q.single_mut(app.world_mut()).unwrap(); p.digital_mut().release(FIRE_PAD); p.digital_mut().clear(); }
+    }
+    fn cf1_key(app: &mut App, dt: f32) { app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::Digit1); tick(app, dt); app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset(KeyCode::Digit1); }
+    #[allow(deprecated)]
+    fn cf1_gate(app: &mut App, gate: &str) {
+        match gate {
+            "settings" => app.world_mut().resource_mut::<HouseLabel>().settings_open = true,
+            "hud" => { let mut e = crate::hud_edit_mode::HudEditMode::default(); e.active = true; app.insert_resource(e); }
+            "places" => app.world_mut().resource_mut::<PlacesPlate>().open = true,
+            "hover" => { app.world_mut().spawn(Interaction::Hovered); }
+            "focus" => { for mut w in app.world_mut().query::<&mut Window>().iter_mut(app.world_mut()) { w.focused = false; } }
+            "care" => { let mut o = crate::mercy_harvest_nodes::CareCycleOffer::default(); o.active = true; app.insert_resource(o); }
+            _ => {}
+        }
+    }
+    fn cf1_hits(frames: &[(u32, bool)], n: usize, q: usize) -> usize {
+        let (mut prev, mut hits) = (None, 0usize);
+        for k in 0..frames.len() {
+            let was = if k == 0 { 0 } else { frames[k - 1].0 };
+            if frames[k].0 <= was { continue; }
+            assert!(k >= n && frames[k - n..k].iter().all(|f| f.1), "wind-up N={n} at {k}");
+            let from = prev.map(|p: usize| p + 1).unwrap_or(0);
+            let (mut run, mut best) = (0usize, 0usize);
+            for f in &frames[from..k - n] { if !f.1 { run += 1; best = best.max(run); } else { run = 0; } }
+            assert!(best >= q, "quiet {best} < {q} before {k}");
+            prev = Some(k); hits += 1;
+        }
+        hits
+    }
+    #[test]
+    fn cf1_f1_every_hostile_that_hurts_you_takes_your_strike() {
+        let rows = [("hw", PlaceId::Heartwood, PREDATOR_HOME, false, LUNGE_SECS), ("sanc", PlaceId::Sanctuary, STAVEHOLD_FIGHT_HOME, false, LUNGE_SECS), ("droid", PlaceId::Heartwood, crate::droid::DROID_HOME, true, crate::droid::DROID_SHOT_SECS)];
+        for (tag, place, home, droid, period) in rows {
+            yard(&format!("cf1f1{tag}"), HudPresetId::Classic, place, DifficultyTier::Sheltered, home, |app| {
+                cf1_thread(app);
+                if droid { app.add_plugins(crate::droid::DroidPlugin); cf1_thread(app); tick(app, 0.0); }
+                cf1_arm(app);
+                for bearing in [0.0f32, 90.0, 180.0, 270.0] {
+                    for yaw in [0.0f32, 90.0, 180.0, 270.0] {
+                        let r = bearing.to_radians();
+                        cf1_place(app, [home[0] + 2.0 * r.sin(), home[1] + 2.0 * r.cos()], yaw);
+                        if droid { *app.world_mut().resource_mut::<crate::droid::DroidState>() = default(); }
+                        let cap = (period * 60.0).round() as usize;
+                        let mut n = 0;
+                        while app.world().resource::<CombatState>().player_taken == 0 && n < cap + 2 { tick(app, 1.0 / 60.0); n += 1; }
+                        assert!(n <= cap + 1 && app.world().resource::<CombatState>().player_taken > 0, "{tag} {bearing}/{yaw} no hit in one cycle ({n})");
+                        assert!(droid || n >= 60, "{tag} {bearing}/{yaw} lunge inside 1.0 s ({n})");
+                        for how in 0..3 {
+                            let before = if droid { app.world().resource::<crate::droid::DroidState>().taken } else { app.world().resource::<CombatState>().predator_taken };
+                            if how == 0 { cf1_lmb(app); } else if how == 1 { cf1_rt2(app); } else { cc2a_keys(app, &[KeyCode::Digit1]); }
+                            let after = if droid { app.world().resource::<crate::droid::DroidState>().taken } else { app.world().resource::<CombatState>().predator_taken };
+                            assert_eq!(after.saturating_sub(before), HIT, "{tag} {bearing}/{yaw} press {how}");
+                        }
+                    }
+                }
+            });
+        }
+    }
+    #[test]
+    fn cf1_f2_no_lunge_or_shot_while_the_strike_is_gated() {
+        let gates = ["settings", "hud", "places", "hover", "focus", "care"];
+        yard("cf1f2ctl", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, PREDATOR_HOME, |app| { cf1_thread(app); tick(app, LUNGE_SECS); assert!(app.world().resource::<CombatState>().player_taken >= LUNGE_HIT, "predator control"); });
+        yard("cf1f2dctl", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, crate::droid::DROID_HOME, |app| { cf1_thread(app); app.add_plugins(crate::droid::DroidPlugin); cf1_thread(app); tick(app, crate::droid::DROID_SHOT_SECS); assert!(app.world().resource::<CombatState>().player_taken >= crate::droid::DROID_HIT, "droid control"); });
+        for gate in gates {
+            yard(&format!("cf1f2p{gate}"), HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, PREDATOR_HOME, |app| { cf1_thread(app); cf1_gate(app, gate); tick(app, 3.0); let c = app.world().resource::<CombatState>(); assert_eq!((c.player_taken, c.lunge_timer), (0, 0.0), "predator {gate}"); });
+            yard(&format!("cf1f2d{gate}"), HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, crate::droid::DROID_HOME, |app| { cf1_thread(app); app.add_plugins(crate::droid::DroidPlugin); cf1_thread(app); cf1_gate(app, gate); tick(app, 3.0); let (c, d) = (app.world().resource::<CombatState>().player_taken, app.world().resource::<crate::droid::DroidState>().shot_timer); assert_eq!((c, d), (0, 0.0), "droid {gate}"); });
+        }
+        yard("cf1f2exact", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, PREDATOR_HOME, |app| {
+            cf1_thread(app); tick(app, 0.0);
+            app.world_mut().resource_mut::<CombatState>().lunge_timer = LUNGE_SECS - 1.0 / 120.0;
+            app.world_mut().resource_mut::<HouseLabel>().settings_open = true;
+            tick(app, 1.0 / 60.0);
+            let c = app.world().resource::<CombatState>();
+            assert_eq!((c.player_taken, c.lunge_timer), (0, 0.0), "frame-exact settings");
+        });
+    }
+    #[test]
+    fn cf1_f3_each_hit_has_a_quiet_then_an_n_frame_wind_up() {
+        let rows = [("pred", PREDATOR_HOME, false, LUNGE_SECS), ("droid", crate::droid::DROID_HOME, true, crate::droid::DROID_SHOT_SECS)];
+        for (tag, home, droid, period) in rows {
+            yard(&format!("cf1f3{tag}"), HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, home, |app| {
+                cf1_thread(app);
+                if droid { app.add_plugins(crate::droid::DroidPlugin); cf1_thread(app); app.world_mut().run_schedule(Startup); tick(app, 0.0); }
+                let mut frames = Vec::new();
+                for _ in 0..(3.0 * period * 60.0).round() as usize + 2 {
+                    tick(app, 1.0 / 60.0);
+                    let telling = tell_visible(app.world().resource::<CombatState>().lunge_timer, true);
+                    let lean = app.world_mut().query_filtered::<&Transform, With<Predator>>().iter(app.world()).any(|t| Vec2::new(t.translation.x - home[0], t.translation.z - home[1]).length() > 1e-3);
+                    let ring = app.world_mut().query_filtered::<&Visibility, With<crate::droid::DroidTell>>().iter(app.world()).any(|v| *v == Visibility::Visible);
+                    frames.push((app.world().resource::<CombatState>().player_taken, if droid { ring } else { telling || lean }));
+                }
+                assert!(cf1_hits(&frames, CF1_N, CF1_Q) >= 3, "{tag}");
+            });
+        }
+    }
+    #[test]
+    fn cf1_f4_fifteen_repeat_a_steady_presser_wins() {
+        let rows = [("pred", PREDATOR_HOME, false), ("droid", crate::droid::DROID_HOME, true)];
+        for (tag, home, droid) in rows {
+            yard(&format!("cf1f4{tag}"), HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, home, |app| {
+                cf1_thread(app);
+                if droid { app.add_plugins(crate::droid::DroidPlugin); cf1_thread(app); tick(app, 0.0); }
+                { let mut f = app.world_mut().resource_mut::<FoundFinds>(); f.names.clear(); f.equipped = None; }
+                cf1_arm(app); cf1_place(app, [home[0], home[1] - 2.0], 0.0);
+                if droid { *app.world_mut().resource_mut::<crate::droid::DroidState>() = default(); }
+                let (mut frame, mut prev, mut fifteens) = (0usize, 0u32, 0u32);
+                loop {
+                    if frame % CF1_P == 0 { cf1_key(app, 1.0 / 60.0); } else { tick(app, 1.0 / 60.0); }
+                    let player = app.world().resource::<CombatState>().player_taken;
+                    let target = if droid { app.world().resource::<crate::droid::DroidState>().taken } else { app.world().resource::<CombatState>().predator_taken };
+                    let rise = player.saturating_sub(prev);
+                    if !droid && rise > 0 { assert_eq!(rise, LUNGE_HIT, "{tag} hit {rise}"); fifteens += 1; }
+                    prev = player;
+                    if target >= HEALTH { assert!(player < HEALTH, "{tag} target first"); if !droid { assert!(fifteens <= 13, "{tag} fifteens {fifteens}"); } break; }
+                    let away = { let p = app.world().resource::<SoftPresence>().position; (p.x - home[0]).hypot(p.z - home[1]) > REACH + 1.0 };
+                    assert!(player < HEALTH && !away, "{tag} player died first at {frame}");
+                    frame += 1;
+                    assert!(frame < 4000, "{tag} timeout");
+                }
+            });
+        }
+    }
+    #[test]
+    fn cf1_f5_way_out_step_out_and_jump_stay_clean() {
+        yard("cf1f5", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, PREDATOR_HOME, |app| {
+            cf1_thread(app);
+            tick(app, 0.2);
+            assert!(app.world().resource::<CombatState>().lunge_timer > 0.0, "clock was running");
+            let taken = app.world().resource::<CombatState>().player_taken;
+            app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(80.0, 0.9, 80.0);
+            tick(app, 2.0);
+            assert_eq!((app.world().resource::<CombatState>().player_taken, app.world().resource::<CombatState>().lunge_timer), (taken, 0.0), "step-out");
+            app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(PREDATOR_HOME[0], 0.9, PREDATOR_HOME[1]);
+            let mut n = 0;
+            while app.world().resource::<CombatState>().player_taken == taken && n < 200 { tick(app, 1.0 / 60.0); n += 1; }
+            assert!(app.world().resource::<CombatState>().player_taken > taken && n >= CF1_Q + CF1_N, "re-entry {n}");
+            { let mut c = app.world_mut().resource_mut::<CombatState>(); (c.lunge_timer, c.player_taken) = (LUNGE_SECS - 0.02, taken); }
+            app.world_mut().resource_mut::<SoftPresence>().grounded = false;
+            tick(app, 0.05);
+            assert_eq!(app.world().resource::<CombatState>().player_taken, taken, "jump");
+            app.world_mut().resource_mut::<SoftPresence>().grounded = true;
+            tick(app, 0.0);
+            assert_eq!(app.world().resource::<CombatState>().player_taken, taken, "no back-pay");
+        });
+    }
+    #[test]
+    fn cf1_f6_a_fresh_save_has_a_defence() {
+        yard("cf1f6", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, PREDATOR_HOME, |app| {
+            cf1_thread(app);
+            { let mut f = app.world_mut().resource_mut::<FoundFinds>(); f.names.clear(); f.equipped = None; }
+            app.world_mut().resource_mut::<FirstSessionGuidance>().dismiss();
+            tick(app, 0.0); tick(app, 0.0);
+            app.world_mut().resource_mut::<CombatState>().lunge_timer = LUNGE_SECS - LUNGE_TELL_SECS;
+            cc2a_keys(app, &[KeyCode::Digit2]);
+            let before = app.world().resource::<CombatState>().player_taken;
+            tick(app, LUNGE_TELL_SECS + 0.05);
+            assert_eq!(app.world().resource::<CombatState>().player_taken - before, plate_hit(LUNGE_HIT), "key 2 in the tell");
+            let tips = ats_tips(app);
+            assert_eq!(tips.len(), 1, "one tip");
+            assert_eq!((tips[0].0, tips[0].1.as_slice()), (Visibility::Visible, [slot_tooltip(1).unwrap()].as_slice()), "Plate tip through HudLayoutPlugin");
+        });
+    }
+    #[test]
+    fn cf1_f7_shape_pins() {
+        let prod = include_str!("combat_core.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        let fire = prod.split("pub fn combat_fire(").nth(1).unwrap();
+        let fire = &fire[..fire.find("\n}\n").unwrap()];
+        let lunge = prod.split("fn predator_lunge(").nth(1).unwrap();
+        let lunge = &lunge[..lunge.find("\n}\n").unwrap()];
+        let reach = prod.split("pub fn in_reach(").nth(1).unwrap();
+        let reach = &reach[..reach.find("\n}").unwrap()];
+        let droid = include_str!("droid.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        assert_eq!(prod.matches("fn strike_gates(").count(), 1, "one helper");
+        assert!(fire.contains("combat.strike_terms = Some") && lunge.contains("strike_gates(") && droid.contains("strike_gates("), "sampled in fire, read by lunge and droid");
+        assert!(prod.matches("fn facing_ok(").count() <= 1 && !reach.contains("facing"), "facing stays out of in_reach");
+        assert!(["ControlPreset", "FollowOrbit", "BodyFacing", "Camera3d"].iter().all(|w| !prod.contains(w)));
+        assert!(prod.contains("let plate_key = gate && input.as_deref().and_then(|i| i.ability_slot) == Some(1);"));
+        assert!(!prod.contains("plate_arm(&mut combat, reach, shell_equipped(finds.as_deref()))"), "shell arm gate");
+        assert_eq!(fire.matches("play_swing(").count(), 1);
+        assert_eq!(prod.matches(concat!("play_hit", "(&mut cmd")).count(), 1);
     }
 }
