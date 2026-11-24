@@ -10,6 +10,7 @@ allowed_private_path() {
   local rel="$1"
   [[ "${rel}" == LICENCES.md || "${rel}" == ASSETS-NOTICE.md ]] && return 0
   [[ "${rel}" =~ ^textures/stone-painterly-08(/|$) ]] && return 0
+  [[ "${rel}" =~ ^animations/quaternius-ual-1/(LICENSE\.txt|License\.txt|Unreal-Godot/UAL1_Standard\.glb)$ ]] && return 0
   return 1
 }
 
@@ -30,6 +31,9 @@ require_private_pack_inputs() {
     echo "[[private-packager]]: no files under textures/stone-painterly-08" >&2
     exit 1
   fi
+  [[ -f "${PDIR}/animations/quaternius-ual-1/LICENSE.txt" ]] || { echo "[[private-packager]]: missing animations/quaternius-ual-1/LICENSE.txt" >&2; exit 1; }
+  [[ -f "${PDIR}/animations/quaternius-ual-1/License.txt" ]] || { echo "[[private-packager]]: missing animations/quaternius-ual-1/License.txt" >&2; exit 1; }
+  [[ -f "${PDIR}/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb" ]] || { echo "[[private-packager]]: missing animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb" >&2; exit 1; }
 }
 
 log_other_private_packs() {
@@ -37,7 +41,7 @@ log_other_private_packs() {
   while IFS= read -r -d '' f; do
     rel="${f#${PDIR}/}"
     if ! allowed_private_path "${rel}"; then
-      echo "[[private-packager]]: other private packs present; only stone-08 will be copied" >&2
+      echo "[[private-packager]]: other private packs present; only stone-08 and UAL1 will be copied" >&2
       return
     fi
   done < <(find "${PDIR}" \( -path "${PDIR}/.git" -o -path "${PDIR}/.git/*" \) -prune -o -type f -print0)
@@ -59,9 +63,14 @@ stage_private_into_dist() {
   local dist="$1"
   mkdir -p "${dist}/assets/private/textures"
   cp -a "${PDIR}/textures/stone-painterly-08" "${dist}/assets/private/textures/"
+  mkdir -p "${dist}/assets/private/animations/quaternius-ual-1/Unreal-Godot"
+  cp "${PDIR}/animations/quaternius-ual-1/LICENSE.txt" "${dist}/assets/private/animations/quaternius-ual-1/"
+  cp "${PDIR}/animations/quaternius-ual-1/License.txt" "${dist}/assets/private/animations/quaternius-ual-1/"
+  cp "${PDIR}/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb" "${dist}/assets/private/animations/quaternius-ual-1/Unreal-Godot/"
   [[ -f "${PDIR}/LICENCES.md" ]] && cp "${PDIR}/LICENCES.md" "${dist}/assets/private/"
   [[ -f "${PDIR}/ASSETS-NOTICE.md" ]] && cp "${PDIR}/ASSETS-NOTICE.md" "${dist}/assets/private/"
   assert_dist_private_allowlist "${dist}"
+  [[ -f "${dist}/assets/private/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb" ]] || { echo "[[private-packager]]: animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb not staged" >&2; exit 1; }
 }
 
 ensure_private_tree() {
@@ -110,10 +119,19 @@ package_dist() {
   rm -f "${dist}/assets/music/epic_dark_ambient.ogg"
   rmdir "${dist}/assets/music" 2>/dev/null || true
   cat > "${dist}/README.txt" << 'EOF'
+Private build, do not share.
 Offline build only.
 Online is grey and disabled.
 Early Access offline build. Single-player. Saves stay on your machine.
 EOF
+  if [[ "${os}" == windows ]]; then echo "Windows: run powrush-client.exe (next to assets/)." >> "${dist}/README.txt"; fi
+  printf '\nCredits (from assets/private/LICENCES.md):\n' >> "${dist}/README.txt"
+  # One credit line per manifest row: path, author, licence, source.
+  awk -F'|' '/^\| `/ {
+    for (i = 2; i <= 6; i++) { gsub(/^[ \t]+|[ \t]+$/, "", $i) }
+    gsub(/`/, "", $2)
+    print "- " $2 ": " $4 ", " $5 " (" $3 ")"
+  }' "${PDIR}/LICENCES.md" >> "${dist}/README.txt"
   sha="$(git -C "${ROOT}" rev-parse HEAD)"
   {
     echo "tag=none"; echo "sha=${sha}"; echo "os=${os}"
