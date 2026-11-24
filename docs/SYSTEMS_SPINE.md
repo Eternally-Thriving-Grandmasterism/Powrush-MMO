@@ -16,7 +16,7 @@ Title Online stays grey, and server work stays planned (`shared/net_mode.rs:5`, 
 
 **Status:** partial. A test-side contract exists. The runtime entity registry is planned (ENTITY-PURPOSE-1).
 
-**Overlap:** spawn positions sit in per-module consts, with no single table. One later card. Sites today: `client/src/living_ecology.rs:62` `ResonantDeer`, `:211` `YARD_TREE_SPOTS`, `:225` `YARD_ROCK_SPOTS`, `:229` `YARD_CRYSTAL_SPOTS`; `client/src/combat_core.rs:104` `Predator`; `client/src/droid.rs:33` `Droid`; `client/src/grazer.rs:23` `Grazer`, `:50` `GrazerPlugin`; `client/src/local_human_sim.rs:46` `LocalHumanSim`; `client/src/companion_bond.rs:43` `CompanionBond`, `:59` `CompanionBondPlugin`; `client/src/collide.rs:129` `CreatureBodyPlugin`.
+**Overlap:** spawn positions sit in per-module consts, with no single table. One later card. Sites today: `client/src/living_ecology.rs:62` `ResonantDeer`, `:211` `YARD_TREE_SPOTS`, `:225` `YARD_ROCK_SPOTS`, `:229` `YARD_CRYSTAL_SPOTS`; `client/src/combat_core.rs:105` `Predator`; `client/src/droid.rs:33` `Droid`; `client/src/grazer.rs:23` `Grazer`, `:50` `GrazerPlugin`; `client/src/local_human_sim.rs:46` `LocalHumanSim`; `client/src/companion_bond.rs:43` `CompanionBond`, `:59` `CompanionBondPlugin`; `client/src/collide.rs:129` `CreatureBodyPlugin`.
 
 Draeks: a secret exists and is found through play.
 
@@ -24,7 +24,7 @@ Draeks: a secret exists and is found through play.
 
 COMBAT-FAIR-1's numbers are this section's first rows. That card is already ruled and is not held back.
 
-**Owner:** `client/src/combat_core.rs`. `CombatState` `:72`. Damage: `land_hit` `:327`, `land_hit_paid` `:351`, `combat_fire` `:547`. Telegraph: `tell_visible` `:124` (0.35 s at `:106`). Block: `plate_arm` `:97`. Recovery: `respawn_step` `:391`. Targeting: `in_reach` `:282`, `facing_ok` `:288`. `Predator` `:104`. `PREDATOR_RESPAWN_SECS` `:68`. Also `client/src/difficulty.rs:39` `enemy_hit`, `client/src/droid.rs:1`, and `client/src/combat_text.rs:221` `CombatTextPlugin`.
+**Owner:** `client/src/combat_core.rs`. `CombatState` `:72`. Damage: `land_hit` `:332`, `land_hit_paid` `:356`, `combat_fire` `:552`. Telegraph: `tell_visible` `:125` (0.35 s at `:107`). Block: `plate_arm` `:98`. Recovery: `respawn_step` `:396`. Targeting: `in_reach` `:287`, `facing_ok` `:293`. `Predator` `:105`. `PREDATOR_RESPAWN_SECS` `:68`. Also `client/src/difficulty.rs:39` `enemy_hit`, `client/src/droid.rs:1`, and `client/src/combat_text.rs:221` `CombatTextPlugin`.
 
 **Status:** built for one predator and one droid. Soft-aim is planned (no soft-aim function in this tree).
 
@@ -34,7 +34,7 @@ COMBAT-FAIR-1's numbers are this section's first rows. That card is already rule
 
 **Owner:** `shared/temper.rs:1` (Temper, Lumen, Ward; `WardKind` `:26`). Finds: `client/src/loot_drops.rs:43` (names only, no stats) and `FoundFinds` `:45`, file `client/src/loot_drops.rs:37`. Satchel: `client/src/human_inventory.rs:99` `HumanInventoryPlugin`. Recipes: `shared/fabricator.rs:22` `Recipe` through `:26`, client plugin `client/src/fabricator.rs:66`. The same recipe row is `docs/EA_BAR.md:28`.
 
-**Status:** built, thin. An equipped owned find adds its standing step to one outgoing strike, for each owned find (`client/src/combat_core.rs:2283`). The Shell ward is tested at `client/src/combat_core.rs:2572`.
+**Status:** built, thin. Finds carry no stats (`docs/EA_BAR.md:33`).
 
 **Overlap:** finds (`loot_drops`) and the satchel (`human_inventory`) are separate stores. One later card.
 
@@ -170,7 +170,7 @@ Local only: no network calls, no server, no data off the device, no live AI. Ser
 
 ## 11. FOUNDATIONS
 
-One block for each system in §1 through §10. The seven fields follow queue ruling 7118722588. Known-today lines in this section were re-read at main `23169a5a`. A missing fact says planned or **GAP**.
+One block for each system in §1 through §10. The seven fields follow queue ruling 7118722588. Known-today lines in this section were re-read at main `44dca531`. A missing fact says planned or **GAP**.
 
 A perf figure here is a target, not a measurement (§13.1). Multiplayer is planned only. This page names no server and no account.
 
@@ -200,13 +200,13 @@ The Draek sentences already in §1, §6 and §8 stay as they are. This section a
 
 **Contract:** One predator and one droid, PvE only, with a telegraph, a block, a recovery and a facing check. Soft-aim is planned.
 
-**Known today:** Re-read at `23169a5a`: `CombatState` `client/src/combat_core.rs:72`, `land_hit` `client/src/combat_core.rs:327`, `land_hit_paid` `client/src/combat_core.rs:351`, `combat_fire` `client/src/combat_core.rs:547`, `tell_visible` `client/src/combat_core.rs:124`, the telegraph comment `client/src/combat_core.rs:106`, `plate_arm` `client/src/combat_core.rs:97`, `respawn_step` `client/src/combat_core.rs:391`, `in_reach` `client/src/combat_core.rs:282`, `facing_ok` `client/src/combat_core.rs:288`, `Predator` `client/src/combat_core.rs:104`, `PREDATOR_RESPAWN_SECS` `client/src/combat_core.rs:68`. PvE only `client/src/combat_core.rs:3`. The basic-strike comment is `client/src/combat_core.rs:48`. Droid module `client/src/droid.rs:1`, reach assert `client/src/droid.rs:248`. Example test `client/src/combat_core.rs:1010` (158 `#[test]` fns in that file). No soft-aim function in `client/src`. COMBAT-FAIR-1 is already ruled and is not held. It has not landed on this base, so the §2 anchors stay.
+**Known today:** Re-read at `44dca531`: `CombatState` `client/src/combat_core.rs:72`, `land_hit` `client/src/combat_core.rs:332`, `land_hit_paid` `client/src/combat_core.rs:356`, `combat_fire` `client/src/combat_core.rs:552`, `tell_visible` `client/src/combat_core.rs:125`, the telegraph comment `client/src/combat_core.rs:107`, `plate_arm` `client/src/combat_core.rs:98`, `respawn_step` `client/src/combat_core.rs:396`, `in_reach` `client/src/combat_core.rs:287`, `facing_ok` `client/src/combat_core.rs:293`, `Predator` `client/src/combat_core.rs:105`, `PREDATOR_RESPAWN_SECS` `client/src/combat_core.rs:68`. PvE only `client/src/combat_core.rs:3`. The basic-strike comment is `client/src/combat_core.rs:48`. Droid module `client/src/droid.rs:1`, reach assert `client/src/droid.rs:248`. Example test `client/src/combat_core.rs:1030` (165 `#[test]` fns in that file). No soft-aim function in `client/src`. COMBAT-FAIR-1 landed at `44dca531`. The §2 anchors on L19 and L27 were refreshed to that tip.
 
-**Expected:** COMBAT-FAIR-1's numbers are this section's first rows when that card lands. Soft-aim stays planned. Multiplayer is planned only.
+**Expected:** COMBAT-FAIR-1 has landed at `44dca531`. Soft-aim stays planned. Multiplayer is planned only.
 
 **Failure modes and recovery cost:** The droid reach and shot path sits beside `combat_core` (§2 Overlap). Two paths that disagree are a medium recovery: one later card, and this page does not merge them.
 
-**Tests:** `client/src/combat_core.rs:1010` and `client/src/droid.rs:248`, under the dev command in this section. Release proof is the release list in this section.
+**Tests:** `client/src/combat_core.rs:1030` and `client/src/droid.rs:248`, under the dev command in this section. Release proof is the release list in this section.
 
 **Performance budget:** Target, not a measurement. See §13.1.
 
@@ -216,7 +216,7 @@ The Draek sentences already in §1, §6 and §8 stay as they are. This section a
 
 **Contract:** Named finds, a satchel, and the recipe enum. An owned find that is equipped adds its standing step to one outgoing strike.
 
-**Known today:** `shared/temper.rs:1`, `WardKind` `shared/temper.rs:26`. The finds record comment still says names only (`client/src/loot_drops.rs:43`), `FoundFinds` `client/src/loot_drops.rs:45`, file `client/src/loot_drops.rs:37`, schema `client/src/loot_drops.rs:107`. Six named finds `shared/temper.rs:236`. The standing step for each owned find is tested at `client/src/combat_core.rs:2283`. The Shell ward is `client/src/combat_core.rs:95`, tested at `client/src/combat_core.rs:2572`. Satchel `client/src/human_inventory.rs:99`. Recipes `shared/fabricator.rs:22` through `shared/fabricator.rs:26`, client plugin `client/src/fabricator.rs:66`, same row `docs/EA_BAR.md:28`. Example test `client/src/loot_drops.rs:148` (14 `#[test]` fns).
+**Known today:** `shared/temper.rs:1`, `WardKind` `shared/temper.rs:26`. `FoundFinds` `client/src/loot_drops.rs:45`, file `client/src/loot_drops.rs:37`, schema `client/src/loot_drops.rs:107`. Six named finds `shared/temper.rs:236`. An equipped owned find's standing step reaches combat in `land_hit_paid` (`client/src/combat_core.rs:356`). Tested at `client/src/combat_core.rs:2303`. The Shell ward is `client/src/combat_core.rs:96`, tested at `client/src/combat_core.rs:2592`. Satchel `client/src/human_inventory.rs:99`. Recipes `shared/fabricator.rs:22` through `shared/fabricator.rs:26`, client plugin `client/src/fabricator.rs:66`, same row `docs/EA_BAR.md:28`. Example test `client/src/loot_drops.rs:148` (14 `#[test]` fns).
 
 **Expected:** Finds and the satchel stay separate stores until one later card (§3 Overlap). That card is not named here. Multiplayer is planned only.
 
@@ -398,7 +398,7 @@ This section summarizes §10. It does not replace the 23 rows. No canonical save
 
 **§14.2 Writer.** `shared/user_persist.rs:94` `write_named` keeps a good live file as `.bak` and stages new bytes through `.tmp` (`shared/user_persist.rs:91`). A read falls back to `.bak` (`shared/user_persist.rs:295`). Tests `shared/user_persist.rs:687` and `shared/user_persist.rs:711`. `replace_synced` (`shared/user_persist.rs:100`) has no `.bak` rule (`shared/user_persist.rs:99`). The user-dir rule is `shared/user_persist.rs:9`, and `shared/user_persist.rs:20` says no Steamworks account or cloud API.
 
-**§14.3 Styles.** The markers that exist on the §10 files are a schema string, a `v: u16`, and a `schema: u32`. Counted at `23169a5a`, 11 of the 23 files have no version marker on their default bytes.
+**§14.3 Styles.** The markers that exist on the §10 files are a schema string, a `v: u16`, and a `schema: u32`. Counted at `44dca531`, 11 of the 23 files have no version marker on their default bytes.
 
 Schema string:
 
@@ -464,6 +464,8 @@ Cards already ruled are not held back: COMBAT-FAIR-1, STRIKE-HINT-1, GROUND-SNAP
 
 Rows a later test may cite: §13.1 through §13.8, §14.1 through §14.4, §15.1 through §15.4, and the ten §12 rows.
 
-Soft-aim stays planned, as §2 states. COMBAT-FAIR-1 has not landed on this base (`23169a5a`), so the combat anchors in §1 and §2 are unchanged.
+Soft-aim stays planned. No soft-aim function is in `client/src` at `44dca531`. COMBAT-FAIR-1 landed at `44dca53197ccd437a1931a1f66b54ed165f3f400`. The `combat_core` anchors on L19 and L27 were refreshed to that tip.
+
+L35 and L37 are left as they stand (D6, ruling 7119432575). An equipped owned find's standing step reaches combat through `land_hit_paid` (`client/src/combat_core.rs:356`; the add is `client/src/combat_core.rs:360`). Tested at `client/src/combat_core.rs:2303`.
 
 Steam, spend, deletes, new or changed copy, look, and ASSET-CI-PRIVATE-1 stay reserved to Sherif. Copy and button-hint text follow §15.2.
