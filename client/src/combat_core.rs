@@ -2972,4 +2972,203 @@ mod tests {
             });
         }
     }
+
+    // COMBAT-FAIR-1 CF1-F1..F7. Real yard systems; `single_thread` on every App; no `test_env::lock`.
+    const CF1_N: usize = 21;
+    const CF1_Q: usize = 30;
+    const CF1_P: usize = 30;
+    fn cf1_thread(app: &mut App) { crate::test_env::single_thread(app); }
+    fn cf1_arm(app: &mut App) {
+        if app.world_mut().query::<&crate::human_presence::HumanPresence>().iter(app.world()).next().is_none() { app.world_mut().spawn((crate::human_presence::HumanPresence, Transform::default())); }
+        app.init_resource::<ButtonInput<MouseButton>>();
+        if app.world_mut().query::<&Gamepad>().iter(app.world()).next().is_none() { app.world_mut().spawn(Gamepad::default()); }
+    }
+    fn cf1_place(app: &mut App, at: [f32; 2], yaw: f32) {
+        { let mut p = app.world_mut().resource_mut::<SoftPresence>(); (p.position, p.grounded) = (Vec3::new(at[0], 0.9, at[1]), true); }
+        { let mut c = app.world_mut().resource_mut::<CombatState>(); (c.player_taken, c.predator_taken, c.lunge_timer, c.strikes) = (0, 0, 0.0, 0); }
+        sf1_yaw(app, yaw);
+    }
+    fn cf1_lmb(app: &mut App) { app.world_mut().resource_mut::<ButtonInput<MouseButton>>().press(FIRE); tick(app, 0.0); app.world_mut().resource_mut::<ButtonInput<MouseButton>>().reset(FIRE); }
+    fn cf1_rt2(app: &mut App) {
+        { let mut q = app.world_mut().query::<&mut Gamepad>(); q.single_mut(app.world_mut()).unwrap().digital_mut().press(FIRE_PAD); }
+        tick(app, 0.0);
+        { let mut q = app.world_mut().query::<&mut Gamepad>(); let mut p = q.single_mut(app.world_mut()).unwrap(); p.digital_mut().release(FIRE_PAD); p.digital_mut().clear(); }
+    }
+    fn cf1_key(app: &mut App, dt: f32) { app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(KeyCode::Digit1); tick(app, dt); app.world_mut().resource_mut::<ButtonInput<KeyCode>>().reset(KeyCode::Digit1); }
+    fn cf1_gate(app: &mut App, gate: &str) {
+        match gate {
+            "settings" => app.world_mut().resource_mut::<HouseLabel>().settings_open = true,
+            "hud" => { let mut e = crate::hud_edit_mode::HudEditMode::default(); e.active = true; app.insert_resource(e); }
+            "places" => app.world_mut().resource_mut::<PlacesPlate>().open = true,
+            "hover" => { app.world_mut().spawn(Interaction::Hovered); }
+            "focus" => { for mut w in app.world_mut().query::<&mut Window>().iter_mut(app.world_mut()) { w.focused = false; } }
+            "care" => { let mut o = crate::mercy_harvest_nodes::CareCycleOffer::default(); o.active = true; app.insert_resource(o); }
+            _ => {}
+        }
+    }
+    fn cf1_hits(frames: &[(u32, bool)], n: usize, q: usize) -> usize {
+        let (mut prev, mut hits) = (None, 0usize);
+        for k in 0..frames.len() {
+            let was = if k == 0 { 0 } else { frames[k - 1].0 };
+            if frames[k].0 <= was { continue; }
+            assert!(k >= n && frames[k - n..k].iter().all(|f| f.1), "wind-up N={n} at {k}");
+            let from = prev.map(|p: usize| p + 1).unwrap_or(0);
+            let (mut run, mut best) = (0usize, 0usize);
+            for f in &frames[from..k - n] { if !f.1 { run += 1; best = best.max(run); } else { run = 0; } }
+            assert!(best >= q, "quiet {best} < {q} before {k}");
+            prev = Some(k); hits += 1;
+        }
+        hits
+    }
+    #[test]
+    fn cf1_f1_every_hostile_that_hurts_you_takes_your_strike() {
+        let rows = [("hw", PlaceId::Heartwood, PREDATOR_HOME, false, LUNGE_SECS), ("sanc", PlaceId::Sanctuary, STAVEHOLD_FIGHT_HOME, false, LUNGE_SECS), ("droid", PlaceId::Heartwood, crate::droid::DROID_HOME, true, crate::droid::DROID_SHOT_SECS)];
+        for (tag, place, home, droid, period) in rows {
+            yard(&format!("cf1f1{tag}"), HudPresetId::Classic, place, DifficultyTier::Sheltered, home, |app| {
+                cf1_thread(app);
+                if droid { app.add_plugins(crate::droid::DroidPlugin); cf1_thread(app); tick(app, 0.0); }
+                cf1_arm(app);
+                for bearing in [0.0f32, 90.0, 180.0, 270.0] {
+                    for yaw in [0.0f32, 90.0, 180.0, 270.0] {
+                        let r = bearing.to_radians();
+                        cf1_place(app, [home[0] + 2.0 * r.sin(), home[1] + 2.0 * r.cos()], yaw);
+                        if droid { *app.world_mut().resource_mut::<crate::droid::DroidState>() = default(); }
+                        let cap = (period * 60.0).round() as usize;
+                        let mut n = 0;
+                        while app.world().resource::<CombatState>().player_taken == 0 && n < cap + 2 { tick(app, 1.0 / 60.0); n += 1; }
+                        assert!(n <= cap && app.world().resource::<CombatState>().player_taken > 0, "{tag} {bearing}/{yaw} no hit in one cycle ({n})");
+                        for how in 0..3 {
+                            let before = if droid { app.world().resource::<crate::droid::DroidState>().taken } else { app.world().resource::<CombatState>().predator_taken };
+                            if how == 0 { cf1_lmb(app); } else if how == 1 { cf1_rt2(app); } else { cc2a_keys(app, &[KeyCode::Digit1]); }
+                            let after = if droid { app.world().resource::<crate::droid::DroidState>().taken } else { app.world().resource::<CombatState>().predator_taken };
+                            assert_eq!(after.saturating_sub(before), HIT, "{tag} {bearing}/{yaw} press {how}");
+                        }
+                    }
+                }
+            });
+        }
+    }
+    #[test]
+    fn cf1_f2_no_lunge_or_shot_while_the_strike_is_gated() {
+        let gates = ["settings", "hud", "places", "hover", "focus", "care"];
+        yard("cf1f2ctl", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, PREDATOR_HOME, |app| { cf1_thread(app); tick(app, LUNGE_SECS); assert!(app.world().resource::<CombatState>().player_taken >= LUNGE_HIT, "predator control"); });
+        yard("cf1f2dctl", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, crate::droid::DROID_HOME, |app| { cf1_thread(app); app.add_plugins(crate::droid::DroidPlugin); cf1_thread(app); tick(app, crate::droid::DROID_SHOT_SECS); assert!(app.world().resource::<CombatState>().player_taken >= crate::droid::DROID_HIT, "droid control"); });
+        for gate in gates {
+            yard(&format!("cf1f2p{gate}"), HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, PREDATOR_HOME, |app| { cf1_thread(app); cf1_gate(app, gate); tick(app, 3.0); let c = app.world().resource::<CombatState>(); assert_eq!((c.player_taken, c.lunge_timer), (0, 0.0), "predator {gate}"); });
+            yard(&format!("cf1f2d{gate}"), HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, crate::droid::DROID_HOME, |app| { cf1_thread(app); app.add_plugins(crate::droid::DroidPlugin); cf1_thread(app); cf1_gate(app, gate); tick(app, 3.0); let (c, d) = (app.world().resource::<CombatState>().player_taken, app.world().resource::<crate::droid::DroidState>().shot_timer); assert_eq!((c, d), (0, 0.0), "droid {gate}"); });
+        }
+        yard("cf1f2exact", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, PREDATOR_HOME, |app| {
+            cf1_thread(app); tick(app, 0.0);
+            app.world_mut().resource_mut::<CombatState>().lunge_timer = LUNGE_SECS - 1.0 / 120.0;
+            app.world_mut().resource_mut::<HouseLabel>().settings_open = true;
+            tick(app, 1.0 / 60.0);
+            let c = app.world().resource::<CombatState>();
+            assert_eq!((c.player_taken, c.lunge_timer), (0, 0.0), "frame-exact settings");
+        });
+    }
+    #[test]
+    fn cf1_f3_each_hit_has_a_quiet_then_an_n_frame_wind_up() {
+        let rows = [("pred", PREDATOR_HOME, false, LUNGE_SECS), ("droid", crate::droid::DROID_HOME, true, crate::droid::DROID_SHOT_SECS)];
+        for (tag, home, droid, period) in rows {
+            yard(&format!("cf1f3{tag}"), HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, home, |app| {
+                cf1_thread(app);
+                if droid { app.add_plugins(crate::droid::DroidPlugin); cf1_thread(app); tick(app, 0.0); }
+                let mut frames = Vec::new();
+                for _ in 0..(3.0 * period * 60.0).round() as usize + 2 {
+                    tick(app, 1.0 / 60.0);
+                    let telling = tell_visible(app.world().resource::<CombatState>().lunge_timer, true);
+                    let lean = app.world_mut().query_filtered::<&Transform, With<Predator>>().iter(app.world()).any(|t| Vec2::new(t.translation.x - home[0], t.translation.z - home[1]).length() > 1e-3);
+                    let ring = app.world_mut().query_filtered::<&Visibility, With<crate::droid::DroidTell>>().iter(app.world()).any(|v| *v == Visibility::Visible);
+                    frames.push((app.world().resource::<CombatState>().player_taken, if droid { ring } else { telling || lean }));
+                }
+                assert!(cf1_hits(&frames, CF1_N, CF1_Q) >= 3, "{tag}");
+            });
+        }
+    }
+    #[test]
+    fn cf1_f4_fifteen_repeat_a_steady_presser_wins() {
+        let rows = [("pred", PREDATOR_HOME, false), ("droid", crate::droid::DROID_HOME, true)];
+        for (tag, home, droid) in rows {
+            yard(&format!("cf1f4{tag}"), HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, home, |app| {
+                cf1_thread(app);
+                if droid { app.add_plugins(crate::droid::DroidPlugin); cf1_thread(app); tick(app, 0.0); }
+                { let mut f = app.world_mut().resource_mut::<FoundFinds>(); f.names.clear(); f.equipped = None; }
+                cf1_arm(app); cf1_place(app, [home[0], home[1] - 2.0], 0.0);
+                if droid { *app.world_mut().resource_mut::<crate::droid::DroidState>() = default(); }
+                let (mut frame, mut prev, mut fifteens) = (0usize, 0u32, 0u32);
+                loop {
+                    if frame % CF1_P == 0 { cf1_key(app, 1.0 / 60.0); } else { tick(app, 1.0 / 60.0); }
+                    let player = app.world().resource::<CombatState>().player_taken;
+                    let target = if droid { app.world().resource::<crate::droid::DroidState>().taken } else { app.world().resource::<CombatState>().predator_taken };
+                    let rise = player.saturating_sub(prev);
+                    if !droid && rise > 0 { assert_eq!(rise, LUNGE_HIT, "{tag} hit {rise}"); fifteens += 1; }
+                    prev = player;
+                    if target >= HEALTH { assert!(player < HEALTH, "{tag} target first"); if !droid { assert!(fifteens <= 13, "{tag} fifteens {fifteens}"); } break; }
+                    let away = { let p = app.world().resource::<SoftPresence>().position; (p.x - home[0]).hypot(p.z - home[1]) > REACH + 1.0 };
+                    assert!(player < HEALTH && !away, "{tag} player died first at {frame}");
+                    frame += 1;
+                    assert!(frame < 4000, "{tag} timeout");
+                }
+            });
+        }
+    }
+    #[test]
+    fn cf1_f5_way_out_step_out_and_jump_stay_clean() {
+        yard("cf1f5", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, PREDATOR_HOME, |app| {
+            cf1_thread(app);
+            tick(app, 0.2);
+            assert!(app.world().resource::<CombatState>().lunge_timer > 0.0, "clock was running");
+            let taken = app.world().resource::<CombatState>().player_taken;
+            app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(80.0, 0.9, 80.0);
+            tick(app, 2.0);
+            assert_eq!((app.world().resource::<CombatState>().player_taken, app.world().resource::<CombatState>().lunge_timer), (taken, 0.0), "step-out");
+            app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(PREDATOR_HOME[0], 0.9, PREDATOR_HOME[1]);
+            let mut n = 0;
+            while app.world().resource::<CombatState>().player_taken == taken && n < 200 { tick(app, 1.0 / 60.0); n += 1; }
+            assert!(app.world().resource::<CombatState>().player_taken > taken && n >= CF1_Q + CF1_N, "re-entry {n}");
+            { let mut c = app.world_mut().resource_mut::<CombatState>(); (c.lunge_timer, c.player_taken) = (LUNGE_SECS - 0.02, taken); }
+            app.world_mut().resource_mut::<SoftPresence>().grounded = false;
+            tick(app, 0.05);
+            assert_eq!(app.world().resource::<CombatState>().player_taken, taken, "jump");
+            app.world_mut().resource_mut::<SoftPresence>().grounded = true;
+            tick(app, 0.0);
+            assert_eq!(app.world().resource::<CombatState>().player_taken, taken, "no back-pay");
+        });
+    }
+    #[test]
+    fn cf1_f6_a_fresh_save_has_a_defence() {
+        yard("cf1f6", HudPresetId::Classic, PlaceId::Heartwood, DifficultyTier::Sheltered, PREDATOR_HOME, |app| {
+            cf1_thread(app);
+            { let mut f = app.world_mut().resource_mut::<FoundFinds>(); f.names.clear(); f.equipped = None; }
+            app.world_mut().resource_mut::<FirstSessionGuidance>().dismiss();
+            tick(app, 0.0); tick(app, 0.0);
+            app.world_mut().resource_mut::<CombatState>().lunge_timer = LUNGE_SECS - LUNGE_TELL_SECS;
+            cc2a_keys(app, &[KeyCode::Digit2]);
+            let before = app.world().resource::<CombatState>().player_taken;
+            tick(app, LUNGE_TELL_SECS + 0.05);
+            assert_eq!(app.world().resource::<CombatState>().player_taken - before, plate_hit(LUNGE_HIT), "key 2 in the tell");
+            let tips = ats_tips(app);
+            assert_eq!(tips.len(), 1, "one tip");
+            assert_eq!((tips[0].0, tips[0].1.as_slice()), (Visibility::Visible, [slot_tooltip(1).unwrap()].as_slice()), "Plate tip through HudLayoutPlugin");
+        });
+    }
+    #[test]
+    fn cf1_f7_shape_pins() {
+        let prod = include_str!("combat_core.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        let fire = prod.split("pub fn combat_fire(").nth(1).unwrap();
+        let fire = &fire[..fire.find("\n}\n").unwrap()];
+        let lunge = prod.split("fn predator_lunge(").nth(1).unwrap();
+        let lunge = &lunge[..lunge.find("\n}\n").unwrap()];
+        let reach = prod.split("pub fn in_reach(").nth(1).unwrap();
+        let reach = &reach[..reach.find("\n}").unwrap()];
+        let droid = include_str!("droid.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        assert_eq!(prod.matches("fn strike_gates(").count(), 1, "one helper");
+        assert!(fire.contains("strike_gates(") && lunge.contains("strike_gates(") && droid.contains("strike_gates("), "called from fire, lunge, droid");
+        assert!(prod.matches("fn facing_ok(").count() <= 1 && !reach.contains("facing"), "facing stays out of in_reach");
+        assert!(["ControlPreset", "FollowOrbit", "BodyFacing", "Camera3d"].iter().all(|w| !prod.contains(w)));
+        assert!(prod.contains("let plate_key = gate && input.as_deref().and_then(|i| i.ability_slot) == Some(1);"));
+        assert!(!prod.contains("plate_arm(&mut combat, reach, shell_equipped(finds.as_deref()))"), "shell arm gate");
+        assert_eq!(fire.matches("play_swing(").count(), 1);
+        assert_eq!(prod.matches("play_hit(&mut cmd").count(), 1);
+    }
 }
