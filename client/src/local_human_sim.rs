@@ -417,4 +417,38 @@ mod tests {
         let caught = std::panic::catch_unwind(AssertUnwindSafe(|| with_user_dir("fsw2p", |_| panic!("fsw2p"))));
         assert!(caught.is_err() && std::env::var_os(env) == before && !dir.exists(), "FSW2: unwind={} restored={} removed={}", caught.is_err(), std::env::var_os(env) == before, !dir.exists());
     }
+
+    /// GROUND-SNAP-1 F1 — capsule feet stay on the yard plate (y 0.0) at spawn and across the well walk.
+    #[test]
+    fn ground_snap_1_traveler_feet_on_yard_ground_every_frame() {
+        use bevy::time::TimeUpdateStrategy;
+        let mut app = App::new();
+        let asset = AssetPlugin { watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..default() };
+        app.add_plugins((MinimalPlugins, asset, bevy::mesh::MeshPlugin)).init_asset::<Mesh>().init_asset::<StandardMaterial>().add_systems(Startup, seed_travelers).add_systems(Update, walk_wells).insert_resource(TimeUpdateStrategy::ManualDuration(std::time::Duration::ZERO));
+        app.finish();
+        app.cleanup();
+        crate::test_env::single_thread(&mut app);
+        app.update();
+        let min_y = {
+            let w = app.world_mut();
+            let h = w.query::<&Mesh3d>().iter(w).next().unwrap().0.clone();
+            let pts = w.resource::<Assets<Mesh>>().get(&h).unwrap().attribute(Mesh::ATTRIBUTE_POSITION).unwrap().as_float3().unwrap();
+            pts.iter().map(|p| p[1]).fold(f32::INFINITY, f32::min)
+        };
+        assert!((min_y + FOOT).abs() < 1e-4, "capsule mesh min.y {min_y} vs -FOOT");
+        let feet = |app: &mut App, step: i32| {
+            let mut q = app.world_mut().query_filtered::<(&Transform, &Name), With<PracticeTraveler>>();
+            for (tf, name) in q.iter(app.world()) {
+                assert!(crate::terrain::play_footprint(tf.translation.x, tf.translation.z), "{name} step {step}");
+                let f = tf.translation.y + min_y;
+                assert!(f.abs() <= 0.01, "{name} step {step} feet {f} root {} mesh_min {min_y}", tf.translation.y);
+            }
+        };
+        feet(&mut app, 0);
+        app.insert_resource(TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(50)));
+        for step in 1..=400 {
+            app.update();
+            feet(&mut app, step);
+        }
+    }
 }

@@ -644,4 +644,14 @@ mod tests {
             assert_eq!((pulse_of(app).1, app.world().resource::<FirstHarvestEpiphany>().pulse_line.as_str()), (Visibility::Hidden, DROID_TELL_TEXT));
         });
     }
+    #[test]
+    fn ground_snap_1_grazer_and_droid_base_on_yard_idle_tell_shot() {
+        let mut a = App::new();
+        a.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default(), bevy::mesh::MeshPlugin)).init_asset::<StandardMaterial>().add_plugins((crate::grazer::GrazerPlugin, DroidPlugin)).insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(250))).insert_resource(HexTravelState { current: PlaceId::Heartwood }).insert_resource(LaunchDoor::InYard).insert_resource(CombatState::default()).insert_resource(SoftPresence { position: Vec3::new(DROID_HOME[0], 0.9, DROID_HOME[1]), grounded: true, ..default() });
+        crate::test_env::single_thread(&mut a);
+        let sit = |a: &mut App, tag: &str| { let base = |a: &mut App, grazer: bool| -> f32 { let (y, h) = { let w = a.world_mut(); let mut qg = w.query_filtered::<(&Transform, &Mesh3d), With<crate::grazer::Grazer>>(); let mut qd = w.query_filtered::<(&Transform, &Mesh3d), With<Droid>>(); if grazer { let (t, m) = qg.single(w).unwrap(); (t.translation.y, m.0.clone()) } else { let (t, m) = qd.single(w).unwrap(); (t.translation.y, m.0.clone()) } }; let min = a.world().resource::<Assets<Mesh>>().get(&h).unwrap().attribute(Mesh::ATTRIBUTE_POSITION).unwrap().as_float3().unwrap().iter().map(|p| p[1]).fold(f32::INFINITY, f32::min); y + min }; let (g, d) = (base(a, true), base(a, false)); assert!(g.abs() <= 0.01 && d.abs() <= 0.01, "{tag} grazer base {g} droid base {d}"); };
+        let (mut idle, mut tell, mut shot) = (false, false, false);
+        for _ in 0..16 { a.update(); let (st, hit) = (a.world().resource::<DroidState>().shot_timer, a.world().resource::<CombatState>().player_taken); let tag = if hit >= DROID_HIT { shot = true; "shot" } else if shot_tell_visible(st, true) { tell = true; "tell" } else { idle = true; "idle" }; sit(&mut a, tag); if shot { break; } }
+        assert!(idle && tell && shot, "phases idle {idle} tell {tell} shot {shot}"); a.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(crate::grazer::GRAZER_HOME[0], 0.9, crate::grazer::GRAZER_HOME[1]); for _ in 0..8 { a.update(); sit(&mut a, "flee"); }
+    }
 }

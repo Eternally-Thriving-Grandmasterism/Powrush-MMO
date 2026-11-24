@@ -1182,4 +1182,25 @@ mod tests {
         assert!((c - care).length() < 1e-4, "unbound {c:?} {care:?}");
         assert!((a - follow).length() < 1e-4, "mounted {a:?} {follow:?}");
     }
+
+    /// GROUND-SNAP-1 F3 — care, take, and idle keep the deer's feet on the plate.
+    #[test]
+    fn ground_snap_1_deer_feet_on_plate_for_care_take_and_idle() {
+        for kind in [AnswerKind::Tend, AnswerKind::Take, AnswerKind::Idle] {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>().init_resource::<WorldAnswer>().init_resource::<SoftPlayerRealm>().init_resource::<crate::human_presence::SoftPresence>().insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(16))).add_plugins(LivingEcologyPlugin);
+            app.finish();
+            app.cleanup();
+            crate::test_env::single_thread(&mut app);
+            app.world_mut().resource_mut::<EcologyState>().last_kind = kind;
+            for step in 0..400 {
+                app.update();
+                let y = {
+                    let mut q = app.world_mut().query_filtered::<&Transform, With<ResonantDeer>>();
+                    q.single(app.world()).unwrap().translation.y
+                };
+                assert!((y - 0.435).abs() <= 0.01, "{kind:?} step {step} y {y}");
+            }
+        }
+    }
 }
