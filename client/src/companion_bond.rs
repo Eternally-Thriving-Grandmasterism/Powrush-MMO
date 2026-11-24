@@ -121,12 +121,11 @@ fn follow_or_wait(
             continue;
         }
         let mut want = player + Vec3::new(1.1, 0.0, 1.0);
-        want.y = crate::living_ecology::DEER_STAND_Y + crate::terrain::shelf_offset(want.x, want.z);
+        want.y = 0.55;
         if d > 2.4 {
             tf.translation = tf.translation.lerp(want, (1.8 * dt).min(1.0));
         }
         tf.translation.y = crate::living_ecology::DEER_STAND_Y + crate::terrain::shelf_offset(tf.translation.x, tf.translation.z);
-        bond.nearby = tf.translation.distance(player) <= MOUNT_REACH;
     }
 }
 
