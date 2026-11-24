@@ -107,7 +107,7 @@ fn spawn_droid(mut cmd: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mats: Re
     cmd.spawn((
         Mesh3d(meshes.add(Cuboid::new(0.7, 0.9, 0.7))),
         MeshMaterial3d(mats.add(Color::srgb(0.42, 0.46, 0.52))),
-        Transform::from_xyz(DROID_HOME[0], 0.8, DROID_HOME[1]),
+        Transform::from_xyz(DROID_HOME[0], 0.45, DROID_HOME[1]),
         (Visibility::Hidden, Droid, Name::new(DROID_NAME)),
     ));
     let mesh = meshes.add(Cylinder::new(LUNGE_TELL_DOT_RADIUS, LUNGE_TELL_DOT_HEIGHT));

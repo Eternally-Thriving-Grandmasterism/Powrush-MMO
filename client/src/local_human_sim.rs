@@ -21,6 +21,9 @@ const PEER_PATH: &str = "data/powrush_lattice_flow_share_peer.json";
 const POCKET: f32 = 5.8;
 const WALK: &str = "CharacterArmature|Walk";
 const FOOT: f32 = 0.695;
+const YARD_GROUND_Y: f32 = 0.0; // ClimateGround climate_plane.rs:1525
+fn traveler_root(at: Vec3) -> Vec3 { at.with_y(YARD_GROUND_Y + FOOT) }
+fn traveler_dress_child() -> Transform { Transform::from_xyz(0.0, -FOOT, 0.0) }
 const WELLS: [Vec3; 3] = [
     Vec3::new(WELL_ANCHORS[0].0, WELL_ANCHORS[0].1, WELL_ANCHORS[0].2),
     Vec3::new(WELL_ANCHORS[1].0, WELL_ANCHORS[1].1, WELL_ANCHORS[1].2),
@@ -97,7 +100,7 @@ fn seed_travelers(
             perceptual_roughness: 0.7,
             ..default()
         });
-        let pos = WELLS[well] + Vec3::new(1.4, 0.7, 0.6);
+        let pos = traveler_root(WELLS[well] + Vec3::new(1.4, 0.0, 0.6));
         let tag = (PracticeTraveler { well, phase: well as f32 * 0.33 }, Name::new(name));
         if asset_file_present(glb(name)) && gltfs.is_some() {
             commands.spawn((Transform::from_translation(pos), Visibility::default(), TravelerDress(assets.load(glb(name))), tag.0, tag.1));
@@ -125,7 +128,7 @@ fn attach_traveler_scene(
             .with_children(|p| {
                 p.spawn((
                     WorldAssetRoot(assets.load(GltfAssetLabel::Scene(0).from_asset(rel))),
-                    Transform::from_xyz(0.0, -FOOT, 0.0),
+                    traveler_dress_child(),
                     Visibility::default(),
                 ));
             })
@@ -173,7 +176,7 @@ fn walk_wells(time: Res<Time>, mut q: Query<(&mut Transform, &mut PracticeTravel
             t.phase -= 1.0;
             t.well = (t.well + 1) % n;
         }
-        let want = WELLS[t.well].lerp(WELLS[(t.well + 1) % n], t.phase) + Vec3::new(1.2, 0.72, 0.4);
+        let want = traveler_root(WELLS[t.well].lerp(WELLS[(t.well + 1) % n], t.phase) + Vec3::new(1.2, 0.0, 0.4));
         tf.translation = tf.translation.lerp(want, (1.4 * dt).min(1.0));
     }
 }
@@ -450,5 +453,14 @@ mod tests {
             app.update();
             feet(&mut app, step);
         }
+    }
+
+    #[test]
+    fn ground_snap_1_traveler_dress_child_puts_glb_origin_on_ground() {
+        for w in WELLS {
+            let y = traveler_root(w).y + traveler_dress_child().translation.y;
+            assert!(y.abs() <= 0.01, "{w:?} dressed origin {y}");
+        }
+        assert!((0.95f32 * 0.5 + 0.22 - FOOT).abs() < 1e-6);
     }
 }

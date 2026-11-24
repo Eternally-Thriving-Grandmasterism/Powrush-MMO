@@ -25,8 +25,9 @@ use crate::living_day::{
 use crate::living_practice_loop::SoftPlayerRealm;
 use crate::world_answer::{AnswerKind, WorldAnswer};
 
-const DEER_NEAR: Vec3 = Vec3::new(1.8, 0.55, 1.4);
-const DEER_FAR: Vec3 = Vec3::new(8.5, 0.55, 6.2);
+pub(crate) const DEER_STAND_Y: f32 = 0.16 + 0.55 * 0.5; // Capsule3d::new(0.16, 0.55) half-extent
+const DEER_NEAR: Vec3 = Vec3::new(1.8, DEER_STAND_Y, 1.4);
+const DEER_FAR: Vec3 = Vec3::new(8.5, DEER_STAND_Y, 6.2);
 
 /// Existing startup log. Absent travel keeps this byte for byte.
 const ECOLOGY_SEED_LINE: &str = "Heartwood + Spires + Abyssal threads seeded";
@@ -526,11 +527,12 @@ fn move_deer(
     let target = match eco.last_kind {
         AnswerKind::Tend | AnswerKind::Flow | AnswerKind::Reserve => DEER_NEAR,
         AnswerKind::Take => DEER_FAR,
-        _ => Vec3::new(5.2, 0.55, 3.6),
+        _ => Vec3::new(5.2, DEER_STAND_Y, 3.6),
     };
     let dt = time.delta_secs();
     for mut tf in &mut q {
         tf.translation = tf.translation.lerp(target, (1.6 * dt).min(1.0));
+        tf.translation.y = DEER_STAND_Y + crate::terrain::shelf_offset(tf.translation.x, tf.translation.z);
     }
 }
 
@@ -1164,7 +1166,7 @@ mod tests {
     #[test]
     fn deer_one_writer_1_mounted_seat_holds_care_lerp_when_free() {
         let start = Vec3::new(4.0, 0.55, 3.0); let dt = std::time::Duration::from_millis(16).as_secs_f32();
-        let follow = start.lerp(Vec3::new(0.0, 0.15, 0.0), (8.0 * dt).min(1.0)); let care = start.lerp(DEER_NEAR, (1.6 * dt).min(1.0));
+        let follow = start.lerp(Vec3::new(0.0, 0.15, 0.0), (8.0 * dt).min(1.0)); let care = start.lerp(DEER_NEAR, (1.6 * dt).min(1.0)).with_y(DEER_STAND_Y);
         let run = |mounted: Option<bool>| -> Vec3 { let mut app = App::new();
             app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>().init_resource::<WorldAnswer>().init_resource::<SoftPlayerRealm>().init_resource::<crate::human_presence::SoftPresence>().insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(16))).add_plugins(LivingEcologyPlugin);
             if mounted.is_some() { app.init_resource::<ButtonInput<KeyCode>>().init_resource::<crate::input::PlayerInput>().init_resource::<crate::mercy_harvest_nodes::NearbyMercyNode>().add_plugins(crate::companion_bond::CompanionBondPlugin); }
