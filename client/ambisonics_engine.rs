@@ -1,6 +1,7 @@
 //! client/ambisonics_engine.rs
 //! Production-grade First-Order Ambisonics Spatialization for Powrush-MMO
 //! AG-SML v1.0 | TOLC 8 Mercy Gates enforced | ONE Organism v14.6.0+
+//! COUNCIL BOARD CARD #738: Offline build sellable on itch.io (Revenue First)
 
 use bevy::prelude::*;
 use glam::{Vec3, Quat};
@@ -46,7 +47,10 @@ fn update_ambisonics_field(
     mut field: ResMut<AmbisonicField>,
     hrtf: Res<HrtfImpulseResponses>,
 ) {
-    let listener = listener.single();
+    let listener = match listener.get_single() {
+        Ok(l) => l,
+        Err(_) => return,
+    };
     let mut new_field = AmbisonicField::default();
 
     for (emitter, transform) in emitters.iter() {
