@@ -2,7 +2,7 @@
 
 SYSTEMS-SPINE-1. Docs only. This file is new. No code, data, crate or format change.
 
-The PATSAGi Councils adopted this page under Sherif's typed delegation t1767u, t1948u and t2247u. Sherif may veto or amend. The ten sections are the queue ruling. Every owner line below was re-read at main `6ba72cf2`.
+The PATSAGi Councils adopted the rulings this page records, under Sherif's typed delegation t1767u, t1948u and t2247u. Sherif may veto or amend. The ten sections are the queue ruling. Every owner line below was re-read at main `6ba72cf2`.
 
 Enforcement starts once this file is on main. From then on, each new card's PRE-PATH cites the spine section it plugs into. Cards already ruled are not held back: COMBAT-FAIR-1, STRIKE-HINT-1, GROUND-SNAP-1, GROUND-SNAP-2, GROUND-SNAP-3, GROUND-SNAP-4 and LOD-LIMBS-1.
 
@@ -16,7 +16,7 @@ Title Online stays grey, and server work stays planned (`shared/net_mode.rs:5`, 
 
 **Status:** partial. A test-side contract exists. The runtime entity registry is planned (ENTITY-PURPOSE-1).
 
-**Overlap:** spawn positions sit in per-module consts, with no single table. One later card. Sites today: `client/src/living_ecology.rs:62` `ResonantDeer`, `:211` `YARD_TREE_SPOTS`, `:225` `YARD_ROCK_SPOTS`, `:229` `YARD_CRYSTAL_SPOTS`; `client/src/combat_core.rs:104` `Predator`; `client/src/droid.rs:33` `Droid`; `client/src/grazer.rs:23` `Grazer`, `:50` `GrazerPlugin`; `client/src/local_human_sim.rs:46` `LocalHumanSim`; `client/src/companion_bond.rs:43` `CompanionBond`, `:59` `CompanionBondPlugin`; `client/src/collide.rs:129` `CreatureBodyPlugin`.
+**Overlap:** spawn positions sit in per-module consts, with no single table. One later card. Sites today: `client/src/living_ecology.rs:62` `ResonantDeer`, `:211` `YARD_TREE_SPOTS`, `:225` `YARD_ROCK_SPOTS`, `:229` `YARD_CRYSTAL_SPOTS`; `client/src/combat_core.rs:105` `Predator`; `client/src/droid.rs:33` `Droid`; `client/src/grazer.rs:23` `Grazer`, `:50` `GrazerPlugin`; `client/src/local_human_sim.rs:46` `LocalHumanSim`; `client/src/companion_bond.rs:43` `CompanionBond`, `:59` `CompanionBondPlugin`; `client/src/collide.rs:129` `CreatureBodyPlugin`.
 
 Draeks: a secret exists and is found through play.
 
@@ -24,7 +24,7 @@ Draeks: a secret exists and is found through play.
 
 COMBAT-FAIR-1's numbers are this section's first rows. That card is already ruled and is not held back.
 
-**Owner:** `client/src/combat_core.rs`. `CombatState` `:72`. Damage: `land_hit` `:327`, `land_hit_paid` `:351`, `combat_fire` `:547`. Telegraph: `tell_visible` `:124` (0.35 s at `:106`). Block: `plate_arm` `:97`. Recovery: `respawn_step` `:391`. Targeting: `in_reach` `:282`, `facing_ok` `:288`. `Predator` `:104`. `PREDATOR_RESPAWN_SECS` `:68`. Also `client/src/difficulty.rs:39` `enemy_hit`, `client/src/droid.rs:1`, and `client/src/combat_text.rs:221` `CombatTextPlugin`.
+**Owner:** `client/src/combat_core.rs`. `CombatState` `:72`. Damage: `land_hit` `:332`, `land_hit_paid` `:356`, `combat_fire` `:552`. Telegraph: `tell_visible` `:125` (0.35 s at `:107`). Block: `plate_arm` `:98`. Recovery: `respawn_step` `:396`. Targeting: `in_reach` `:287`, `facing_ok` `:293`. `Predator` `:105`. `PREDATOR_RESPAWN_SECS` `:68`. Also `client/src/difficulty.rs:39` `enemy_hit`, `client/src/droid.rs:1`, and `client/src/combat_text.rs:221` `CombatTextPlugin`.
 
 **Status:** built for one predator and one droid. Soft-aim is planned (no soft-aim function in this tree).
 
@@ -90,7 +90,7 @@ Local only: no network calls, no server, no data off the device, no live AI. Ser
 3. `run_ledger` — `client/src/run_ledger.rs:1`, plugin `:74`.
 4. `week_audit` — `shared/week_audit.rs:1`, struct `:10`.
 
-Also in this section today: local faction standing `shared/shard_standing.rs:1` (`ShardStanding` `:11`) and `shared/crownstone.rs:31` `CrownstoneState`. The morality design doc is planned, and online stays grey (`docs/design/SERVER_MORALITY.md`).
+Also in this section today: local faction standing `shared/shard_standing.rs:1` (`ShardStanding` `:11`) and `shared/crownstone.rs:31` `CrownstoneState`. Server morality is proposed, not built, and online stays grey (`docs/design/SERVER_MORALITY.md:9`).
 
 **Overlap:** the four ledgers above. Consequence gaps are ranked at `docs/LOOP_MAP.md:65`. One later card.
 
@@ -154,7 +154,7 @@ Local only: no network calls, no server, no data off the device, no live AI. Ser
 | 8 | `data/powrush_house.json` | `shared/house_name.rs:21` |
 | 9 | `data/powrush_hud_layout.json` | `shared/hud_layout.rs:19` |
 | 10 | `data/powrush_settings.json` | `shared/local_settings.rs:19` |
-| 11 | `data/powrush_persona.json` | `shared/persona.rs:292` |
+| 11 | `data/powrush_persona.json` | `shared/persona.rs:290` |
 | 12 | `data/powrush_shard_climate.json` | `client/src/lived_hour_bind.rs:34` |
 | 13 | `data/powrush_shard_standing.json` | `client/src/lived_hour_bind.rs:35` |
 | 14 | `data/powrush_week_audit.json` | `client/src/lived_hour_bind.rs:36` |
@@ -167,3 +167,305 @@ Local only: no network calls, no server, no data off the device, no live AI. Ser
 | 21 | `powrush_wood_expedition.json` | `client/src/wood_expedition.rs:20` |
 | 22 | `powrush_signpost.json` | `client/src/first_session_guidance.rs:862` |
 | 23 | `data/powrush_genshare.jsonl` | `shared/genshare.rs:23` |
+
+## 11. FOUNDATIONS
+
+One block for each system in §1 through §10. The seven fields follow queue ruling 7118722588. Known-today lines in this section were re-read at main `44dca531`. A missing fact says planned or **GAP**.
+
+A perf figure here is a target, not a measurement (§13.1). Multiplayer is planned only. This page names no server and no account.
+
+Shared work that is already written stays planned: the COMPANY-1 layer (`docs/DESIGN_PILLARS.md:44`), NPC rival companies (`docs/DESIGN_PILLARS.md:56`), BOT-SOAK-1 (`docs/DESIGN_PILLARS.md:66`), and the EA minimum of one refine leg plus one haul leg (`docs/EA_BAR.md:47`). WORLD-BIBLE-1, WORLD-GEN-1 and WORLD-TRAVEL-1 are planned.
+
+Dev proof is `cargo test -p shared -p rsil-identity` and `cargo test -p powrush-client --lib` (`.github/workflows/ci.yml:141`, `.github/workflows/ci.yml:144`). The seven required checks stay: validate (`.github/workflows/validate-full-files.yml:8`), PATSAGi merge court (`.github/workflows/patsagi-auto-merge.yml:20`), Core (`.github/workflows/ci.yml:18`), Core + Q2 one-frame (`.github/workflows/agent-headless-qa.yml:25`), offline-build on ubuntu-24.04 and on windows-latest (`.github/workflows/offline-build.yml:17`, matrix `.github/workflows/offline-build.yml:27`), and clean-boot (`.github/workflows/offline-build.yml:221`). Release proof is that offline-build, that clean-boot, and Sherif's real-PC test named at `docs/DESIGN_PILLARS.md:72`. There is no perf step in CI. Q2 does not compare pixels (`.github/workflows/agent-headless-qa.yml:6`).
+
+The Draek sentences already in §1, §6 and §8 stay as they are. This section adds none.
+
+### 11.1 Entities
+
+**Contract:** A mesh in the world has a policy row, and a spawn for that place sits on the yard.
+
+**Known today:** Test-side ENTITY-CONTRACT at `client/src/entity_policy.rs:2`, `#![cfg(test)]` at `client/src/entity_policy.rs:1`, declared at `client/src/lib.rs:108`. The table starts at `client/src/entity_policy.rs:37`. Tests `client/src/entity_policy.rs:287` and `client/src/entity_policy.rs:289` (7 `#[test]` fns). The runtime registry is planned (ENTITY-PURPOSE-1). Spawn sites are the consts named in §1.
+
+**Expected:** ENTITY-PURPOSE-1 is the planned runtime registry. Multiplayer is planned only.
+
+**Failure modes and recovery cost:** A spawn const that misses the contract table is a medium recovery. §1 already records those sites as per-module consts, and this page does not build the registry.
+
+**Tests:** The two tests above, under the dev command in this section. Release proof is the release list in this section.
+
+**Performance budget:** Target, not a measurement. See §13.1.
+
+**Save and version migration:** No §10 row is an entity registry. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built.
+
+### 11.2 Combat (damage, telegraph, block, recovery, targeting and soft-aim)
+
+**Contract:** One predator and one droid, PvE only, with a telegraph, a block, a recovery and a facing check. Soft-aim is planned.
+
+**Known today:** Re-read at `44dca531`: `CombatState` `client/src/combat_core.rs:72`, `land_hit` `client/src/combat_core.rs:332`, `land_hit_paid` `client/src/combat_core.rs:356`, `combat_fire` `client/src/combat_core.rs:552`, `tell_visible` `client/src/combat_core.rs:125`, the telegraph comment `client/src/combat_core.rs:107`, `plate_arm` `client/src/combat_core.rs:98`, `respawn_step` `client/src/combat_core.rs:396`, `in_reach` `client/src/combat_core.rs:287`, `facing_ok` `client/src/combat_core.rs:293`, `Predator` `client/src/combat_core.rs:105`, `PREDATOR_RESPAWN_SECS` `client/src/combat_core.rs:68`. PvE only `client/src/combat_core.rs:3`. The basic-strike comment is `client/src/combat_core.rs:48`. Droid module `client/src/droid.rs:1`, reach assert `client/src/droid.rs:248`. Example test `client/src/combat_core.rs:1030` (165 `#[test]` fns in that file). No soft-aim function in `client/src`. COMBAT-FAIR-1 landed at `44dca531`. The §2 anchors on L19 and L27 were refreshed to that tip.
+
+**Expected:** COMBAT-FAIR-1 has landed at `44dca531`. Soft-aim stays planned. Multiplayer is planned only.
+
+**Failure modes and recovery cost:** The droid reach and shot path sits beside `combat_core` (§2 Overlap). Two paths that disagree are a medium recovery: one later card, and this page does not merge them.
+
+**Tests:** `client/src/combat_core.rs:1030` and `client/src/droid.rs:248`, under the dev command in this section. Release proof is the release list in this section.
+
+**Performance budget:** Target, not a measurement. See §13.1.
+
+**Save and version migration:** Combat XP rides the session blob (§10 row 1, `client/src/skill_xp.rs:2`). An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built.
+
+### 11.3 Stats, items, gear and recipes
+
+**Contract:** Named finds, a satchel, and the recipe enum. An owned find that is equipped adds its standing step to one outgoing strike.
+
+**Known today:** `shared/temper.rs:1`, `WardKind` `shared/temper.rs:26`. `FoundFinds` `client/src/loot_drops.rs:45`, file `client/src/loot_drops.rs:37`, schema `client/src/loot_drops.rs:107`. Six named finds `shared/temper.rs:236`. An equipped owned find's standing step reaches combat in `land_hit_paid` (`client/src/combat_core.rs:356`). Tested at `client/src/combat_core.rs:2303`. The Shell ward is `client/src/combat_core.rs:96`, tested at `client/src/combat_core.rs:2592`. Satchel `client/src/human_inventory.rs:99`. Recipes `shared/fabricator.rs:22` through `shared/fabricator.rs:26`, client plugin `client/src/fabricator.rs:66`, same row `docs/EA_BAR.md:28`. Example test `client/src/loot_drops.rs:148` (14 `#[test]` fns).
+
+**Expected:** Finds and the satchel stay separate stores until one later card (§3 Overlap). That card is not named here. Multiplayer is planned only.
+
+**Failure modes and recovery cost:** The two stores diverging is a medium recovery. §3 names one later card, and this page does not merge them.
+
+**Tests:** `client/src/loot_drops.rs:148`, `client/src/loot_drops.rs:304` and `client/src/loot_drops.rs:328`, under the dev command in this section. Release proof is the release list in this section.
+
+**Performance budget:** Target, not a measurement. See §13.1.
+
+**Save and version migration:** §10 row 2. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built. See §14.
+
+### 11.4 Progression and the unlock ladder
+
+**Contract:** Four tracks are already in code: skill XP, Temper, Lumen and Ward, an area difficulty gate, and the hour and book gate. Temper, Lumen and Ward stay the one power ladder.
+
+**Known today:** `client/src/skill_xp.rs:1`, `SkillXp` `client/src/skill_xp.rs:31`, `SkillXpPlugin` `client/src/skill_xp.rs:149`, `client/src/skill_xp.rs:243` (16 `#[test]` fns). `shared/temper.rs:1`. `client/src/difficulty.rs:1`, `enemy_hit` `client/src/difficulty.rs:39`, `DifficultyPlugin` `client/src/difficulty.rs:216`, test `client/src/difficulty.rs:228` (17 `#[test]` fns). `HourSacred` `client/src/hour_sacred.rs:796`, `hour_three_complete` `client/src/hour_sacred.rs:799`. Book check `client/src/hex_travel.rs:258`, `book_flags` `client/src/hex_travel.rs:536`. XP from verbs, and kills never pay, `docs/design/LEVELS_CANON.md:15`. The tracks stay unmapped at `docs/design/LEVELS_CANON.md:17` and `docs/design/LEVELS_CANON.md:85`.
+
+**Expected:** UNLOCK-LADDER-1 is planned. §4 records that it has no doc in this tree.
+
+**Failure modes and recovery cost:** Four unmapped tracks are a medium recovery. `docs/design/LEVELS_CANON.md:85` says skill levels do not feed the power ladder until a card maps them.
+
+**Tests:** `client/src/skill_xp.rs:243` and `client/src/difficulty.rs:228`, under the dev command in this section. Release proof is the release list in this section.
+
+**Performance budget:** Target, not a measurement. See §13.1.
+
+**Save and version migration:** Skill XP rides §10 row 1 (`client/src/skill_xp.rs:2`). Hour two is §10 row 7. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built.
+
+### 11.5 Quests, journal and captions
+
+**Contract:** There is no quest log. Signposts, a journey feed, and one quest const exist.
+
+**Known today:** No quest log, `docs/LOOP_MAP.md:155`. `FirstSessionGuidancePlugin` `client/src/first_session_guidance.rs:794`, test `client/src/first_session_guidance.rs:1438` (110 `#[test]` fns). `AbundanceJourneyEchoPlugin` `client/src/abundance_journey_echo.rs:146`, key `client/src/soft_play_bindings.rs:21`. `QUEST_TEXT` is the const at `client/src/wellsworn.rs:21`. This page does not quote it. Shape tokens sit at `client/src/local_settings.rs:8`.
+
+**Expected:** QUEST-DATA-1 is planned. Multiplayer is planned only.
+
+**Failure modes and recovery cost:** Three surfaces write player-facing progress lines (§5 Overlap). Lines that disagree are a medium recovery: one later card, and this page writes no new line.
+
+**Tests:** `client/src/first_session_guidance.rs:1438`, under the dev command in this section. Release proof is the release list in this section.
+
+**Performance budget:** Target, not a measurement. See §13.1.
+
+**Save and version migration:** §10 rows 19, 20 and 22. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built.
+
+### 11.6 World (bible, gen seeds, zones, travel, WORLD-DIRECTOR L0–L3 budgets)
+
+**Contract:** Three PlaceIds, travel between them, and dress per place. The world bible, the WORLD-DIRECTOR budgets, and distinct traveled places are planned.
+
+**Known today:** `PlaceId` `shared/hex_travel.rs:52`, `LOCAL_HEXES` `shared/hex_travel.rs:61`, `apply_travel_named` `shared/hex_travel.rs:541`, test `shared/hex_travel.rs:635` (22 `#[test]` fns). Client `apply_place` `client/src/hex_travel.rs:251`, `places_plate_clicks` `client/src/hex_travel.rs:625` (77 `#[test]` fns in that file). `look_for` `client/src/climate_plane.rs:393`, `sync_place_dress_from_travel` `client/src/climate_plane.rs:1661`, `apply_climate_look` `client/src/climate_plane.rs:1854`. Look-name pins `client/src/climate_plane.rs:2601`. Rooms note `docs/PLACES_BIBLE.md:61`. Zones row `docs/DESIGN_PILLARS.md:37`. Grove seed `shared/powrush_gen.rs:95`. The two realm-name tables stay as §6 wrote them. Those names are owner-ruled (#738 7118691808). REALM-NAMES-1 is queued and is not held. This block does not edit §6.
+
+**Expected:** WORLD-BIBLE-1, WORLD-GEN-1, WORLD-TRAVEL-1 and REALM-NAMES-1 are planned. WORLD-DIRECTOR L0–L3 budgets stay planned, as §6 says: no file and no function in this tree. Multiplayer is planned only.
+
+**Failure modes and recovery cost:** Two realm-name tables disagree (§6). That is a medium recovery: REALM-NAMES-1, and this page is not held for it. Missing WORLD-DIRECTOR budgets are a medium recovery: the card is planned, not built.
+
+**Tests:** `shared/hex_travel.rs:635` and `client/src/hex_travel.rs:625`, under the dev command in this section. Release proof is the release list in this section.
+
+**Performance budget:** Target, not a measurement. See §13.1.
+
+**Save and version migration:** §10 rows 3, 4, 5, 6, 12 and 23. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built. See §14.
+
+### 11.7 Economy and transport
+
+**Contract:** The local week score is tons plus restored. Manufacture and haul exist. No network calls, and no data off the device.
+
+**Known today:** `shared/week_audit.rs:3`, struct `shared/week_audit.rs:10`, tests `shared/week_audit.rs:63` and `shared/week_audit.rs:80` (2 `#[test]` fns). EA minimum `docs/EA_BAR.md:47`. Manufacture `shared/fabricator.rs:22` and `client/src/fabricator.rs:66`. Haul `shared/hex_travel.rs:568`. The plugins are the ones named in §7. COMPANY-1 `docs/DESIGN_PILLARS.md:44`. NPC rival companies `docs/DESIGN_PILLARS.md:56`. BOT-SOAK `docs/DESIGN_PILLARS.md:66`.
+
+**Expected:** COMPANY-1, NPC rival companies and BOT-SOAK-1 are planned. Multiplayer is planned only. No server or account design.
+
+**Failure modes and recovery cost:** A network call, or data leaving the device, breaks the local-only rule in §7. That is a high recovery: server work stays planned, and this page adds no endpoint.
+
+**Tests:** `shared/week_audit.rs:63` and `shared/week_audit.rs:80`, under the dev command in this section. Release proof is the release list in this section.
+
+**Performance budget:** Target, not a measurement. See §13.1.
+
+**Save and version migration:** §10 rows 14, 17, 18 and 21. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built.
+
+### 11.8 Morality and consequence ledger
+
+**Contract:** No ledger is canonical. Four stores exist. Server morality is proposed, not built.
+
+**Known today:** `shared/ledger_bind.rs:1`, test `shared/ledger_bind.rs:633` (37 `#[test]` fns), client plugin `client/src/ledger_bind.rs:78`. `ContributionLedger` `shared/contribution_ledger.rs:64`. `client/src/run_ledger.rs:1`, plugin `client/src/run_ledger.rs:74`. `shared/week_audit.rs:1`. `shared/shard_standing.rs:1`, `ShardStanding` `shared/shard_standing.rs:11`. `CrownstoneState` `shared/crownstone.rs:31`. Server morality `docs/design/SERVER_MORALITY.md:9`. Consequence gaps `docs/LOOP_MAP.md:65`.
+
+**Expected:** The canonical owner is chosen by the §8 migration card's PRE-PATH. Server morality stays proposed, not built. Online stays grey. Multiplayer is planned only.
+
+**Failure modes and recovery cost:** Four stores and no canonical owner (§8) are a medium recovery: that migration card, not this page. Citing the morality doc as built would be a high mis-cite. `docs/design/SERVER_MORALITY.md:9` says proposed, not built.
+
+**Tests:** `shared/ledger_bind.rs:633`, under the dev command in this section. Release proof is the release list in this section.
+
+**Performance budget:** Target, not a measurement. See §13.1.
+
+**Save and version migration:** `run_ledger` rides §10 row 1 (`client/src/run_ledger.rs:2`). Standing is row 13. Week audit is row 14. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built.
+
+### 11.9 Input and UI (one action map; the merged pad routes become its table)
+
+**Contract:** One Use verb is in code. There is no single action map yet.
+
+**Known today:** `PlayerInput` `client/src/input.rs:29`, `InputPlugin` `client/src/input.rs:75`, tests `client/src/input.rs:744` and `client/src/input.rs:753` (31 `#[test]` fns). `TouchControlsPlugin` `client/src/touch_controls.rs:46`. Key consts `client/src/soft_play_bindings.rs:12` through `client/src/soft_play_bindings.rs:46`. `HudSlab` `client/src/hud_anchor_registry.rs:19`. `HudPresetId` `client/src/hud_presets.rs:198`. Canon `docs/INPUT_CANON.md:1`. Fixed sim rate `client/src/feel_move.rs:15`, inserted at `client/src/feel_move.rs:35`. `GamepadButton::` is still 53 in `client/src/input.rs` and 344 under `client/src`, the same totals as the §9 table. This page quotes no button hint.
+
+**Expected:** The merged pad routes become this table when one later card builds it (§9). That card is not named here. HUD-IA-1 copy is Sherif's (§15.2). Multiplayer is planned only.
+
+**Failure modes and recovery cost:** Raw `GamepadButton::` and `KeyCode` reads sit outside one map (§9). That is a medium recovery: one later card.
+
+**Tests:** `client/src/input.rs:744` and `client/src/input.rs:753`, under the dev command in this section. Release proof is the release list in this section.
+
+**Performance budget:** Target, not a measurement. See §13.1.
+
+**Save and version migration:** §10 rows 9 and 10. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built.
+
+### 11.10 Save and telemetry hooks
+
+**Contract:** `powrush_*` JSON writes go through the user-dir writer. An existing save must load. Telemetry stays on the device. No save is canonical.
+
+**Known today:** User-dir rule `shared/user_persist.rs:1`, including no Steamworks account or cloud API at `shared/user_persist.rs:20`. `write_named` `shared/user_persist.rs:94`, the `.bak` steps `shared/user_persist.rs:91`, read fallback `shared/user_persist.rs:295`, and `replace_synced` (`shared/user_persist.rs:100`) with no `.bak` rule (`shared/user_persist.rs:99`). Tests `shared/user_persist.rs:687` and `shared/user_persist.rs:711` (27 `#[test]` fns). Session path `client/src/local_session_persist.rs:25`, `SessionBlob` `client/src/local_session_persist.rs:28`, schema field `client/src/local_session_persist.rs:29`, plugin `client/src/local_session_persist.rs:147`, load check `client/src/local_session_persist.rs:176`, tests `client/src/local_session_persist.rs:274` and `client/src/local_session_persist.rs:280` (17 `#[test]` fns). Lived-tick ingest is off by default (`shared/lived_tick_ingest.rs:3`, path `shared/lived_tick_ingest.rs:20`). Crash log name `client/src/main.rs:19`, hook `client/src/main.rs:80`, tests `client/src/main.rs:193`. Perf log opt-in `client/src/frame_pace.rs:14`.
+
+**Expected:** SAVE-SCHEMA-1 plans one version style and a migration, with a load-old-save fixture (§14). CRASH-REPORT-1 is planned and local only: no upload, and no data off the device. Multiplayer is planned only.
+
+**Failure modes and recovery cost:** A torn write that drops the last good bytes is a high recovery. The built recovery is the `.bak` read (`shared/user_persist.rs:295`), tested at `shared/user_persist.rs:687` and `shared/user_persist.rs:711`. A breaking schema change with no fixture is a high recovery: §10 requires that fixture, and it is not built.
+
+**Tests:** The tests named above, under the dev command in this section. Release proof is the release list in this section.
+
+**Performance budget:** Target, not a measurement. See §13.1.
+
+**Save and version migration:** All 23 rows in §10. None is canonical. The marker styles are §14. The migration chain is planned (SAVE-SCHEMA-1).
+
+## 12. NET-READY
+
+Design only. Multiplayer is planned. There is no server, no account, and no networking commitment. Online stays grey. LoopbackDev is a 127.0.0.1 lab permit and never a public bind.
+
+Built today, and not a per-system replication design:
+
+- `shared/net_mode.rs:12` `NetMode`: Offline default `shared/net_mode.rs:15`, LoopbackDev `shared/net_mode.rs:17`, Online `shared/net_mode.rs:20`. Title Online stays grey `shared/net_mode.rs:5`. Tests `shared/net_mode.rs:59` and `shared/net_mode.rs:68`.
+- `client/src/net_mode.rs:3` through `client/src/net_mode.rs:7`: outbound WS only by intent, 127.0.0.1 only. Plugin `client/src/net_mode.rs:93`, registered `client/src/lib.rs:254`. Tests `client/src/net_mode.rs:172` and `client/src/net_mode.rs:229`.
+- `shared/hex_join.rs:18` `AuthorityMode`: Offline `shared/hex_join.rs:20`, Online `shared/hex_join.rs:22`. `shared/hex_join.rs:3` says no listen socket and no WS. `NetMode` and `AuthorityMode` both say offline versus online. This page adds no third mode.
+- `shared/hex_protocol.rs:4` says no listen socket and no WS client. `shared/hex_listen.rs:1` is pure loopback bind rules, and `shared/hex_listen.rs:19` is `127.0.0.1:7788`. The only `TcpListener` hit under `client/src` and `shared` is the negative assert at `client/src/hud_edit_mode.rs:1979`.
+- Fixed sim rate `client/src/feel_move.rs:15`, inserted at `client/src/feel_move.rs:35`. Grove seed `shared/powrush_gen.rs:95`.
+- `docs/REPLICATION_PREDICTION_ARCHITECTURE.md:3` is an older v17.92 design. It is not a built system.
+
+Each later card's PRE-PATH fills its own row. The columns that card fills are authority owner, state that would replicate, serializable, and deterministic input. Until then the row says planned. The built authority for every row today is the client, offline, as the bullets above.
+
+| § | System | NET-READY row |
+|---|---|---|
+| 1 | Entities | planned |
+| 2 | Combat | planned |
+| 3 | Items, gear and recipes | planned |
+| 4 | Progression | planned |
+| 5 | Quests and journal | planned |
+| 6 | World | planned |
+| 7 | Economy and transport | planned |
+| 8 | Morality ledger | planned |
+| 9 | Input and UI | planned |
+| 10 | Save and telemetry | planned |
+
+Owner of the built rules: `shared/net_mode.rs` and `shared/hex_join.rs`, with the client resource in `client/src/net_mode.rs`.
+
+## 13. PERF
+
+Owner: `client/src/frame_pace.rs`. `GraphicsPreset` (`shared/local_settings.rs:164`) is the quality tier. It stays in this one contract. There is no second perf module.
+
+**§13.1 Target.** Target, not a measurement: 1080p/60 on a mid-range PC first, then Steam Deck. The public record is #738 comment 6517222964 (GFX-PACE-1: the council's 1080p/60-first target; smooth, even frames at 60 on a mid-range PC; Steam Deck tuning comes after 1080p/60) and scope vote 6517254928, which banks the real 1080p/60 frame-time read on Sherif's PC and the playtester's PC. That read is not in this file. No hardware claim is made.
+
+**§13.2 Hitch log.** Built: hitch counts over `FRAME_BUDGET_SECS` (`client/src/frame_pace.rs:26`) and `HITCH_SECS` (`client/src/frame_pace.rs:29`), logged once per 1 s roll (`client/src/frame_pace.rs:1`). Tests `client/src/frame_pace.rs:529` and `client/src/frame_pace.rs:539` (22 `#[test]` fns). There is no CI number.
+
+**§13.3 Present mode.** `PresentMode::Fifo` at `client/src/main.rs:96`. The plugin is registered at `client/src/main.rs:113`.
+
+**§13.4 Release spacing.** Focused spacing is `client/src/frame_pace.rs:32`. Inactive or unfocused spacing is `client/src/frame_pace.rs:36`. The waiter is `release_waiter` at `client/src/frame_pace.rs:201`. `client/src/frame_pace.rs:2` and `client/src/frame_pace.rs:3` say that waiter is release spacing only: not a frame, present, or render cap, and not a safety, thermal, or leak claim.
+
+**§13.5 PERF-GATE-1.** Planned: a seeded bench walk, a committed baseline, a warn-only CI step, and frame-rate and background-running limits. It does not become a required check. The seven required checks in §11 stay as they are. Nothing is added as required without a separate ruling. `benches/harvest_flow_bench.rs` has no `[[bench]]` entry in any `Cargo.toml`.
+
+**§13.6 Baseline.** A later perf number is a delta against our own committed baseline. Real-GPU numbers come only from Sherif's PC and the playtester's PC, the read banked in 6517254928. That read is not in this file.
+
+**§13.7 Opt-in log.** `POWRUSH_PERF_LOG` turns the log on (`client/src/frame_pace.rs:14`). The line is appended at `data/perf.log` (`client/src/frame_pace.rs:20`). The call site is `client/src/main.rs:25`. It stays off unless that value is set (`client/src/frame_pace.rs:15`).
+
+**§13.8 Image diff.** VIS-GUARD-1's warn-only image diff is planned. It is not built. Q2 does not compare pixels (`.github/workflows/agent-headless-qa.yml:6`).
+
+## 14. SAVE
+
+This section summarizes §10. It does not replace the 23 rows. No canonical save is named. SAVE-SCHEMA-1 is the enforcing card: a save version, a migration, and a load-old-save fixture, citing the §10 rule. This page picks no style.
+
+**§14.1 Rule.** An existing save must load after any schema change (§10). Where a file already grows by fields, the pattern is `#[serde(default)]` (`client/src/local_session_persist.rs:38`) or a lenient field (`client/src/local_session_persist.rs:59`, reader `client/src/run_ledger.rs:26`). A breaking change needs a version stamp, a forward migration, and the fixture. The fixture is not built.
+
+**§14.2 Writer.** `shared/user_persist.rs:94` `write_named` keeps a good live file as `.bak` and stages new bytes through `.tmp` (`shared/user_persist.rs:91`). A read falls back to `.bak` (`shared/user_persist.rs:295`). Tests `shared/user_persist.rs:687` and `shared/user_persist.rs:711`. `replace_synced` (`shared/user_persist.rs:100`) has no `.bak` rule (`shared/user_persist.rs:99`). The user-dir rule is `shared/user_persist.rs:9`, and `shared/user_persist.rs:20` says no Steamworks account or cloud API.
+
+**§14.3 Styles.** The markers that exist on the §10 files are a schema string, a `v: u16`, and a `schema: u32`. Counted at `44dca531`, 11 of the 23 files have no version marker on their default bytes.
+
+Schema string:
+
+- Row 1, field `client/src/local_session_persist.rs:29`, written `client/src/local_session_persist.rs:65`, checked `client/src/local_session_persist.rs:176`.
+- Row 2, `client/src/loot_drops.rs:107`.
+- Row 8, `shared/house_name.rs:22`, field `shared/house_name.rs:47`.
+- Row 9, `shared/hud_layout.rs:22`, field `shared/hud_layout.rs:59`.
+- Row 10, `shared/local_settings.rs:20`, field `shared/local_settings.rs:324`.
+- Row 11, `shared/persona.rs:293`, field `shared/persona.rs:844`.
+- Row 16, `client/src/lived_sim_bridge.rs:99`.
+- Rows 17 and 18, field `client/src/lattice_flow_share.rs:46`, written `client/src/lattice_flow_share.rs:135`. The peer file is read at `client/src/lattice_flow_share.rs:178` and the prefix check is `client/src/lattice_flow_share.rs:164`.
+- Row 19, field `client/src/abundance_journey_echo.rs:45`, written `client/src/abundance_journey_echo.rs:86`.
+
+`v: u16`: row 23, `shared/genshare.rs:26`, field `shared/genshare.rs:31`.
+
+`schema: u32`: row 21, `client/src/wood_expedition.rs:21`, field `client/src/wood_expedition.rs:39`.
+
+No version field on the default bytes of rows 3, 4, 5 and 6 (`shared/hex_travel.rs:130` `HexClimateFile`, `shared/hex_travel.rs:165` `CurrentHex`), row 7 (`shared/hour_two.rs:18`), rows 12, 13 and 14 (`shared/shard_climate.rs:14`, `shared/shard_standing.rs:11`, `shared/week_audit.rs:10`), row 15's default blob (`shared/climate_node.rs:217`, written `client/src/lived_hour_bind.rs:231`), row 20 (`client/src/wellsworn.rs:80`), and row 22 (`client/src/first_session_guidance.rs:898`). Row 15's ingest overlay is off by default (`shared/lived_tick_ingest.rs:3`) and, when on, writes a schema string (`shared/lived_tick_ingest.rs:22`) onto that same path.
+
+**§14.4 Chain.** There is no migration chain in `client/src` or `shared`. The hit at `client/src/ui_utils.rs:7` is a comment about a label, not a save migration. Old-save tests that exist today are `client/src/local_session_persist.rs:274`, `client/src/local_session_persist.rs:280`, `client/src/loot_drops.rs:304` and `client/src/loot_drops.rs:328`.
+
+## 15. STRINGS
+
+This section writes no player-facing string and no button-hint text.
+
+**§15.1 Table.** Planned (STRINGS-1): every player-facing string lives in one English table the client reads, plus one literal check on new code. The owner is planned, and that card's PRE-PATH sets it. `content/locales/en.json`, `content/locales/es.json`, `content/locales/fr.json`, `content/locales/de.json`, `content/locales/ar.json` and `content/locales/glossary.json` are in the tree. No module line in `client/src/lib.rs` or `client/src/main.rs` reads them.
+
+**§15.2 Copy rule.** New or changed player-facing copy and button-hint text are Sherif's. HUD-IA-1 is bound by that rule.
+
+**§15.3 Language.** English-only for now. Sherif's "1a" is #738 comment 7118839473. `.github/workflows/automated-translations.yml:4` records that workflow as manual-only, and `.github/workflows/automated-translations.yml:5` is `workflow_dispatch`. The workflow file and the locale files stay. This card deletes nothing.
+
+**§15.4 Honesty fns.** These fold into the one later check. This page adds no second check.
+
+- `persona_copy_is_honest` at `shared/persona.rs:788`.
+- `embassy_copy_is_honest` at `shared/embassy.rs:53`.
+- `temper_copy_is_honest` at `shared/temper.rs:130`.
+- `manufacture_copy_is_honest` at `shared/fabricator.rs:105`.
+- `schedule_copy_is_honest` at `client/src/living_day.rs:324`.
+- `ecology_copy_is_honest` at `client/src/living_ecology.rs:184`.
+- `climate_dress_copy_is_honest` at `client/src/climate_plane.rs:2103`.
+- `presence_copy_is_honest` at `client/src/human_presence.rs:2519`.
+
+## 16. SERVICES
+
+A service that is not in the tree is **GAP**. The Steam row is description only and reserved to Sherif. This page changes no depot and no config. Telemetry is local only.
+
+| Service | Dev expectation | Prod expectation | Health check today | Owner path |
+|---|---|---|---|---|
+| Build / CI | `cargo test -p shared -p rsil-identity` and `cargo test -p powrush-client --lib` on a PR | the same on main | Core `.github/workflows/ci.yml:18` and `.github/workflows/ci.yml:141`; Core + Q2 one-frame `.github/workflows/agent-headless-qa.yml:25`; validate `.github/workflows/validate-full-files.yml:8`; PATSAGi merge court `.github/workflows/patsagi-auto-merge.yml:20` | `.github/workflows/ci.yml`, `.github/workflows/agent-headless-qa.yml`, `.github/workflows/validate-full-files.yml`, `.github/workflows/patsagi-auto-merge.yml` |
+| Offline-build | `workflow_dispatch` (`.github/workflows/offline-build.yml:7`). A pull request runs it only when that workflow file changes (`.github/workflows/offline-build.yml:8`, `.github/workflows/offline-build.yml:10`) | push to main (`.github/workflows/offline-build.yml:5`) and tags `v*` (`.github/workflows/offline-build.yml:6`) | offline-build `.github/workflows/offline-build.yml:17` on the matrix `.github/workflows/offline-build.yml:27`; clean-boot `.github/workflows/offline-build.yml:221`; the steamworks assert `.github/workflows/offline-build.yml:46` | `.github/workflows/offline-build.yml` |
+| Pages | GAP | GAP | GAP. No Pages workflow under `.github/workflows/`. The Pages API for this repo returns 404. `website/index.html` is in the tree, and no workflow here deploys it | GAP |
+| Steam depot | description only | description only. Reserved to Sherif | GAP. No depot check. The `steam` feature is optional and off by default (`client/Cargo.toml:13`, `client/Cargo.toml:14`, `client/Cargo.toml:52`), asserted at `.github/workflows/offline-build.yml:46`. Files present, unchanged: `publishing/steam/PARTNER_CHECKLIST.md`, `publishing/steam/steam_cloud_config.json`, `publishing/steam/sync_steam_appid.py`, `deployment/steam/steam_build_v18.10.sh`. DEPOT-DRYRUN-1 is planned, local and dry-run only | `publishing/steam/` |
+| Telemetry | local files only, off unless a flag is set | the same. No data off the device | panic hook `client/src/main.rs:19` and `client/src/main.rs:80`, tests `client/src/main.rs:193`. Opt-in perf log `client/src/frame_pace.rs:14` and `client/src/frame_pace.rs:20`. Ingest off by default `shared/lived_tick_ingest.rs:3` and `shared/lived_tick_ingest.rs:26`. `tools/export_powrush_telemetry.py:119` writes JSON to a file and `tools/export_powrush_telemetry.py:122` writes it to stdout. The file has no upload call | `client/src/main.rs`, `client/src/frame_pace.rs`, `shared/lived_tick_ingest.rs`. CRASH-REPORT-1 is planned and local only |
+| Saves | user-dir rule and `POWRUSH_USER_DIR` (`shared/user_persist.rs:9`) | OS user-data dir, atomic write plus `.bak` (`shared/user_persist.rs:12`, `shared/user_persist.rs:94`) | 27 `#[test]` fns in `shared/user_persist.rs`; old-save tests `client/src/local_session_persist.rs:274` and `client/src/local_session_persist.rs:280`; the 23 files are §10 | `shared/user_persist.rs` |
+
+`client/src/steam_abundance_mirror.rs:25` stays what §10 says: local stage directories only. It is not a Steam service row. `shared/user_persist.rs:20` says no Steamworks account or cloud API.
+
+## 17. Enforcement
+
+Once this file is on main, every new CUT cites the spine contract it satisfies: a §11 block, or a row in §12, §13, §14 or §15. The PR names the test that proves that contract. Clerk's PRE-PATH checks both, and fills that card's §12 row.
+
+Cards already ruled are not held back: COMBAT-FAIR-1, STRIKE-HINT-1, GROUND-SNAP-1, GROUND-SNAP-2, GROUND-SNAP-3, GROUND-SNAP-4, LOD-LIMBS-1 and REALM-NAMES-1.
+
+Rows a later test may cite: §13.1 through §13.8, §14.1 through §14.4, §15.1 through §15.4, and the ten §12 rows.
+
+Soft-aim stays planned. No soft-aim function is in `client/src` at `44dca531`. COMBAT-FAIR-1 landed at `44dca53197ccd437a1931a1f66b54ed165f3f400`. The `combat_core` anchors on L19 and L27 were refreshed to that tip.
+
+L35 and L37 are left as they stand (D6, ruling 7119432575). An equipped owned find's standing step reaches combat through `land_hit_paid` (`client/src/combat_core.rs:356`; the add is `client/src/combat_core.rs:360`). Tested at `client/src/combat_core.rs:2303`.
+
+Steam, spend, deletes, new or changed copy, look, and ASSET-CI-PRIVATE-1 stay reserved to Sherif. Copy and button-hint text follow §15.2.
