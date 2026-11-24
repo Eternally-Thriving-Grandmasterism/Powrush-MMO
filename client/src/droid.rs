@@ -12,8 +12,8 @@ use crate::difficulty::{cue_line, enemy_hit, hides_cues, AreaDifficulty, Difficu
 /// North of the Threshold shelf (0,6): clear of the node, lamp, pond, Wards, both enemies and the wake point.
 pub const DROID_HOME: [f32; 2] = [0.0, 13.0];
 pub const DROID_REACH: f32 = REACH; // R1
-/// Shot cycle: 0.75 s quiet, then a 0.5 s tell, then the shot. Playtest-tunable. Sherif may veto.
-pub const DROID_SHOT_SECS: f32 = 1.25;
+/// Shot cycle: 2.0 s quiet, then a 0.5 s tell, then the shot. Playtest-tunable. Sherif may veto.
+pub const DROID_SHOT_SECS: f32 = 2.5;
 /// COMBAT_AND_PVP.md:487 "Shot, 0.5 s"; meets the 0.35 s telegraph rule (:433).
 pub const DROID_SHOT_TELL_SECS: f32 = 0.5;
 pub const DROID_HIT: u32 = 25;
@@ -136,7 +136,7 @@ fn droid_tick(
 ) {
     let place = travel.as_deref().map(|t| t.current);
     let tier = place.zip(diff.as_deref()).map_or(DifficultyTier::Sheltered, |(pl, d)| d.tier(pl));
-    let gate = place.is_some_and(predator_present) && door.as_deref().copied() == Some(LaunchDoor::InYard);
+    let gate = place.is_some_and(predator_present) && door.as_deref().copied() == Some(LaunchDoor::InYard) && combat.strike_terms.map_or(true, |t| crate::combat_core::strike_gates(t.0, t.1, t.2, t.3));
     let at = presence.as_deref().map(|p| p.position);
     let reach = gate && place.zip(at).is_some_and(|(pl, p)| droid_in_reach(pl, &state, p.x, p.z));
     let strike_b = state.taken;
@@ -226,7 +226,7 @@ mod tests {
     #[test]
     fn tell_shows_from_three_quarters() {
         let (mut s, mut t) = (DroidState::default(), 0);
-        let armed = run_for(&mut s, &mut t, 0.75 - 1e-3, true);
+        let armed = run_for(&mut s, &mut t, DROID_SHOT_SECS - DROID_SHOT_TELL_SECS - 1e-3, true);
         assert!(armed && !shot_tell_visible(s.shot_timer, armed));
         let armed = run_for(&mut s, &mut t, 2e-3, true);
         assert!(shot_tell_visible(s.shot_timer, armed) && t == 0);
@@ -235,7 +235,7 @@ mod tests {
     #[test]
     fn shot_lands_at_period() {
         let (mut s, mut t) = (DroidState::default(), 0);
-        assert!(run_for(&mut s, &mut t, 1.25 - 1e-3, true) && t == 0);
+        assert!(run_for(&mut s, &mut t, DROID_SHOT_SECS - 1e-3, true) && t == 0);
         let armed = run_for(&mut s, &mut t, 2e-3, true);
         assert_eq!(t, DROID_HIT);
         assert!(s.shot_timer < 1e-2 && !shot_tell_visible(s.shot_timer, armed));
@@ -351,25 +351,25 @@ mod tests {
     #[test]
     fn droid_cadence_sting_once_per_entry_and_hit_every_shot() {
         let (mut s, mut p, mut was, t) = (DroidState::default(), 0, false, DifficultyTier::Sheltered);
-        assert!(stings(&mut s, &mut p, &mut was, 15, t) == 1 && p == 3 * DROID_HIT, "3 cycles, one sting, 3 shots");
-        assert_eq!(stings(&mut DroidState::default(), &mut 0, &mut false, 15, DifficultyTier::Sworn), 1, "Sworn: one onset, so one text pulse per entry");
+        assert!(stings(&mut s, &mut p, &mut was, 30, t) == 1 && p == 3 * DROID_HIT, "3 cycles, one sting, 3 shots");
+        assert_eq!(stings(&mut DroidState::default(), &mut 0, &mut false, 30, DifficultyTier::Sworn), 1, "Sworn: one onset, so one text pulse per entry");
     }
     #[test]
     fn droid_cadence_rearms_on_exit_droid_down_and_defeat() {
         let (mut s, mut p, mut was, t) = (DroidState::default(), 0, false, DifficultyTier::Sheltered);
-        stings(&mut s, &mut p, &mut was, 4, t);
-        assert!(!droid_cadence(&mut s, &mut p, &mut was, false, 0.25, t).0 && !was && stings(&mut s, &mut p, &mut was, 5, t) == 1, "exit");
+        stings(&mut s, &mut p, &mut was, 8, t);
+        assert!(!droid_cadence(&mut s, &mut p, &mut was, false, 0.25, t).0 && !was && stings(&mut s, &mut p, &mut was, 8, t) == 1, "exit");
         s.taken = HEALTH; assert!(!droid_cadence(&mut s, &mut p, &mut was, true, 0.25, t).0 && !was, "droid down");
         (0..60).for_each(|_| down_step(&mut s, 0.5));
-        assert!(PREDATOR_RESPAWN_SECS == 30.0 && s.taken == 0 && stings(&mut s, &mut p, &mut was, 5, t) == 1, "respawn");
+        assert!(PREDATOR_RESPAWN_SECS == 30.0 && s.taken == 0 && stings(&mut s, &mut p, &mut was, 8, t) == 1, "respawn");
         p = HEALTH; assert!(!droid_cadence(&mut s, &mut p, &mut was, true, 0.25, t).0 && !was, "player defeated");
-        p = 0; assert_eq!(stings(&mut s, &mut p, &mut was, 5, t), 1, "re-arms after the defeat");
+        p = 0; assert_eq!(stings(&mut s, &mut p, &mut was, 8, t), 1, "re-arms after the defeat");
     }
     #[test]
     fn droid_cadence_ring_per_shot_unchanged() {
         let (mut s, mut p, mut was) = (DroidState::default(), 0, false);
-        let ring: Vec<bool> = (0..15).map(|_| droid_cadence(&mut s, &mut p, &mut was, true, 0.25, DifficultyTier::Sheltered).1).collect();
-        assert!(ring.iter().filter(|r| **r).count() == 6 && ring.chunks(5).all(|c| c == [false, false, true, true, false]), "{ring:?}");
+        let ring: Vec<bool> = (0..10).map(|_| droid_cadence(&mut s, &mut p, &mut was, true, 0.25, DifficultyTier::Sheltered).1).collect();
+        assert!(ring.iter().filter(|r| **r).count() == 2 && ring.chunks(10).all(|c| c == [false, false, false, false, false, false, false, true, true, false]), "{ring:?}");
         let (mut s, mut p, mut was) = (DroidState::default(), 0, false);
         assert!((0..15).all(|_| !droid_cadence(&mut s, &mut p, &mut was, true, 0.25, DifficultyTier::Sworn).1));
     }
@@ -387,7 +387,7 @@ mod tests {
         let ((mut s, mut p, mut w), (mut s2, mut p2, mut w2)) = ((DroidState::default(), 0, false), (DroidState::default(), 0, false));
         let run: Vec<(bool, bool)> = entries().map(|r| droid_hurt(&mut s, &mut p, &mut w, r)).collect();
         let bare: Vec<bool> = entries().map(|r| droid_cadence(&mut s2, &mut p2, &mut w2, r, 0.25, DifficultyTier::Sheltered).0).collect();
-        assert!(run.iter().enumerate().filter(|(_, f)| f.0).map(|(i, _)| i).eq([4, 9, 14, 20]) && run.iter().map(|f| f.1).eq(bare), "one edge per landed shot, none on quiet or tell frames; P4 onsets identical");
+        assert!(run.iter().enumerate().filter(|(_, f)| f.0).map(|(i, _)| i).eq([9]) && run.iter().map(|f| f.1).eq(bare), "one edge per landed shot, none on quiet or tell frames; P4 onsets identical");
     }
     #[test]
     fn droid_hurt_line_tiers_clamp_replace_and_wake() {
@@ -487,7 +487,7 @@ mod tests {
         shot_step(&mut s, &mut p, 0.0, true, true, true, DifficultyTier::Sheltered);
         assert_eq!((p, s.shot_timer), (2 * DROID_HIT, 0.0));
         let (mut s, mut p, mut was) = (DroidState::default(), 0, false);
-        assert_eq!(stings(&mut s, &mut p, &mut was, 15, DifficultyTier::Sheltered), 1);
+        assert_eq!(stings(&mut s, &mut p, &mut was, 30, DifficultyTier::Sheltered), 1);
         assert_eq!(p, 3 * DROID_HIT);
     }
 

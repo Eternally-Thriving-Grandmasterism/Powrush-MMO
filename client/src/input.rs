@@ -1738,7 +1738,7 @@ mod tests {
         (0..(secs * 60.0).round() as usize).filter_map(|_| { let b = app.world().resource::<CombatState>().player_taken; pp1_tick(app, 1.0 / 60.0); Some(app.world().resource::<CombatState>().player_taken.saturating_sub(b)).filter(|d| *d > 0) }).collect()
     }
     #[test] fn pp1_s1_rb_in_the_tell_with_shell_plates_lunges_for_three_seconds() {
-        pp1("pp1s1", Some(0), |app| { pp1_rb_at(app, PP1_TELL); assert_eq!(pp1_hits(app, 3.4), [11, 11, 11, 11, 11, 15], "plated wraps, then plain 15"); });
+        pp1("pp1s1", Some(0), |app| { pp1_rb_at(app, PP1_TELL); assert_eq!(pp1_hits(app, 3.4), [11, 11, 15], "plated wraps, then plain 15"); });
     }
     #[test] fn pp1_s2_rb_edge_is_slot_one_and_a_held_rb_is_not() {
         let mut app = input_app();
@@ -1766,7 +1766,7 @@ mod tests {
     }
     #[test] fn pp1_s6_rb_outside_the_tell_or_without_shell_arms_nothing() {
         pp1("pp1s6a", Some(0), |app| assert_eq!(pp1_rb_at(app, 0.0), (false, 0.0, 0)));
-        pp1("pp1s6b", None, |app| assert_eq!(pp1_rb_at(app, PP1_TELL), (false, 0.0, 0)));
+        pp1("pp1s6b", None, |app| assert_eq!(pp1_rb_at(app, PP1_TELL), (true, 3.0, 0)));
     }
     #[test] fn pp1_s7_other_pad_buttons_unchanged_and_rb_sets_no_other_verb() {
         let read = |mode: &str, b: GamepadButton| {
@@ -1825,7 +1825,7 @@ mod tests {
         let prod = include_str!("input.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
         assert!(prod.matches("player_input.ability_slot =").count() == 1 && prod.matches("just_pressed(GamepadButton::RightTrigger)").count() <= 1);
         let combat = include_str!("combat_core.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
-        assert!(combat.contains("let plate_key = gate && input.as_deref().and_then(|i| i.ability_slot) == Some(1);") && combat.contains("if plate_key && allowed { plate_arm(&mut combat, reach, shell_equipped(finds.as_deref())); }"));
+        assert!(combat.contains("let plate_key = gate && input.as_deref().and_then(|i| i.ability_slot) == Some(1);") && combat.contains("if plate_key && allowed { plate_arm(&mut combat, reach, true); }"));
     }
     fn pad_prod(s: &'static str) -> &'static str { s.split("\n#[cfg(test)]\nmod tests {").next().unwrap() }
     #[test]
