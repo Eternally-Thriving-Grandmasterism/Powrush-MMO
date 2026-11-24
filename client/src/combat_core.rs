@@ -3060,6 +3060,7 @@ mod tests {
                         let mut n = 0;
                         while app.world().resource::<CombatState>().player_taken == 0 && n < cap + 2 { tick(app, 1.0 / 60.0); n += 1; }
                         assert!(n <= cap + 1 && app.world().resource::<CombatState>().player_taken > 0, "{tag} {bearing}/{yaw} no hit in one cycle ({n})");
+                        assert!(droid || n >= 60, "{tag} {bearing}/{yaw} lunge inside 1.0 s ({n})");
                         for how in 0..3 {
                             let before = if droid { app.world().resource::<crate::droid::DroidState>().taken } else { app.world().resource::<CombatState>().predator_taken };
                             if how == 0 { cf1_lmb(app); } else if how == 1 { cf1_rt2(app); } else { cc2a_keys(app, &[KeyCode::Digit1]); }
