@@ -1,16 +1,13 @@
 name: Automated Translation Workflows
 
 on:
+  # Manual-only (workflow_dispatch) per Sherif's 2026-11-23 ruling; game ships English-only for now.
   workflow_dispatch:
     inputs:
       languages:
         description: 'Comma-separated target languages (default: es,fr,de,ar)'
         required: false
         default: 'es,fr,de,ar'
-  push:
-    branches: ['**']
-    paths:
-      - 'content/locales/en.json'
 
 jobs:
   generate-translations:
