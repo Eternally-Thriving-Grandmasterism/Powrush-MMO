@@ -96,7 +96,7 @@ pub const ID_GUIDANCE: &str = "Guidance";
 pub const ID_PRACTICE: &str = "Practice";
 pub const ID_VOICE: &str = "Voice";
 pub const ID_ALLOCATE: &str = "Allocate";
-/// HUD-LAYOUT-1. ABILITY-TOOLTIP-SHOW-1: combat_core spawns it with slot 1's Plate text (Shell equipped and in reach).
+/// HUD-LAYOUT-1. ABILITY-TOOLTIP-SHOW-1 / STRIKE-HINT-1: combat_core spawns it as one two-line Text, slot 0's strike line then slot 1's Plate line (shown in reach).
 pub const ID_ABILITY_TIP: &str = "AbilityTip";
 
 const ACTION_BAR_OCCUPANTS: [HudOccupant; 5] = [
@@ -114,27 +114,27 @@ const ACTION_BAR_OCCUPANTS: [HudOccupant; 5] = [
         width: 460.0,
         height_b: 56.4,
     },
+    // HUD-LAYOUT-1: 240x52 is council wording, Sherif may veto. Clears the centre-50% box and PULSE.
+    HudOccupant {
+        id: ID_ABILITY_TIP,
+        rank: 3,
+        class: 3,
+        width: 240.0,
+        height_b: 52.0,
+    },
     HudOccupant {
         id: ID_GUIDANCE,
-        rank: 3,
+        rank: 4,
         class: 3,
         width: 520.0,
         height_b: 69.0,
     },
     HudOccupant {
         id: ID_PRACTICE,
-        rank: 4,
+        rank: 5,
         class: 3,
         width: 640.0,
         height_b: 64.0,
-    },
-    // HUD-LAYOUT-1: 240x52 is council wording, Sherif may veto. Clears the centre-50% box and PULSE.
-    HudOccupant {
-        id: ID_ABILITY_TIP,
-        rank: 5,
-        class: 3,
-        width: 240.0,
-        height_b: 52.0,
     },
 ];
 

@@ -259,13 +259,11 @@ pub fn slot_strikes(slot: Option<u32>) -> bool {
     slot == Some(0)
 }
 
-/// ABILITY-TOOLTIP-1 — tooltip text for an ability slot. Slot 0 is council wording (Sherif may veto) and stays test-only.
+/// ABILITY-TOOLTIP-1 — tooltip text for an ability slot. STRIKE-HINT-1: slot 0 is council wording (Sherif may veto), shown first on the AbilityTip slab.
 /// ABILITY-TOOLTIP-SHOW-1 A1 — slot 1 (Plate) is COMBAT_AND_PVP.md:456 verbatim, shown on the AbilityTip slab. Slots 2-3 get none.
 pub fn slot_tooltip(slot: u32) -> Option<String> {
     if slot == 1 { return Some("Plate, 3 s, incoming damage reduced by 30%.".into()); }
-    slot_strikes(Some(slot)).then(|| format!(
-        "Strike (left click, right trigger, or key 1 while no panel is open): hits the predator for {HIT} when it is within {REACH} of you."
-    ))
+    slot_strikes(Some(slot)).then(|| "Strike: left click, right trigger or 1".into())
 }
 
 /// One strike decision per frame: LMB/pad as before, or key 1 while no panel is open.
@@ -1000,13 +998,13 @@ fn cleared_show(travel: Option<Res<HexTravelState>>, combat: Option<Res<CombatSt
     disc.iter_mut().for_each(|mut vis| { vis.set_if_neq(if on { Visibility::Visible } else { Visibility::Hidden }); });
 }
 
-/// ABILITY-TOOLTIP-SHOW-1 — the AbilityTip slab (registry ACTION_BAR occupant, rank 5, class 3, 240 px) holding slot 1's text,
+/// ABILITY-TOOLTIP-SHOW-1 — the AbilityTip slab (registry ACTION_BAR occupant, rank 3 per STRIKE-HINT-1, class 3, 240 px) holding slot 0's strike line, then slot 1's text,
 /// in the Practice strip's existing plate style. Spawns Hidden; the active preset places it and applies R5/R2/§6.3.
 fn spawn_ability_tip(mut commands: Commands) {
     use crate::{hud_anchor_registry::{HudSlab, ACTION_BAR, ID_ABILITY_TIP}, ui_kit::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY}};
     let node = Node { position_type: PositionType::Absolute, bottom: ACTION_BAR.bottom(), right: ACTION_BAR.right(), width: Val::Px(240.0), padding: UiRect::axes(Val::Px(18.0), Val::Px(12.0)), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(1.5)), ..default() };
     commands.spawn((node, BackgroundColor(TITLE_PLATE_BG), crate::ui_frame::plate_frame(), BorderColor::all(TITLE_BORDER), Visibility::Hidden, HudSlab(ID_ABILITY_TIP))).with_children(|tip| {
-        tip.spawn((Text::new(slot_tooltip(1).unwrap_or_default()), TextFont { font_size: FontSize::Px(15.5 / 1.2), ..default() }, TextColor(TITLE_TEXT_PRIMARY)));
+        tip.spawn((Text::new(format!("{}\n{}", slot_tooltip(0).unwrap_or_default(), slot_tooltip(1).unwrap_or_default())), TextFont { font_size: FontSize::Px(15.5 / 1.2), ..default() }, TextColor(TITLE_TEXT_PRIMARY)));
     });
 }
 /// ABILITY-TOOLTIP-SHOW-1 A2 — the tip's own Visibility, set each frame after `combat_fire` (`set_if_neq`, TIP-NEQ-1):

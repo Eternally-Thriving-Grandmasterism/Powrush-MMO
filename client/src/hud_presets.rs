@@ -269,9 +269,9 @@ const CLASSIC_VOICE: [HudOccupant; 1] = [occ(ID_VOICE, 1)];
 const CLASSIC_ACTION_BAR: [HudOccupant; 5] = [
     occ(ID_CARE_STRIP, 1),
     occ(ID_CARE_PROMPT, 2),
-    occ(ID_GUIDANCE, 3),
-    occ(ID_PRACTICE, 4),
-    occ(ID_ABILITY_TIP, 5),
+    occ(ID_ABILITY_TIP, 3),
+    occ(ID_GUIDANCE, 4),
+    occ(ID_PRACTICE, 5),
 ];
 const CLASSIC_WINDOW: [HudOccupant; 4] = [
     occ(ID_ALLOCATE, 1),
@@ -459,9 +459,9 @@ const MINIMAL_EDGE_STATUS: [HudOccupant; 9] = [
 const MINIMAL_ACTION_BAR: [HudOccupant; 5] = [
     occ(ID_CARE_STRIP, 1),
     occ(ID_CARE_PROMPT, 2),
-    occ(ID_GUIDANCE, 3),
-    occ(ID_PRACTICE, 4),
-    occ(ID_ABILITY_TIP, 5),
+    occ(ID_ABILITY_TIP, 3),
+    occ(ID_GUIDANCE, 4),
+    occ(ID_PRACTICE, 5),
 ];
 const MINIMAL_WINDOW: [HudOccupant; 5] = [
     occ(ID_VOICE, 1),
@@ -544,9 +544,9 @@ const MANAGEMENT_PEER: [HudOccupant; 1] = [occ(ID_PEER, 1)];
 const MANAGEMENT_ADVISOR: [HudOccupant; 5] = [
     occ(ID_CARE_STRIP, 1),
     occ(ID_CARE_PROMPT, 2),
-    occ(ID_GUIDANCE, 3),
-    occ(ID_PRACTICE, 4),
-    occ(ID_ABILITY_TIP, 5),
+    occ(ID_ABILITY_TIP, 3),
+    occ(ID_GUIDANCE, 4),
+    occ(ID_PRACTICE, 5),
 ];
 const MANAGEMENT_LIST_1: [HudOccupant; 3] = [occ(ID_FACTORY, 1), occ(ID_FAB, 2), occ(ID_SPILL, 3)];
 const MANAGEMENT_LIST_2: [HudOccupant; 3] =
