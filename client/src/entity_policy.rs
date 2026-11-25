@@ -446,23 +446,84 @@ fn park_dead_1_every_unparked_src_rs_is_in_a_mod_tree() {
     assert!(reached.is_empty(), "{} parked .rs reached by a mod or #[path] (un-park it instead): {reached:?}", reached.len());
 }
 
-/// RED shim: today's PARK-DEAD-1 line parser, returning (enclosing inline mods, name, `#[path]`) per `mod name;` line.
+#[derive(PartialEq)]
+enum ModTok { Ident(String), Str(String), Punct(char) }
+
+/// Rust tokens minus comments (`//`, nested `/* */`), with string, raw string, byte and char literals kept whole.
+fn mod_tokens(text: &str) -> Vec<ModTok> {
+    let (c, mut i, mut out) = (text.chars().collect::<Vec<char>>(), 0, Vec::new());
+    let at = |i: usize| c.get(i).copied().unwrap_or('\0');
+    while i < c.len() {
+        let ch = c[i];
+        if ch.is_whitespace() { i += 1; }
+        else if ch == '/' && at(i + 1) == '/' { while i < c.len() && c[i] != '\n' { i += 1; } }
+        else if ch == '/' && at(i + 1) == '*' {
+            let (mut depth, mut j) = (1, i + 2);
+            while j < c.len() && depth > 0 {
+                if c[j] == '/' && at(j + 1) == '*' { depth += 1; j += 2; }
+                else if c[j] == '*' && at(j + 1) == '/' { depth -= 1; j += 2; } else { j += 1; }
+            }
+            i = j;
+        } else if ch == '"' || (matches!(ch, 'r' | 'b' | 'c') && (at(i + 1) == '"' || at(i + 1) == '#'
+            || (ch == 'b' && at(i + 1) == 'r' && matches!(at(i + 2), '"' | '#')))) {
+            let mut j = i;
+            while c[j] != '"' && c[j] != '#' { j += 1; }
+            let hashes = { let s = j; while at(j) == '#' { j += 1; } j - s };
+            if at(j) != '"' { if ch == 'r' { i += 2; } else { out.push(ModTok::Ident(ch.to_string())); i += 1; } continue; } // r#ident
+            let raw = hashes > 0 || c[i..j].contains(&'r');
+            let (start, mut k) = (j + 1, j + 1);
+            while k < c.len() {
+                if !raw && c[k] == '\\' { k += 2; continue; }
+                if c[k] == '"' && (0..hashes).all(|h| at(k + 1 + h) == '#') { break; }
+                k += 1;
+            }
+            out.push(ModTok::Str(c[start..k.min(c.len())].iter().collect()));
+            i = k + 1 + hashes;
+        } else if ch == '\'' {
+            if at(i + 1) == '\\' { let mut j = i + 2; while j < c.len() && c[j] != '\'' { j += 1; } i = j + 1; }
+            else if at(i + 2) == '\'' { i += 3; }
+            else { i += 1; while at(i).is_alphanumeric() || at(i) == '_' { i += 1; } }
+        } else if ch.is_alphanumeric() || ch == '_' {
+            let s = i;
+            while at(i).is_alphanumeric() || at(i) == '_' { i += 1; }
+            out.push(ModTok::Ident(c[s..i].iter().collect()));
+        } else { out.push(ModTok::Punct(ch)); i += 1; }
+    }
+    out
+}
+
+/// File-backed `mod name;` decls as (enclosing inline mods, name, `#[path]`). `mod x { .. }` blocks nest; cfg is ignored.
 fn mod_file_decls(text: &str) -> Vec<(Vec<String>, String, Option<String>)> {
-    let (mut out, mut path_attr) = (Vec::new(), None::<String>);
-    for line in text.lines() {
-        let mut t = line.trim();
-        if let Some(rest) = t.strip_prefix("#[path") {
-            path_attr = rest.split('"').nth(1).map(str::to_string);
+    let (t, mut i, mut out) = (mod_tokens(text), 0, Vec::new());
+    let (mut depth, mut inline, mut path) = (0usize, Vec::<(String, usize)>::new(), None::<String>);
+    let ident = |i: usize| match t.get(i) { Some(ModTok::Ident(s)) => Some(s.as_str()), _ => None };
+    while i < t.len() {
+        match &t[i] {
+            ModTok::Punct('#') if t.get(i + 1) == Some(&ModTok::Punct('[')) => {
+                if ident(i + 2) == Some("path") && t.get(i + 3) == Some(&ModTok::Punct('=')) {
+                    if let Some(ModTok::Str(p)) = t.get(i + 4) { path = Some(p.clone()); }
+                }
+                let mut b = 0;
+                while i < t.len() {
+                    if t[i] == ModTok::Punct('[') { b += 1; }
+                    if t[i] == ModTok::Punct(']') { b -= 1; if b == 0 { break; } }
+                    i += 1;
+                }
+            }
+            ModTok::Ident(k) if k == "mod" => if let Some(name) = ident(i + 1) {
+                match t.get(i + 2) {
+                    Some(ModTok::Punct(';')) => out.push((inline.iter().map(|m| m.0.clone()).collect(), name.to_string(), path.take())),
+                    Some(ModTok::Punct('{')) => { inline.push((name.to_string(), depth)); depth += 1; path = None; i += 1; }
+                    _ => {}
+                }
+                i += 1;
+            },
+            ModTok::Punct('{') => { depth += 1; path = None; }
+            ModTok::Punct('}') => { depth = depth.saturating_sub(1); path = None; if inline.last().is_some_and(|m| m.1 == depth) { inline.pop(); } }
+            ModTok::Punct(';') => path = None,
+            _ => {}
         }
-        while t.starts_with("#[") { t = t.find(']').map_or("", |i| t[i + 1..].trim_start()); }
-        if let Some(rest) = t.strip_prefix("pub") { t = rest.trim_start(); }
-        if t.starts_with('(') { t = t.find(')').map_or("", |i| t[i + 1..].trim_start()); }
-        let decl = t.strip_prefix("mod ").and_then(|r| r.trim().strip_suffix(';')).map(str::trim);
-        match decl {
-            Some(name) if name.chars().all(|c| c.is_alphanumeric() || c == '_') => out.push((Vec::new(), name.to_string(), path_attr.take())),
-            _ if line.trim().is_empty() || line.trim().starts_with("#[") => {}
-            _ => path_attr = None,
-        }
+        i += 1;
     }
     out
 }
