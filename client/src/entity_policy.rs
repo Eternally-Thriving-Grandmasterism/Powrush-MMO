@@ -408,8 +408,12 @@ fn plate_edge_p3_rim_is_nocollide_in_plane_and_stone_modes() {
 /// `mod` line (or a `#[path]` mod) starting at lib.rs or main.rs, and nothing reachable may sit in `_parked/`.
 #[test]
 fn park_dead_1_every_unparked_src_rs_is_in_a_mod_tree() {
+    park_dead_check(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"));
+}
+
+/// The PARK-DEAD-1 walk and both asserts, over any `src` dir: the real tree, or a G1 fixture tree.
+fn park_dead_check(src: &std::path::Path) {
     use std::{collections::BTreeSet, path::{Path, PathBuf}};
-    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
     let (mut seen, mut stack) = (BTreeSet::<PathBuf>::new(), vec![src.join("lib.rs"), src.join("main.rs")]);
     while let Some(file) = stack.pop() {
         if !file.is_file() || !seen.insert(file.clone()) { continue; }
@@ -444,6 +448,25 @@ fn park_dead_1_every_unparked_src_rs_is_in_a_mod_tree() {
     let parked = src.join("_parked").canonicalize().unwrap();
     let reached: Vec<String> = seen.iter().filter(|p| p.starts_with(&parked)).map(|p| p.display().to_string()).collect();
     assert!(reached.is_empty(), "{} parked .rs reached by a mod or #[path] (un-park it instead): {reached:?}", reached.len());
+}
+
+/// G1: the reverse `_parked` assert on a temp tree. Unwired parked files pass; a `#[path]` or `mod` into `_parked/` must fail.
+#[test]
+fn park_guard_reverse_parked_fixture() {
+    let root = std::env::temp_dir().join(format!("powrush-pg-g1-{}", std::process::id()));
+    let fails = |lib: &str| {
+        let src = root.join("src");
+        let _ = std::fs::remove_dir_all(&root);
+        std::fs::create_dir_all(src.join("_parked")).unwrap();
+        for (f, body) in [("lib.rs", lib), ("main.rs", ""), ("live.rs", ""), ("_parked/zz_p.rs", ""), ("_parked/mod.rs", "")] { std::fs::write(src.join(f), body).unwrap(); }
+        std::panic::catch_unwind(|| park_dead_check(&src)).err().map(|e| e.downcast_ref::<String>().cloned().unwrap_or_default())
+    };
+    let parked = |m: Option<String>, f: &str| m.is_some_and(|m| m.starts_with("1 parked .rs reached") && m.contains(f));
+    assert_eq!(fails("mod live;"), None, "G1a clean tree, unwired parked files pass");
+    assert!(parked(fails("mod live;\n#[path = \"_parked/zz_p.rs\"] mod zz_p;"), "zz_p.rs"), "G1b #[path] into _parked/ must fail");
+    assert!(parked(fails("mod live;\nmod _parked;"), "mod.rs"), "G1c mod _parked; must fail");
+    assert!(fails("").is_some_and(|m| m.starts_with("1 unparked orphan")), "G1d orphan assert still runs");
+    let _ = std::fs::remove_dir_all(&root);
 }
 
 #[derive(PartialEq)]
