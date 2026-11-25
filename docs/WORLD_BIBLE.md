@@ -89,7 +89,7 @@ Distinct systems are keyed by `PlaceId`, not by realm id:
 |---|---|
 | Sanctuary | Stavehold gate plaque and quest sentence ([wellsworn.rs:20-21](../client/src/wellsworn.rs#L20)). Practice fight at `STAVEHOLD_FIGHT_HOME` ([combat_core.rs:58](../client/src/combat_core.rs#L58)). Embassy restore on arrival ([hex_travel.rs:266-268](../client/src/hex_travel.rs#L266)). |
 | Heartwood | Lip dress and bath ([heartwood_lip.rs:1](../client/src/heartwood_lip.rs#L1)). Heartwood Prowler ([combat_core.rs:46](../client/src/combat_core.rs#L46)). Heartwood Grazer ([grazer.rs:1-2](../client/src/grazer.rs#L1)). |
-| Threshold (a Heartwood sub-area, not a `PlaceId`) | Shelf look and tend ([shared/threshold_shelf.rs:1](../shared/threshold_shelf.rs#L1)). Threshold droid ([droid.rs:1-2](../client/src/droid.rs#L1)). |
+| Threshold (a Heartwood sub-area, not a `PlaceId`) | Shelf look and tend ([shared/threshold_shelf.rs:1](../shared/threshold_shelf.rs#L1)). Threshold Sentry, the one hostile droid ([droid.rs:1-2](../client/src/droid.rs#L1), name at [:20](../client/src/droid.rs#L20)). |
 | Depths | Landing disk and one Peace node ([depths_landing.rs:1-2](../client/src/depths_landing.rs#L1)). Fresh hex file with zeroed tons on first entry ([shared/hex_travel.rs:505-511](../shared/hex_travel.rs#L505)). |
 
 Bottom line: the five realms are reskins. Sanctuary, Heartwood and Depths are thin distinct places on the same footprint. The councils' reading of the five levels is linked at [DESIGN_PILLARS.md:13](DESIGN_PILLARS.md#L13).
