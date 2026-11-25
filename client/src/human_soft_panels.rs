@@ -437,4 +437,42 @@ mod tests {
             assert_eq!(vis(&mut app), Visibility::Hidden, "{name} under Pause: R5 yields");
         }
     }
+
+    /// REALM-NAMES-1 F2: real systems under the real HUD layout (Classic, InYard).
+    #[test] fn realm_names_1_panel_and_journal_render_ruled_names() {
+        use crate::{hud_presets::{ActiveHudPreset, HudLayoutPlugin, HudPresetId}, title_screen::LaunchDoor};
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, HudLayoutPlugin)).insert_resource(ActiveHudPreset { id: Some(HudPresetId::Classic) })
+            .init_resource::<crate::hex_travel::PlacesPlate>().insert_resource(LaunchDoor::InYard)
+            .init_resource::<ButtonInput<KeyCode>>().insert_resource(SoftPlayerRealm { current: Some(0) })
+            .init_resource::<AbundanceJourneyEcho>().add_plugins(HumanSoftPanelsPlugin);
+        crate::test_env::single_thread(&mut app);
+        app.update();
+        fn tap(app: &mut App, key: KeyCode) {
+            app.world_mut().resource_mut::<ButtonInput<KeyCode>>().press(key);
+            app.update();
+            { let mut k = app.world_mut().resource_mut::<ButtonInput<KeyCode>>(); k.release(key); k.clear(); }
+            app.update();
+        }
+        fn body<C: Component>(app: &mut App) -> String { let w = app.world_mut(); w.query_filtered::<&Text, With<C>>().single(w).unwrap().0.clone() }
+        fn vis(app: &mut App, mercy: bool) -> Visibility { let r = hp3_root(app, mercy); *app.world().get::<Visibility>(r).unwrap() }
+        tap(&mut app, soft_play_bindings::REALM_TRAVEL);
+        assert_eq!(body::<RealmSoftBody>(&mut app), "1–5 choose a climate\n> [1] Sanctuary Prime\n  [2] Crystal Spires\n  [3] Verdant Heartwood\n  [4] Abyssal Depths\n  [5] Voidfarer Horizon\n");
+        assert_eq!(vis(&mut app, false), Visibility::Visible, "Realm final Visibility under HudLayoutPlugin");
+        let rows = ["Sanctuary Prime", "Crystal Spires", "Verdant Heartwood", "Abyssal Depths", "Voidfarer Horizon"];
+        for (key, id, name) in [(KeyCode::Digit2, 1u8, "Crystal Spires"), (KeyCode::Digit3, 2, "Verdant Heartwood"), (KeyCode::Digit4, 3, "Abyssal Depths"), (KeyCode::Digit5, 4, "Voidfarer Horizon"), (KeyCode::Digit1, 0, "Sanctuary Prime")] {
+            tap(&mut app, key);
+            assert_eq!(app.world().resource::<SoftPlayerRealm>().current, Some(id));
+            assert_eq!(app.world().resource::<AbundanceJourneyEcho>().lines.last().unwrap().text, format!("Traveled to {name}"));
+            let mut want = String::from("1–5 choose a climate\n");
+            for (i, row) in rows.iter().enumerate() { want.push_str(&format!("{} [{}] {row}\n", if i as u8 == id { ">" } else { " " }, i + 1)); }
+            assert_eq!(body::<RealmSoftBody>(&mut app), want, "realm {id}");
+            assert_eq!(body::<MercySoftBody>(&mut app).lines().next().unwrap(), format!("· Traveled to {name}"));
+        }
+        tap(&mut app, soft_play_bindings::MY_MERCY_JOURNEY);
+        assert_eq!(body::<MercySoftBody>(&mut app), "· Traveled to Sanctuary Prime\n· Traveled to Voidfarer Horizon\n· Traveled to Abyssal Depths\n· Traveled to Verdant Heartwood\n· Traveled to Crystal Spires");
+        assert_eq!((vis(&mut app, true), vis(&mut app, false)), (Visibility::Visible, Visibility::Hidden), "M opens Mercy; R3 push closes Realm");
+        tap(&mut app, soft_play_bindings::REALM_TRAVEL_ALIAS);
+        assert_eq!((vis(&mut app, true), vis(&mut app, false)), (Visibility::Hidden, Visibility::Visible), "F3 reopens Realm; R3 push closes Mercy");
+    }
 }
