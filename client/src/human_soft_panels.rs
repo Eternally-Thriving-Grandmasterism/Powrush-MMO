@@ -456,9 +456,11 @@ mod tests {
         }
         fn body<C: Component>(app: &mut App) -> String { let w = app.world_mut(); w.query_filtered::<&Text, With<C>>().single(w).unwrap().0.clone() }
         fn vis(app: &mut App, mercy: bool) -> Visibility { let r = hp3_root(app, mercy); *app.world().get::<Visibility>(r).unwrap() }
+        assert_eq!((vis(&mut app, true), vis(&mut app, false)), (Visibility::Hidden, Visibility::Hidden), "boot: both panels start Hidden");
         tap(&mut app, soft_play_bindings::REALM_TRAVEL);
         assert_eq!(body::<RealmSoftBody>(&mut app), "1–5 choose a climate\n> [1] Sanctuary Prime\n  [2] Crystal Spires\n  [3] Verdant Heartwood\n  [4] Abyssal Depths\n  [5] Voidfarer Horizon\n");
         assert_eq!(vis(&mut app, false), Visibility::Visible, "Realm final Visibility under HudLayoutPlugin");
+        assert_eq!(vis(&mut app, true), Visibility::Hidden, "gap (i): opening Realm leaves Mercy Hidden");
         let rows = ["Sanctuary Prime", "Crystal Spires", "Verdant Heartwood", "Abyssal Depths", "Voidfarer Horizon"];
         for (key, id, name) in [(KeyCode::Digit2, 1u8, "Crystal Spires"), (KeyCode::Digit3, 2, "Verdant Heartwood"), (KeyCode::Digit4, 3, "Abyssal Depths"), (KeyCode::Digit5, 4, "Voidfarer Horizon"), (KeyCode::Digit1, 0, "Sanctuary Prime")] {
             tap(&mut app, key);
@@ -468,6 +470,7 @@ mod tests {
             for (i, row) in rows.iter().enumerate() { want.push_str(&format!("{} [{}] {row}\n", if i as u8 == id { ">" } else { " " }, i + 1)); }
             assert_eq!(body::<RealmSoftBody>(&mut app), want, "realm {id}");
             assert_eq!(body::<MercySoftBody>(&mut app).lines().next().unwrap(), format!("· Traveled to {name}"));
+            assert_eq!((vis(&mut app, true), vis(&mut app, false)), (Visibility::Hidden, Visibility::Visible), "gap (ii) realm {id}: a digit keeps Realm open and Mercy shut");
         }
         tap(&mut app, soft_play_bindings::MY_MERCY_JOURNEY);
         assert_eq!(body::<MercySoftBody>(&mut app), "· Traveled to Sanctuary Prime\n· Traveled to Voidfarer Horizon\n· Traveled to Abyssal Depths\n· Traveled to Verdant Heartwood\n· Traveled to Crystal Spires");
