@@ -538,4 +538,7 @@ fn park_guard_mod_parse_fixtures() {
     assert_eq!(names("const A: &str = \"mod s1; {\";\nconst B: &str = r#\"mod s2; \"} {\"#;\nconst C: &[u8] = br\"mod s3;\";\nconst D: char = '\"';\nfn l<'a>(x: &'a str) {}\nmod z;"), ["z"], "F4 strings, raw strings, char, lifetime");
     assert_eq!(names("#[path = \"gltf_integration.rs\"]\npub(crate) mod gltf;\n#[path = \"x.rs\"] fn f() {}\nmod q;\n#[cfg(feature = \"steam\")]\n#[allow(dead_code)] pub mod s;"), ["gltf@gltf_integration.rs", "q", "s"], "F5 #[path], pub(crate), stale path cleared, stacked cfg attrs");
     assert_eq!(names("#![cfg(test)]\n//! mod doc;\n/// mod doc2;\nmod real;\nmod r#match;"), ["real", "match"], "F6 inner attr, doc comments, raw ident");
+    assert_eq!(names("#[cfg(any())] mod zz { const Q: [char; 2] = ['\\'','}']; mod inner; }\nmod after;"), ["zz::inner", "after"], "F7 P3 escaped-quote char then close-brace char must not close the block");
+    assert_eq!(names("mod zz { const Q: [char; 2] = ['\\'','{']; mod inner; }\nmod after;"), ["zz::inner", "after"], "F8 P4 escaped-quote char then open-brace char must not open a block");
+    assert_eq!(names("mod w { const E: [char; 4] = ['\\\\','}','\\n','}']; const U: char = '\\u{7D}'; const B: (u8, char) = (b'\\'','}'); mod x; }\nmod z;"), ["w::x", "z"], "F9 backslash, newline, unicode and byte escapes");
 }
