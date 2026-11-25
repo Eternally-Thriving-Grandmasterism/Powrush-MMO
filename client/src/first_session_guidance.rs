@@ -3787,7 +3787,7 @@ mod tests {
     }
 
     /// Restores the user-dir override on drop, including panic.
-    struct RestoreUserDir(Option<String>);
+    struct RestoreUserDir(Option<String>, std::path::PathBuf);
 
     impl Drop for RestoreUserDir {
         fn drop(&mut self) {
@@ -3797,6 +3797,7 @@ mod tests {
                 }
                 None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
             }
+            let _ = std::fs::remove_dir_all(&self.1);
         }
     }
 
@@ -3812,7 +3813,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("temp user dir");
         let prev_dir = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
         std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
-        (dir, RestoreUserDir(prev_dir))
+        (dir.clone(), RestoreUserDir(prev_dir, dir))
     }
 
     /// Bevy's first real-time sample records the instant and leaves delta at 0.

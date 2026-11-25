@@ -1366,6 +1366,7 @@ mod tests {
 
     struct HoldUserDir {
         prev: Option<String>,
+        dir: std::path::PathBuf,
         _lock: crate::test_env::UserDirEnvGuard,
     }
 
@@ -1382,7 +1383,7 @@ mod tests {
         std::fs::create_dir_all(&dir).expect("temp user dir");
         let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
         std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
-        HoldUserDir { prev, _lock: lock }
+        HoldUserDir { prev, dir, _lock: lock }
     }
 
     impl Drop for HoldUserDir {
@@ -1393,6 +1394,7 @@ mod tests {
                 }
                 None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
             }
+            let _ = std::fs::remove_dir_all(&self.dir);
         }
     }
 
