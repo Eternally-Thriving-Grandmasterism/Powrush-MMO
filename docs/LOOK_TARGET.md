@@ -45,7 +45,6 @@ Blocks key on the four ART_BIBLE Places ([ART_BIBLE.md:40-45](ART_BIBLE.md#L40))
 - Accent and must / must not: [ART_BIBLE.md:42](ART_BIBLE.md#L42).
 - Dress arm: [climate_plane.rs:465](../client/src/climate_plane.rs#L465). Constants: `SANCTUARY_WELL_GOLD` [:191](../client/src/climate_plane.rs#L191), `SANCTUARY_VALLEY_EARTH` [:198](../client/src/climate_plane.rs#L198), `SANCTUARY_VALLEY_SKY` [:200](../client/src/climate_plane.rs#L200), `SANCTUARY_VALLEY_FOG` [:201](../client/src/climate_plane.rs#L201).
 - Place identity bar: [PLACE_DRESS_SPEC.md:80](PLACE_DRESS_SPEC.md#L80).
-- Plate to compare against: the powrush.com plate at [visual-pass/TARGET_BOARD.md:10](visual-pass/TARGET_BOARD.md#L10), as a look reference only.
 
 ### Heartwood (realm 2, Verdant Heartwood)
 
@@ -109,8 +108,6 @@ The five ambientCG colour maps (`assets/textures/ambientcg/*/color.png`) are 512
 **Targets.** Any budget number that is not in the measured table is a **target, not a measurement** ([SYSTEMS_SPINE.md:377](SYSTEMS_SPINE.md#L377)). The 1080p/60 floor is a target only. No hardware claim is made.
 
 **Licence row.** The public asset guard passes models and textures only as CC0 or self-made AG-SML-1.1 ([check_asset_licenses.sh:4](../scripts/check_asset_licenses.sh#L4), `licence_ok` [:17](../scripts/check_asset_licenses.sh#L17)), run in CI ([ci.yml:37](../.github/workflows/ci.yml#L37), [:39](../.github/workflows/ci.yml#L39)). Current kits are recorded in [THIRD_PARTY_ASSETS.md:12-15](../THIRD_PARTY_ASSETS.md#L12) and [asset-licenses.csv](../assets/asset-licenses.csv). New assets are $0 only. CC-BY is **not** accepted today; any widening of the allow-list is an open item for Sherif.
-
-**Naming rule (future files only).** A new asset file keeps its source kit's file name, sits in a lower-case, hyphenated per-kit folder named for source and kit (as `assets/models/kenney-nature-kit/` does), and gets one row in `assets/asset-licenses.csv`. No existing file is renamed.
 
 **Import validator: planned, unowned.** No card owns it yet; it needs its own Clerk PRE-PATH and Core shape ruling.
 
