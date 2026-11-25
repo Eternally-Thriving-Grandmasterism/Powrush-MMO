@@ -140,7 +140,7 @@ Gaps:
 | Z1 | Sanctuary Prime + Stavehold gate | temperate valley, Human and Ambrosian home | A (newbie) | Sanctuary dome: no player damage | the Use verb, wells, practice fight, House | road to Z2 and Z3; coast later |
 | Z2 | Contested ground / Heartwood Teeth | forest belt beside the valley | B | Newcomer Aegis, then contested wilds | first hunting, telegraphs, loot finds | road from Z1; path to Z3 |
 | Z3 | Heartwood (Lamp / Lip / Wards) | old forest, Cydruid approach | B | Peace inside the rings | House posts, craft, wood haul | from Z1 or Z2; path up to Z4 |
-| Z4 | Threshold / Crystal Spires highlands | mountain shelf above Heartwood | C | contested wilds; hostile droids start here ([COMBAT_AND_PVP.md:93](design/COMBAT_AND_PVP.md#L93)) | ranged threats, scouting, ore | path from Z3; rail later |
+| Z4 | Threshold / Crystal Spires highlands | mountain shelf above Heartwood | C | contested wilds; hostile droids start here ([COMBAT_AND_PVP.md:94](design/COMBAT_AND_PVP.md#L94)) | ranged threats, scouting, ore | path from Z3; rail later |
 | Z5 | Depths landing, then the gated deep | hollows below, the Cydruid stalactite city and the Draek fringe | D+ | landing Peace; past the gate is the lawless deep (online-only, planned) | way-home law, risk and reward | descent from Z3 or Z4; earned portal later |
 | Orbit | TAUN, TBS | low orbit ([PROCGEN_DESIGN.md:77](PROCGEN_DESIGN.md#L77)) | hubs | Peace hub proposal ([PROCGEN_DESIGN.md:70-73](PROCGEN_DESIGN.md#L70)) | faction home and deployment | earned tech travel only |
 
