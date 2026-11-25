@@ -404,3 +404,54 @@ fn plate_edge_p3_rim_is_nocollide_in_plane_and_stone_modes() {
         }
     }
 }
+/// PARK-DEAD-1 orphan guard. Every `.rs` under `client/src` outside `_parked/` must be reachable from a
+/// `mod` line (or a `#[path]` mod) starting at lib.rs or main.rs. Park dead code in `client/src/_parked/`.
+#[test]
+fn park_dead_1_every_unparked_src_rs_is_in_a_mod_tree() {
+    use std::{collections::BTreeSet, path::{Path, PathBuf}};
+    let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+    let (mut seen, mut stack) = (BTreeSet::<PathBuf>::new(), vec![src.join("lib.rs"), src.join("main.rs")]);
+    while let Some(file) = stack.pop() {
+        if !file.is_file() || !seen.insert(file.clone()) { continue; }
+        let dir = file.parent().unwrap().to_path_buf();
+        let stem = file.file_stem().unwrap().to_str().unwrap();
+        let child = if ["lib", "main", "mod"].contains(&stem) { dir.clone() } else { dir.join(stem) };
+        let mut path_attr: Option<String> = None;
+        for line in std::fs::read_to_string(&file).unwrap().lines() {
+            let mut t = line.trim();
+            if let Some(rest) = t.strip_prefix("#[path") {
+                path_attr = rest.split('"').nth(1).map(str::to_string);
+            }
+            while t.starts_with("#[") { t = t.find(']').map_or("", |i| t[i + 1..].trim_start()); }
+            if let Some(rest) = t.strip_prefix("pub") { t = rest.trim_start(); }
+            if t.starts_with('(') { t = t.find(')').map_or("", |i| t[i + 1..].trim_start()); }
+            let decl = t.strip_prefix("mod ").and_then(|r| r.trim().strip_suffix(';')).map(str::trim);
+            match decl {
+                Some(name) if name.chars().all(|c| c.is_alphanumeric() || c == '_') => {
+                    let flat = child.join(format!("{name}.rs"));
+                    stack.push(match path_attr.take() {
+                        Some(p) => dir.join(p),
+                        None if flat.is_file() => flat,
+                        None => child.join(name).join("mod.rs"),
+                    });
+                }
+                _ if line.trim().is_empty() || line.trim().starts_with("#[") => {}
+                _ => path_attr = None,
+            }
+        }
+    }
+    fn walk(dir: &Path, parked: &Path, out: &mut Vec<PathBuf>) {
+        for entry in std::fs::read_dir(dir).unwrap().map(|e| e.unwrap().path()) {
+            if entry == parked { continue; }
+            if entry.is_dir() { walk(&entry, parked, out); }
+            else if entry.extension().and_then(|e| e.to_str()) == Some("rs") { out.push(entry); }
+        }
+    }
+    let mut all = Vec::new();
+    walk(&src, &src.join("_parked"), &mut all);
+    let seen: BTreeSet<PathBuf> = seen.iter().map(|p| p.canonicalize().unwrap()).collect();
+    let mut orphans: Vec<String> = all.iter().filter(|p| !seen.contains(&p.canonicalize().unwrap()))
+        .map(|p| p.strip_prefix(&src).unwrap().display().to_string()).collect();
+    orphans.sort();
+    assert!(orphans.is_empty(), "{} unparked orphan .rs (move to client/src/_parked/): {orphans:?}", orphans.len());
+}

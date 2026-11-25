@@ -418,7 +418,7 @@ Schema string:
 
 No version field on the default bytes of rows 3, 4, 5 and 6 (`shared/hex_travel.rs:130` `HexClimateFile`, `shared/hex_travel.rs:165` `CurrentHex`), row 7 (`shared/hour_two.rs:18`), rows 12, 13 and 14 (`shared/shard_climate.rs:14`, `shared/shard_standing.rs:11`, `shared/week_audit.rs:10`), row 15's default blob (`shared/climate_node.rs:217`, written `client/src/lived_hour_bind.rs:231`), row 20 (`client/src/wellsworn.rs:80`), and row 22 (`client/src/first_session_guidance.rs:898`). Row 15's ingest overlay is off by default (`shared/lived_tick_ingest.rs:3`) and, when on, writes a schema string (`shared/lived_tick_ingest.rs:22`) onto that same path.
 
-**§14.4 Chain.** There is no migration chain in `client/src` or `shared`. The hit at `client/src/ui_utils.rs:7` is a comment about a label, not a save migration. Old-save tests that exist today are `client/src/local_session_persist.rs:274`, `client/src/local_session_persist.rs:280`, `client/src/loot_drops.rs:304` and `client/src/loot_drops.rs:328`.
+**§14.4 Chain.** There is no migration chain in `client/src` or `shared`. The hit at `client/src/_parked/ui_utils.rs:7` is a comment about a label, not a save migration. Old-save tests that exist today are `client/src/local_session_persist.rs:274`, `client/src/local_session_persist.rs:280`, `client/src/loot_drops.rs:304` and `client/src/loot_drops.rs:328`.
 
 ## 15. STRINGS
 
