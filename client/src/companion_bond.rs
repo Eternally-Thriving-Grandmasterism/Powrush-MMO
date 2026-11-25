@@ -97,6 +97,7 @@ fn follow_or_wait(
     mut bond: ResMut<CompanionBond>,
     time: Res<Time>,
     mut deer: Query<(&Name, &mut Transform)>,
+    settings: Option<Res<crate::local_settings::LocalSettingsState>>,
 ) {
     let id = realm.current.unwrap_or(0);
     if !matches!(id, 0 | 2) {
@@ -125,7 +126,7 @@ fn follow_or_wait(
         if d > 2.4 {
             tf.translation = tf.translation.lerp(want, (1.8 * dt).min(1.0));
         }
-        tf.translation.y = crate::living_ecology::DEER_STAND_Y + crate::terrain::shelf_offset(tf.translation.x, tf.translation.z);
+        tf.translation.y = crate::living_ecology::DEER_STAND_Y + crate::terrain::tread_offset(tf.translation.x, tf.translation.z, crate::terrain::live_plan(settings.as_deref()));
     }
 }
 

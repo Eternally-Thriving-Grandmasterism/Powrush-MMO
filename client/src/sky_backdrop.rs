@@ -736,23 +736,18 @@ fn spawn_sky_backdrop(
 fn sync_terrace_mesh(
     settings: Option<Res<LocalSettingsState>>,
     meshes: Option<ResMut<Assets<Mesh>>>,
-    mut stamped: Local<Option<GraphicsPreset>>,
+    mut stamped: Local<Option<crate::terrain::TerrainPlan>>,
     grounds: Query<(&SkyBackdropPart, &Mesh3d)>,
 ) {
     let Some(mut meshes) = meshes else {
         return;
     };
-    let preset = settings
-        .as_ref()
-        .map(|state| state.inner.graphics_preset)
-        .unwrap_or(GraphicsPreset::Medium);
-    if *stamped == Some(preset) {
+    let plan = crate::terrain::live_plan(settings.as_deref());
+    if *stamped == Some(plan) {
         return;
     }
-    *stamped = Some(preset);
-    let mut built = Some(crate::terrain::terrace_mesh(crate::terrain::terrain_plan(
-        preset,
-    )));
+    *stamped = Some(plan);
+    let mut built = Some(crate::terrain::terrace_mesh(plan));
     for (part, mesh) in &grounds {
         if *part != SkyBackdropPart::Ground {
             continue;

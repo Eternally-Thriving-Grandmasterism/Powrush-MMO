@@ -1438,7 +1438,8 @@ fn apply_locomotion(
     }
     crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned).chain(crate::collide::prop_solids(trees.3.as_ref().map(|s| s.current), realm)));
     push_out_of_moat(&mut presence.position, &mut vel);
-    push_out_of_riser_lips(&mut presence.position, &mut vel);
+    let plan = crate::terrain::live_plan(settings.as_deref());
+    push_out_of_riser_lips(&mut presence.position, &mut vel, plan);
     presence.velocity = vel;
     // CARD TERRAIN-GROUND-1 / YARD-EDGE-1 — outer shelf bound after the push-outs; outward vel drops M8-style.
     let (plate, n) = push_out_of_plate_edge(presence.position.xz());
@@ -1451,10 +1452,9 @@ fn apply_locomotion(
     // The landing snap below reads `wish_vel`; at the edge it keeps only the part along the bound.
     let (_, rim) = push_out_of_plate_edge(presence.position.xz() + wish_vel * dt);
     wish_vel -= wish_vel.dot(rim).min(0.0) * rim;
-    let hip =
-        STAND + crate::terrain::shelf_offset(presence.position.x, presence.position.z);
-    let tread_drop =
-        crate::terrain::shelf_offset(presence.position.x, presence.position.z) < -1e-4;
+    let ground = crate::terrain::tread_offset(presence.position.x, presence.position.z, plan);
+    let hip = STAND + ground;
+    let tread_drop = ground < -1e-4;
     if tread_drop && presence.grounded && presence.position.y > hip + 1e-4 && presence.position.y <= STAND {
         let still = wish_vel.length_squared() < 1e-8
             && Vec2::new(presence.velocity.x, presence.velocity.z).length_squared() < 1e-8
@@ -1518,7 +1518,7 @@ fn push_out_of_moat(pos: &mut Vec3, vel: &mut Vec3) {
 }
 
 /// CARD TERRAIN-GROUND-1 — height-aware riser lips at each shelf outer. Outward falls are free; inward needs tread feet.
-fn push_out_of_riser_lips(pos: &mut Vec3, vel: &mut Vec3) {
+fn push_out_of_riser_lips(pos: &mut Vec3, vel: &mut Vec3, plan: crate::terrain::TerrainPlan) {
     let feet = pos.y - STAND + silhouette().feet;
     let xz = pos.xz();
     let r = xz.length();
@@ -1527,7 +1527,7 @@ fn push_out_of_riser_lips(pos: &mut Vec3, vel: &mut Vec3) {
     }
     let dir = xz / r;
     for lip in 1..crate::terrain::SHELF_COUNT {
-        let lip_r = crate::terrain::SHELF_OUTER[lip - 1];
+        let lip_r = crate::terrain::rim_radius(pos.x, pos.z, lip - 1, plan);
         let reach = lip_r + PLAYER_TRUNK_RADIUS;
         if (r - lip_r).abs() > PLAYER_TRUNK_RADIUS + 0.05 {
             continue;

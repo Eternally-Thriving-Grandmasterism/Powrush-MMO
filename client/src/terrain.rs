@@ -1,10 +1,10 @@
 //! CARD VP-TERRAIN-1 — terraces and terrain shaping.
 //!
-//! Stepped, readable shelves around the Sanctuary yard. The circle model
-//! [`terrace_height`] / [`shelf_offset`] / [`SHELF_OUTER`] drives the lived
-//! floor snap and riser lips in [`human_presence::apply_locomotion`]. High and
-//! Ultra rim wobble on rings 165 and 250 affects only [`tread_y_mesh`] drawing,
-//! not that collider set.
+//! Stepped, readable shelves around the Sanctuary yard. The lived floor snap
+//! and riser lips in [`human_presence::apply_locomotion`] follow the drawn
+//! mesh: [`tread_offset`] and [`rim_radius`] on the one [`live_plan`]. The rim
+//! wobble on rings 165 and 250 is on every preset. The circle model
+//! [`terrace_height`] / [`shelf_offset`] stays for props off the riser bands.
 //!
 //! Shelf radii and heights are the same on every preset, so the shape is
 //! deterministic. Angular segments are the detail knob, the same split
@@ -202,12 +202,9 @@ fn rim_wobble(ring_ix: usize, radius: f32, i: u32, n: u32) -> f32 {
 /// `(x, z)` for `plan`: the first rim whose chord over that sector holds the
 /// point. Same vertices and wobble as the mesh, unlike the circle model.
 pub fn tread_y_mesh(x: f32, z: f32, plan: TerrainPlan) -> f32 {
-    let n = plan.segments.max(3);
-    let i = ((z.atan2(x).rem_euclid(TAU) / TAU * n as f32) as u32).min(n - 1);
-    for (ix, &rim) in SHELF_OUTER.iter().enumerate() {
-        let a = ring(rim_wobble(ix, rim, i, n), 0.0, i, n);
-        let b = ring(rim_wobble(ix, rim, i + 1, n), 0.0, i + 1, n);
-        if (b[0] - a[0]) * (z - a[2]) - (b[2] - a[2]) * (x - a[0]) >= 0.0 {
+    let r = (x * x + z * z).sqrt();
+    for ix in 0..SHELF_COUNT {
+        if r <= rim_radius(x, z, ix, plan) {
             return SHELF_Y[ix];
         }
     }
@@ -227,6 +224,18 @@ pub fn rim_radius(x: f32, z: f32, ix: usize, plan: TerrainPlan) -> f32 {
     let b = ring(rim_wobble(ix, SHELF_OUTER[ix], i + 1, n), 0.0, i + 1, n);
     let (ex, ez) = (b[0] - a[0], b[2] - a[2]);
     (a[0] * ez - a[2] * ex) / (x / r * ez - z / r * ex)
+}
+
+/// GROUND-SNAP-2 — metres the drawn tread sits below the play floor. Equals
+/// [`shelf_offset`] off the riser bands. The walk height and the deer use it.
+pub fn tread_offset(x: f32, z: f32, plan: TerrainPlan) -> f32 {
+    tread_y_mesh(x, z, plan) - PLAY_FLOOR_Y
+}
+
+/// GROUND-SNAP-2 — the one plan the drawn terrace and the walk share: the
+/// settings preset, or Medium when settings are absent.
+pub fn live_plan(settings: Option<&crate::local_settings::LocalSettingsState>) -> TerrainPlan {
+    terrain_plan(settings.map_or(GraphicsPreset::Medium, |s| s.inner.graphics_preset))
 }
 
 /// CARD TREE-SEAT-1 — true when a prop of footprint radius `margin` at

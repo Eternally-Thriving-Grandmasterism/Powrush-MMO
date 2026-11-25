@@ -519,6 +519,7 @@ fn move_deer(
     time: Res<Time>,
     bond: Option<Res<crate::companion_bond::CompanionBond>>,
     mut q: Query<&mut Transform, With<ResonantDeer>>,
+    settings: Option<Res<crate::local_settings::LocalSettingsState>>,
 ) {
     if bond.is_some_and(|b| b.mounted) {
         return;
@@ -532,7 +533,7 @@ fn move_deer(
     let dt = time.delta_secs();
     for mut tf in &mut q {
         tf.translation = tf.translation.lerp(target, (1.6 * dt).min(1.0));
-        tf.translation.y = DEER_STAND_Y + crate::terrain::shelf_offset(tf.translation.x, tf.translation.z);
+        tf.translation.y = DEER_STAND_Y + crate::terrain::tread_offset(tf.translation.x, tf.translation.z, crate::terrain::live_plan(settings.as_deref()));
     }
 }
 
