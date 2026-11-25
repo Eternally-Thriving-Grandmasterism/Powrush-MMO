@@ -11,7 +11,7 @@ The build is offline. Title Online stays grey ([shared/net_mode.rs:5](../shared/
 What this page links instead of repeating:
 
 - Zones, places, realm names and bands: [WORLD_BIBLE.md §6 Zone map](WORLD_BIBLE.md#6-zone-map-proposal) (PROPOSAL).
-- Code owners: [SYSTEMS_SPINE.md §6 World](SYSTEMS_SPINE.md#L62) (gen-seed owners at [:64](SYSTEMS_SPINE.md#L64)), and [§11.6](SYSTEMS_SPINE.md#L263), which lists WORLD-GEN-1 as planned at [:269](SYSTEMS_SPINE.md#L269).
+- Code owners: [SYSTEMS_SPINE.md §6 World](SYSTEMS_SPINE.md#L62) (gen-seed owners at [:64](SYSTEMS_SPINE.md#L64)), and [§11.6](SYSTEMS_SPINE.md#L263), which lists WORLD-GEN-1 as on main (#1173) at [:269](SYSTEMS_SPINE.md#L269).
 - The existing generation sketch: [PROCGEN_DESIGN.md:81-91](PROCGEN_DESIGN.md#L81) (room graph, fixed anchors, filler tiles, density) and [:96-104](PROCGEN_DESIGN.md#L96) (determinism and saves).
 - The player-built transport network: [DESIGN_PILLARS.md COMPANY-1](DESIGN_PILLARS.md#L44).
 
