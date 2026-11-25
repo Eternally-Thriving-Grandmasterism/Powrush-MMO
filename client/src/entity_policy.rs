@@ -454,6 +454,9 @@ fn park_dead_check(src: &std::path::Path) {
 #[test]
 fn park_guard_reverse_parked_fixture() {
     let root = std::env::temp_dir().join(format!("powrush-pg-g1-{}", std::process::id()));
+    struct Tmp(std::path::PathBuf);
+    impl Drop for Tmp { fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.0); } }
+    let _tmp = Tmp(root.clone());
     let fails = |lib: &str| {
         let src = root.join("src");
         let _ = std::fs::remove_dir_all(&root);
@@ -466,7 +469,6 @@ fn park_guard_reverse_parked_fixture() {
     assert!(parked(fails("mod live;\n#[path = \"_parked/zz_p.rs\"] mod zz_p;"), "zz_p.rs"), "G1b #[path] into _parked/ must fail");
     assert!(parked(fails("mod live;\nmod _parked;"), "mod.rs"), "G1c mod _parked; must fail");
     assert!(fails("").is_some_and(|m| m.starts_with("1 unparked orphan")), "G1d orphan assert still runs");
-    let _ = std::fs::remove_dir_all(&root);
 }
 
 #[derive(PartialEq)]
