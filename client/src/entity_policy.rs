@@ -480,7 +480,7 @@ fn mod_tokens(text: &str) -> Vec<ModTok> {
             out.push(ModTok::Str(c[start..k.min(c.len())].iter().collect()));
             i = k + 1 + hashes;
         } else if ch == '\'' {
-            if at(i + 1) == '\\' { let mut j = i + 2; while j < c.len() && c[j] != '\'' { j += 1; } i = j + 1; }
+            if at(i + 1) == '\\' { let mut j = i + 3; while j < c.len() && c[j] != '\'' { j += 1; } i = j + 1; }
             else if at(i + 2) == '\'' { i += 3; }
             else { i += 1; while at(i).is_alphanumeric() || at(i) == '_' { i += 1; } }
         } else if ch.is_alphanumeric() || ch == '_' {
