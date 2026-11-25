@@ -7777,8 +7777,8 @@ mod tests {
                 (!at.grounded).then(|| at.position.xz().length())
             });
             let r_f = fell.unwrap_or_else(|| panic!("{p:?} ix {ix} never left the tread"));
-            // The lip shoves a grounded body within 0.35 inside the rim out to rho + trunk (gravity sag, banked).
-            assert!((r_f - (rho + PLAYER_TRUNK_RADIUS)).abs() <= 0.06, "{p:?} ix {ix} fell at {r_f} rho {rho}");
+            // GROUND-SNAP-5: no gravity-sag lip shove; the body leaves the tread on its first tick past the rim.
+            assert!((rho - 0.01..=rho + 0.06).contains(&r_f), "{p:?} ix {ix} fell at {r_f} rho {rho}");
         }
     }
 
@@ -7902,6 +7902,61 @@ mod tests {
                 let want = if realm == Some(0) { pushed } else { at.xz().length() };
                 assert!((p.xz().length() - want).abs() <= 1e-3, "{realm:?} {what} r {} want {want}", p.xz().length());
                 assert!(realm == Some(0) || (p.y - STAND).abs() <= 1e-4, "{realm:?} {what} y {}", p.y);
+            }
+        }
+    }
+
+    // GROUND-SNAP-5 — riser lips read the feet from before this tick's fall: no gravity-sag shove.
+    #[test]
+    fn ground_snap_5_still_near_rim_stays_on_tread() {
+        use crate::terrain::{rim_radius, terrace_mesh, terrain_plan};
+        let mut bad = Vec::new();
+        for (p, ix, t) in gs2_cases() {
+            let (plan, (c, s)) = (terrain_plan(p), (t.cos(), t.sin()));
+            let (mesh, rho) = (terrace_mesh(plan), rim_radius(c, s, ix, plan));
+            let mut app = gs2_app(Some(p));
+            for d in [0.02_f32, 0.15, 0.30, 0.34] {
+                let r = rho - d;
+                let at = Vec3::new(c * r, gs2_hip(&mesh, c * r, s * r), s * r);
+                gs2_place(&mut app, at, Vec2::ZERO);
+                for tick in 0..20 {
+                    jb_step(&mut app);
+                    let q = app.world().resource::<SoftPresence>();
+                    if !q.grounded || (q.position.xz() - at.xz()).length() > 1e-4 || (q.position.y - at.y).abs() > 0.01 {
+                        bad.push(format!("{p:?} ix {ix} d {d} tick {tick} at {:?} want {at:?} grounded {}", q.position, q.grounded));
+                        break;
+                    }
+                }
+            }
+        }
+        assert!(bad.is_empty(), "{} shoved off the tread:\n{}", bad.len(), bad.join("\n"));
+    }
+
+    #[test]
+    fn ground_snap_5_airborne_lip_reads_feet_before_fall() {
+        use crate::terrain::{rim_radius, terrace_mesh, terrain_plan};
+        let fly = |app: &mut App, at: Vec3, vy: f32| {
+            gs2_place(app, at, Vec2::ZERO);
+            let mut q = app.world_mut().resource_mut::<SoftPresence>();
+            (q.velocity.y, q.grounded) = (vy, false);
+        };
+        for (p, ix, t) in gs2_cases() {
+            let (plan, (c, s)) = (terrain_plan(p), (t.cos(), t.sin()));
+            let (mesh, rho) = (terrace_mesh(plan), rim_radius(c, s, ix, plan));
+            let up = gs2_hip(&mesh, c * (rho - 0.15), s * (rho - 0.15));
+            let at = |r: f32, dy: f32| Vec3::new(c * r, up + dy, s * r);
+            let mut app = gs2_app(Some(p));
+            // (a) Landing 0.15 inside the rim stays on the upper tread.
+            fly(&mut app, at(rho - 0.15, 0.5), 0.0);
+            assert!((0..60).any(|_| { jb_step(&mut app); app.world().resource::<SoftPresence>().grounded }), "{p:?} ix {ix} never landed");
+            let q = app.world().resource::<SoftPresence>().position;
+            assert!((q.xz() - at(rho - 0.15, 0.0).xz()).length() <= 1e-4 && (q.y - up).abs() <= 0.01, "{p:?} ix {ix} landed at {q:?}");
+            // (b) Rising past the lip top on this tick clears it; (c) feet under the lip top before and after are pushed to rho + trunk.
+            for (dy, vy, want) in [(-0.02, 3.0, rho + 0.10), (-0.10, 0.0, rho + PLAYER_TRUNK_RADIUS)] {
+                fly(&mut app, at(rho + 0.10, dy), vy);
+                jb_step(&mut app);
+                let r = app.world().resource::<SoftPresence>().position.xz().length();
+                assert!((r - want).abs() <= 1e-3, "{p:?} ix {ix} dy {dy} r {r} want {want}");
             }
         }
     }
