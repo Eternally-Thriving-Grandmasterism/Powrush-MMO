@@ -405,7 +405,7 @@ fn plate_edge_p3_rim_is_nocollide_in_plane_and_stone_modes() {
     }
 }
 /// PARK-DEAD-1 orphan guard. Every `.rs` under `client/src` outside `_parked/` must be reachable from a
-/// `mod` line (or a `#[path]` mod) starting at lib.rs or main.rs. Park dead code in `client/src/_parked/`.
+/// `mod` line (or a `#[path]` mod) starting at lib.rs or main.rs, and nothing reachable may sit in `_parked/`.
 #[test]
 fn park_dead_1_every_unparked_src_rs_is_in_a_mod_tree() {
     use std::{collections::BTreeSet, path::{Path, PathBuf}};
@@ -416,28 +416,15 @@ fn park_dead_1_every_unparked_src_rs_is_in_a_mod_tree() {
         let dir = file.parent().unwrap().to_path_buf();
         let stem = file.file_stem().unwrap().to_str().unwrap();
         let child = if ["lib", "main", "mod"].contains(&stem) { dir.clone() } else { dir.join(stem) };
-        let mut path_attr: Option<String> = None;
-        for line in std::fs::read_to_string(&file).unwrap().lines() {
-            let mut t = line.trim();
-            if let Some(rest) = t.strip_prefix("#[path") {
-                path_attr = rest.split('"').nth(1).map(str::to_string);
-            }
-            while t.starts_with("#[") { t = t.find(']').map_or("", |i| t[i + 1..].trim_start()); }
-            if let Some(rest) = t.strip_prefix("pub") { t = rest.trim_start(); }
-            if t.starts_with('(') { t = t.find(')').map_or("", |i| t[i + 1..].trim_start()); }
-            let decl = t.strip_prefix("mod ").and_then(|r| r.trim().strip_suffix(';')).map(str::trim);
-            match decl {
-                Some(name) if name.chars().all(|c| c.is_alphanumeric() || c == '_') => {
-                    let flat = child.join(format!("{name}.rs"));
-                    stack.push(match path_attr.take() {
-                        Some(p) => dir.join(p),
-                        None if flat.is_file() => flat,
-                        None => child.join(name).join("mod.rs"),
-                    });
-                }
-                _ if line.trim().is_empty() || line.trim().starts_with("#[") => {}
-                _ => path_attr = None,
-            }
+        for (inline, name, path_attr) in mod_file_decls(&std::fs::read_to_string(&file).unwrap()) {
+            let base = inline.iter().fold(child.clone(), |d, m| d.join(m));
+            let flat = base.join(format!("{name}.rs"));
+            stack.push(match path_attr {
+                Some(p) if inline.is_empty() => dir.join(p),
+                Some(p) => base.join(p),
+                None if flat.is_file() => flat,
+                None => base.join(&name).join("mod.rs"),
+            });
         }
     }
     fn walk(dir: &Path, parked: &Path, out: &mut Vec<PathBuf>) {
@@ -454,4 +441,40 @@ fn park_dead_1_every_unparked_src_rs_is_in_a_mod_tree() {
         .map(|p| p.strip_prefix(&src).unwrap().display().to_string()).collect();
     orphans.sort();
     assert!(orphans.is_empty(), "{} unparked orphan .rs (move to client/src/_parked/): {orphans:?}", orphans.len());
+    let parked = src.join("_parked").canonicalize().unwrap();
+    let reached: Vec<String> = seen.iter().filter(|p| p.starts_with(&parked)).map(|p| p.display().to_string()).collect();
+    assert!(reached.is_empty(), "{} parked .rs reached by a mod or #[path] (un-park it instead): {reached:?}", reached.len());
+}
+
+/// RED shim: today's PARK-DEAD-1 line parser, returning (enclosing inline mods, name, `#[path]`) per `mod name;` line.
+fn mod_file_decls(text: &str) -> Vec<(Vec<String>, String, Option<String>)> {
+    let (mut out, mut path_attr) = (Vec::new(), None::<String>);
+    for line in text.lines() {
+        let mut t = line.trim();
+        if let Some(rest) = t.strip_prefix("#[path") {
+            path_attr = rest.split('"').nth(1).map(str::to_string);
+        }
+        while t.starts_with("#[") { t = t.find(']').map_or("", |i| t[i + 1..].trim_start()); }
+        if let Some(rest) = t.strip_prefix("pub") { t = rest.trim_start(); }
+        if t.starts_with('(') { t = t.find(')').map_or("", |i| t[i + 1..].trim_start()); }
+        let decl = t.strip_prefix("mod ").and_then(|r| r.trim().strip_suffix(';')).map(str::trim);
+        match decl {
+            Some(name) if name.chars().all(|c| c.is_alphanumeric() || c == '_') => out.push((Vec::new(), name.to_string(), path_attr.take())),
+            _ if line.trim().is_empty() || line.trim().starts_with("#[") => {}
+            _ => path_attr = None,
+        }
+    }
+    out
+}
+
+/// Orphan-guard parser fixtures: comments, literals and inline blocks never yield a false `mod` decl.
+#[test]
+fn park_guard_mod_parse_fixtures() {
+    let names = |s: &str| mod_file_decls(s).into_iter().map(|(inl, n, p)| format!("{}{n}{}", inl.iter().map(|m| format!("{m}::")).collect::<String>(), p.map_or(String::new(), |p| format!("@{p}")))).collect::<Vec<_>>();
+    assert_eq!(names("/*\nmod m9;\n*/ mod a; // mod b;\n/* /* nested */ mod c; */ mod d;"), ["a", "d"], "F1 M9 block + line + nested comments");
+    assert_eq!(names("#[cfg(any())] mod m8 { mod inner; }\nmod after;"), ["m8::inner", "after"], "F2 M8 cfg'd inline block");
+    assert_eq!(names("#[cfg(test)]\nmod tests { use super::*; fn f() { let _ = '{'; } mod deep { mod x; } }\nmod y;"), ["tests::deep::x", "y"], "F3 inline tests block, char brace");
+    assert_eq!(names("const A: &str = \"mod s1; {\";\nconst B: &str = r#\"mod s2; \"} {\"#;\nconst C: &[u8] = br\"mod s3;\";\nconst D: char = '\"';\nfn l<'a>(x: &'a str) {}\nmod z;"), ["z"], "F4 strings, raw strings, char, lifetime");
+    assert_eq!(names("#[path = \"gltf_integration.rs\"]\npub(crate) mod gltf;\n#[path = \"x.rs\"] fn f() {}\nmod q;\n#[cfg(feature = \"steam\")]\n#[allow(dead_code)] pub mod s;"), ["gltf@gltf_integration.rs", "q", "s"], "F5 #[path], pub(crate), stale path cleared, stacked cfg attrs");
+    assert_eq!(names("#![cfg(test)]\n//! mod doc;\n/// mod doc2;\nmod real;\nmod r#match;"), ["real", "match"], "F6 inner attr, doc comments, raw ident");
 }
