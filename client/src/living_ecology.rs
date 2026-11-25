@@ -520,6 +520,7 @@ fn move_deer(
     bond: Option<Res<crate::companion_bond::CompanionBond>>,
     mut q: Query<&mut Transform, With<ResonantDeer>>,
     settings: Option<Res<crate::local_settings::LocalSettingsState>>,
+    realm: Option<Res<SoftPlayerRealm>>,
 ) {
     if bond.is_some_and(|b| b.mounted) {
         return;
@@ -533,7 +534,7 @@ fn move_deer(
     let dt = time.delta_secs();
     for mut tf in &mut q {
         tf.translation = tf.translation.lerp(target, (1.6 * dt).min(1.0));
-        tf.translation.y = DEER_STAND_Y + crate::terrain::tread_offset(tf.translation.x, tf.translation.z, crate::terrain::live_plan(settings.as_deref()));
+        tf.translation.y = DEER_STAND_Y + crate::terrain::ground_offset(tf.translation.x, tf.translation.z, crate::terrain::live_plan(settings.as_deref()), realm.as_ref().and_then(|r| r.current));
     }
 }
 
@@ -1229,5 +1230,27 @@ mod tests {
         let plan = crate::terrain::terrain_plan(GraphicsPreset::Mobile);
         assert!(at.xz().length() > crate::terrain::rim_radius(at.x, at.z, 0, plan) + 0.1, "deer left the band: {at:?}");
         assert!((at.y - (DEER_STAND_Y - 1.38)).abs() <= 0.01, "deer y {}", at.y);
+    }
+
+    /// GROUND-SNAP-4 H5b — in Heartwood (no terrace drawn) move_deer keeps the deer on the plate.
+    #[test]
+    fn ground_snap_4_deer_y_flat_in_heartwood() {
+        use shared::local_settings::GraphicsPreset;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>().init_resource::<WorldAnswer>().insert_resource(SoftPlayerRealm { current: Some(2) }).init_resource::<crate::human_presence::SoftPresence>().insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(16))).add_plugins(LivingEcologyPlugin);
+        let mut inner = shared::local_settings::LocalSettings::default();
+        inner.set_graphics_preset(GraphicsPreset::Mobile);
+        app.insert_resource(crate::local_settings::LocalSettingsState { inner, dirty: false });
+        app.finish();
+        app.cleanup();
+        crate::test_env::single_thread(&mut app);
+        app.world_mut().resource_mut::<EcologyState>().last_kind = AnswerKind::Take;
+        app.update();
+        let t = std::f32::consts::PI / 8.0;
+        app.world_mut().query_filtered::<&mut Transform, With<ResonantDeer>>().single_mut(app.world_mut()).unwrap().translation = Vec3::new(40.0 * t.cos(), DEER_STAND_Y, 40.0 * t.sin());
+        app.update();
+        let at = app.world_mut().query_filtered::<&Transform, With<ResonantDeer>>().single(app.world()).unwrap().translation;
+        assert!(at.xz().length() > crate::terrain::rim_radius(at.x, at.z, 0, crate::terrain::terrain_plan(GraphicsPreset::Mobile)) + 0.1, "deer left the band: {at:?}");
+        assert!((at.y - DEER_STAND_Y).abs() <= 0.01, "deer y {}", at.y);
     }
 }

@@ -1490,9 +1490,9 @@ fn apply_locomotion(
         crate::collide::push_out_of_rock(&mut presence.position, &mut vel, spot, STAND, feet);
     }
     crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned).chain(crate::collide::prop_solids(trees.3.as_ref().map(|s| s.current), realm)));
-    push_out_of_moat(&mut presence.position, &mut vel);
+    if crate::water::water_shown(realm) { push_out_of_moat(&mut presence.position, &mut vel); }
     let plan = crate::terrain::live_plan(settings.as_deref());
-    push_out_of_riser_lips(&mut presence.position, &mut vel, plan);
+    push_out_of_riser_lips(&mut presence.position, &mut vel, plan, realm);
     presence.velocity = vel;
     // CARD TERRAIN-GROUND-1 / YARD-EDGE-1 — outer shelf bound after the push-outs; outward vel drops M8-style.
     let (plate, n) = push_out_of_plate_edge(presence.position.xz());
@@ -1505,7 +1505,7 @@ fn apply_locomotion(
     // The landing snap below reads `wish_vel`; at the edge it keeps only the part along the bound.
     let (_, rim) = push_out_of_plate_edge(presence.position.xz() + wish_vel * dt);
     wish_vel -= wish_vel.dot(rim).min(0.0) * rim;
-    let ground = crate::terrain::tread_offset(presence.position.x, presence.position.z, plan);
+    let ground = crate::terrain::ground_offset(presence.position.x, presence.position.z, plan, realm);
     let hip = STAND + ground;
     let tread_drop = ground < -1e-4;
     if tread_drop && presence.grounded && presence.position.y > hip + 1e-4 && presence.position.y <= STAND {
@@ -1571,11 +1571,11 @@ fn push_out_of_moat(pos: &mut Vec3, vel: &mut Vec3) {
 }
 
 /// CARD TERRAIN-GROUND-1 — height-aware riser lips at each shelf outer. Outward falls are free; inward needs tread feet.
-fn push_out_of_riser_lips(pos: &mut Vec3, vel: &mut Vec3, plan: crate::terrain::TerrainPlan) {
+fn push_out_of_riser_lips(pos: &mut Vec3, vel: &mut Vec3, plan: crate::terrain::TerrainPlan, realm: Option<u8>) {
     let feet = pos.y - STAND + silhouette().feet;
     let xz = pos.xz();
     let r = xz.length();
-    if r < 1e-4 {
+    if r < 1e-4 || !crate::terrain::terrace_shown(realm) {
         return;
     }
     let dir = xz / r;
@@ -3416,7 +3416,7 @@ mod tests {
     #[test]
     fn ground_snap_3_primitives_winded_bow_only_when_still() {
         use bevy::time::TimeUpdateStrategy;
-        fn waist_after(body: LivingBody, vitality: f32, movement: Vec2) -> (Quat, f32, f32) {
+        fn waist_after(body: LivingBody, vitality: f32, movement: Vec2) -> (Quat, f32, f32, Quat) {
             let mut app = App::new();
             app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()))
                 .init_asset::<Mesh>()
@@ -3446,7 +3446,8 @@ mod tests {
             let world = app.world_mut();
             let mut q = world.query::<(&PersonPart, &Transform)>();
             let waist = q.iter(world).find(|(p, _)| matches!(p, PersonPart::Waist)).unwrap().1;
-            (waist.rotation, waist.translation.y, Vec2::new(v.x, v.z).length())
+            let head = q.iter(world).find(|(p, _)| matches!(p, PersonPart::Head)).unwrap().1.rotation;
+            (waist.rotation, waist.translation.y, Vec2::new(v.x, v.z).length(), head)
         }
         let winded = || LivingBody { breath: 0.05, winded: true, ..Default::default() };
         let heavy = || LivingBody { heavy: true, ..Default::default() };
@@ -3456,11 +3457,14 @@ mod tests {
             ("heavy moving", heavy(), 3.2, Vec2::Y, BodyTell::Heavy, true),
         ];
         for (name, body, vitality, movement, pose_tell, moving) in cases {
-            let (rot, y, speed) = waist_after(body, vitality, movement);
+            let (rot, y, speed, head) = waist_after(body, vitality, movement);
             assert_eq!(speed > 0.0, moving, "{name} speed {speed}");
             let want = Quat::from_rotation_x(waist_pitch(0.0, pose_tell));
             assert!(rot.angle_between(want) < 1e-4, "{name} waist {rot:?} want {want:?}");
             assert!((y - (WAIST_Y - crouch_drop(0.0, pose_tell))).abs() < 1e-5, "{name} waist y {y}");
+            // X9: the chin drop reads the raw tell, so a winded mover keeps it (bow_tell is waist-only).
+            let chin = Quat::from_rotation_x(head_pitch(0.0, if vitality > 0.0 { BodyTell::Heavy } else { BodyTell::Winded }));
+            assert!(head.angle_between(chin) < 1e-4, "{name} head {head:?} want {chin:?}");
         }
     }
 
@@ -7791,6 +7795,115 @@ mod tests {
         jb_step(&mut app);
         let y = app.world().resource::<SoftPresence>().position.y;
         assert!((y - (STAND - 1.38)).abs() <= 0.01, "Mobile y {y}");
+    }
+
+    // GROUND-SNAP-4 — realms 1–4 draw no terrace: the walk, lips and moat follow what is drawn.
+    fn gs4_app(preset: GraphicsPreset, realm: Option<u8>) -> App {
+        let mut app = gs2_app(Some(preset));
+        app.insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: realm });
+        app
+    }
+
+    #[test]
+    fn ground_snap_4_walk_height_follows_drawn_ground_per_realm() {
+        use crate::terrain::{rim_radius, terrace_mesh, terrain_plan};
+        let (mut probes, mut bad) = (0, Vec::new());
+        for p in [GraphicsPreset::Medium, GraphicsPreset::Mobile] {
+            let (plan, n) = (terrain_plan(p), terrain_plan(p).segments);
+            let mesh = terrace_mesh(plan);
+            for realm in [None, Some(0), Some(1), Some(2), Some(3), Some(4)] {
+                let mut app = gs4_app(p, realm);
+                for (ix, i) in (0..5).flat_map(|ix| [(ix, 0), (ix, n / 2)]) {
+                    let t = (i as f32 + 0.5) * std::f32::consts::TAU / n as f32;
+                    let rho = rim_radius(t.cos(), t.sin(), ix, plan);
+                    for rr in [rho - 0.40, rho + 0.40] {
+                        if crate::water::water_shown(realm) && (47.7..=66.3).contains(&rr) {
+                            continue;
+                        }
+                        let (x, z) = (t.cos() * rr, t.sin() * rr);
+                        // Truth is spelled out here, not read from terrain::terrace_shown.
+                        let truth = if matches!(realm, None | Some(0)) { gs2_hip(&mesh, x, z) } else { STAND };
+                        gs2_place(&mut app, Vec3::new(x, truth, z), Vec2::ZERO);
+                        jb_step(&mut app);
+                        let at = app.world().resource::<SoftPresence>();
+                        probes += 1;
+                        if (at.position.y - truth).abs() > 0.01 || !at.grounded || (at.position.xz() - Vec2::new(x, z)).length() > 1e-3 {
+                            bad.push(format!("{p:?} {realm:?} ix {ix} r {rr:.2} at {:?} truth {truth:.3}", at.position));
+                        }
+                    }
+                }
+            }
+        }
+        assert!(probes >= 220, "probes {probes}");
+        assert!(bad.is_empty(), "{} off the drawn ground:\n{}", bad.len(), bad.join("\n"));
+    }
+
+    #[test]
+    fn ground_snap_4_realm_switch_mid_step() {
+        let set = |app: &mut App, r: Option<u8>| app.world_mut().resource_mut::<crate::living_practice_loop::SoftPlayerRealm>().current = r;
+        let shelf1 = STAND - 1.38;
+        // (a) Still on shelf 1 in the Sanctuary; the switch to Heartwood seats the body on the plate in one tick.
+        let mut app = gs4_app(GraphicsPreset::Medium, Some(0));
+        gs2_place(&mut app, Vec3::new(43.5, shelf1, 0.0), Vec2::ZERO);
+        jb_step(&mut app);
+        assert!((app.world().resource::<SoftPresence>().position.y - shelf1).abs() <= 0.01, "(a) shelf 1 first");
+        set(&mut app, Some(2));
+        jb_step(&mut app);
+        let p = app.world().resource::<SoftPresence>();
+        assert!((p.position.y - STAND).abs() <= 1e-4 && p.grounded, "(a) {:?}", p.position);
+        // (b) Heartwood: walk out over rim 42 and the undrawn moat band; flat, grounded, never shoved back.
+        gs2_place(&mut app, Vec3::new(42.5, STAND, 0.0), gs2_stick(1.0, 0.0));
+        let mut last = 42.5;
+        for tick in 0..450 {
+            jb_step(&mut app);
+            let p = app.world().resource::<SoftPresence>();
+            let r = p.position.xz().length();
+            assert!((p.position.y - STAND).abs() <= 1e-4 && p.grounded && r >= last - 1e-5, "(b) tick {tick} {:?}", p.position);
+            last = r;
+        }
+        assert!(last > 66.3, "(b) stopped at {last}");
+        // (c) Back to the Sanctuary at r 44 walking out: the tread drop starts a fall onto shelf 1.
+        gs2_place(&mut app, Vec3::new(44.0, STAND, 0.0), gs2_stick(1.0, 0.0));
+        set(&mut app, Some(0));
+        jb_step(&mut app);
+        assert!(!app.world().resource::<SoftPresence>().grounded, "(c) no fall on the switch tick");
+        let landed = (0..40).any(|_| {
+            jb_step(&mut app);
+            let p = app.world().resource::<SoftPresence>();
+            p.grounded && (p.position.y - shelf1).abs() <= 0.01
+        });
+        assert!(landed, "(c) never landed on shelf 1");
+        // (d) The same switch standing still snaps down on that tick.
+        set(&mut app, Some(2));
+        gs2_place(&mut app, Vec3::new(44.0, STAND, 0.0), Vec2::ZERO);
+        jb_step(&mut app);
+        set(&mut app, Some(0));
+        jb_step(&mut app);
+        let p = app.world().resource::<SoftPresence>();
+        assert!((p.position.y - shelf1).abs() <= 1e-4 && p.grounded, "(d) {:?}", p.position);
+    }
+
+    #[test]
+    fn ground_snap_4_lips_and_moat_inactive_where_nothing_drawn() {
+        let plan = crate::terrain::terrain_plan(GraphicsPreset::Medium);
+        let mesh = crate::terrain::terrace_mesh(plan);
+        let t = 0.5 * std::f32::consts::TAU / plan.segments as f32;
+        let rho = crate::terrain::rim_radius(t.cos(), t.sin(), 1, plan);
+        let (lx, lz) = (t.cos() * (rho + 0.10), t.sin() * (rho + 0.10));
+        // Feet on shelf 2 just outside rim 70 (arrival mid-fall), and still in the moat band.
+        let lip = (Vec3::new(lx, gs2_hip(&mesh, lx, lz), lz), rho + PLAYER_TRUNK_RADIUS);
+        let moat = (Vec3::new(55.0, STAND - 1.38, 0.0), crate::water::BATH_INNER - PLAYER_TRUNK_RADIUS);
+        for realm in [Some(0), Some(1), Some(2), Some(3), Some(4)] {
+            let mut app = gs4_app(GraphicsPreset::Medium, realm);
+            for (what, (at, pushed)) in [("lip", lip), ("moat", moat)] {
+                gs2_place(&mut app, at, Vec2::ZERO);
+                jb_step(&mut app);
+                let p = app.world().resource::<SoftPresence>().position;
+                let want = if realm == Some(0) { pushed } else { at.xz().length() };
+                assert!((p.xz().length() - want).abs() <= 1e-3, "{realm:?} {what} r {} want {want}", p.xz().length());
+                assert!(realm == Some(0) || (p.y - STAND).abs() <= 1e-4, "{realm:?} {what} y {}", p.y);
+            }
+        }
     }
 
     // LOD-LIMBS-1: capsules keep length under Comfort LOD, spheres stay round, every joint stays touching.

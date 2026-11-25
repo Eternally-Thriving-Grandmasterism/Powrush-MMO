@@ -238,6 +238,14 @@ pub fn live_plan(settings: Option<&crate::local_settings::LocalSettingsState>) -
     terrain_plan(settings.map_or(GraphicsPreset::Medium, |s| s.inner.graphics_preset))
 }
 
+/// GROUND-SNAP-4 — the terrace draws only in the Sanctuary; one source for the backdrop and the walk.
+pub const fn terrace_shown(realm: Option<u8>) -> bool { matches!(realm, None | Some(0)) }
+
+/// GROUND-SNAP-4 — the walk follows what is drawn: [`tread_offset`] where the terrace shows, else the plate.
+pub fn ground_offset(x: f32, z: f32, plan: TerrainPlan, realm: Option<u8>) -> f32 {
+    if terrace_shown(realm) { tread_offset(x, z, plan) } else { 0.0 }
+}
+
 /// CARD TREE-SEAT-1 — true when a prop of footprint radius `margin` at
 /// `(x, z)` misses the moat and every riser band [R·cos(π/12) − margin,
 /// R + margin] for R = 42 / 70 / 110. Outside those bands [`shelf_offset`]
@@ -568,5 +576,24 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// GROUND-SNAP-4 — ground_offset is the drawn tread where the terrace shows, and the plate elsewhere.
+    #[test]
+    fn ground_snap_4_ground_offset_follows_terrace_shown() {
+        let realms = [None, Some(0), Some(1), Some(2), Some(3), Some(4)];
+        assert_eq!(realms.map(terrace_shown), [true, true, false, false, false, false]);
+        let plan = terrain_plan(GraphicsPreset::Mobile);
+        let mut stepped = 0;
+        for k in 0..500 {
+            let (r, t) = (300.0 * ((k as f32 + 0.5) / 500.0).sqrt(), k as f32 * 2.399_963);
+            let (x, z) = (r * t.cos(), r * t.sin());
+            stepped += usize::from(tread_offset(x, z, plan) < -1e-4);
+            for realm in realms {
+                let want = if terrace_shown(realm) { tread_offset(x, z, plan) } else { 0.0 };
+                assert_eq!(ground_offset(x, z, plan, realm).to_bits(), want.to_bits(), "{realm:?} ({x}, {z})");
+            }
+        }
+        assert!(stepped > 400, "only {stepped} probes off the court");
     }
 }
