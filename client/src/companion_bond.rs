@@ -125,6 +125,7 @@ fn follow_or_wait(
         if d > 2.4 {
             tf.translation = tf.translation.lerp(want, (1.8 * dt).min(1.0));
         }
+        tf.translation.y = crate::living_ecology::DEER_STAND_Y + crate::terrain::shelf_offset(tf.translation.x, tf.translation.z);
     }
 }
 
@@ -279,5 +280,40 @@ mod tests {
             held.world().resource::<CompanionBond>().mounted,
             "held wood claim should block dismount"
         );
+    }
+
+    fn gs_deer(player: Vec3, deer: Vec3) -> App {
+        let mut app = App::new();
+        app.add_plugins(bevy::MinimalPlugins).init_resource::<CompanionBond>().init_resource::<NearbyMercyNode>().init_resource::<PlayerInput>().init_resource::<SoftPlayerRealm>().init_resource::<crate::human_presence::SoftPresence>().init_resource::<WorldAnswer>().init_resource::<ButtonInput<KeyCode>>().insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(16))).add_plugins(CompanionBondPlugin);
+        app.finish(); app.cleanup(); crate::test_env::single_thread(&mut app);
+        app.world_mut().resource_mut::<crate::human_presence::SoftPresence>().position = player;
+        app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(0);
+        app.world_mut().spawn((Name::new("ResonantDeer"), Transform::from_translation(deer)));
+        { let mut b = app.world_mut().resource_mut::<CompanionBond>(); b.trust = 0.6; b.mounted = false; }; app
+    }
+    fn gs_feet(app: &mut App, plan: crate::terrain::TerrainPlan) -> (Vec3, Vec3) {
+        app.update();
+        let deer = app.world_mut().query::<(&Name, &Transform)>().iter(app.world()).find(|(n, _)| n.as_str() == "ResonantDeer").unwrap().1.translation;
+        let player = app.world().resource::<crate::human_presence::SoftPresence>().position;
+        if crate::terrain::seat_clear(deer.x, deer.z, 0.16) { let tread = crate::terrain::tread_y_mesh(deer.x, deer.z, plan); assert!((deer.y - 0.435 - tread).abs() <= 0.03, "deer {deer:?} tread {tread}"); }
+        (deer, player)
+    }
+    #[test]
+    fn ground_snap_1_deer_follows_onto_shelf_one_with_feet_on_tread() {
+        use crate::terrain::{shelf_offset, terrain_plan}; use shared::local_settings::GraphicsPreset;
+        let plan = terrain_plan(GraphicsPreset::Medium);
+        let mut app = gs_deer(Vec3::new(45.0, 0.90 + shelf_offset(45.0, 0.0), 0.0), Vec3::new(44.0, 0.55, -3.0));
+        let (deer, at) = (0..300).fold((Vec3::ZERO, Vec3::ZERO), |_, _| gs_feet(&mut app, plan));
+        assert!(deer.distance(at) <= 2.4, "deer {deer:?} player {at:?}");
+    }
+    #[test]
+    fn ground_snap_1_deer_follow_court_edge_and_shelf_two_points() {
+        use crate::terrain::{shelf_offset, terrain_plan}; use shared::local_settings::GraphicsPreset;
+        let plan = terrain_plan(GraphicsPreset::Medium);
+        for (x, z) in [(40.0_f32, 0.0_f32), (90.0, 0.0)] {
+            let mut app = gs_deer(Vec3::new(x, 0.90 + shelf_offset(x, z), z), Vec3::new(x, 0.55, z - 3.0));
+            let (deer, at) = (0..300).fold((Vec3::ZERO, Vec3::ZERO), |_, _| gs_feet(&mut app, plan));
+            assert!(deer.distance(at) <= 2.4, "({x},{z}) deer {deer:?} player {at:?}");
+        }
     }
 }

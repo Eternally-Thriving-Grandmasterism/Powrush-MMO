@@ -1966,7 +1966,7 @@ pub(crate) mod tests {
         let ecology = include_str!("living_ecology.rs");
         let mercy = include_str!("mercy_harvest_nodes.rs");
         assert!(
-            ecology.contains("const DEER_FAR: Vec3 = Vec3::new(8.5, 0.55, 6.2)")
+            ecology.contains("const DEER_FAR: Vec3 = Vec3::new(8.5, DEER_STAND_Y, 6.2)")
                 && ecology.contains("Vec3::new(4.2, 0.22, -5.5)")
         );
         assert!(
