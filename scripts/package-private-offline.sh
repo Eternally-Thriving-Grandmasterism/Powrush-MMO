@@ -2,7 +2,7 @@
 # PRIVATE-BUILD-1: local / private-CI offline packager (never run from public CI).
 set -euo pipefail
 
-PIN="6f620dba981b4898b0b71a89ae71201c8ddabd0d"
+PIN="bee7281b75fd834a72e717c1fe32ff64474086fd"
 ROOT="${POWRUSH_PACKAGE_ROOT:-$(cd "$(dirname "$0")/.." && pwd)}"
 PDIR="${ROOT}/client/assets/private"
 
@@ -11,6 +11,7 @@ allowed_private_path() {
   [[ "${rel}" == LICENCES.md || "${rel}" == ASSETS-NOTICE.md ]] && return 0
   [[ "${rel}" =~ ^textures/stone-painterly-08(/|$) ]] && return 0
   [[ "${rel}" =~ ^animations/quaternius-ual-1/(LICENSE\.txt|License\.txt|Unreal-Godot/UAL1_Standard\.glb)$ ]] && return 0
+  [[ "${rel}" =~ ^audio/music/(after-the-war\.ogg|WBA-NOTICE\.md)$ ]] && return 0
   return 1
 }
 
@@ -34,6 +35,9 @@ require_private_pack_inputs() {
   [[ -f "${PDIR}/animations/quaternius-ual-1/LICENSE.txt" ]] || { echo "[[private-packager]]: missing animations/quaternius-ual-1/LICENSE.txt" >&2; exit 1; }
   [[ -f "${PDIR}/animations/quaternius-ual-1/License.txt" ]] || { echo "[[private-packager]]: missing animations/quaternius-ual-1/License.txt" >&2; exit 1; }
   [[ -f "${PDIR}/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb" ]] || { echo "[[private-packager]]: missing animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb" >&2; exit 1; }
+  [[ -f "${PDIR}/audio/music/after-the-war.ogg" ]] || { echo "[[private-packager]]: missing audio/music/after-the-war.ogg" >&2; exit 1; }
+  [[ "$(head -c 4 "${PDIR}/audio/music/after-the-war.ogg")" == OggS ]] || { echo "[[private-packager]]: audio/music/after-the-war.ogg is not Ogg (LFS pointer?)" >&2; exit 1; }
+  [[ -f "${PDIR}/audio/music/WBA-NOTICE.md" ]] || { echo "[[private-packager]]: missing audio/music/WBA-NOTICE.md" >&2; exit 1; }
 }
 
 log_other_private_packs() {
@@ -67,10 +71,14 @@ stage_private_into_dist() {
   cp "${PDIR}/animations/quaternius-ual-1/LICENSE.txt" "${dist}/assets/private/animations/quaternius-ual-1/"
   cp "${PDIR}/animations/quaternius-ual-1/License.txt" "${dist}/assets/private/animations/quaternius-ual-1/"
   cp "${PDIR}/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb" "${dist}/assets/private/animations/quaternius-ual-1/Unreal-Godot/"
+  mkdir -p "${dist}/assets/private/audio/music"
+  cp "${PDIR}/audio/music/after-the-war.ogg" "${dist}/assets/private/audio/music/"
+  cp "${PDIR}/audio/music/WBA-NOTICE.md" "${dist}/assets/private/audio/music/"
   [[ -f "${PDIR}/LICENCES.md" ]] && cp "${PDIR}/LICENCES.md" "${dist}/assets/private/"
   [[ -f "${PDIR}/ASSETS-NOTICE.md" ]] && cp "${PDIR}/ASSETS-NOTICE.md" "${dist}/assets/private/"
   assert_dist_private_allowlist "${dist}"
   [[ -f "${dist}/assets/private/animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb" ]] || { echo "[[private-packager]]: animations/quaternius-ual-1/Unreal-Godot/UAL1_Standard.glb not staged" >&2; exit 1; }
+  [[ -f "${dist}/assets/private/audio/music/after-the-war.ogg" ]] || { echo "[[private-packager]]: audio/music/after-the-war.ogg not staged" >&2; exit 1; }
 }
 
 ensure_private_tree() {
