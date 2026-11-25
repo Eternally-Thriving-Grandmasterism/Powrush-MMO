@@ -182,13 +182,17 @@ pub(crate) mod tests {
     ];
     const POINTER: &[u8] = b"version https://git-lfs.github.com/spec/v1\noid sha256:abc\nsize 1\n";
 
-    pub(crate) fn scratch(label: &str) -> PathBuf {
+    /// Scratch dir that removes itself on drop, including a failed assert.
+    pub(crate) struct Scratch(PathBuf);
+    impl std::ops::Deref for Scratch { type Target = PathBuf; fn deref(&self) -> &PathBuf { &self.0 } }
+    impl Drop for Scratch { fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.0); } }
+    pub(crate) fn scratch(label: &str) -> Scratch {
         static N: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
         let n = N.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         let path = std::env::temp_dir().join(format!("powrush-sg1-{label}-{}-{n}", std::process::id()));
         let _ = std::fs::remove_dir_all(&path);
         std::fs::create_dir_all(&path).unwrap();
-        path
+        Scratch(path)
     }
     pub(crate) fn layout() -> String {
         let rows: Vec<_> = (0..GRID).map(|row| {

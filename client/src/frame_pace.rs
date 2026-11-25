@@ -993,12 +993,15 @@ mod tests {
         assert!(pace.deadline.is_none());
     }
 
+    /// Restores the user-dir override and removes the scratch dir on drop, including a failed assert.
+    struct PerfEnv(Option<String>, std::path::PathBuf);
+    impl Drop for PerfEnv { fn drop(&mut self) { match self.0.take() { Some(v) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, v), None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV) } let _ = std::fs::remove_dir_all(&self.1); } }
     #[test]
     fn perf_log_env_and_roll_file() {
         for (v, on) in [(None, false), (Some("0"), false), (Some("junk"), false), (Some("1"), true), (Some("on"), true), (Some("true"), true), (Some("yes"), true)] { assert_eq!(perf_log_on(v), on); }
-        let _g = crate::test_env::lock(); let k = shared::user_persist::USER_DIR_OVERRIDE_ENV; let prev = std::env::var(k).ok(); let dir = std::env::temp_dir().join(format!("p{}", std::process::id())); std::env::set_var(k, &dir);
+        let _g = crate::test_env::lock(); let k = shared::user_persist::USER_DIR_OVERRIDE_ENV; let dir = std::env::temp_dir().join(format!("p{}", std::process::id())); let _env = PerfEnv(std::env::var(k).ok(), dir.clone()); std::env::set_var(k, &dir);
         assert!(FramePace::default().tick(1.01, 1.0).is_some()); assert!(!shared::user_persist::persist_path("data/perf.log").exists());
         let c = { let mut p = FramePace::default(); p.tick(1.01, 1.0).unwrap() }; append_perf_line(&format!("frame_pace: frames={} over_budget={} hitches={} p50_ms<=2 p95_ms<=2", c.frames, c.over_budget, c.hitches));
-        let s = std::fs::read_to_string(shared::user_persist::persist_path("data/perf.log")).unwrap(); assert!(s.contains("p50_ms") && !s.contains("adapter=")); match prev { Some(v) => std::env::set_var(k, v), None => std::env::remove_var(k) }
+        let s = std::fs::read_to_string(shared::user_persist::persist_path("data/perf.log")).unwrap(); assert!(s.contains("p50_ms") && !s.contains("adapter="));
     }
 }

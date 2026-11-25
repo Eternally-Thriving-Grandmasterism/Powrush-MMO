@@ -832,5 +832,6 @@ mod tests {
         let meshes = app.world().resource::<Assets<Mesh>>(); assert!(now.iter().all(|id| meshes.get(*id).is_some()));
         let server = app.world().resource::<AssetServer>();
         for rel in ["models/kenney-nature-kit/log_large.glb", "models/kenney-fantasy-town-kit/pillar-wood.glb", "models/kenney-fantasy-town-kit/pillar-stone.glb"] { assert!(server.get_handle::<Mesh>(bevy::gltf::GltfAssetLabel::Primitive { mesh: 0, primitive: 0 }.from_asset(rel)).is_none() && server.get_handle::<Mesh>(bevy::gltf::GltfAssetLabel::Primitive { mesh: 0, primitive: 1 }.from_asset(rel)).is_none(), "{rel}"); }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }
