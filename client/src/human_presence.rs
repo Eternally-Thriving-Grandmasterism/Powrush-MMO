@@ -3259,11 +3259,16 @@ mod tests {
         );
         assert_eq!(
             ual1_clip_for_pose(1.0, true, 0.0, BodyTell::Winded),
-            Ual1Clip::CrouchFwdLoop
+            Ual1Clip::WalkLoop
         );
+        assert_eq!(ual1_clip_for_pose(WALK, true, 0.0, BodyTell::Winded), Ual1Clip::JogFwdLoop);
+        assert_eq!(ual1_clip_for_pose(WALK * 0.82, true, 0.0, BodyTell::Winded), Ual1Clip::WalkLoop);
+        assert_eq!(ual1_clip_for_pose(0.0, true, 0.0, BodyTell::Winded), Ual1Clip::CrouchIdleLoop);
+        assert_eq!(ual1_clip_for_pose(f32::EPSILON, true, 0.0, BodyTell::Winded), Ual1Clip::CrouchIdleLoop);
+        assert_eq!(ual1_clip_for_pose(0.2, true, 0.0, BodyTell::Winded), Ual1Clip::IdleLoop);
     }
 
-    /// CARD SIT-POSE-1 — Heavy pool keeps stride clips; only Winded crouches.
+    /// CARD SIT-POSE-1 — Heavy pool keeps stride clips; Winded crouches only when still.
     #[test]
     fn sit_pose_1_heavy_pool_walk_and_idle_play_stride_clips() {
         use bevy::time::TimeUpdateStrategy;
@@ -3325,13 +3330,132 @@ mod tests {
         }
         assert_eq!(winded.world().resource::<LivingBody>().tell(), BodyTell::Winded);
         let winded_main = sit_pose_1_main_node(&mut winded);
-        let winded_node = winded.world().resource::<Ual1Anim>().nodes[Ual1Clip::CrouchFwdLoop as usize];
+        let winded_node = winded.world().resource::<Ual1Anim>().nodes[Ual1Clip::WalkLoop as usize];
         // One comparison so a red run shows walk, idle, and the Winded control together.
         assert_eq!(
             (walk_main, idle_main, winded_main),
             (walk_node, idle_node, winded_node),
             "walk, idle, winded"
         );
+    }
+
+    /// GROUND-SNAP-3 B — real sprint, Winded, stop, walk: no crouch clip while moving.
+    #[test]
+    fn ground_snap_3_winded_after_sprint_walks_without_crouch() {
+        use bevy::time::TimeUpdateStrategy;
+        for vitality in [0.0_f32, 3.2] {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, crate::living_body::LivingBodyPlugin))
+                .insert_resource(Time::<Fixed>::from_hz(60.0))
+                .insert_resource(TimeUpdateStrategy::FixedTimesteps(1))
+                .init_resource::<SoftPresence>()
+                .init_resource::<JumpLatch>()
+                .init_resource::<LandingRecovery>()
+                .init_resource::<PlayerInput>()
+                .insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) })
+                .insert_resource(SoftRbePool { vitality, ..Default::default() })
+                .add_systems(FixedUpdate, apply_locomotion)
+                .add_systems(Update, pick_ual1_clip)
+                .insert_resource(Ual1Anim {
+                    graph: Handle::default(),
+                    nodes: std::array::from_fn(AnimationNodeIndex::new),
+                });
+            app.world_mut().spawn((AnimationPlayer::default(), AnimationTransitions::new()));
+            crate::test_env::single_thread(&mut app);
+            let node = |c: Ual1Clip| AnimationNodeIndex::new(c as usize);
+            let mut rows = Vec::new();
+            for (phase, movement, sprint, ticks) in
+                [(0u8, Vec2::Y, true, 210), (1, Vec2::ZERO, false, 6), (2, Vec2::Y, true, 60), (3, Vec2::Y, false, 90)]
+            {
+                for _ in 0..ticks {
+                    {
+                        let mut input = app.world_mut().resource_mut::<PlayerInput>();
+                        input.movement = movement;
+                        input.sprint = sprint;
+                    }
+                    app.update();
+                    let v = app.world().resource::<SoftPresence>().velocity;
+                    let tell = app.world().resource::<LivingBody>().tell();
+                    let main = app
+                        .world_mut()
+                        .query::<&AnimationTransitions>()
+                        .single(app.world())
+                        .unwrap()
+                        .get_main_animation();
+                    rows.push((phase, Vec2::new(v.x, v.z).length(), tell, main));
+                }
+            }
+            let crouch = [Some(node(Ual1Clip::CrouchFwdLoop)), Some(node(Ual1Clip::CrouchIdleLoop))];
+            assert!(rows.iter().all(|r| r.3 != crouch[0]), "CrouchFwdLoop picked (vitality {vitality})");
+            assert!(
+                rows.iter().all(|r| r.1 <= 0.0 || !crouch.contains(&r.3)),
+                "crouch clip while moving (vitality {vitality})"
+            );
+            assert!(rows.iter().any(|r| r.0 == 0 && r.2 == BodyTell::Winded), "sprint never winded");
+            if vitality == 0.0 {
+                assert!(rows.iter().any(|r| r.0 == 0 && r.3 == Some(node(Ual1Clip::SprintLoop))));
+            }
+            let stop = rows.iter().rfind(|r| r.0 == 1).unwrap();
+            assert_eq!((stop.1, stop.2, stop.3), (0.0, BodyTell::Winded, crouch[1]), "winded stop");
+            let (stride, cruise) = if vitality == 0.0 { (Ual1Clip::JogFwdLoop, WALK) } else { (Ual1Clip::WalkLoop, WALK * 0.82) };
+            let walked: Vec<_> = rows.iter().filter(|r| r.0 == 2 && r.2 == BodyTell::Winded && r.1 >= cruise - 1e-3).collect();
+            assert!(walked.len() >= 30, "winded walk rows {}", walked.len());
+            assert!(walked.iter().all(|r| r.3 == Some(node(stride))), "winded walk clip (vitality {vitality})");
+            let last = rows.last().unwrap();
+            assert!(last.2 != BodyTell::Winded && last.3 == Some(node(stride)), "recovered (vitality {vitality})");
+        }
+    }
+
+    /// GROUND-SNAP-3 C — primitives lane at Low: Winded bows and gives at the knee only when still.
+    #[test]
+    fn ground_snap_3_primitives_winded_bow_only_when_still() {
+        use bevy::time::TimeUpdateStrategy;
+        fn waist_after(body: LivingBody, vitality: f32, movement: Vec2) -> (Quat, f32, f32) {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()))
+                .init_asset::<Mesh>()
+                .init_asset::<StandardMaterial>()
+                .insert_resource(Time::<Fixed>::from_hz(60.0))
+                .insert_resource(TimeUpdateStrategy::FixedTimesteps(1))
+                .insert_resource(LocalMeshLodFeel { preset: GraphicsPreset::Low })
+                .init_resource::<SoftPresence>()
+                .init_resource::<JumpLatch>()
+                .init_resource::<LandingRecovery>()
+                .init_resource::<PlayerInput>()
+                .init_resource::<LocalFeedbackFeel>()
+                .init_resource::<PersonAttend>()
+                .init_resource::<PersonRhythm>()
+                .insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) })
+                .insert_resource(SoftRbePool { vitality, ..Default::default() })
+                .insert_resource(body)
+                .add_systems(Startup, spawn_human_presence)
+                .add_systems(FixedUpdate, apply_locomotion)
+                .add_systems(Update, pose_person);
+            crate::test_env::single_thread(&mut app);
+            app.world_mut().resource_mut::<PlayerInput>().movement = movement;
+            for _ in 0..20 {
+                app.update();
+            }
+            let v = app.world().resource::<SoftPresence>().velocity;
+            let world = app.world_mut();
+            let mut q = world.query::<(&PersonPart, &Transform)>();
+            let waist = q.iter(world).find(|(p, _)| matches!(p, PersonPart::Waist)).unwrap().1;
+            (waist.rotation, waist.translation.y, Vec2::new(v.x, v.z).length())
+        }
+        let winded = || LivingBody { breath: 0.05, winded: true, ..Default::default() };
+        let heavy = || LivingBody { heavy: true, ..Default::default() };
+        let cases = [
+            ("winded moving", winded(), 0.0, Vec2::Y, BodyTell::Easy, true),
+            ("winded still", winded(), 0.0, Vec2::ZERO, BodyTell::Winded, false),
+            ("heavy moving", heavy(), 3.2, Vec2::Y, BodyTell::Heavy, true),
+        ];
+        for (name, body, vitality, movement, pose_tell, moving) in cases {
+            let (rot, y, speed) = waist_after(body, vitality, movement);
+            assert_eq!(speed > 0.0, moving, "{name} speed {speed}");
+            let want = Quat::from_rotation_x(waist_pitch(0.0, pose_tell));
+            assert!(rot.angle_between(want) < 1e-4, "{name} waist {rot:?} want {want:?}");
+            assert!((y - (WAIST_Y - crouch_drop(0.0, pose_tell))).abs() < 1e-5, "{name} waist y {y}");
+        }
     }
 
     #[test]
