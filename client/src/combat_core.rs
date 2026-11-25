@@ -3017,6 +3017,11 @@ mod tests {
             assert!(app.world().resource::<FirstSessionGuidance>().active && !app.world().resource::<FirstSessionGuidance>().dismissed);
             assert!(sh_shown(app) && app.world().resource::<HudYielded>().0.contains(&crate::hud_anchor_registry::ID_GUIDANCE), "H2-b: Guidance yields to the tip");
         });
+        cc2a("sh1f5c", DifficultyTier::Sheltered, None, |app| {
+            app.insert_resource(ActiveHudPreset { id: Some(HudPresetId::Management) }); tick(app, 0.0); tick(app, 0.0);
+            assert!(app.world().resource::<FirstSessionGuidance>().active && !app.world().resource::<FirstSessionGuidance>().dismissed);
+            assert!(sh_shown(app) && app.world().resource::<HudYielded>().0.contains(&crate::hud_anchor_registry::ID_GUIDANCE), "H2-b Management: Guidance yields to the tip");
+        });
     }
     #[test]
     fn sh1_f6_r5_modals_hide_and_restore() {
