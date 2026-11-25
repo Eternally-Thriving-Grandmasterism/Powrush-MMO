@@ -6054,7 +6054,7 @@ mod tests {
                     .init_resource::<Assets<StandardMaterial>>()
                     .init_resource::<Assets<Image>>()
                     .init_resource::<SoftPlayerRealm>()
-                    .insert_resource(StoneAssetDir(dir))
+                    .insert_resource(StoneAssetDir(dir.to_path_buf()))
                     .insert_resource(LocalMeshLodFeel { preset: GraphicsPreset::Medium })
                     .add_plugins(ClimatePlanePlugin);
                 app.update();

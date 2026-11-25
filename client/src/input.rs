@@ -1119,13 +1119,21 @@ mod tests {
         assert!(err.contains("line 2"), "{err}");
     }
 
-    fn write_timeline(name: &str, body: &str) -> PathBuf {
-        let dir =
-            std::env::temp_dir().join(format!("powrush-script-hour-drive-{}", std::process::id()));
+    /// One dir per timeline; removed on drop, including a failed assert.
+    struct TimelineDir(PathBuf);
+    impl Drop for TimelineDir {
+        fn drop(&mut self) {
+            let _ = std::fs::remove_dir_all(&self.0);
+        }
+    }
+
+    fn write_timeline(name: &str, body: &str) -> (TimelineDir, PathBuf) {
+        let dir = std::env::temp_dir()
+            .join(format!("powrush-script-hour-drive-{}-{name}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join(name);
         std::fs::write(&path, body).unwrap();
-        path
+        (TimelineDir(dir), path)
     }
 
     /// Restores `POWRUSH_USER_DIR` on drop, including a failed assert.
@@ -1267,7 +1275,7 @@ mod tests {
     }
 
     fn run_script_use(body: &str, name: &str, dts: &[f64]) -> Vec<UseSnap> {
-        let path = write_timeline(name, body);
+        let (_dir, path) = write_timeline(name, body);
         let mut app = device_app(Some(path));
         let mut snaps = Vec::new();
         for (i, dt) in dts.iter().enumerate() {
@@ -1398,7 +1406,7 @@ mod tests {
 
     #[test]
     fn script_timeline_walk_overrides_movement() {
-        let path = write_timeline("walk.txt", "# east then north\n1.0, 1, 0, 0\n2.0 0, 1, 0\n");
+        let (_dir, path) = write_timeline("walk.txt", "# east then north\n1.0, 1, 0, 0\n2.0 0, 1, 0\n");
         let mut app = device_app(Some(path));
         {
             let mut keys = app.world_mut().resource_mut::<ButtonInput<KeyCode>>();
@@ -1430,7 +1438,7 @@ mod tests {
     /// frame's `First` system. Further steps stay at 1.
     #[test]
     fn script_timeline_end_sends_one_window_close() {
-        let path = write_timeline("end-close.txt", "0 0 0 0\n1.0 1 0 0\n2.0 0 1 0\n");
+        let (_dir, path) = write_timeline("end-close.txt", "0 0 0 0\n1.0 1 0 0\n2.0 0 1 0\n");
         let mut app = device_app(Some(path));
         let window = app.world_mut().spawn(bevy::window::PrimaryWindow).id();
         let mut cursor =
@@ -1497,7 +1505,7 @@ mod tests {
         assert!(!house.exists(), "house missing before the run");
         assert!(!tick.exists(), "lived hour missing before the run");
 
-        let path = write_timeline("yard-close.txt", "0 0 0 0\n");
+        let (_timeline, path) = write_timeline("yard-close.txt", "0 0 0 0\n");
         let mut app = device_app(Some(path));
         app.add_plugins(crate::title_screen::TitleScreenPlugin)
             .add_plugins(bevy::window::WindowPlugin::default())
@@ -1562,7 +1570,8 @@ mod tests {
     #[test]
     fn script_timeline_use_edit_gate_matches_keyboard() {
         let body = "0, 1, 0, 1\n";
-        let mut scripted = device_app(Some(write_timeline("edit.txt", body)));
+        let (_dir, path) = write_timeline("edit.txt", body);
+        let mut scripted = device_app(Some(path));
         let mut keyboard = device_app(None);
         let mut edit = crate::hud_edit_mode::HudEditMode::default();
         edit.active = true;
@@ -1606,7 +1615,8 @@ mod tests {
             assert!(input.interact_held);
         }
 
-        let mut open = device_app(Some(write_timeline("edit-open.txt", body)));
+        let (_open_dir, open_path) = write_timeline("edit-open.txt", body);
+        let mut open = device_app(Some(open_path));
         set_dt(&mut open, 0.0);
         open.update();
         let input = open.world().resource::<PlayerInput>();
@@ -1637,7 +1647,7 @@ mod tests {
         assert_fallback_keeps_wasd(PathBuf::from(
             "/tmp/powrush-script-hour-drive-missing-no-such-file",
         ));
-        let bad = write_timeline("bad.txt", "0 0 0 0\nnot-a-row\n");
+        let (_dir, bad) = write_timeline("bad.txt", "0 0 0 0\nnot-a-row\n");
         assert_fallback_keeps_wasd(bad);
     }
 
