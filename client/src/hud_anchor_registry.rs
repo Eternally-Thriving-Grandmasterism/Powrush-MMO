@@ -1122,9 +1122,9 @@ mod tests {
             vec![
                 (ID_CARE_STRIP, 1, 2),
                 (ID_CARE_PROMPT, 2, 2),
-                (ID_GUIDANCE, 3, 3),
-                (ID_PRACTICE, 4, 3),
-                (ID_ABILITY_TIP, 5, 3),
+                (ID_ABILITY_TIP, 3, 3),
+                (ID_GUIDANCE, 4, 3),
+                (ID_PRACTICE, 5, 3),
             ]
         );
         assert_eq!(ACTION_BAR.occupant(ID_CARE_STRIP).width, 560.0);
