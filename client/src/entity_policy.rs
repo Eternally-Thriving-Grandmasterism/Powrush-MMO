@@ -566,4 +566,5 @@ fn park_guard_mod_parse_fixtures() {
     assert_eq!(names("#[cfg(any())] mod zz { const Q: [char; 2] = ['\\'','}']; mod inner; }\nmod after;"), ["zz::inner", "after"], "F7 P3 escaped-quote char then close-brace char must not close the block");
     assert_eq!(names("mod zz { const Q: [char; 2] = ['\\'','{']; mod inner; }\nmod after;"), ["zz::inner", "after"], "F8 P4 escaped-quote char then open-brace char must not open a block");
     assert_eq!(names("mod w { const E: [char; 4] = ['\\\\','}','\\n','}']; const U: char = '\\u{7D}'; const B: (u8, char) = (b'\\'','}'); mod x; }\nmod z;"), ["w::x", "z"], "F9 backslash, newline, unicode and byte escapes");
+    assert_eq!(names("mod w { fn f() -> char {'\\n'} fn g() -> char {'\\''} fn h() -> char {'x'} mod x; }\nmod z;"), ["w::x", "z"], "F10 X1 char literal directly before a close brace");
 }
