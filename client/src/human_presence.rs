@@ -1474,7 +1474,7 @@ fn apply_locomotion(
         presence.velocity.x = snap.x;
         presence.velocity.z = snap.y;
     }
-    let velocity = presence.velocity;
+    let (velocity, pre_y) = (presence.velocity, presence.position.y);
     presence.position += velocity * dt;
     // CARD PT-COLLIDE-1 — trunks and yard rocks push out on x/z, only for the set shown in this realm.
     use crate::living_ecology::{yard_rocks_shown, yard_trees_shown, YARD_ROCK_SPOTS, YARD_TREE_SPOTS, YARD_TRUNK_R};
@@ -1492,7 +1492,7 @@ fn apply_locomotion(
     crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned).chain(crate::collide::prop_solids(trees.3.as_ref().map(|s| s.current), realm)));
     if crate::water::water_shown(realm) { push_out_of_moat(&mut presence.position, &mut vel); }
     let plan = crate::terrain::live_plan(settings.as_deref());
-    push_out_of_riser_lips(&mut presence.position, &mut vel, plan, realm);
+    push_out_of_riser_lips(&mut presence.position, &mut vel, plan, realm, pre_y);
     presence.velocity = vel;
     // CARD TERRAIN-GROUND-1 / YARD-EDGE-1 — outer shelf bound after the push-outs; outward vel drops M8-style.
     let (plate, n) = push_out_of_plate_edge(presence.position.xz());
@@ -1571,8 +1571,9 @@ fn push_out_of_moat(pos: &mut Vec3, vel: &mut Vec3) {
 }
 
 /// CARD TERRAIN-GROUND-1 — height-aware riser lips at each shelf outer. Outward falls are free; inward needs tread feet.
-fn push_out_of_riser_lips(pos: &mut Vec3, vel: &mut Vec3, plan: crate::terrain::TerrainPlan, realm: Option<u8>) {
-    let feet = pos.y - STAND + silhouette().feet;
+/// GROUND-SNAP-5 — feet are read from before this tick's fall (`pre_y`), so gravity sag never shoves a body on the tread.
+fn push_out_of_riser_lips(pos: &mut Vec3, vel: &mut Vec3, plan: crate::terrain::TerrainPlan, realm: Option<u8>, pre_y: f32) {
+    let feet = pos.y.max(pre_y) - STAND + silhouette().feet;
     let xz = pos.xz();
     let r = xz.length();
     if r < 1e-4 || !crate::terrain::terrace_shown(realm) {
