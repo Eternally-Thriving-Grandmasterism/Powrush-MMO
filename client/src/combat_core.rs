@@ -813,8 +813,8 @@ pub fn lean_at(lunge_timer: f32, reach: bool) -> f32 {
     LUNGE_LEAN * s * s * (3.0 - 2.0 * s)
 }
 
-/// MUSIC-WIRE-1 — White Bat Audio "After The War" (MUSIC_CREDITS[12]); the file is gitignored and never committed.
-pub const MUSIC_ASSET: &str = "audio/music/after-the-war.ogg";
+/// MUSIC-WIRE-1 — White Bat Audio "After The War" (MUSIC_CREDITS[12]); the file lives in Powrush-Assets-Private (client/assets/private/), never committed.
+pub const MUSIC_ASSET: &str = "private/audio/music/after-the-war.ogg";
 /// Ducked bed: x MasterMuteGain like the tell, and below `HIT_GAIN` (CL-M2).
 pub const MUSIC_GAIN: f32 = 0.04;
 const _: () = assert!(MUSIC_GAIN < HIT_GAIN);
@@ -1154,7 +1154,7 @@ mod tests {
         assert_eq!(world.query::<&AudioPlayer>().iter(&world).count() + world.query::<&MusicBed>().iter(&world).count(), 0);
         let body = include_str!("combat_core.rs").split("fn music_bed(").nth(1).and_then(|s| s.split("\n}\n").next()).expect("music_bed");
         assert!(body.contains(concat!("assets.load(", "MUSIC_ASSET)")) && !body.contains(concat!("STING", "_ASSET")) && !body.contains(concat!("HIT", "_ASSET")));
-        assert_eq!(MUSIC_ASSET, "audio/music/after-the-war.ogg");
+        assert_eq!(MUSIC_ASSET, "private/audio/music/after-the-war.ogg");
     }
 
     #[test]
