@@ -1,17 +1,17 @@
 #!/usr/bin/env bash
 # ASSET-FETCH-1 / STONE-GROUND-1: opt-in fetch into client/assets/private/.
 # Manual step only. Build, CI, and the play-offline doors never run it.
-# LFS pull is only the include list. The client reads stone-painterly-08 when present.
+# LFS pull is only the include list. The client reads stone-painterly-08 and after-the-war.ogg when present.
 #
 # Token: POWRUSH_ASSETS_TOKEN, or `gh auth token` as a fallback.
 # With no token it prints one line and exits 0 without changing anything.
 # The token is never echoed, logged, put in a URL, or written to any file.
 set -euo pipefail
 
-PIN="6f620dba981b4898b0b71a89ae71201c8ddabd0d"
+PIN="bee7281b75fd834a72e717c1fe32ff64474086fd"
 REPO_URL="https://github.com/Eternally-Thriving-Grandmasterism/Powrush-Assets-Private.git"
 # Later asset cards extend this one include list.
-LFS_INCLUDE="textures/stone-painterly-08/**"
+LFS_INCLUDE="textures/stone-painterly-08/**,audio/music/after-the-war.ogg"
 
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 DEST="${ROOT}/client/assets/private"
@@ -60,8 +60,10 @@ if [ "${HEAD_SHA}" != "${PIN}" ]; then
   echo "powrush: ERROR checked out ${HEAD_SHA}, expected pin ${PIN}." >&2
   exit 1
 fi
+drop_ogg_pointer() { local f="${DEST}/audio/music/after-the-war.ogg"; if [ -f "$f" ] && [ "$(head -c 7 "$f")" = version ]; then rm -f "$f"; echo "powrush: WARNING after-the-war.ogg stayed an LFS pointer and was removed."; fi; }
 if ! command -v git-lfs >/dev/null 2>&1; then
   echo "powrush: WARNING git-lfs is missing; PNGs stay pointers and the Sanctuary yard keeps its placeholder."
+  drop_ogg_pointer
   exit 0
 fi
 if ! run_git -C "${DEST}" lfs pull --include "${LFS_INCLUDE}"; then
@@ -79,4 +81,5 @@ while IFS= read -r -d '' f; do
     exit 1
   fi
 done < <(find "${DEST}/textures/stone-painterly-08" -type f -print0)
+drop_ogg_pointer
 echo "powrush: private assets at ${PIN} in client/assets/private/."
