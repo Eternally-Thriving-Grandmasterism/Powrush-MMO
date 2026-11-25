@@ -257,6 +257,7 @@ enum Ual1Clip {
     JumpLoop = 5,
     JumpLand = 6,
     CrouchIdleLoop = 7,
+    #[allow(dead_code)]
     CrouchFwdLoop = 8,
 }
 
@@ -544,6 +545,11 @@ pub fn head_pitch(attend: f32, tell: BodyTell) -> f32 {
 /// Knee give (metres the waist drops) from the reach and the load.
 pub fn crouch_drop(attend: f32, tell: BodyTell) -> f32 {
     0.03 * ease(attend) + tell.knee_give()
+}
+
+/// Winded bows and gives at the knee only when still; moving reads Easy.
+pub fn bow_tell(tell: BodyTell, speed: f32) -> BodyTell {
+    if tell == BodyTell::Winded && speed > f32::EPSILON { BodyTell::Easy } else { tell }
 }
 
 /// Shoulder pitch for one arm. Negative swings the hand forward to the glow.
@@ -1709,8 +1715,8 @@ fn pose_person(
     for (part, mut tf) in &mut parts {
         match *part {
             PersonPart::Waist => {
-                tf.rotation = Quat::from_rotation_x(waist_pitch(a, tell));
-                tf.translation.y = WAIST_Y - crouch_drop(a, tell);
+                tf.rotation = Quat::from_rotation_x(waist_pitch(a, bow_tell(tell, speed)));
+                tf.translation.y = WAIST_Y - crouch_drop(a, bow_tell(tell, speed));
             }
             PersonPart::Head => {
                 tf.rotation = Quat::from_rotation_x(head_pitch(a, tell));
@@ -1847,7 +1853,7 @@ fn attach_ual1_animation_player(
 }
 
 /// Map today's pose_person inputs onto a UAL1 clip name index.
-/// Jump uses SoftPresence grounded / vertical velocity; crouch uses Winded only.
+/// Jump uses SoftPresence grounded / vertical velocity; crouch is Winded standing still.
 /// Heavy keeps the stride clips and its waist bow.
 fn ual1_clip_for_pose(speed: f32, grounded: bool, vel_y: f32, tell: BodyTell) -> Ual1Clip {
     if !grounded {
@@ -1859,13 +1865,8 @@ fn ual1_clip_for_pose(speed: f32, grounded: bool, vel_y: f32, tell: BodyTell) ->
         }
         return Ual1Clip::JumpLoop;
     }
-    let crouched = matches!(tell, BodyTell::Winded);
-    if crouched {
-        return if speed > STRIDE_SPEED {
-            Ual1Clip::CrouchFwdLoop
-        } else {
-            Ual1Clip::CrouchIdleLoop
-        };
+    if matches!(tell, BodyTell::Winded) && speed <= f32::EPSILON {
+        return Ual1Clip::CrouchIdleLoop;
     }
     if speed < STRIDE_SPEED {
         Ual1Clip::IdleLoop
@@ -2871,6 +2872,11 @@ mod tests {
         // Carry drops the knees; an idle stand does not.
         assert_eq!(crouch_drop(0.0, BodyTell::Easy), 0.0);
         assert!(crouch_drop(0.0, BodyTell::Winded) > crouch_drop(0.0, BodyTell::Heavy));
+        assert_eq!(bow_tell(BodyTell::Winded, 0.2), BodyTell::Easy);
+        assert_eq!(bow_tell(BodyTell::Winded, 0.0), BodyTell::Winded);
+        assert_eq!(bow_tell(BodyTell::Winded, f32::EPSILON), BodyTell::Winded);
+        assert_eq!(bow_tell(BodyTell::Heavy, WALK), BodyTell::Heavy);
+        assert_eq!(bow_tell(BodyTell::Easy, WALK), BodyTell::Easy);
     }
 
     #[test]
