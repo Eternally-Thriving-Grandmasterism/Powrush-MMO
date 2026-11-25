@@ -445,6 +445,7 @@ pub fn presence_still_capsule_readable(scale: f32) -> bool {
         && s.head.0 < s.torso.1
         && s.torso.0 < s.hips.1
         && HEAD_R < TORSO_R
+        && presence_joint_overlaps(scale).iter().all(|g| *g >= -JOINT_EPS)
 }
 
 /// face ≠ class — presence never picks a class from a face / people label.
@@ -464,6 +465,38 @@ pub fn presence_opens_race_lobby() -> bool {
 
 fn lod_mesh_tf(x: f32, y: f32, z: f32, scale: f32) -> Transform {
     Transform::from_xyz(x, y, z).with_scale(Vec3::splat(scale))
+}
+
+/// LOD-LIMBS-1 girth law: a capsule keeps its length and thins or fills (x/z by s, y kept).
+fn girth_scale(scale: f32) -> Vec3 {
+    Vec3::new(scale, 1.0, scale)
+}
+
+/// The shoulder pivot follows the torso girth, so the arm stays on the body.
+fn shoulder_x(scale: f32) -> f32 {
+    SHOULDER_X * girth_scale(scale).x
+}
+
+/// Widest rest-pose gap a joint may show (the Medium shoulder's designed 2 mm sits inside it).
+const JOINT_EPS: f32 = 0.005;
+
+/// LOD-LIMBS-1: signed rest-pose overlaps in metres (+ touching, - gap) at a Comfort scale:
+/// [hips/torso, neck, shoulder, arm/torso lateral, wrist, hip/leg]. Capsules girth, spheres whole.
+fn presence_joint_overlaps(scale: f32) -> [f32; 6] {
+    let g = girth_scale(scale);
+    let hips_half = HIP_LEN * 0.5 + HIP_R;
+    let torso_half = (TORSO_LEN * 0.5 + TORSO_R) * g.y;
+    let arm_half = (ARM_LEN * 0.5 + ARM_R) * g.y;
+    let cap_dy = (SHOULDER_Y + ARM_Y + arm_half - TORSO_Y - TORSO_LEN * 0.5 * g.y).max(0.0);
+    let torso_r = TORSO_R * g.x * (1.0 - (cap_dy / (TORSO_R * g.y)).powi(2)).max(0.0).sqrt();
+    [
+        hips_half - (WAIST_Y + TORSO_Y - torso_half),
+        WAIST_Y + TORSO_Y + torso_half - (WAIST_Y + HEAD_Y - HEAD_R * scale),
+        ARM_Y + arm_half,
+        torso_r - (shoulder_x(scale) - ARM_R * g.x),
+        HAND_Y + ACCENT_R * scale - (ARM_Y - arm_half),
+        HIP_PIVOT_Y + LEG_Y + (LEG_LEN * 0.5 + LEG_R) * g.y + hips_half,
+    ]
 }
 
 fn ease(t: f32) -> f32 {
@@ -7614,5 +7647,129 @@ mod tests {
         jb_step(&mut app);
         let y = app.world().resource::<SoftPresence>().position.y;
         assert!((y - (STAND - 1.38)).abs() <= 0.01, "Mobile y {y}");
+    }
+
+    // LOD-LIMBS-1: capsules keep length under Comfort LOD, spheres stay round, every joint stays touching.
+    #[test]
+    fn lod_limbs_1_joint_overlaps_hold_every_tier() {
+        let winded = LivingBody { breath: 0.0, winded: true, ..Default::default() }.breath_rise();
+        assert!((winded - 0.058).abs() < 1e-6);
+        for p in GraphicsPreset::ALL {
+            let s = presence_lod_scale(p);
+            let o = presence_joint_overlaps(s);
+            assert!(presence_still_capsule_readable(s), "{p:?}");
+            assert!(o.iter().all(|g| *g >= -JOINT_EPS), "{p:?} {o:?}");
+            assert!(o[1] - winded >= 0.0, "{p:?} winded neck {}", o[1] - winded);
+        }
+        for (p, want) in [
+            (GraphicsPreset::Low, [0.345, 0.0825, -0.002, 0.0147, 0.02875, 0.030]),
+            (GraphicsPreset::Medium, [0.345, 0.135, -0.002, 0.0226, 0.048, 0.030]),
+            (GraphicsPreset::High, [0.345, 0.1575, -0.002, 0.0260, 0.05625, 0.030]),
+        ] {
+            let got = presence_joint_overlaps(presence_lod_scale(p));
+            assert!(got.iter().zip(want).all(|(g, w)| (g - w).abs() < 5e-4), "{p:?} {got:?}");
+        }
+    }
+
+    fn ll1_world(w: &World, e: Entity) -> Transform {
+        let (mut tf, mut cur) = (*w.get::<Transform>(e).unwrap(), e);
+        while let Some(p) = w.get::<ChildOf>(cur).map(|c| c.parent()) {
+            (tf, cur) = (w.get::<Transform>(p).unwrap().mul_transform(tf), p);
+        }
+        tf
+    }
+    /// Every primitive part, found by its parent joint (no LOD marker), so this runs on main too.
+    fn ll1_check(app: &mut App, s: f32, tag: &str) {
+        let w = app.world_mut();
+        let mut q = w.query_filtered::<(Entity, &ChildOf, Has<PersonAccent>, Has<PersonPart>), With<Mesh3d>>();
+        let rows: Vec<_> = q.iter(w).map(|(e, c, a, j)| (e, c.parent(), a, j)).collect();
+        let w = app.world();
+        let at = |e: Entity| ll1_world(w, e);
+        let near = |a: Vec3, b: Vec3, tol: f32, what: &str| assert!(a.abs_diff_eq(b, tol), "{tag} {what}: {a} vs {b}");
+        let (girth, whole, eps) = (Vec3::new(s, 1.0, s), Vec3::splat(s), JOINT_EPS);
+        let (mut torso, mut head, mut seen) = (None, None, [0usize; 5]);
+        for &(e, p, _, joint) in &rows {
+            if w.get::<PersonPart>(p).is_some_and(|j| matches!(j, PersonPart::Waist)) {
+                if joint { head = Some(e) } else { torso = Some(e) }
+            }
+        }
+        let (torso, head) = (at(torso.unwrap()), at(head.unwrap()));
+        near(torso.scale, girth, 1e-4, "(g) torso scale");
+        near(head.scale, whole, 1e-4, "(g) head scale");
+        let torso_top = torso.transform_point(Vec3::Y * (TORSO_LEN * 0.5 + TORSO_R));
+        assert!(head.translation.distance(torso_top) <= HEAD_R * s + eps, "{tag} (c) neck gap");
+        for &(e, p, accent, _) in &rows {
+            let tf = at(e);
+            match w.get::<PersonPart>(p).copied() {
+                Some(PersonPart::Head) => {
+                    seen[0] += 1;
+                    near(tf.scale, whole, 1e-4, "(f) brow scale");
+                    near(tf.translation - head.translation, head.rotation * Vec3::new(0.0, 0.01, HEAD_R * 0.86) * s, 1e-4, "(f) brow offset");
+                    assert!((BROW_R * tf.scale.x - BROW_R * s).abs() < 1e-4, "{tag} (f) brow radius");
+                }
+                Some(PersonPart::Shoulder(side)) if accent => {
+                    seen[1] += 1;
+                    near(tf.scale, whole, 1e-4, "(g) hand scale");
+                    let arm = rows.iter().find(|r| r.1 == p && !r.2).map(|r| at(r.0)).unwrap();
+                    let wrist = arm.transform_point(-Vec3::Y * (ARM_LEN * 0.5 + ARM_R));
+                    assert!(side > 0.0 && tf.translation.distance(wrist) <= ACCENT_R * s, "{tag} (b) wrist gap {}", tf.translation.distance(wrist));
+                }
+                Some(PersonPart::Shoulder(side)) => {
+                    seen[2] += 1;
+                    near(tf.scale, girth, 1e-4, "(g) arm scale");
+                    let pivot = at(p).translation;
+                    let top = tf.transform_point(Vec3::Y * (ARM_LEN * 0.5 + ARM_R));
+                    assert!(top.distance(pivot) <= 0.002 + eps, "{tag} (a) shoulder gap {}", top.distance(pivot));
+                    let x = w.get::<Transform>(p).unwrap().translation.x;
+                    assert!((x - side * SHOULDER_X * s).abs() < 1e-4, "{tag} (e) shoulder x {x}");
+                }
+                Some(PersonPart::Hip(_)) => {
+                    seen[3] += 1;
+                    near(tf.scale, girth, 1e-4, "(g) leg scale");
+                    let top = tf.transform_point(Vec3::Y * (LEG_LEN * 0.5 + LEG_R)).y - (STAND - HIP_LEN * 0.5 - HIP_R);
+                    let foot = tf.transform_point(-Vec3::Y * (LEG_LEN * 0.5 + LEG_R)).y;
+                    assert!((top - 0.03).abs() <= eps && (foot - 0.02).abs() <= eps, "{tag} (d) hip {top} foot {foot}");
+                }
+                _ => seen[4] += 1,
+            }
+        }
+        assert_eq!(seen, [1, 1, 2, 2, 2], "{tag} brow, hand, arms, legs, torso+head");
+    }
+
+    #[test]
+    fn lod_limbs_1_real_lod_switch_keeps_every_joint() {
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default()))
+            .init_asset::<Mesh>()
+            .init_asset::<StandardMaterial>()
+            .insert_resource(LocalMeshLodFeel { preset: GraphicsPreset::Low })
+            .add_systems(Update, apply_presence_mesh_lod);
+        crate::test_env::single_thread(&mut app); // no test_env lock is taken; no IO
+        // The spawn alone, before any apply, must already hold every joint.
+        bevy::ecs::system::RunSystemOnce::run_system_once(app.world_mut(), spawn_human_presence).unwrap();
+        ll1_check(&mut app, presence_lod_scale(GraphicsPreset::Low), "spawn Low");
+        app.update();
+        ll1_check(&mut app, presence_lod_scale(GraphicsPreset::Low), "first apply Low");
+        use GraphicsPreset::*;
+        for p in [Mobile, Medium, High, Ultra, Low] {
+            app.world_mut().resource_mut::<LocalMeshLodFeel>().preset = p;
+            app.update();
+            ll1_check(&mut app, presence_lod_scale(p), &format!("{p:?}"));
+        }
+        let mut q = app.world_mut().query::<(&PersonPart, &mut Transform)>();
+        let mut posed = Vec::new();
+        for (part, mut tf) in q.iter_mut(app.world_mut()) {
+            match *part {
+                PersonPart::Waist => tf.rotation = Quat::from_rotation_x(0.29),
+                PersonPart::Shoulder(side) => tf.rotation = Quat::from_rotation_x(-0.8) * Quat::from_rotation_z(side * 0.17),
+                _ => continue,
+            }
+            posed.push(tf.rotation);
+        }
+        app.world_mut().resource_mut::<LocalMeshLodFeel>().preset = High;
+        app.update();
+        let after: Vec<Quat> = q.iter(app.world()).filter(|(p, _)| matches!(p, PersonPart::Waist | PersonPart::Shoulder(_))).map(|(_, tf)| tf.rotation).collect();
+        assert_eq!(after, posed, "LOD switch kept the pose");
+        ll1_check(&mut app, presence_lod_scale(High), "posed High");
     }
 }
