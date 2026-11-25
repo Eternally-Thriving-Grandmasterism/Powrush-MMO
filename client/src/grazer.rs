@@ -57,7 +57,7 @@ fn spawn_grazer(mut cmd: Commands, mut meshes: ResMut<Assets<Mesh>>, mut mats: R
     cmd.spawn((
         Mesh3d(meshes.add(Sphere::new(0.5))),
         MeshMaterial3d(mats.add(GRAZER_COLOR)),
-        Transform::from_xyz(GRAZER_HOME[0], 0.8, GRAZER_HOME[1]),
+        Transform::from_xyz(GRAZER_HOME[0], 0.5, GRAZER_HOME[1]),
         (Visibility::Hidden, Grazer, Name::new(PREDATOR_NAME)),
     ));
 }
