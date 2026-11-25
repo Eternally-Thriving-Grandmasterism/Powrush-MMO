@@ -273,10 +273,13 @@ enum PersonPart {
 #[derive(Component)]
 struct PersonAccent;
 
-/// Child mesh whose local scale follows Comfort [`mesh_lod::procedural_detail_scale`].
-/// Root / joints stay unscaled so feet stay on the plane and Peace E still reads.
-#[derive(Component)]
-struct PersonLodMesh;
+/// Child mesh whose local scale follows Comfort [`mesh_lod::procedural_detail_scale`] by its law:
+/// capsules keep length and thin or fill (Girth), spheres scale whole. Joints stay unscaled.
+#[derive(Component, Clone, Copy, Debug, PartialEq, Eq)]
+enum PersonLodMesh {
+    Girth,
+    Whole,
+}
 
 /// What the still frame must name about Peace **E**.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -475,6 +478,17 @@ fn girth_scale(scale: f32) -> Vec3 {
 /// The shoulder pivot follows the torso girth, so the arm stays on the body.
 fn shoulder_x(scale: f32) -> f32 {
     SHOULDER_X * girth_scale(scale).x
+}
+
+fn lod_scale(law: PersonLodMesh, scale: f32) -> Vec3 {
+    match law {
+        PersonLodMesh::Girth => girth_scale(scale),
+        PersonLodMesh::Whole => Vec3::splat(scale),
+    }
+}
+
+fn girth_mesh_tf(x: f32, y: f32, z: f32, scale: f32) -> Transform {
+    Transform::from_xyz(x, y, z).with_scale(girth_scale(scale))
 }
 
 /// Widest rest-pose gap a joint may show (the Medium shoulder's designed 2 mm sits inside it).
@@ -918,9 +932,9 @@ fn spawn_human_presence(
                     (
                         Mesh3d(torso),
                         MeshMaterial3d(earth.clone()),
-                        lod_mesh_tf(0.0, TORSO_Y, 0.0, scale),
+                        girth_mesh_tf(0.0, TORSO_Y, 0.0, scale),
                     ),
-                    PersonLodMesh,
+                    PersonLodMesh::Girth,
                 ));
                 waist
                     .spawn((
@@ -930,30 +944,24 @@ fn spawn_human_presence(
                             lod_mesh_tf(0.0, HEAD_Y, 0.0, scale),
                         ),
                         PersonPart::Head,
-                        PersonLodMesh,
+                        PersonLodMesh::Whole,
                         Name::new("PersonHead"),
                     ))
                     .with_children(|face| {
                         // Brow nub: which way the person looks reads in a still.
                         // face ≠ class — look direction only, never a race lobby.
+                        // No LOD marker: the brow inherits the head's scale once.
                         face.spawn((
-                            (
-                                Mesh3d(brow),
-                                MeshMaterial3d(earth.clone()),
-                                lod_mesh_tf(0.0, 0.01, HEAD_R * 0.86, scale),
-                            ),
-                            PersonLodMesh,
+                            Mesh3d(brow),
+                            MeshMaterial3d(earth.clone()),
+                            Transform::from_xyz(0.0, 0.01, HEAD_R * 0.86),
                         ));
                     });
                 for side in [-1.0f32, 1.0] {
                     waist
                         .spawn((
                             (
-                                Transform::from_xyz(
-                                    side * SHOULDER_X,
-                                    SHOULDER_Y,
-                                    0.0,
-                                ),
+                                Transform::from_xyz(side * shoulder_x(scale), SHOULDER_Y, 0.0),
                                 Visibility::default(),
                             ),
                             PersonPart::Shoulder(side),
@@ -964,9 +972,9 @@ fn spawn_human_presence(
                                 (
                                     Mesh3d(arm.clone()),
                                     MeshMaterial3d(earth.clone()),
-                                    lod_mesh_tf(0.0, ARM_Y, 0.0, scale),
+                                    girth_mesh_tf(0.0, ARM_Y, 0.0, scale),
                                 ),
-                                PersonLodMesh,
+                                PersonLodMesh::Girth,
                             ));
                             if side > 0.0 {
                                 limb.spawn((
@@ -976,7 +984,7 @@ fn spawn_human_presence(
                                         lod_mesh_tf(0.0, HAND_Y, 0.0, scale),
                                     ),
                                     PersonAccent,
-                                    PersonLodMesh,
+                                    PersonLodMesh::Whole,
                                     Name::new("PersonAccent"),
                                 ));
                             }
@@ -997,9 +1005,9 @@ fn spawn_human_presence(
                         (
                             Mesh3d(leg.clone()),
                             MeshMaterial3d(earth.clone()),
-                            lod_mesh_tf(0.0, LEG_Y, 0.0, scale),
+                            girth_mesh_tf(0.0, LEG_Y, 0.0, scale),
                         ),
-                        PersonLodMesh,
+                        PersonLodMesh::Girth,
                     ));
                 });
             }
@@ -1010,10 +1018,11 @@ fn spawn_human_presence(
     );
 }
 
-/// Apply Comfort MeshLodPlan scale when Esc Graphics changes. Joints stay put.
+/// Apply Comfort MeshLodPlan scale when Esc Graphics changes. Lengths stay; shoulder x follows girth.
 fn apply_presence_mesh_lod(
     feel: Option<Res<LocalMeshLodFeel>>,
-    mut meshes: Query<&mut Transform, With<PersonLodMesh>>,
+    mut meshes: Query<(&mut Transform, &PersonLodMesh)>,
+    mut joints: Query<(&PersonPart, &mut Transform), Without<PersonLodMesh>>,
 ) {
     let Some(feel) = feel else {
         return;
@@ -1027,8 +1036,13 @@ fn apply_presence_mesh_lod(
         &plan,
         mesh_lod::optional_authored_glb_present(),
     );
-    for mut tf in &mut meshes {
-        tf.scale = Vec3::splat(scale);
+    for (mut tf, law) in &mut meshes {
+        tf.scale = lod_scale(*law, scale);
+    }
+    for (part, mut tf) in &mut joints {
+        if let PersonPart::Shoulder(side) = *part {
+            tf.translation.x = side * shoulder_x(scale);
+        }
     }
 }
 
