@@ -1145,6 +1145,21 @@ mod tests {
         }
     }
 
+    /// GROUND-SNAP-4 — the backdrop Ground and the walk read one gate, terrain::terrace_shown.
+    #[test]
+    fn ground_snap_4_backdrop_ground_follows_terrace_shown() {
+        for realm in [None, Some(0), Some(1), Some(2), Some(3), Some(4)] {
+            GraphicsPreset::ALL.iter().for_each(|&p| assert_eq!(backdrop_plan(realm, p).ground, crate::terrain::terrace_shown(realm), "{realm:?} {p:?}"));
+            let mut app = App::new();
+            app.add_plugins(MinimalPlugins).insert_resource(SoftPlayerRealm { current: realm }).add_systems(Update, show_backdrop_for_realm);
+            crate::test_env::single_thread(&mut app);
+            let ground = app.world_mut().spawn((SkyBackdropPart::Ground, Visibility::Hidden)).id();
+            app.update();
+            let want = if crate::terrain::terrace_shown(realm) { Visibility::Inherited } else { Visibility::Hidden };
+            assert_eq!(app.world().get::<Visibility>(ground), Some(&want), "{realm:?}");
+        }
+    }
+
     /// Spawn the backdrop in a headless app with render assets, set the
     /// preset, and count what is visible: (draws, conifers, peaks shown).
     fn visible_for(preset: GraphicsPreset) -> (usize, usize, bool) {

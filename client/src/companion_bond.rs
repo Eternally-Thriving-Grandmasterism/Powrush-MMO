@@ -333,4 +333,19 @@ mod tests {
         assert!((deer.xz() - at.xz()).length() < 1e-4, "no lerp inside 2.4: {deer:?}");
         assert!((deer.y - (crate::living_ecology::DEER_STAND_Y - 1.38)).abs() <= 0.01, "deer y {}", deer.y);
     }
+
+    /// GROUND-SNAP-4 H5a — in Heartwood (no terrace drawn) the follow snap keeps the deer on the plate.
+    #[test]
+    fn ground_snap_4_companion_follows_flat_in_heartwood() {
+        let t = std::f32::consts::PI / 8.0;
+        let at = Vec3::new(40.0 * t.cos(), 0.55, 40.0 * t.sin());
+        let mut app = gs_deer(at + Vec3::new(1.0, 0.0, 0.0), at);
+        app.world_mut().resource_mut::<SoftPlayerRealm>().current = Some(2);
+        let mut inner = shared::local_settings::LocalSettings::default();
+        inner.set_graphics_preset(shared::local_settings::GraphicsPreset::Mobile);
+        app.insert_resource(crate::local_settings::LocalSettingsState { inner, dirty: false });
+        app.update();
+        let deer = app.world_mut().query::<(&Name, &Transform)>().iter(app.world()).find(|(n, _)| n.as_str() == "ResonantDeer").unwrap().1.translation;
+        assert!((deer.y - crate::living_ecology::DEER_STAND_Y).abs() <= 1e-4, "deer y {}", deer.y);
+    }
 }
