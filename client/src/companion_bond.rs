@@ -316,4 +316,20 @@ mod tests {
             assert!(deer.distance(at) <= 2.4, "({x},{z}) deer {deer:?} player {at:?}");
         }
     }
+
+    /// GROUND-SNAP-2 F7 — the follow snap puts the deer on the drawn tread of the live plan.
+    #[test]
+    fn ground_snap_2_companion_follow_uses_drawn_tread() {
+        use shared::local_settings::GraphicsPreset;
+        let t = std::f32::consts::PI / 8.0;
+        let at = Vec3::new(40.0 * t.cos(), 0.55, 40.0 * t.sin());
+        let mut app = gs_deer(at + Vec3::new(1.0, 0.0, 0.0), at);
+        let mut inner = shared::local_settings::LocalSettings::default();
+        inner.set_graphics_preset(GraphicsPreset::Mobile);
+        app.insert_resource(crate::local_settings::LocalSettingsState { inner, dirty: false });
+        app.update();
+        let deer = app.world_mut().query::<(&Name, &Transform)>().iter(app.world()).find(|(n, _)| n.as_str() == "ResonantDeer").unwrap().1.translation;
+        assert!((deer.xz() - at.xz()).length() < 1e-4, "no lerp inside 2.4: {deer:?}");
+        assert!((deer.y - (crate::living_ecology::DEER_STAND_Y - 1.38)).abs() <= 0.01, "deer y {}", deer.y);
+    }
 }

@@ -1560,6 +1560,35 @@ mod tests {
         save_sky_png(&low, &format!("{prefix}-low.png"));
         save_sky_png(&medium, &format!("{prefix}-medium.png"));
     }
+
+    /// GROUND-SNAP-2 F6 — the drawn ground is terrace_mesh on the same plan the walk reads.
+    #[test]
+    fn ground_snap_2_sync_terrace_mesh_uses_live_plan() {
+        let pos = |m: &Mesh| m.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().as_float3().unwrap().to_vec();
+        for arm in GraphicsPreset::ALL.into_iter().map(Some).chain([None]) {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<Mesh>();
+            if let Some(p) = arm {
+                let mut inner = shared::local_settings::LocalSettings::default();
+                inner.set_graphics_preset(p);
+                app.insert_resource(LocalSettingsState { inner, dirty: false });
+            }
+            let handle = app.world_mut().resource_mut::<Assets<Mesh>>().add(Mesh::from(Cuboid::default()));
+            let ground: Mesh3d = handle.clone().into(); // not a new Mesh3d site (entity_policy::mesh3d_site_count_guard)
+            app.world_mut().spawn((SkyBackdropPart::Ground, ground));
+            app.add_systems(Update, sync_terrace_mesh);
+            crate::test_env::single_thread(&mut app);
+            app.update();
+            let want = crate::terrain::terrace_mesh(crate::terrain::terrain_plan(arm.unwrap_or(GraphicsPreset::Medium)));
+            assert_eq!(pos(app.world().resource::<Assets<Mesh>>().get(&handle).unwrap()), pos(&want), "{arm:?}");
+            if arm.is_some() {
+                app.world_mut().resource_mut::<LocalSettingsState>().inner.set_graphics_preset(GraphicsPreset::Mobile);
+                app.update();
+                let mobile = crate::terrain::terrace_mesh(crate::terrain::terrain_plan(GraphicsPreset::Mobile));
+                assert_eq!(pos(app.world().resource::<Assets<Mesh>>().get(&handle).unwrap()), pos(&mobile), "{arm:?} -> Mobile");
+            }
+        }
+    }
 }
 
 #[cfg(test)]

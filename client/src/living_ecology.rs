@@ -1205,4 +1205,28 @@ mod tests {
             }
         }
     }
+
+    /// GROUND-SNAP-2 F8 — move_deer puts the deer on the drawn tread of the live plan.
+    #[test]
+    fn ground_snap_2_deer_y_uses_drawn_tread() {
+        use shared::local_settings::GraphicsPreset;
+        let mut app = App::new();
+        app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>().init_resource::<WorldAnswer>().init_resource::<SoftPlayerRealm>().init_resource::<crate::human_presence::SoftPresence>().insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(std::time::Duration::from_millis(16))).add_plugins(LivingEcologyPlugin);
+        let mut inner = shared::local_settings::LocalSettings::default();
+        inner.set_graphics_preset(GraphicsPreset::Mobile);
+        app.insert_resource(crate::local_settings::LocalSettingsState { inner, dirty: false });
+        app.finish();
+        app.cleanup();
+        crate::test_env::single_thread(&mut app);
+        app.world_mut().resource_mut::<EcologyState>().last_kind = AnswerKind::Take;
+        app.update();
+        let t = std::f32::consts::PI / 8.0;
+        let start = Vec3::new(40.0 * t.cos(), DEER_STAND_Y, 40.0 * t.sin());
+        app.world_mut().query_filtered::<&mut Transform, With<ResonantDeer>>().single_mut(app.world_mut()).unwrap().translation = start;
+        app.update();
+        let at = app.world_mut().query_filtered::<&Transform, With<ResonantDeer>>().single(app.world()).unwrap().translation;
+        let plan = crate::terrain::terrain_plan(GraphicsPreset::Mobile);
+        assert!(at.xz().length() > crate::terrain::rim_radius(at.x, at.z, 0, plan) + 0.1, "deer left the band: {at:?}");
+        assert!((at.y - (DEER_STAND_Y - 1.38)).abs() <= 0.01, "deer y {}", at.y);
+    }
 }
