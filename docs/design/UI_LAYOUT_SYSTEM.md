@@ -195,7 +195,7 @@ Coded anchors are FACT (map section 2 at `027c9802`). Role and step 2 action are
 | 43 | PeerPresenceRoot (Peer) | `lattice_flow_share.rs:93` | bottom 16, right 16, 280 | HUD | class 5 | joins as-is |
 | 44 | ClimateNameRoot (PlaceName) | `climate_plane.rs:1145` | top 18, centred, 280 | HUD | class 5 | joins as-is |
 | 45 | FoundationLatticeRoot | `foundation_lattice.rs:60` | never shown | HUD | no anchor | none |
-| 46 | green test box `[Q2 probe]` | `climate_plane.rs:4129` | test only | — | no anchor | none |
+| 46 | green test box `[Q2 probe]` | `climate_plane.rs:5575` | test only | — | no anchor | none |
 
 HUD role count: 27 (rows 8–10, 12–13, 16–19, 26–32 and 34–44). Two of them (16, 17) cannot join while HELD.
 
@@ -609,7 +609,7 @@ Tests:
 
 ## 8. Map nits (recorded here; the map is not edited)
 
-1. **L8 Startup sentence.** The map's L8 says "Every spawn function in the table is registered in a `Startup` system of its plugin." Row 46 should be left out of that sentence. Its node (`climate_plane.rs:4129`) is inside `mod tests` (L1650–L1651), in the `#[ignore]` test `high_plate_over_world_and_ultra_volumetric_still_renders` (L4055–L4056), and is not spawned by any plugin's `Startup`. Map section 1 already tags it `[Q2 probe]`.
+1. **L8 Startup sentence.** The map's L8 says "Every spawn function in the table is registered in a `Startup` system of its plugin." Row 46 should be left out of that sentence. Its node (`climate_plane.rs:5575`) is inside `mod tests` (L2265–L2266), in the `#[ignore]` test `high_plate_over_world_and_ultra_volumetric_still_renders` (L5501–L5502), and is not spawned by any plugin's `Startup`. Map section 1 already tags it `[Q2 probe]`.
 2. **Comfort banner Dismiss height is unmeasured.** The map's 34 px (Model A, y 10-44) fits one 13 px text line (2 + 16 + 15.6). The banner row (`title_screen.rs` L1447–L1506) also holds the Dismiss button: padding 10 / 6, 1 px border, 12 px "Dismiss" text, `column_gap` 10, `SpaceBetween`. The copy's width (and so its wrap) depends on that button's width, which is not measured. A render is needed before step 2 gives the Comfort entry a height budget.
 
 ## 9. Open questions
