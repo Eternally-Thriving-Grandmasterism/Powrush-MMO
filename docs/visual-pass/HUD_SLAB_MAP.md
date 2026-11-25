@@ -9,7 +9,7 @@ Facts only. Every absolutely positioned UI node spawned by a plugin that `client
 - Not declared in `lib.rs`, so left out: `ability_bar.rs`, `faction_diplomacy_ui.rs`, `inventory_ui.rs`, `my_mercy_journey_panel.rs`, `onboarding_ui.rs`, `player_progress_ui.rs`, `rbe_ui_feedback.rs`, `realm_travel_panel.rs`, `treaty_negotiation_ui.rs`, `ui.rs` (all contain `PositionType::Absolute`, none is a module of the crate).
 - Parked per `docs/GROK_BOT_TODO.md` L190 / `docs/NEXT_NAMED_CARDS.md` L581 (DO-NOT-FREESTYLE list): `war_week.rs`, `crownstone.rs`, `coop_voice.rs`. All three are declared and their plugins are added in `lib.rs` (L144, L149, L150), so their slabs spawn. `war_week.rs` and `crownstone.rs` are tagged `[parked]`; `coop_voice.rs` is tagged `[parked list]` because the docs list it but it also carries the co-op voice slab. `docs/LIVE_MOUTH_AUDIT.md` L25 calls `species_redemption.rs` HELD (Crownstone); it is not tagged.
 - `foundation_lattice.rs` is loaded but `toggle_lattice_panel` sets `panel_open = false` every frame (L112-L118), so its slab is never visible (`[never shown]`).
-- The green box in `climate_plane.rs` L4129 is inside an `#[ignore]` test (`high_plate_over_world_and_ultra_volumetric_still_renders`, 320x180 window), not spawned by the running client (`[Q2 probe]`).
+- The green box in `climate_plane.rs` L5575 is inside an `#[ignore]` test (`high_plate_over_world_and_ultra_volumetric_still_renders`, 320x180 window), not spawned by the running client (`[Q2 probe]`).
 
 Notation: `Global N` = `ZIndex::Global(N)`. `default` = no `ZIndex` set. Offsets are Bevy `Val::Px` unless a `%` is shown. Centred slabs use `left: 50%` plus a negative `margin-left` of half the width.
 
@@ -62,7 +62,7 @@ Notation: `Global N` = `ZIndex::Global(N)`. `default` = no `ZIndex` set. Offsets
 | 43 | `lattice_flow_share.rs:93` | PeerPresenceRoot | bottom 16 | right 16 | 280 | default | `update_peer_presence_chip`: `share.chip_visible && last_peer.is_some()` (U ingests a peer) |
 | 44 | `climate_plane.rs:1145` | ClimateNameRoot (place-name chip) | top 18 | centred: left 50% + margin-left -140 | 280 | default | not stated (no visibility toggle found; spawned with default Visibility) |
 | 45 | `foundation_lattice.rs:60` | FoundationLatticeRoot [never shown] | top 14% | right 2% | 380; max-height 500 | default | `panels.panel_open`; `toggle_lattice_panel` sets `panel_open = false` every frame, so never shown |
-| 46 | `climate_plane.rs:4129` | green test box (light-bloom-1 probe) [Q2 probe] | top 8 | left 8 | 120 x 36 | default | not stated; inside `#[test] #[ignore]` `high_plate_over_world_and_ultra_volumetric_still_renders` (320x180 lavapipe window), never spawned by the game |
+| 46 | `climate_plane.rs:5575` | green test box (light-bloom-1 probe) [Q2 probe] | top 8 | left 8 | 120 x 36 | default | not stated; inside `#[test] #[ignore]` `high_plate_over_world_and_ultra_volumetric_still_renders` (320x180 lavapipe window), never spawned by the game |
 
 Row count: 46 (45 spawned by the game, 1 test probe).
 
