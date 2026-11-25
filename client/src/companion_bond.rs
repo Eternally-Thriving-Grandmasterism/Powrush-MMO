@@ -126,7 +126,7 @@ fn follow_or_wait(
         if d > 2.4 {
             tf.translation = tf.translation.lerp(want, (1.8 * dt).min(1.0));
         }
-        tf.translation.y = crate::living_ecology::DEER_STAND_Y + crate::terrain::tread_offset(tf.translation.x, tf.translation.z, crate::terrain::live_plan(settings.as_deref()));
+        tf.translation.y = crate::living_ecology::DEER_STAND_Y + crate::terrain::ground_offset(tf.translation.x, tf.translation.z, crate::terrain::live_plan(settings.as_deref()), realm.current);
     }
 }
 

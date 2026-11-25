@@ -166,7 +166,7 @@ pub const fn silhouette_band_count(preset: GraphicsPreset) -> usize {
 
 /// Per-preset backdrop. Outside the Sanctuary nothing draws.
 pub fn backdrop_plan(realm: Option<u8>, preset: GraphicsPreset) -> BackdropPlan {
-    if !matches!(realm, None | Some(0)) {
+    if !crate::terrain::terrace_shown(realm) {
         return BackdropPlan::NONE;
     }
     let bands = silhouette_band_count(preset);

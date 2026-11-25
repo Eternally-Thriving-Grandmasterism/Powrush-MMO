@@ -1490,9 +1490,9 @@ fn apply_locomotion(
         crate::collide::push_out_of_rock(&mut presence.position, &mut vel, spot, STAND, feet);
     }
     crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned).chain(crate::collide::prop_solids(trees.3.as_ref().map(|s| s.current), realm)));
-    push_out_of_moat(&mut presence.position, &mut vel);
+    if crate::water::water_shown(realm) { push_out_of_moat(&mut presence.position, &mut vel); }
     let plan = crate::terrain::live_plan(settings.as_deref());
-    push_out_of_riser_lips(&mut presence.position, &mut vel, plan);
+    push_out_of_riser_lips(&mut presence.position, &mut vel, plan, realm);
     presence.velocity = vel;
     // CARD TERRAIN-GROUND-1 / YARD-EDGE-1 — outer shelf bound after the push-outs; outward vel drops M8-style.
     let (plate, n) = push_out_of_plate_edge(presence.position.xz());
@@ -1505,7 +1505,7 @@ fn apply_locomotion(
     // The landing snap below reads `wish_vel`; at the edge it keeps only the part along the bound.
     let (_, rim) = push_out_of_plate_edge(presence.position.xz() + wish_vel * dt);
     wish_vel -= wish_vel.dot(rim).min(0.0) * rim;
-    let ground = crate::terrain::tread_offset(presence.position.x, presence.position.z, plan);
+    let ground = crate::terrain::ground_offset(presence.position.x, presence.position.z, plan, realm);
     let hip = STAND + ground;
     let tread_drop = ground < -1e-4;
     if tread_drop && presence.grounded && presence.position.y > hip + 1e-4 && presence.position.y <= STAND {
@@ -1571,11 +1571,11 @@ fn push_out_of_moat(pos: &mut Vec3, vel: &mut Vec3) {
 }
 
 /// CARD TERRAIN-GROUND-1 — height-aware riser lips at each shelf outer. Outward falls are free; inward needs tread feet.
-fn push_out_of_riser_lips(pos: &mut Vec3, vel: &mut Vec3, plan: crate::terrain::TerrainPlan) {
+fn push_out_of_riser_lips(pos: &mut Vec3, vel: &mut Vec3, plan: crate::terrain::TerrainPlan, realm: Option<u8>) {
     let feet = pos.y - STAND + silhouette().feet;
     let xz = pos.xz();
     let r = xz.length();
-    if r < 1e-4 {
+    if r < 1e-4 || !crate::terrain::terrace_shown(realm) {
         return;
     }
     let dir = xz / r;
