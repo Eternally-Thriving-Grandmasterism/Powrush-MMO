@@ -65,7 +65,7 @@ COMBAT-FAIR-1's numbers are this section's first rows. That card is already rule
 
 **Status:** partial. The world bible is planned (WORLD-BIBLE-1). WORLD-DIRECTOR L0–L3 budgets are planned (no file and no function in this tree).
 
-**Overlap:** Places travel (`PlaceId`) versus the Z/F3 realm switch. Z is `client/src/soft_play_bindings.rs:27`, F3 is `:46`, and the switch is `client/src/human_soft_panels.rs:168` (travel note `:200`). Two realm-name tables disagree. `client/src/human_soft_panels.rs:34-38` names Sanctuary Prime, Synthetic Lattice, Verdant Bloom, Harmonic Chorus, Voidfarer Horizon. `look_for` names Sanctuary Prime (`client/src/climate_plane.rs:466`), Crystal Spires (`:423`), Verdant Heartwood (`:401`), Abyssal Depths (`:447`) and Voidfarer Horizon (`:425`). One later card.
+**Overlap:** Places travel (`PlaceId`) versus the Z/F3 realm switch. Z is `client/src/soft_play_bindings.rs:27`, F3 is `:46`, and the switch is `client/src/human_soft_panels.rs:168` (travel note `:200`). The two realm-name tables match since REALM-NAMES-1 (#1174). `client/src/human_soft_panels.rs:34-38` names Sanctuary Prime, Crystal Spires, Verdant Heartwood, Abyssal Depths, Voidfarer Horizon, the same as `look_for`: Sanctuary Prime (`client/src/climate_plane.rs:466`), Crystal Spires (`:423`), Verdant Heartwood (`:401`), Abyssal Depths (`:447`) and Voidfarer Horizon (`:425`). Test `realm_names_1_panel_names_match_look_for` (`client/src/climate_plane.rs:2271`) pins them equal.
 
 Draeks: a secret exists and is found through play.
 
@@ -264,11 +264,11 @@ The Draek sentences already in §1, §6 and §8 stay as they are. This section a
 
 **Contract:** Three PlaceIds, travel between them, and dress per place. The world bible, the WORLD-DIRECTOR budgets, and distinct traveled places are planned.
 
-**Known today:** `PlaceId` `shared/hex_travel.rs:52`, `LOCAL_HEXES` `shared/hex_travel.rs:61`, `apply_travel_named` `shared/hex_travel.rs:541`, test `shared/hex_travel.rs:635` (22 `#[test]` fns). Client `apply_place` `client/src/hex_travel.rs:251`, `places_plate_clicks` `client/src/hex_travel.rs:625` (77 `#[test]` fns in that file). `look_for` `client/src/climate_plane.rs:393`, `sync_place_dress_from_travel` `client/src/climate_plane.rs:1661`, `apply_climate_look` `client/src/climate_plane.rs:1854`. Look-name pins `client/src/climate_plane.rs:2601`. Rooms note `docs/PLACES_BIBLE.md:61`. Zones row `docs/DESIGN_PILLARS.md:37`. Grove seed `shared/powrush_gen.rs:95`. The two realm-name tables stay as §6 wrote them. Those names are owner-ruled (#738 7118691808). REALM-NAMES-1 is queued and is not held. This block does not edit §6.
+**Known today:** `PlaceId` `shared/hex_travel.rs:52`, `LOCAL_HEXES` `shared/hex_travel.rs:61`, `apply_travel_named` `shared/hex_travel.rs:541`, test `shared/hex_travel.rs:635` (22 `#[test]` fns). Client `apply_place` `client/src/hex_travel.rs:251`, `places_plate_clicks` `client/src/hex_travel.rs:625` (77 `#[test]` fns in that file). `look_for` `client/src/climate_plane.rs:393`, `sync_place_dress_from_travel` `client/src/climate_plane.rs:1661`, `apply_climate_look` `client/src/climate_plane.rs:1854`. Look-name pins `client/src/climate_plane.rs:2612`. Rooms note `docs/PLACES_BIBLE.md:61`. Zones row `docs/DESIGN_PILLARS.md:37`. Grove seed `shared/powrush_gen.rs:95`. The two realm-name tables match (§6). Those names are owner-ruled (#738 7118691808). REALM-NAMES-1 shipped as #1174.
 
-**Expected:** WORLD-BIBLE-1, WORLD-GEN-1, WORLD-TRAVEL-1 and REALM-NAMES-1 are planned. WORLD-DIRECTOR L0–L3 budgets stay planned, as §6 says: no file and no function in this tree. Multiplayer is planned only.
+**Expected:** WORLD-BIBLE-1, WORLD-GEN-1 and WORLD-TRAVEL-1 are planned. REALM-NAMES-1 is on main (#1174). WORLD-DIRECTOR L0–L3 budgets stay planned, as §6 says: no file and no function in this tree. Multiplayer is planned only.
 
-**Failure modes and recovery cost:** Two realm-name tables disagree (§6). That is a medium recovery: REALM-NAMES-1, and this page is not held for it. Missing WORLD-DIRECTOR budgets are a medium recovery: the card is planned, not built.
+**Failure modes and recovery cost:** Realm-name drift between the two tables (§6) fails `realm_names_1_panel_names_match_look_for` (`client/src/climate_plane.rs:2271`). Missing WORLD-DIRECTOR budgets are a medium recovery: the card is planned, not built.
 
 **Tests:** `shared/hex_travel.rs:635` and `client/src/hex_travel.rs:625`, under the dev command in this section. Release proof is the release list in this section.
 
