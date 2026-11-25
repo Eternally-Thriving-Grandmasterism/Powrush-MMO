@@ -30,11 +30,11 @@ struct RealmSoftRoot;
 #[derive(Component)]
 struct RealmSoftBody;
 
-const REALMS: [(u8, &str); 5] = [
+pub(crate) const REALMS: [(u8, &str); 5] = [
     (0, "Sanctuary Prime"),
-    (1, "Synthetic Lattice"),
-    (2, "Verdant Bloom"),
-    (3, "Harmonic Chorus"),
+    (1, "Crystal Spires"),
+    (2, "Verdant Heartwood"),
+    (3, "Abyssal Depths"),
     (4, "Voidfarer Horizon"),
 ];
 
