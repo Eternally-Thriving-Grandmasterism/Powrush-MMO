@@ -2,7 +2,7 @@
 
 SYSTEMS-SPINE-1. Docs only. This file is new. No code, data, crate or format change.
 
-The PATSAGi Councils adopted the rulings this page records, under Sherif's typed delegation t1767u, t1948u and t2247u. Sherif may veto or amend. The ten sections are the queue ruling. Every owner line below was re-read at main `6ba72cf2`.
+The PATSAGi Councils adopted the rulings this page records, under Sherif's typed delegation t1767u, t1948u and t2247u. Sherif may veto or amend. The ten sections are the queue ruling. Owner lines in §1–§10 were first read at main `6ba72cf2`. §11 and §18 name their own re-read tips, and later cards re-pin only the lines they touch.
 
 Enforcement starts once this file is on main. From then on, each new card's PRE-PATH cites the spine section it plugs into. Cards already ruled are not held back: COMBAT-FAIR-1, STRIKE-HINT-1, GROUND-SNAP-1, GROUND-SNAP-2, GROUND-SNAP-3, GROUND-SNAP-4 and LOD-LIMBS-1.
 
@@ -346,7 +346,7 @@ Design only. Multiplayer is planned. There is no server, no account, and no netw
 
 Built today, and not a per-system replication design:
 
-- `shared/net_mode.rs:12` `NetMode`: Offline default `shared/net_mode.rs:15`, LoopbackDev `shared/net_mode.rs:17`, Online `shared/net_mode.rs:20`. Title Online stays grey `shared/net_mode.rs:5`. Tests `shared/net_mode.rs:59` and `shared/net_mode.rs:68`.
+- `shared/net_mode.rs:12` `NetMode`: Offline default `shared/net_mode.rs:15`, LoopbackDev `shared/net_mode.rs:17`, Online `shared/net_mode.rs:19`. Title Online stays grey `shared/net_mode.rs:5`. Tests `shared/net_mode.rs:59` and `shared/net_mode.rs:68`.
 - `client/src/net_mode.rs:3` through `client/src/net_mode.rs:7`: outbound WS only by intent, 127.0.0.1 only. Plugin `client/src/net_mode.rs:93`, registered `client/src/lib.rs:254`. Tests `client/src/net_mode.rs:172` and `client/src/net_mode.rs:229`.
 - `shared/hex_join.rs:18` `AuthorityMode`: Offline `shared/hex_join.rs:20`, Online `shared/hex_join.rs:22`. `shared/hex_join.rs:3` says no listen socket and no WS. `NetMode` and `AuthorityMode` both say offline versus online. This page adds no third mode.
 - `shared/hex_protocol.rs:4` says no listen socket and no WS client. `shared/hex_listen.rs:1` is pure loopback bind rules, and `shared/hex_listen.rs:19` is `127.0.0.1:7788`. The only `TcpListener` hit under `client/src` and `shared` is the negative assert at `client/src/hud_edit_mode.rs:1979`.
@@ -458,14 +458,32 @@ A service that is not in the tree is **GAP**. The Steam row is description only 
 
 ## 17. Enforcement
 
-Once this file is on main, every new CUT cites the spine contract it satisfies: a §11 block, or a row in §12, §13, §14 or §15. The PR names the test that proves that contract. Clerk's PRE-PATH checks both, and fills that card's §12 row.
+Once this file is on main, every new CUT cites the spine contract it satisfies: a §11 block, or a row in §12, §13, §14, §15 or §18. The PR names the test that proves that contract. Clerk's PRE-PATH checks both, and fills that card's §12 row.
 
 Cards already ruled are not held back: COMBAT-FAIR-1, STRIKE-HINT-1, GROUND-SNAP-1, GROUND-SNAP-2, GROUND-SNAP-3, GROUND-SNAP-4, LOD-LIMBS-1 and REALM-NAMES-1.
 
-Rows a later test may cite: §13.1 through §13.8, §14.1 through §14.4, §15.1 through §15.4, and the ten §12 rows.
+Rows a later test may cite: §13.1 through §13.8, §14.1 through §14.4, §15.1 through §15.4, §18.1 through §18.7, and the ten §12 rows.
 
 Soft-aim stays planned. No soft-aim function is in `client/src` at `44dca531`. COMBAT-FAIR-1 landed at `44dca53197ccd437a1931a1f66b54ed165f3f400`. The `combat_core` anchors on L19 and L27 were refreshed to that tip.
 
 L35 and L37 are left as they stand (D6, ruling 7119432575). An equipped owned find's standing step reaches combat through `land_hit_paid` (`client/src/combat_core.rs:356`; the add is `client/src/combat_core.rs:360`). Tested at `client/src/combat_core.rs:2303`.
 
 Steam, spend, deletes, new or changed copy, look, and ASSET-CI-PRIVATE-1 stay reserved to Sherif. Copy and button-hint text follow §15.2.
+
+## 18. PLAYER RIG
+
+Owner: `client/src/human_presence.rs`. Known-today lines in this section were re-read at the SOFT-PANEL-PIN-1 tip, where `client/src/human_presence.rs` is byte-identical to main `54986f38`. This section records what the code does. It adds no rule and holds back no card already ruled (§17). How the body looks stays under Sherif's veto (RULING 7117797312(b)). This page states structure only.
+
+**§18.1 Spawn.** `HumanPresencePlugin` (`client/src/human_presence.rs:817`) is added at `client/src/lib.rs:296`. `spawn_human_presence` (`client/src/human_presence.rs:869`) runs at Startup (`client/src/human_presence.rs:841`). The root carries `HumanPresence` (`client/src/human_presence.rs:924`) and the hips capsule (`client/src/human_presence.rs:909`, `client/src/human_presence.rs:920`).
+
+**§18.2 Parts and joints.** The pose systems drive `PersonPart` joints (`client/src/human_presence.rs:266`): the waist, the head, and one shoulder and one hip per side. The torso, arms and legs are capsules (`client/src/human_presence.rs:910`, `client/src/human_presence.rs:913`, `client/src/human_presence.rs:914`). The head and the hand accent are spheres (`client/src/human_presence.rs:911`, `client/src/human_presence.rs:915`; `PersonAccent` `client/src/human_presence.rs:275`). Joints are never scaled. Only child meshes carry a LOD law (`PersonLodMesh` `client/src/human_presence.rs:280`).
+
+**§18.3 LOD law (LOD-LIMBS-1).** The detail scale comes from `GraphicsPreset` (`shared/local_settings.rs:164`, §13) through `lived_presence_detail_scale` (`client/src/gltf_integration.rs:181`): Low 0.65, Medium 1.0, High 1.15 (`client/src/gltf_integration.rs:173`, `client/src/gltf_integration.rs:174`, `client/src/gltf_integration.rs:175`). Girth parts keep their length and scale only x and z (`girth_scale` `client/src/human_presence.rs:475`): the torso (`client/src/human_presence.rs:943`), arms (`client/src/human_presence.rs:983`) and legs (`client/src/human_presence.rs:1016`). Whole parts scale evenly (`lod_scale` `client/src/human_presence.rs:484`): the head (`client/src/human_presence.rs:953`) and the hand accent (`client/src/human_presence.rs:993`). The shoulder pivot follows torso girth (`shoulder_x` `client/src/human_presence.rs:480`). `apply_presence_mesh_lod` (`client/src/human_presence.rs:1028`) re-applies the law only when the setting changes (`client/src/human_presence.rs:1036`). It runs in the Update chain (`client/src/human_presence.rs:846`).
+
+**§18.4 Readable body.** `presence_still_capsule_readable` (`client/src/human_presence.rs:443`) requires every rest-pose joint overlap from `presence_joint_overlaps` (`client/src/human_presence.rs:500`) to be at least `-JOINT_EPS` (`client/src/human_presence.rs:496`, 5 mm). `presence_low_stays_capsule_readable` (`client/src/human_presence.rs:433`) requires the Low plan to be primitives only and never to dress. Tests: `lod_limbs_1_joint_overlaps_hold_every_tier` (`client/src/human_presence.rs:7986`) and `lod_limbs_1_real_lod_switch_keeps_every_joint` (`client/src/human_presence.rs:8080`).
+
+**§18.5 Pose.** `pose_person` (`client/src/human_presence.rs:1690`) runs in the same chain (`client/src/human_presence.rs:851`), after `sync_body` (`client/src/human_presence.rs:850`). It sets the waist from `waist_pitch` (`client/src/human_presence.rs:536`) and `crouch_drop` (`client/src/human_presence.rs:546`), both read through `bow_tell` (`client/src/human_presence.rs:551`) at `client/src/human_presence.rs:1719` and `client/src/human_presence.rs:1720`. It sets the head from `head_pitch` (`client/src/human_presence.rs:541`) at `client/src/human_presence.rs:1723`, and each shoulder and hip from `shoulder_pitch` (`client/src/human_presence.rs:556`) at `client/src/human_presence.rs:1727` and `hip_pitch` (`client/src/human_presence.rs:570`) at `client/src/human_presence.rs:1735`. `stance_read` (`client/src/human_presence.rs:523`) names the `Stance` (`client/src/human_presence.rs:287`). Tests: `ground_snap_3_winded_after_sprint_walks_without_crouch` (`client/src/human_presence.rs:3351`) and `ground_snap_3_primitives_winded_bow_only_when_still` (`client/src/human_presence.rs:3418`).
+
+**§18.6 Locomotion.** `apply_locomotion` (`client/src/human_presence.rs:1336`) runs in FixedUpdate (`client/src/human_presence.rs:865`). Riser lips go through `push_out_of_riser_lips` (`client/src/human_presence.rs:1575`). Tests: `ground_snap_2_walk_height_matches_drawn_tread_every_preset` (`client/src/human_presence.rs:7706`), `ground_snap_4_walk_height_follows_drawn_ground_per_realm` (`client/src/human_presence.rs:7809`), `ground_snap_5_still_near_rim_stays_on_tread` (`client/src/human_presence.rs:7912`) and `ground_snap_5_airborne_lip_reads_feet_before_fall` (`client/src/human_presence.rs:7937`).
+
+**§18.7 Authored body lane.** At Startup, `spawn_human_presence` takes an authored body lane when `use_optional_glb` (`client/src/gltf_integration.rs:151`) is true (`client/src/human_presence.rs:889`), and then skips the primitives of §18.1 to §18.5 (`client/src/human_presence.rs:891`). That lane spawns `AuthoredBodyRoot` (`client/src/human_presence.rs:232`) in `spawn_authored_ual1_presence` (`client/src/human_presence.rs:1765`). Its animation systems are registered at `client/src/human_presence.rs:859` and `client/src/human_presence.rs:860`. This page does not name the asset or its source. Those stay with Sherif (§17).
