@@ -259,13 +259,11 @@ pub fn slot_strikes(slot: Option<u32>) -> bool {
     slot == Some(0)
 }
 
-/// ABILITY-TOOLTIP-1 — tooltip text for an ability slot. Slot 0 is council wording (Sherif may veto) and stays test-only.
+/// ABILITY-TOOLTIP-1 — tooltip text for an ability slot. STRIKE-HINT-1: slot 0 is council wording (Sherif may veto), shown first on the AbilityTip slab.
 /// ABILITY-TOOLTIP-SHOW-1 A1 — slot 1 (Plate) is COMBAT_AND_PVP.md:456 verbatim, shown on the AbilityTip slab. Slots 2-3 get none.
 pub fn slot_tooltip(slot: u32) -> Option<String> {
     if slot == 1 { return Some("Plate, 3 s, incoming damage reduced by 30%.".into()); }
-    slot_strikes(Some(slot)).then(|| format!(
-        "Strike (left click, right trigger, or key 1 while no panel is open): hits the predator for {HIT} when it is within {REACH} of you."
-    ))
+    slot_strikes(Some(slot)).then(|| "Strike: left click, right trigger or 1".into())
 }
 
 /// One strike decision per frame: LMB/pad as before, or key 1 while no panel is open.
@@ -1000,13 +998,13 @@ fn cleared_show(travel: Option<Res<HexTravelState>>, combat: Option<Res<CombatSt
     disc.iter_mut().for_each(|mut vis| { vis.set_if_neq(if on { Visibility::Visible } else { Visibility::Hidden }); });
 }
 
-/// ABILITY-TOOLTIP-SHOW-1 — the AbilityTip slab (registry ACTION_BAR occupant, rank 5, class 3, 240 px) holding slot 1's text,
+/// ABILITY-TOOLTIP-SHOW-1 — the AbilityTip slab (registry ACTION_BAR occupant, rank 3 per STRIKE-HINT-1, class 3, 240 px) holding slot 0's strike line, then slot 1's text,
 /// in the Practice strip's existing plate style. Spawns Hidden; the active preset places it and applies R5/R2/§6.3.
 fn spawn_ability_tip(mut commands: Commands) {
     use crate::{hud_anchor_registry::{HudSlab, ACTION_BAR, ID_ABILITY_TIP}, ui_kit::{TITLE_BORDER, TITLE_PLATE_BG, TITLE_TEXT_PRIMARY}};
     let node = Node { position_type: PositionType::Absolute, bottom: ACTION_BAR.bottom(), right: ACTION_BAR.right(), width: Val::Px(240.0), padding: UiRect::axes(Val::Px(18.0), Val::Px(12.0)), justify_content: JustifyContent::Center, align_items: AlignItems::Center, border: UiRect::all(Val::Px(1.5)), ..default() };
     commands.spawn((node, BackgroundColor(TITLE_PLATE_BG), crate::ui_frame::plate_frame(), BorderColor::all(TITLE_BORDER), Visibility::Hidden, HudSlab(ID_ABILITY_TIP))).with_children(|tip| {
-        tip.spawn((Text::new(slot_tooltip(1).unwrap_or_default()), TextFont { font_size: FontSize::Px(15.5 / 1.2), ..default() }, TextColor(TITLE_TEXT_PRIMARY)));
+        tip.spawn((Text::new(format!("{}\n{}", slot_tooltip(0).unwrap_or_default(), slot_tooltip(1).unwrap_or_default())), TextFont { font_size: FontSize::Px(15.5 / 1.2), ..default() }, TextColor(TITLE_TEXT_PRIMARY)));
     });
 }
 /// ABILITY-TOOLTIP-SHOW-1 A2 — the tip's own Visibility, set each frame after `combat_fire` (`set_if_neq`, TIP-NEQ-1):
@@ -1066,8 +1064,8 @@ mod tests {
     #[test]
     fn slot_tooltip_tracks_hit_reach_and_strike_slots() {
         let text = slot_tooltip(0).expect("slot 0 strikes");
-        assert!(text.contains(&HIT.to_string()) && text.contains(&REACH.to_string()), "{text}");
-        assert!(text.contains("key 1 while no panel is open"), "{text}");
+        assert_eq!(text, SH_STRIKE); // STRIKE-HINT-1: the pinned bytes
+        assert!(["left click", "right trigger", " 1"].iter().all(|w| text.contains(w)), "{text}");
         for s in 0..=4 {
             assert_eq!(slot_tooltip(s).is_some(), s <= 1, "slot {s}"); // ABILITY-TOOLTIP-SHOW-1 A3: slot 1 carries the Plate line
         }
@@ -2793,7 +2791,7 @@ mod tests {
         assert!(strike_step(&mut d, &mut last, 1, true, true).is_some() && (d.taken, p) == (8, 25));
     }
     #[test] fn sc1_s6_slot_tooltip_reads_8_and_reach() {
-        let text = slot_tooltip(0).unwrap(); assert!(text.contains("for 8 when") && text.contains(&REACH.to_string()) && ["class", "soon", "coming", "unlock", "cooldown"].iter().all(|b| !text.to_lowercase().contains(b)), "{text}");
+        let text = slot_tooltip(0).unwrap(); assert!(text == SH_STRIKE && ["class", "soon", "coming", "unlock", "cooldown"].iter().all(|b| !text.to_lowercase().contains(b)), "{text}");
     }
     #[test] fn sc1_s7_ten_xp_a_landed_hit_and_hits_21_to_25_pay_nothing() {
         let (mut c, mut s, mut paid) = (CombatState::default(), SkillXp::default(), vec![]); for _ in 0..25 { if c.predator_taken >= HEALTH { c.predator_taken = 0 } let xp = s.xp[COMBAT]; assert!(land_hit(&mut c, &mut s, true)); paid.push(s.xp[COMBAT] - xp); }
@@ -2908,7 +2906,7 @@ mod tests {
     }
     #[test]
     fn ats1_r3_child_text_is_the_canon_plate_line() {
-        ats("ats1r3", true, |app| assert_eq!(ats_tips(app), [(Visibility::Visible, vec![ATS_PLATE.to_string()])]));
+        ats("ats1r3", true, |app| assert_eq!(ats_tips(app), [(Visibility::Visible, vec![sh_want()])]));
     }
     #[test]
     fn ats1_r4_yields_to_care_strip_and_guidance() {
@@ -2920,7 +2918,7 @@ mod tests {
         cc2a("ats1r4b", DifficultyTier::Sheltered, Some(0), |app| {
             tick(app, 0.0);
             assert!(app.world().resource::<FirstSessionGuidance>().active && !app.world().resource::<FirstSessionGuidance>().dismissed);
-            assert!(ats_all(app, Visibility::Hidden) && ats_yielded(app) == !ats_tips(app).is_empty(), "Guidance shown");
+            assert!(ats_all(app, Visibility::Visible) && !ats_yielded(app) && !ats_tips(app).is_empty(), "Guidance shown: the tip outranks it (H2-b)");
         });
     }
     #[test]
@@ -2959,7 +2957,7 @@ mod tests {
     fn docs_combat_456() -> String { include_str!("../../docs/design/COMBAT_AND_PVP.md").lines().nth(455).unwrap_or_default().to_string() }
     #[test]
     fn ats1_r9_budget_44_banned_words_and_plate_values() {
-        for t in slot_tooltip(1).iter().chain([ATS_PLATE.to_string()].iter()) {
+        for t in slot_tooltip(0).iter().chain(slot_tooltip(1).iter()).chain([ATS_PLATE.to_string()].iter()) {
             assert!(t.chars().count() <= 44, "{t}");
             assert!(t.to_lowercase().split(|c: char| !c.is_alphanumeric()).all(|w| !["class", "soon", "coming", "unlock", "cooldown"].contains(&w)), "{t}"); // AMEND 7066441253: whole words; "incoming" is the canon word (COMBAT_AND_PVP.md:456)
         }
@@ -2978,6 +2976,77 @@ mod tests {
             assert!(ats_all(app, Visibility::Hidden), "Shell, predator down");
         });
     }
+
+    // STRIKE-HINT-1 SH1-F1..F9 — CUT 7156717529: one tip Text, strike line first, Plate second (T-A); AbilityTip ranks above Guidance (H2-b).
+    const SH_STRIKE: &str = "Strike: left click, right trigger or 1";
+    const SH_TIP_SHOW: &str = r#"fn ability_tip_show(combat: Res<CombatState>, (travel, presence): (Option<Res<HexTravelState>>, Option<Res<SoftPresence>>), mut slabs: Query<(&crate::hud_anchor_registry::HudSlab, &mut Visibility)>) {
+    let show = travel.zip(presence).is_some_and(|(t, p)| in_reach(t.current, &combat, p.position.x, p.position.z));
+    for (_, mut vis) in slabs.iter_mut().filter(|(s, _)| s.0 == crate::hud_anchor_registry::ID_ABILITY_TIP) { vis.set_if_neq(if show { Visibility::Visible } else { Visibility::Hidden }); }
+}"#;
+    fn sh_want() -> String { format!("{SH_STRIKE}\n{ATS_PLATE}") }
+    fn sh_shown(app: &mut App) -> bool { ats_tips(app) == [(Visibility::Visible, vec![sh_want()])] && !ats_yielded(app) }
+    fn sh_at(app: &mut App, place: PlaceId, at: [f32; 2]) { app.world_mut().resource_mut::<HexTravelState>().current = place; app.world_mut().resource_mut::<SoftPresence>().position = Vec3::new(at[0], 0.9, at[1]); tick(app, 0.0); }
+    fn sh_hidden(app: &mut App) -> bool { ats_all(app, Visibility::Hidden) && !ats_tips(app).is_empty() }
+    #[test]
+    fn sh1_f1_fresh_save_in_reach_classic_shows_the_strike_line() { ats("sh1f1", false, |app| assert!(sh_shown(app), "{:?}", ats_tips(app))); }
+    #[test]
+    fn sh1_f2_sanctuary_practice_fight_shows_it() {
+        yard("sh1f2", HudPresetId::Classic, PlaceId::Sanctuary, DifficultyTier::Sheltered, STAVEHOLD_FIGHT_HOME, |app| { app.world_mut().resource_mut::<FirstSessionGuidance>().dismiss(); tick(app, 0.0); tick(app, 0.0); assert!(sh_shown(app), "{:?}", ats_tips(app)); });
+    }
+    #[test]
+    fn sh1_f3_out_of_reach_down_or_off_fight_hidden() {
+        ats("sh1f3", false, |app| {
+            sh_at(app, PlaceId::Heartwood, [PREDATOR_HOME[0] + 2.0 * REACH, PREDATOR_HOME[1]]); assert!(sh_hidden(app) && !ats_yielded(app), "out of reach");
+            sh_at(app, PlaceId::Heartwood, PREDATOR_HOME); assert!(sh_shown(app), "back in reach");
+            app.world_mut().resource_mut::<CombatState>().predator_taken = HEALTH; tick(app, 0.0); assert!(sh_hidden(app) && !ats_yielded(app), "predator down");
+            app.world_mut().resource_mut::<CombatState>().predator_taken = 0; sh_at(app, PlaceId::Depths, PREDATOR_HOME); assert!(sh_hidden(app) && !ats_yielded(app), "Depths");
+        });
+    }
+    #[test]
+    fn sh1_f4_every_preset_and_the_clean_yard() {
+        assert!(!crate::hud_presets::LIVED_HUD_CLEAN_SUPPRESSED.contains(&ID_ABILITY_TIP));
+        for (tag, id) in [("sh1f4c", Some(HudPresetId::Classic)), ("sh1f4m", Some(HudPresetId::Minimal)), ("sh1f4g", Some(HudPresetId::Management)), ("sh1f4n", None)] {
+            ats(tag, false, |app| { app.insert_resource(ActiveHudPreset { id }); tick(app, 0.0); tick(app, 0.0); assert!(sh_shown(app), "{tag}"); });
+        }
+    }
+    #[test]
+    fn sh1_f5_r2_yields_to_care_strip_and_guidance() {
+        ats("sh1f5a", false, |app| { app.world_mut().spawn((HudSlab(ID_CARE_STRIP), Visibility::Visible, Node::default())); tick(app, 0.0); assert!(sh_hidden(app) && ats_yielded(app), "CareStrip shown"); });
+        cc2a("sh1f5b", DifficultyTier::Sheltered, None, |app| {
+            tick(app, 0.0);
+            assert!(app.world().resource::<FirstSessionGuidance>().active && !app.world().resource::<FirstSessionGuidance>().dismissed);
+            assert!(sh_shown(app) && app.world().resource::<HudYielded>().0.contains(&crate::hud_anchor_registry::ID_GUIDANCE), "H2-b: Guidance yields to the tip");
+        });
+        cc2a("sh1f5c", DifficultyTier::Sheltered, None, |app| {
+            app.insert_resource(ActiveHudPreset { id: Some(HudPresetId::Management) }); tick(app, 0.0); tick(app, 0.0);
+            assert!(app.world().resource::<FirstSessionGuidance>().active && !app.world().resource::<FirstSessionGuidance>().dismissed);
+            assert!(sh_shown(app) && app.world().resource::<HudYielded>().0.contains(&crate::hud_anchor_registry::ID_GUIDANCE), "H2-b Management: Guidance yields to the tip");
+        });
+    }
+    #[test]
+    fn sh1_f6_r5_modals_hide_and_restore() {
+        ats("sh1f6", false, |app| {
+            app.world_mut().resource_mut::<PlacesPlate>().open = true; tick(app, 0.0); assert!(sh_hidden(app), "places");
+            app.world_mut().resource_mut::<PlacesPlate>().open = false; tick(app, 0.0); assert!(sh_shown(app), "places restored");
+            app.world_mut().resource_mut::<HouseLabel>().settings_open = true; tick(app, 0.0); assert!(sh_hidden(app), "settings");
+            app.world_mut().resource_mut::<HouseLabel>().settings_open = false; tick(app, 0.0); assert!(sh_shown(app), "settings restored");
+            let mut e = crate::hud_edit_mode::HudEditMode::default(); e.active = true; app.insert_resource(e);
+            app.world_mut().resource_mut::<PlacesPlate>().open = true; tick(app, 0.0); assert!(sh_shown(app), "§6.1 edit mode with Places open");
+        });
+    }
+    #[test]
+    fn sh1_f7_wording_and_shape_pins() {
+        assert_eq!(slot_tooltip(0).as_deref(), Some(SH_STRIKE));
+        let prod = include_str!("combat_core.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        let spawn = &prod[prod.find("fn spawn_ability_tip(").unwrap()..prod.find("fn ability_tip_show(").unwrap()];
+        assert_eq!((prod.matches("slot_tooltip(0)").count(), spawn.matches("slot_tooltip(0)").count(), spawn.find("slot_tooltip(0)") < spawn.find("slot_tooltip(1)")), (1, 1, true));
+        assert_eq!((prod.matches("HudSlab(ID_ABILITY_TIP)").count(), prod.matches("\"Strike: ").count(), spawn.matches("Text::new(").count(), spawn.contains("pad_hint")), (1, 1, 1, false));
+        assert!(prod.contains(SH_TIP_SHOW), "ability_tip_show stays byte-identical");
+    }
+    #[test]
+    fn sh1_f8_droid_reach_alone_does_not_show_it() { ats("sh1f8", false, |app| { sh_at(app, PlaceId::Heartwood, crate::droid::DROID_HOME); assert!(sh_hidden(app), "droid reach"); }); }
+    #[test]
+    fn sh1_f9_pad_present_same_text() { ats("sh1f9", false, |app| { app.world_mut().spawn(Gamepad::default()); tick(app, 0.0); tick(app, 0.0); assert!(sh_shown(app), "{:?}", ats_tips(app)); }); }
 
     // TIP-NEQ-1 N1 — CUT 7066705477: a steady, unyielded tip is not re-marked Changed each frame (Last-schedule tape on the tip).
     #[derive(Resource, Default)] struct TnTape(Vec<bool>);
@@ -3173,7 +3242,7 @@ mod tests {
             assert_eq!(app.world().resource::<CombatState>().player_taken - before, plate_hit(LUNGE_HIT), "key 2 in the tell");
             let tips = ats_tips(app);
             assert_eq!(tips.len(), 1, "one tip");
-            assert_eq!((tips[0].0, tips[0].1.as_slice()), (Visibility::Visible, [slot_tooltip(1).unwrap()].as_slice()), "Plate tip through HudLayoutPlugin");
+            assert_eq!((tips[0].0, tips[0].1.as_slice()), (Visibility::Visible, [format!("{}\n{}", slot_tooltip(0).unwrap(), slot_tooltip(1).unwrap())].as_slice()), "Plate tip through HudLayoutPlugin");
         });
     }
     #[test]
