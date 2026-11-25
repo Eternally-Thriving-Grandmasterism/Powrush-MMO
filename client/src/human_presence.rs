@@ -1438,7 +1438,8 @@ fn apply_locomotion(
     }
     crate::collide::push_out_clear(&mut presence.position, &mut vel, field.chain(owned).chain(crate::collide::prop_solids(trees.3.as_ref().map(|s| s.current), realm)));
     push_out_of_moat(&mut presence.position, &mut vel);
-    push_out_of_riser_lips(&mut presence.position, &mut vel);
+    let plan = crate::terrain::live_plan(settings.as_deref());
+    push_out_of_riser_lips(&mut presence.position, &mut vel, plan);
     presence.velocity = vel;
     // CARD TERRAIN-GROUND-1 / YARD-EDGE-1 — outer shelf bound after the push-outs; outward vel drops M8-style.
     let (plate, n) = push_out_of_plate_edge(presence.position.xz());
@@ -1451,10 +1452,9 @@ fn apply_locomotion(
     // The landing snap below reads `wish_vel`; at the edge it keeps only the part along the bound.
     let (_, rim) = push_out_of_plate_edge(presence.position.xz() + wish_vel * dt);
     wish_vel -= wish_vel.dot(rim).min(0.0) * rim;
-    let hip =
-        STAND + crate::terrain::shelf_offset(presence.position.x, presence.position.z);
-    let tread_drop =
-        crate::terrain::shelf_offset(presence.position.x, presence.position.z) < -1e-4;
+    let ground = crate::terrain::tread_offset(presence.position.x, presence.position.z, plan);
+    let hip = STAND + ground;
+    let tread_drop = ground < -1e-4;
     if tread_drop && presence.grounded && presence.position.y > hip + 1e-4 && presence.position.y <= STAND {
         let still = wish_vel.length_squared() < 1e-8
             && Vec2::new(presence.velocity.x, presence.velocity.z).length_squared() < 1e-8
@@ -1518,7 +1518,7 @@ fn push_out_of_moat(pos: &mut Vec3, vel: &mut Vec3) {
 }
 
 /// CARD TERRAIN-GROUND-1 — height-aware riser lips at each shelf outer. Outward falls are free; inward needs tread feet.
-fn push_out_of_riser_lips(pos: &mut Vec3, vel: &mut Vec3) {
+fn push_out_of_riser_lips(pos: &mut Vec3, vel: &mut Vec3, plan: crate::terrain::TerrainPlan) {
     let feet = pos.y - STAND + silhouette().feet;
     let xz = pos.xz();
     let r = xz.length();
@@ -1527,7 +1527,7 @@ fn push_out_of_riser_lips(pos: &mut Vec3, vel: &mut Vec3) {
     }
     let dir = xz / r;
     for lip in 1..crate::terrain::SHELF_COUNT {
-        let lip_r = crate::terrain::SHELF_OUTER[lip - 1];
+        let lip_r = crate::terrain::rim_radius(pos.x, pos.z, lip - 1, plan);
         let reach = lip_r + PLAYER_TRUNK_RADIUS;
         if (r - lip_r).abs() > PLAYER_TRUNK_RADIUS + 0.05 {
             continue;
@@ -7483,5 +7483,136 @@ mod tests {
         assert_eq!([col.matches("WARD_FOOTPRINT_RADIUS").count(), col.matches("ResMut<").count(), col.matches("add_systems").count(), col.matches("Collider").count()], [1, 1, 3, 5]);
         assert_eq!([hp.matches("ResMut<").count(), hp.matches("add_systems").count(), hp.matches("push_out_of_rock(").count(), col.matches("push_out_of_rock(").count()], [20, 4, 1, 3]);
         assert!(col.contains("pub(crate) fn push_out_of_rock(pos: &mut Vec3, vel: &mut Vec3, spot: Vec3, stand: f32, feet: f32) {") && !col.contains("rapier") && !col.contains("avian"));
+    }
+
+    // GROUND-SNAP-2 — walk height, lips and fall edge follow the drawn terrace mesh.
+    // F1 probes sit 0.40 off each rim, outside the lip band (trunk + 0.05).
+    fn gs2_app(preset: Option<GraphicsPreset>) -> App {
+        let mut app = mf_fresh();
+        crate::test_env::single_thread(&mut app); // no test_env lock is taken; executors only
+        if let Some(p) = preset {
+            let mut inner = LocalSettings::default();
+            inner.set_graphics_preset(p);
+            app.insert_resource(LocalSettingsState { inner, dirty: false });
+        }
+        app
+    }
+    fn gs2_place(app: &mut App, at: Vec3, stick: Vec2) {
+        mf_stick(app, stick.x, stick.y, false);
+        let mut p = app.world_mut().resource_mut::<SoftPresence>();
+        (p.position, p.velocity, p.grounded) = (at, Vec3::ZERO, true);
+        (p.prev_tick, p.curr_tick) = (Some(at), Some(at));
+    }
+    fn gs2_hip(mesh: &Mesh, x: f32, z: f32) -> f32 {
+        STAND + crate::terrain::drawn_tread_y(mesh, x, z).unwrap() - crate::terrain::PLAY_FLOOR_Y
+    }
+    /// Unit stick for world direction (c, s): yaw 0 maps the stick (x, y) to (x, 0, -y).
+    fn gs2_stick(c: f32, s: f32) -> Vec2 {
+        Vec2::new(c, -s)
+    }
+    fn gs2_cases() -> Vec<(GraphicsPreset, usize, f32)> {
+        let mut v = Vec::new();
+        for p in GraphicsPreset::ALL {
+            for ix in [0, 2, 3] {
+                v.push((p, ix, 0.5 * std::f32::consts::TAU / crate::terrain::terrain_plan(p).segments as f32));
+            }
+        }
+        v
+    }
+
+    #[test]
+    fn ground_snap_2_walk_height_matches_drawn_tread_every_preset() {
+        use crate::terrain::{rim_radius, terrace_mesh, terrain_plan};
+        let (mut probes, mut bad) = (0, Vec::new());
+        for arm in GraphicsPreset::ALL.into_iter().map(Some).chain([None]) {
+            let plan = terrain_plan(arm.unwrap_or(GraphicsPreset::Medium));
+            let mesh = terrace_mesh(plan);
+            let mut app = gs2_app(arm);
+            let n = plan.segments;
+            for ix in 0..5 {
+                for i in [0, n / 4, n / 2, 3 * n / 4] {
+                    for f in [1e-4_f32, 0.5] {
+                        let t = (i as f32 + f) * std::f32::consts::TAU / n as f32;
+                        let rho = rim_radius(t.cos(), t.sin(), ix, plan);
+                        for rr in [rho - 0.40, rho + 0.40] {
+                            if (47.7..=66.3).contains(&rr) {
+                                continue;
+                            }
+                            let (x, z) = (t.cos() * rr, t.sin() * rr);
+                            let truth = gs2_hip(&mesh, x, z);
+                            gs2_place(&mut app, Vec3::new(x, truth, z), Vec2::ZERO);
+                            jb_step(&mut app);
+                            let p = app.world().resource::<SoftPresence>();
+                            probes += 1;
+                            if (p.position.y - truth).abs() > 0.01 || !p.grounded {
+                                bad.push(format!("{arm:?} ix {ix} i {i} f {f} r {rr:.2} y {:.3} truth {truth:.3} grounded {}", p.position.y, p.grounded));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        assert_eq!(probes, 72 + 4 * 80 + 80);
+        assert!(bad.is_empty(), "{} off the drawn tread:\n{}", bad.len(), bad.join("\n"));
+    }
+
+    #[test]
+    fn ground_snap_2_inward_walk_stops_at_drawn_riser() {
+        use crate::terrain::{rim_radius, terrace_mesh, terrain_plan};
+        for (p, ix, t) in gs2_cases() {
+            let plan = terrain_plan(p);
+            let mesh = terrace_mesh(plan);
+            let (c, s) = (t.cos(), t.sin());
+            let rho = rim_radius(c, s, ix, plan);
+            let start = rho + 2.0;
+            let lower = gs2_hip(&mesh, c * start, s * start);
+            let mut app = gs2_app(Some(p));
+            gs2_place(&mut app, Vec3::new(c * start, lower, s * start), gs2_stick(-c, -s));
+            let mut min_r = f32::MAX;
+            for tick in 0..150 {
+                jb_step(&mut app);
+                let at = app.world().resource::<SoftPresence>().position;
+                min_r = min_r.min(at.xz().length());
+                assert!(at.y <= lower + 1e-3, "{p:?} ix {ix} tick {tick} climbed y {} lower {lower}", at.y);
+            }
+            assert!((min_r - (rho + PLAYER_TRUNK_RADIUS)).abs() <= 0.06, "{p:?} ix {ix} min r {min_r} rho {rho}");
+        }
+    }
+
+    #[test]
+    fn ground_snap_2_outward_walk_falls_at_drawn_edge() {
+        use crate::terrain::{rim_radius, terrace_mesh, terrain_plan};
+        for (p, ix, t) in gs2_cases() {
+            let plan = terrain_plan(p);
+            let mesh = terrace_mesh(plan);
+            let (c, s) = (t.cos(), t.sin());
+            let rho = rim_radius(c, s, ix, plan);
+            let start = rho - 2.0;
+            let mut app = gs2_app(Some(p));
+            gs2_place(&mut app, Vec3::new(c * start, gs2_hip(&mesh, c * start, s * start), s * start), gs2_stick(c, s));
+            let fell = (0..150).find_map(|_| {
+                jb_step(&mut app);
+                let at = app.world().resource::<SoftPresence>();
+                (!at.grounded).then(|| at.position.xz().length())
+            });
+            let r_f = fell.unwrap_or_else(|| panic!("{p:?} ix {ix} never left the tread"));
+            // The lip shoves a grounded body within 0.35 inside the rim out to rho + trunk (gravity sag, banked).
+            assert!((r_f - (rho + PLAYER_TRUNK_RADIUS)).abs() <= 0.06, "{p:?} ix {ix} fell at {r_f} rho {rho}");
+        }
+    }
+
+    #[test]
+    fn ground_snap_2_walk_height_follows_live_preset_switch() {
+        let t = std::f32::consts::PI / 8.0;
+        let (x, z) = (40.0 * t.cos(), 40.0 * t.sin());
+        let mut app = gs2_app(Some(GraphicsPreset::Medium));
+        gs2_place(&mut app, Vec3::new(x, STAND, z), Vec2::ZERO);
+        jb_step(&mut app);
+        let y = app.world().resource::<SoftPresence>().position.y;
+        assert!((y - STAND).abs() <= 0.01, "Medium y {y}");
+        app.world_mut().resource_mut::<LocalSettingsState>().inner.set_graphics_preset(GraphicsPreset::Mobile);
+        jb_step(&mut app);
+        let y = app.world().resource::<SoftPresence>().position.y;
+        assert!((y - (STAND - 1.38)).abs() <= 0.01, "Mobile y {y}");
     }
 }

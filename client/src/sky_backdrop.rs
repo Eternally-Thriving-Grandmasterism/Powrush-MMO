@@ -736,23 +736,18 @@ fn spawn_sky_backdrop(
 fn sync_terrace_mesh(
     settings: Option<Res<LocalSettingsState>>,
     meshes: Option<ResMut<Assets<Mesh>>>,
-    mut stamped: Local<Option<GraphicsPreset>>,
+    mut stamped: Local<Option<crate::terrain::TerrainPlan>>,
     grounds: Query<(&SkyBackdropPart, &Mesh3d)>,
 ) {
     let Some(mut meshes) = meshes else {
         return;
     };
-    let preset = settings
-        .as_ref()
-        .map(|state| state.inner.graphics_preset)
-        .unwrap_or(GraphicsPreset::Medium);
-    if *stamped == Some(preset) {
+    let plan = crate::terrain::live_plan(settings.as_deref());
+    if *stamped == Some(plan) {
         return;
     }
-    *stamped = Some(preset);
-    let mut built = Some(crate::terrain::terrace_mesh(crate::terrain::terrain_plan(
-        preset,
-    )));
+    *stamped = Some(plan);
+    let mut built = Some(crate::terrain::terrace_mesh(plan));
     for (part, mesh) in &grounds {
         if *part != SkyBackdropPart::Ground {
             continue;
@@ -1559,6 +1554,35 @@ mod tests {
         let prefix = std::env::var("SHOT_PREFIX").unwrap_or_else(|_| "vp-sky-2".into());
         save_sky_png(&low, &format!("{prefix}-low.png"));
         save_sky_png(&medium, &format!("{prefix}-medium.png"));
+    }
+
+    /// GROUND-SNAP-2 F6 — the drawn ground is terrace_mesh on the same plan the walk reads.
+    #[test]
+    fn ground_snap_2_sync_terrace_mesh_uses_live_plan() {
+        let pos = |m: &Mesh| m.attribute(Mesh::ATTRIBUTE_POSITION).unwrap().as_float3().unwrap().to_vec();
+        for arm in GraphicsPreset::ALL.into_iter().map(Some).chain([None]) {
+            let mut app = App::new();
+            app.add_plugins((MinimalPlugins, AssetPlugin::default())).init_asset::<Mesh>();
+            if let Some(p) = arm {
+                let mut inner = shared::local_settings::LocalSettings::default();
+                inner.set_graphics_preset(p);
+                app.insert_resource(LocalSettingsState { inner, dirty: false });
+            }
+            let handle = app.world_mut().resource_mut::<Assets<Mesh>>().add(Mesh::from(Cuboid::default()));
+            let ground: Mesh3d = handle.clone().into(); // not a new Mesh3d site (entity_policy::mesh3d_site_count_guard)
+            app.world_mut().spawn((SkyBackdropPart::Ground, ground));
+            app.add_systems(Update, sync_terrace_mesh);
+            crate::test_env::single_thread(&mut app);
+            app.update();
+            let want = crate::terrain::terrace_mesh(crate::terrain::terrain_plan(arm.unwrap_or(GraphicsPreset::Medium)));
+            assert_eq!(pos(app.world().resource::<Assets<Mesh>>().get(&handle).unwrap()), pos(&want), "{arm:?}");
+            if arm.is_some() {
+                app.world_mut().resource_mut::<LocalSettingsState>().inner.set_graphics_preset(GraphicsPreset::Mobile);
+                app.update();
+                let mobile = crate::terrain::terrace_mesh(crate::terrain::terrain_plan(GraphicsPreset::Mobile));
+                assert_eq!(pos(app.world().resource::<Assets<Mesh>>().get(&handle).unwrap()), pos(&mobile), "{arm:?} -> Mobile");
+            }
+        }
     }
 }
 
