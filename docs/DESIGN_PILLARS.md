@@ -95,4 +95,4 @@ Each row is a PROPOSAL until Sherif's veto window passes. Realm ids stay for the
 
 The same no-fifth-place refusal is restated at [EA_BAR.md:71](EA_BAR.md#L71) and [CREDIT_RESERVE_LOGISTICS.md:9](CREDIT_RESERVE_LOGISTICS.md#L9). The :98 proposal covers those lines too.
 
-Later docs-lane cards, each its own CUT: SYSTEMS-SPINE-1, WORLD-BIBLE-1, WORLD-GEN-1, LOOK-TARGET-1, GDD-INDEX-1. Paths for those cards are planned. This page invents none.
+Later docs-lane cards, each its own CUT: SYSTEMS-SPINE-1 (#1162), WORLD-BIBLE-1 (#1171), WORLD-GEN-1 (#1173), LOOK-TARGET-1 (#1175), GDD-INDEX-1 (#1177). All five are on main, docs only. This page invents none.

@@ -63,7 +63,7 @@ COMBAT-FAIR-1's numbers are this section's first rows. That card is already rule
 
 **Owner:** travel is `shared/hex_travel.rs:52` `PlaceId` (`LOCAL_HEXES` `:61`, `apply_travel_named` `:541`) and `client/src/hex_travel.rs:251` `apply_place` (`places_plate_clicks` `:625`). Dress is `client/src/climate_plane.rs:393` `look_for`, `:1661` `sync_place_dress_from_travel`, `:1854` `apply_climate_look`. Gen seeds: `shared/powrush_gen.rs:95` `grove_seed`, `client/src/light_gen.rs:112` `LightGenPlugin`, `client/src/vegetation.rs:368` `vegetation_plants`, `client/src/sky_backdrop.rs:325` `ring_peaks`, `client/src/terrain.rs:120` `terrace_height`.
 
-**Status:** partial. The world bible is planned (WORLD-BIBLE-1). WORLD-DIRECTOR L0–L3 budgets are planned (no file and no function in this tree).
+**Status:** partial. The world bible is on main as `docs/WORLD_BIBLE.md` (WORLD-BIBLE-1, #1171, docs only). WORLD-DIRECTOR L0–L3 budgets are planned (no file and no function in this tree).
 
 **Overlap:** Places travel (`PlaceId`) versus the Z/F3 realm switch. Z is `client/src/soft_play_bindings.rs:27`, F3 is `:46`, and the switch is `client/src/human_soft_panels.rs:168` (travel note `:200`). The two realm-name tables match since REALM-NAMES-1 (#1174). `client/src/human_soft_panels.rs:34-38` names Sanctuary Prime, Crystal Spires, Verdant Heartwood, Abyssal Depths, Voidfarer Horizon, the same as `look_for`: Sanctuary Prime (`client/src/climate_plane.rs:466`), Crystal Spires (`:423`), Verdant Heartwood (`:401`), Abyssal Depths (`:447`) and Voidfarer Horizon (`:425`). Test `realm_names_1_panel_names_match_look_for` (`client/src/climate_plane.rs:2271`) pins them equal.
 
@@ -174,7 +174,7 @@ One block for each system in §1 through §10. The seven fields follow queue rul
 
 A perf figure here is a target, not a measurement (§13.1). Multiplayer is planned only. This page names no server and no account.
 
-Shared work that is already written stays planned: the COMPANY-1 layer (`docs/DESIGN_PILLARS.md:44`), NPC rival companies (`docs/DESIGN_PILLARS.md:56`), BOT-SOAK-1 (`docs/DESIGN_PILLARS.md:66`), and the EA minimum of one refine leg plus one haul leg (`docs/EA_BAR.md:47`). WORLD-BIBLE-1, WORLD-GEN-1 and WORLD-TRAVEL-1 are planned.
+Shared work that is already written stays planned: the COMPANY-1 layer (`docs/DESIGN_PILLARS.md:44`), NPC rival companies (`docs/DESIGN_PILLARS.md:56`), BOT-SOAK-1 (`docs/DESIGN_PILLARS.md:66`), and the EA minimum of one refine leg plus one haul leg (`docs/EA_BAR.md:47`). WORLD-BIBLE-1 (#1171) and WORLD-GEN-1 (#1173) are on main, docs only. WORLD-TRAVEL-1 is planned.
 
 Dev proof is `cargo test -p shared -p rsil-identity` and `cargo test -p powrush-client --lib` (`.github/workflows/ci.yml:141`, `.github/workflows/ci.yml:144`). The seven required checks stay: validate (`.github/workflows/validate-full-files.yml:8`), PATSAGi merge court (`.github/workflows/patsagi-auto-merge.yml:20`), Core (`.github/workflows/ci.yml:18`), Core + Q2 one-frame (`.github/workflows/agent-headless-qa.yml:25`), offline-build on ubuntu-24.04 and on windows-latest (`.github/workflows/offline-build.yml:17`, matrix `.github/workflows/offline-build.yml:27`), and clean-boot (`.github/workflows/offline-build.yml:221`). Release proof is that offline-build, that clean-boot, and Sherif's real-PC test named at `docs/DESIGN_PILLARS.md:72`. There is no perf step in CI. Q2 does not compare pixels (`.github/workflows/agent-headless-qa.yml:6`).
 
@@ -262,11 +262,11 @@ The Draek sentences already in §1, §6 and §8 stay as they are. This section a
 
 ### 11.6 World (bible, gen seeds, zones, travel, WORLD-DIRECTOR L0–L3 budgets)
 
-**Contract:** Three PlaceIds, travel between them, and dress per place. The world bible, the WORLD-DIRECTOR budgets, and distinct traveled places are planned.
+**Contract:** Three PlaceIds, travel between them, and dress per place. The world bible is on main (§6). The WORLD-DIRECTOR budgets and distinct traveled places are planned.
 
 **Known today:** `PlaceId` `shared/hex_travel.rs:52`, `LOCAL_HEXES` `shared/hex_travel.rs:61`, `apply_travel_named` `shared/hex_travel.rs:541`, test `shared/hex_travel.rs:635` (22 `#[test]` fns). Client `apply_place` `client/src/hex_travel.rs:251`, `places_plate_clicks` `client/src/hex_travel.rs:625` (77 `#[test]` fns in that file). `look_for` `client/src/climate_plane.rs:393`, `sync_place_dress_from_travel` `client/src/climate_plane.rs:1661`, `apply_climate_look` `client/src/climate_plane.rs:1854`. Look-name pins `client/src/climate_plane.rs:2612`. Rooms note `docs/PLACES_BIBLE.md:61`. Zones row `docs/DESIGN_PILLARS.md:37`. Grove seed `shared/powrush_gen.rs:95`. The two realm-name tables match (§6). Those names are owner-ruled (#738 7118691808). REALM-NAMES-1 shipped as #1174.
 
-**Expected:** WORLD-BIBLE-1, WORLD-GEN-1 and WORLD-TRAVEL-1 are planned. REALM-NAMES-1 is on main (#1174). WORLD-DIRECTOR L0–L3 budgets stay planned, as §6 says: no file and no function in this tree. Multiplayer is planned only.
+**Expected:** WORLD-BIBLE-1 (#1171, `docs/WORLD_BIBLE.md`) and WORLD-GEN-1 (#1173, `docs/WORLD_GEN.md`) are on main, docs only. WORLD-TRAVEL-1 is planned. REALM-NAMES-1 is on main (#1174). WORLD-DIRECTOR L0–L3 budgets stay planned, as §6 says: no file and no function in this tree. Multiplayer is planned only.
 
 **Failure modes and recovery cost:** Realm-name drift between the two tables (§6) fails `realm_names_1_panel_names_match_look_for` (`client/src/climate_plane.rs:2271`). Missing WORLD-DIRECTOR budgets are a medium recovery: the card is planned, not built.
 
