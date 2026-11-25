@@ -7962,6 +7962,25 @@ mod tests {
         }
     }
 
+    /// GS-5 C3 (banked, ACCEPT-SHIP 7173085373) — the grounded jump tick reads max(pre-fall, post-fall) too: a jump that rises past the lip top on this tick clears it.
+    #[test]
+    fn ground_snap_5_grounded_jump_tick_reads_rising_feet() {
+        use crate::terrain::{rim_radius, terrace_mesh, terrain_plan};
+        for (p, ix, t) in gs2_cases() {
+            let (plan, (c, s)) = (terrain_plan(p), (t.cos(), t.sin()));
+            let (mesh, rho) = (terrace_mesh(plan), rim_radius(c, s, ix, plan));
+            let up = gs2_hip(&mesh, c * (rho - 0.15), s * (rho - 0.15));
+            let mut app = gs2_app(Some(p));
+            // Grounded 0.02 under the lip top in the band (a non-tread ground); the jump tick rises JUMP / 60 past it.
+            gs2_place(&mut app, Vec3::new(c * (rho + 0.10), up - 0.02, s * (rho + 0.10)), Vec2::ZERO);
+            app.world_mut().resource_mut::<JumpLatch>().pending = true;
+            app.world_mut().resource_mut::<LandingRecovery>().remaining = 0.0;
+            assert!(jb_step(&mut app), "{p:?} ix {ix} jump did not fire");
+            let r = app.world().resource::<SoftPresence>().position.xz().length();
+            assert!((r - (rho + 0.10)).abs() <= 1e-3, "{p:?} ix {ix} jump tick r {r} want {}", rho + 0.10);
+        }
+    }
+
     // LOD-LIMBS-1: capsules keep length under Comfort LOD, spheres stay round, every joint stays touching.
     #[test]
     fn lod_limbs_1_joint_overlaps_hold_every_tier() {
@@ -7982,6 +8001,14 @@ mod tests {
             let got = presence_joint_overlaps(presence_lod_scale(p));
             assert!(got.iter().zip(want).all(|(g, w)| (g - w).abs() < 5e-4), "{p:?} {got:?}");
         }
+    }
+
+    // LOD-LIMBS-1 banked X8 (ACCEPT-SHIP 7165522467) — the joint tolerance is 5 mm; the Medium shoulder's designed 2 mm gap sits inside it.
+    #[test]
+    fn lod_limbs_1_joint_eps_is_five_mm() {
+        assert!((JOINT_EPS - 0.005).abs() < 1e-9, "JOINT_EPS {JOINT_EPS}");
+        let shoulder = presence_joint_overlaps(1.0)[2];
+        assert!((shoulder + 0.002).abs() < 1e-4 && shoulder >= -JOINT_EPS, "shoulder {shoulder}");
     }
 
     fn ll1_world(w: &World, e: Entity) -> Transform {
