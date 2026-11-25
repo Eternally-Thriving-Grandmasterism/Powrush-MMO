@@ -22,9 +22,9 @@ The realm id is `SoftPlayerRealm { current: Option<u8> }` ([living_practice_loop
 | id | Panel / journal label ([human_soft_panels.rs:33-39](../client/src/human_soft_panels.rs#L33)) | Look name (`look_for`, [climate_plane.rs:393-480](../client/src/climate_plane.rs#L393)) | Place mood ([:537-544](../client/src/climate_plane.rs#L537)) | Schedule place ([living_ecology.rs:128-135](../client/src/living_ecology.rs#L128)) |
 |---|---|---|---|---|
 | 0 | Sanctuary Prime (:34) | Sanctuary Prime (:466) | SanctuarySkyYard | Sanctuary |
-| 1 | Synthetic Lattice (:35) | Crystal Spires (:423) | ThresholdPipeAir | Threshold |
-| 2 | Verdant Bloom (:36) | Verdant Heartwood (:401) | HeartwoodCanopy | Heartwood |
-| 3 | Harmonic Chorus (:37) | Abyssal Depths (:447) | DepthsWetStone | Depths |
+| 1 | Crystal Spires (:35) | Crystal Spires (:423) | ThresholdPipeAir | Threshold |
+| 2 | Verdant Heartwood (:36) | Verdant Heartwood (:401) | HeartwoodCanopy | Heartwood |
+| 3 | Abyssal Depths (:37) | Abyssal Depths (:447) | DepthsWetStone | Depths |
 | 4 | Voidfarer Horizon (:38) | Voidfarer Horizon (:425) | ThresholdPipeAir | Threshold |
 
 The five realms are not places. Today they are dress on one plate (§3).
@@ -42,23 +42,23 @@ Sherif answered "1a 2a" (Lead position 8412, recorded in comment 7118691808):
 
 This began as a councils' PROPOSAL in ruling 7118332320 and was amended by the owner ruling above.
 
-### Legacy on-screen labels
+### On-screen labels
 
-Until REALM-NAMES-1 ships, the screen still shows the legacy panel labels Synthetic Lattice, Verdant Bloom and Harmonic Chorus ([human_soft_panels.rs:35-37](../client/src/human_soft_panels.rs#L35)):
+Since REALM-NAMES-1 (#1174), the panel and journal show Crystal Spires, Verdant Heartwood and Abyssal Depths for realm ids 1–3 ([human_soft_panels.rs:35-37](../client/src/human_soft_panels.rs#L35)), the same strings as `look_for`:
 
 - The Z / F3 panel lists them under the head "`{place} · 1–5 choose a climate`" ([human_soft_panels.rs:228-233](../client/src/human_soft_panels.rs#L228), [:260-268](../client/src/human_soft_panels.rs#L260)).
 - The journal line "`Traveled to {name}`" uses them ([human_soft_panels.rs:197-201](../client/src/human_soft_panels.rs#L197)).
 - The plugin is always added ([lib.rs:290](../client/src/lib.rs#L290)).
 
-The look names do not reach on-screen text in the live build. The climate chip shows `PlaceId::chip_name` whenever `HexTravelState` exists ([climate_plane.rs:2086-2089](../client/src/climate_plane.rs#L2086), [shared/hex_travel.rs:81-87](../shared/hex_travel.rs#L81)), and `HexTravelPlugin` is always added ([lib.rs:239](../client/src/lib.rs#L239)).
+The look names reach on-screen text through the panel and the journal. The climate chip still shows `PlaceId::chip_name` whenever `HexTravelState` exists ([climate_plane.rs:2086-2089](../client/src/climate_plane.rs#L2086), [shared/hex_travel.rs:81-87](../shared/hex_travel.rs#L81)), and `HexTravelPlugin` is always added ([lib.rs:239](../client/src/lib.rs#L239)).
 
 The place-chip names (Sanctuary Prime, Heartwood, Depths) name places, not realm ids. They are context only.
 
-This page renames nothing in code. REALM-NAMES-1 is the later code card that changes the three panel strings.
+This page renames nothing in code. Test `realm_names_1_panel_names_match_look_for` ([climate_plane.rs:2271](../client/src/climate_plane.rs#L2271)) pins the panel table to `look_for`.
 
 ### Open note: Azure vs Abyssal
 
-[LORE_BIBLE.md:30](LORE_BIBLE.md#L30) heads a biome "Azure Depths & Living Reefs", marked Future Expansion. The look name for realm id 3 is "Abyssal Depths" ([climate_plane.rs:447](../client/src/climate_plane.rs#L447); module header [:10](../client/src/climate_plane.rs#L10)). LORE_BIBLE is not edited by this page. Whether that line names realm id 3 is left to REALM-NAMES-1's PRE-PATH.
+[LORE_BIBLE.md:30](LORE_BIBLE.md#L30) heads a biome "Azure Depths & Living Reefs", marked Future Expansion. The look name for realm id 3 is "Abyssal Depths" ([climate_plane.rs:447](../client/src/climate_plane.rs#L447); module header [:10](../client/src/climate_plane.rs#L10)). LORE_BIBLE is not edited by this page. Core RULING 7118943010 recorded that line as a separate future ocean expansion, not realm id 3, and made no docs edit.
 
 Doc support for the look names: Verdant Heartwood heads a biome at [LORE_BIBLE.md:18](LORE_BIBLE.md#L18), and Crystal Spires at [:25](LORE_BIBLE.md#L25).
 
@@ -145,7 +145,7 @@ Gaps:
 | Orbit | TAUN, TBS | low orbit ([PROCGEN_DESIGN.md:77](PROCGEN_DESIGN.md#L77)) | hubs | Peace hub proposal ([PROCGEN_DESIGN.md:70-73](PROCGEN_DESIGN.md#L70)) | faction home and deployment | earned tech travel only |
 
 - Voidfarer Horizon (realm id 4) has no distinct place. The councils may fold it into Z4 or retire it.
-- The legacy panel labels name no place (§2).
+- The five realm names are not places (§1).
 - Travel ladder: on foot, then mount, road, sea, and earned rail or portal ([COMBAT_AND_PVP.md:360-372](design/COMBAT_AND_PVP.md#L360) portals feed this).
 
 ## 7. Open decisions
