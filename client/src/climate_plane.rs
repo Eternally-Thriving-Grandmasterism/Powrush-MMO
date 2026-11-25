@@ -2265,6 +2265,17 @@ fn is_teal_peace(c: Color) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// REALM-NAMES-1 F1: the Z/F3 panel table equals the look_for names, ids 0–4.
+    #[test]
+    fn realm_names_1_panel_names_match_look_for() {
+        let realms = crate::human_soft_panels::REALMS;
+        assert_eq!(realms.len(), 5);
+        for (i, (id, name)) in realms.iter().enumerate() {
+            assert_eq!(*id as usize, i, "REALMS id is its index");
+            assert_eq!(*name, look_for(Some(*id)).name, "realm {id}");
+        }
+    }
     #[test]
     fn hud_quiet_rest_chip_holds_then_hides_and_reshows_only_on_a_real_change() {
         let mut h = ChipHold::default();
