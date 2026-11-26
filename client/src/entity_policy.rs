@@ -254,6 +254,9 @@ fn assert_tells(app: &mut App) {
 fn boot() -> App { boot_with(|_| {}) }
 /// `pre` runs before the first update, so Startup sees what it inserts.
 fn boot_with(pre: impl FnOnce(&mut App)) -> App {
+    crate::loot_drops::tests::in_user_dir("entity-boot", |_| boot_in(pre)) // ENTITY-BOOT-DIR-1: boot never touches the real HOME user dir.
+}
+fn boot_in(pre: impl FnOnce(&mut App)) -> App {
     let _env = crate::test_env::lock(); // ENTITY-BOOT-LOCK-1: Startup load_finds reads the user dir.
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default())).set_error_handler(bevy::ecs::error::ignore)
