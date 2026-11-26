@@ -1,0 +1,21 @@
+{
+  "schema": "powrush_abundance_journey_v1",
+  "lines": [
+    {
+      "text": "Sealed Caps Across Climates — same principle, three climates",
+      "kind": "PracticeSeal"
+    },
+    {
+      "text": "Flowed outward · lattice share (total 1.0)",
+      "kind": "FlowOutward"
+    },
+    {
+      "text": "Stewarded reserve · future thriving (total 1.0)",
+      "kind": "StewardReserve"
+    }
+  ],
+  "practice_sealed": true,
+  "flow_total": 1.0,
+  "reserve_total": 1.0,
+  "choices_made": 2
+}
