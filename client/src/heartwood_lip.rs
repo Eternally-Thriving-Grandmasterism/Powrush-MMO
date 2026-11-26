@@ -382,6 +382,7 @@ mod tests {
         });
         app.add_systems(PreUpdate, mark_threshold_near);
         app.add_systems(Update, use_threshold_shelf);
+        crate::test_env::single_thread(&mut app); // CI-HANG-1: no pool worker runs a system while the lock is held.
         app
     }
 
@@ -512,6 +513,7 @@ mod tests {
     /// The steward walk: face the node, one E, the line leaves Idle.
     #[test]
     fn one_e_at_the_pipe_leaves_idle_and_does_not_take() {
+        let _env = crate::test_env::lock(); // POOL-READ-LOCK-1: maybe_welcome_back reads the saved hex.
         let mut app = pipe_app(
             PlaceId::Heartwood,
             THRESHOLD_SHELF_CENTER[0],
@@ -585,6 +587,7 @@ mod tests {
     /// pipe and pressing again must not open either of them.
     #[test]
     fn repeated_e_at_the_pipe_never_speaks_the_harvest_voice() {
+        let _env = crate::test_env::lock(); // POOL-READ-LOCK-1: maybe_welcome_back reads the saved hex.
         let mut app = pipe_app(
             PlaceId::Heartwood,
             THRESHOLD_SHELF_CENTER[0],
@@ -632,6 +635,7 @@ mod tests {
     /// Away from the pipe the Use is released, so the global Take still lives.
     #[test]
     fn away_from_the_pipe_the_harvest_keeps_the_use() {
+        let _env = crate::test_env::lock(); // POOL-READ-LOCK-1: maybe_welcome_back reads the saved hex.
         for (place, x, z) in [
             (
                 PlaceId::Sanctuary,
