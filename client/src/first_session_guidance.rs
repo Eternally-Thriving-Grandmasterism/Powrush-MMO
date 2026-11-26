@@ -2172,6 +2172,7 @@ mod tests {
     /// crossing is one-way this session. Human → Sanctuary yard.
     #[test]
     fn skip_house_stays_light_doors_ignite_after_tend() {
+        let _env = crate::test_env::lock();
         let mut g = FirstSessionGuidance::default();
         assert!(g.stays_light_peace());
         assert!(!g.god_plane_doors_ignited());
@@ -2261,6 +2262,7 @@ mod tests {
         start: shared::hex_travel::PlaceId,
         mut presence: Option<&mut SoftPresence>,
     ) -> (Option<PeopleLanding>, shared::hex_travel::PlaceId) {
+        let _env = crate::test_env::lock();
         let mut g = FirstSessionGuidance::default();
         g.house_live = house;
         if tend {
@@ -2630,6 +2632,7 @@ mod tests {
     /// Want stays SANCTUARY_WANT.
     #[test]
     fn s1_human_sanctuary_aftermath_yard_teaching_war_rumor_at_well() {
+        let _env = crate::test_env::lock();
         use shared::hex_travel::PlaceId;
 
         let (land, now) =
@@ -2818,6 +2821,7 @@ mod tests {
     /// CARD S2 — decline / wrong door → garden light · not sealed.
     #[test]
     fn s2_decline_wrong_door_garden_light_not_sealed() {
+        let _env = crate::test_env::lock();
         use shared::hex_travel::PlaceId;
 
         let start = PlaceId::Sanctuary;
@@ -3437,6 +3441,7 @@ mod tests {
             objective: GuidanceObjective::OpenInventory,
             ..Default::default()
         };
+        let env = crate::test_env::lock();
         let mut travel = HexTravelState {
             current: PlaceId::Sanctuary,
         };
@@ -3463,6 +3468,7 @@ mod tests {
         ));
         assert!(crossed.is_none());
         assert!(door_line_on_card(&crossed_session).is_some());
+        drop(env);
 
         let mut sealed = FirstSessionGuidance {
             house_live: true,
@@ -4427,6 +4433,7 @@ mod tests {
         }
     }
     #[test] fn pad_satchel_g1_dpad_down_and_open_satchel_finish_open_inventory() {
+        let _env = crate::test_env::lock();
         let mut already = guide_satchel(true); already.update(); already.update();
         let g = already.world().resource::<FirstSessionGuidance>(); assert!(g.inventory_opened && g.objective == GuidanceObjective::ShareAbundance, "G1 satchel already open completes OpenInventory at once");
         let mut app = guide_satchel(false); hold(&mut app, GamepadButton::DPadDown, 1); app.update();
