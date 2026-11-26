@@ -731,6 +731,13 @@ mod tests {
         assert!(a.p50_us <= a.p95_us && a.p95_us <= a.p99_us && a.p99_us > 0);
         assert!(bench_warnings(&a, &b, &BenchBand { time_ratio: f64::INFINITY, time_floor_us: 0, rss_ratio: f64::INFINITY }).is_empty(), "counts only: {:?}", bench_warnings(&a, &b, &BENCH_BAND));
         if let Some(out) = std::env::var_os("POWRUSH_BENCH_OUT") { std::fs::write(out, serde_json::to_string_pretty(&a).unwrap()).unwrap(); }
+        // PERF-CI-WARN-1: CI sets POWRUSH_BENCH_BASE; a missing file prints nothing, and the band is BENCH_BAND itself (no copy in YAML).
+        if let Some(p) = std::env::var_os("POWRUSH_BENCH_BASE").filter(|p| std::path::Path::new(p).is_file()) {
+            match std::fs::read_to_string(&p).ok().and_then(|s| serde_json::from_str::<BenchWalk>(&s).ok()) {
+                Some(base) => for w in bench_warnings(&base, &a, &BENCH_BAND) { println!("::warning title=PERF bench walk::{w}"); },
+                None => println!("::warning title=PERF bench walk::baseline unreadable"),
+            }
+        }
     }
 
     #[test]
