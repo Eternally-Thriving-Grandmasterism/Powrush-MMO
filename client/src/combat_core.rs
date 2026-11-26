@@ -59,9 +59,9 @@ pub const STAVEHOLD_FIGHT_HOME: [f32; 2] = [0.0, -17.0];
 // CL-R1: clear of the gate by REACH + SPOT_REACH (2.0, wellsworn.rs:27), and the ring plus margins fit the yard.
 const _: () = assert!(STAVEHOLD_GATE_SPOT[1] - STAVEHOLD_FIGHT_HOME[1] > REACH + 2.0);
 const _: () = assert!(-STAVEHOLD_FIGHT_HOME[1] + REACH + crate::grazer::RING_MARGIN + crate::grazer::EDGE_MARGIN < crate::terrain::PLAY_HALF);
-/// Defeat wakes here: the dry-Lip return of heartwood_lip.rs:209, rebuilt locally.
+/// Defeat wakes here: the dry-Lip return of heartwood_lip.rs:213, rebuilt locally.
 pub const HEARTWOOD_ENTRANCE: [f32; 2] = HEARTWOOD_BATH_RETURN;
-const STAND_HEIGHT: f32 = 0.90; // copy of private heartwood_lip.rs:30
+const STAND_HEIGHT: f32 = 0.90; // copy of private heartwood_lip.rs:31
 /// FEEL-PASS-1 — how long a combat cue holds the pulse strip (skill_xp level-up uses 4.2 s).
 const CUE_SECS: f64 = 4.2;
 /// PREDATOR-RESPAWN-1 — council-set, playtest-tunable delay after a kill. Sherif may veto.
@@ -111,8 +111,8 @@ pub const LUNGE_TELL_DOTS: usize = 20;
 /// Radius and height of one ground disc.
 pub const LUNGE_TELL_DOT_RADIUS: f32 = 0.12;
 pub const LUNGE_TELL_DOT_HEIGHT: f32 = 0.02;
-/// Ground y: the capsule foot is y 0 (Capsule3d::new(0.35, 0.9) at y 0.8, :215/:217),
-/// plus the heartwood_lip.rs:199 lift.
+/// Ground y: the capsule foot is y 0 (Capsule3d::new(0.35, 0.9) at y 0.8, :492/:494),
+/// plus the heartwood_lip.rs:203 lift.
 pub const LUNGE_TELL_LIFT: f32 = 0.01;
 /// RING-COLOR-CONST-1 — neutral colour of the lunge-tell ground ring (combat dots and droid).
 pub const LUNGE_TELL_COLOR: Color = Color::srgb(0.86, 0.85, 0.82);
@@ -226,7 +226,7 @@ pub fn hit_pulse_scale(strength: f32) -> f32 {
     }
 }
 
-/// COMBAT-FEEL-1 — one held strike, the feel_move.rs:38-101 shape. Times are `Time<Fixed>` elapsed.
+/// COMBAT-FEEL-1 — one held strike, the feel_move.rs:38-123 shape. Times are `Time<Fixed>` elapsed.
 #[derive(Resource, Debug, Default, Clone, PartialEq)]
 pub struct StrikeBuffer {
     /// Fixed-clock seconds the held strike stays live until (inclusive, `buffer_alive`).
@@ -235,7 +235,7 @@ pub struct StrikeBuffer {
     pub fire: bool,
 }
 
-/// `mouse_look_grab_eligible` terms (human_presence.rs:1478) without `mouse_look`.
+/// `mouse_look_grab_eligible` terms (human_presence.rs:1972) without `mouse_look`.
 pub fn fire_grab_terms(in_yard: bool, settings_open: bool, hud_edit: bool, focused: bool) -> bool {
     in_yard && !settings_open && !hud_edit && focused
 }
@@ -318,7 +318,7 @@ pub fn strike_buffer_step(
     let pulse = std::mem::take(&mut buf.fire);
     let run = allowed && (press || (pulse && gate && reach));
     if pulse || (press && allowed && reach) {
-        buf.until = None; // feel_move.rs:69: an in-reach edge (or a consume) leaves nothing held
+        buf.until = None; // feel_move.rs:81: an in-reach edge (or a consume) leaves nothing held
     }
     if press && allowed && gate && !reach {
         buf.until = Some(now + USE_BUFFER_SECS);
@@ -747,7 +747,7 @@ pub(crate) fn predator_lunge(
 }
 
 /// DIFFICULTY-CUES-1 — the wind-up sound, the same sting spawn as peace_audio.rs, behind `audio_output_safe`.
-/// Silent while the shared Mute flag is on or the gain is 0, like peace_audio.rs:112.
+/// Silent while the shared Mute flag is on or the gain is 0, like peace_audio.rs:144.
 pub fn play_tell(cmd: &mut Commands, assets: Option<&AssetServer>, mute: Option<&crate::local_settings::MasterMuteGain>) {
     let gain = mute.map_or(1.0, |m| if m.muted { 0.0 } else { m.gain });
     if let (true, true, Some(assets)) = (audio_output_safe(), gain > 0.0, assets) {
@@ -828,7 +828,7 @@ pub struct MusicBed;
 /// D3 — checked under Bevy's asset root, the same root the loader reads.
 pub fn music_file_present() -> bool { bevy::asset::io::file::FileAssetReader::get_base_path().join("assets").join(MUSIC_ASSET).is_file() }
 fn check_music(mut cmd: Commands) { cmd.insert_resource(MusicPresent(music_file_present())); }
-/// CL-S1 — armed only on a Sanctuary defeat edge; a place change drops it and hushes for `HOLD_SECS` (D1, mirrors climate_visible.rs:361-364).
+/// CL-S1 — armed only on a Sanctuary defeat edge; a place change drops it and hushes for `HOLD_SECS` (D1, mirrors climate_visible.rs:370-373).
 #[derive(Debug, Default, Clone, Copy, PartialEq)]
 pub struct MusicLatch { pub armed: bool, pub was_down: bool, pub place: Option<PlaceId>, pub hush_until: f64, pub level: f32 }
 pub fn music_latch(l: &mut MusicLatch, place: PlaceId, down: bool, now: f64) {
@@ -886,7 +886,7 @@ fn lunge_tell(
         *armed = false;
         return;
     };
-    // The exact reach term of predator_lunge, combat_core.rs:634-635. No second formula.
+    // The exact reach term of predator_lunge, combat_core.rs:720-721. No second formula.
     let (in_yard, p) = (door.as_deref().copied() == Some(LaunchDoor::InYard), presence.position);
     let reach = in_yard && in_reach(travel.current, &combat, p.x, p.z);
     let reach = reach && combat.strike_terms.map_or(true, |t| strike_gates(t.0, t.1, t.2, t.3));

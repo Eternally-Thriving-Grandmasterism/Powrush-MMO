@@ -32,7 +32,7 @@ pub struct SkillXp {
     pub xp: [u32; 5],
     metres: [f32; 5],
     /// COMBAT-XP-PACE-1 — UTC day key of `combat_day_hits`. Saved because every paying hit
-    /// rewrites the pulse on `FirstHarvestEpiphany` (combat_core :399-400), which `mark_dirty` watches.
+    /// rewrites the pulse on `FirstHarvestEpiphany` (combat_core :658-660), which `mark_dirty` watches.
     pub combat_day: u32,
     /// COMBAT-XP-PACE-1 — paying combat hits on `combat_day`.
     pub combat_day_hits: u32,
@@ -51,12 +51,12 @@ pub fn level_for_xp(xp: u32) -> u32 {
     (2..=LEVEL_CAP).filter(|&l| xp >= xp_for_level(l)).count() as u32 + 1
 }
 
-/// XP gained from a success counter (only :636 / :704 move it).
+/// XP gained from a success counter (only :705 / :773 move it).
 pub fn success_gain(prev: u32, now: u32, per: u32) -> u32 {
     now.saturating_sub(prev).saturating_mul(per)
 }
 
-/// Same rule as `living_body.rs:146` `want_sprint`.
+/// Same rule as `living_body.rs:149` `want_sprint`.
 pub fn want_sprint(sprint: bool, movement: Vec2, can_sprint: bool) -> bool {
     sprint && movement.length_squared() > 0.04 && can_sprint
 }
@@ -273,14 +273,14 @@ mod tests {
 
     #[test]
     fn cooldown_blocked_tend_earns_zero() {
-        // resolve_tend returns before :704 when blocked; the counter holds.
+        // resolve_tend returns before :773 when blocked; the counter holds.
         assert!(hold_e_tend_blocked(1, 1, 10.0, 10.5));
         assert_eq!(success_gain(1, 1, XP_PER_TEND), 0);
     }
 
     #[test]
     fn out_of_range_gather_earns_zero() {
-        // resolve_take returns before :636 when out of range; the counter holds.
+        // resolve_take returns before :705 when out of range; the counter holds.
         assert_eq!(success_gain(4, 4, XP_PER_GATHER), 0);
         assert_eq!(success_gain(4, 5, XP_PER_GATHER), XP_PER_GATHER);
     }
