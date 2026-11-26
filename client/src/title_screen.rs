@@ -11375,4 +11375,23 @@ mod tests {
         pf_down(&mut app, GamepadButton::South);
         assert!(app.world().resource::<PauseFocus>().at.is_none() && *app.world().resource::<PauseTab>() == PauseTab::Comfort && app.world().resource::<LocalSettingsState>().inner.graphics_preset == preset, "F11");
     }
+
+    /// CARD SAVE-FIXTURE-4 — the house blob as the playable-preview tag (11c577ef) wrote it after naming
+    /// and the dress door loads through the boot read `HouseLabel::default` with every saved field kept.
+    #[test]
+    fn save_fixture_4_playable_preview_house_loads() {
+        let raw = include_str!("../../tests/fixtures/save-preview/data/powrush_house.json");
+        let scratch = NameRiteUserDir::new("save-fixture-4");
+        std::fs::write(scratch.dir.join(shared::user_persist::persist_file_name(HOUSE_PATH)), raw).unwrap();
+        let label = HouseLabel::default();
+        drop(scratch);
+        let h = &label.house;
+        assert_eq!((h.schema.as_str(), h.name.as_str(), h.resolved, h.seals_resolved), ("powrush_house_v1", "River House", true, true));
+        assert_eq!(h.seals, vec!["well".to_string(), "ember".to_string()]);
+        assert_eq!(h.heritage, "cydruid");
+        // The tag's struct has no `seed`; today's `#[serde(default)]` reads it as 0.
+        assert_eq!(h.seed, 0);
+        assert!(label.persist_present && label.seals_offered);
+        assert!(!label.hour_two_held && !label.book_held);
+    }
 }

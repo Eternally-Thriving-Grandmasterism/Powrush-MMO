@@ -1,0 +1,11 @@
+{
+  "schema": "powrush_house_v1",
+  "name": "River House",
+  "resolved": true,
+  "seals": [
+    "well",
+    "ember"
+  ],
+  "seals_resolved": true,
+  "heritage": "cydruid"
+}
