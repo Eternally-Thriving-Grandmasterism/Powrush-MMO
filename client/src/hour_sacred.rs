@@ -1084,6 +1084,7 @@ mod tests {
     /// PLAYTEST/CI: live `powrush_hour_two.json` must not poison Default.
     #[test]
     fn default_is_peace_without_reading_hour_two() {
+        let _env = crate::test_env::lock();
         let h = HourSacred::default();
         assert_eq!(h.hex(), HexFlag::Peace);
         assert!(!h.complete);
@@ -1112,6 +1113,7 @@ mod tests {
     /// Plugin boot still loads persist. Default stays Peace even if disk is CAPTURE.
     #[test]
     fn plugin_boot_uses_load_or_peace() {
+        let _env = crate::test_env::lock();
         let mut app = App::new();
         app.add_plugins(HourSacredPlugin);
         let hour = app.world().resource::<HourSacred>();
@@ -1486,6 +1488,7 @@ mod tests {
 
     #[test]
     fn f_book_fixture_is_not_default_boot() {
+        let _env = crate::test_env::lock();
         use shared::f_book_fixture::{
             fixture_is_not_default_door, load_f_book_disk, F_BOOK_DATA_REL, F_BOOK_REL_DIR,
         };
@@ -2797,8 +2800,10 @@ mod tests {
     fn ridge_label(open: bool) -> crate::title_screen::HouseLabel { crate::title_screen::HouseLabel { house: shared::house_name::HouseName::default(), persist_present: false, hour_two_held: false, book_held: false, settings_open: open, draft: String::new(), naming_offered: false, seals_offered: false } }
     fn ridge_pad(flow: u32) -> (App, Entity) {
         use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
+        let env = crate::test_env::lock();
         let mut lived = shared::climate_node::LivedHour::new_demo(); lived.allocation.flow = flow; let mut app = App::new();
         app.add_plugins((MinimalPlugins, bevy::input::InputPlugin, HourSacredPlugin)).insert_resource(peace_hour()).insert_resource(LivedHourBind { hour: lived, climate: Default::default(), standing: Default::default(), week: Default::default(), last_line: String::new(), guidance_hidden: false, focus_id: None, climate_slab: None });
+        drop(env);
         let pad = app.world_mut().spawn_empty().id(); app.world_mut().write_message(GamepadConnectionEvent::new(pad, GamepadConnection::Connected { name: "pad".into(), vendor_id: None, product_id: None })); app.update(); (app, pad)
     }
     fn pad_set(app: &mut App, pad: Entity, button: GamepadButton, value: f32) { use bevy::input::gamepad::{RawGamepadButtonChangedEvent, RawGamepadEvent}; app.world_mut().write_message(RawGamepadEvent::Button(RawGamepadButtonChangedEvent::new(pad, button, value))); app.update(); }
