@@ -1955,7 +1955,7 @@ mod tests {
         app.update(); app.world_mut().resource_mut::<CfTape>().0.clear(); app
     }
     fn cf_run(app: &mut App, n: usize) -> Vec<CfRow> { for _ in 0..n { app.update(); } std::mem::take(&mut app.world_mut().resource_mut::<CfTape>().0) }
-    /// Rest is the spawn palette (:306/:308); lifted is the existing rim/fill expectation (hud_gold_climate_chip_reduced_motion_holds_gold_rest).
+    /// Rest is the spawn palette (:304/:306); lifted is the existing rim/fill expectation (hud_gold_climate_chip_reduced_motion_holds_gold_rest).
     fn cf_rest(changed: bool) -> CfRow { (BorderColor::all(TITLE_BORDER.with_alpha(1.0)), changed, BackgroundColor(TITLE_PLATE_BG.with_alpha(1.0)), changed) }
     fn cf_lifted(glow: f32, changed: bool) -> CfRow {
         let (p, t, b) = (well_slab_pulse(glow, false), TITLE_BORDER.to_srgba(), TITLE_PLATE_BG.to_srgba());
