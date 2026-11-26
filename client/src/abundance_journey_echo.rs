@@ -730,4 +730,32 @@ mod tests {
         app.world_mut().resource_mut::<crate::hex_travel::PlacesPlate>().open = false;
         assert_eq!(pv_run(&mut app, 2), vec![(PV, true), (PV, false)], "PV4 Places closed: restored once, then quiet");
     }
+
+    /// CARD SAVE-FIXTURE-5 — the journey blob as the playable-preview tag (11c577ef) wrote it loads through
+    /// the boot system `load_journey_persist`, and the first frames leave the file byte-identical.
+    #[test]
+    fn save_fixture_5_playable_preview_journey_loads() {
+        let raw = include_str!("../../tests/fixtures/save-preview/data/powrush_abundance_journey.json");
+        let saved: serde_json::Value = serde_json::from_str(raw).unwrap();
+        let scratch = ScratchDir::new("save-fixture-5");
+        std::fs::write(journey_file(scratch.path()), raw).unwrap();
+        with_user_dir(scratch.path(), || {
+            let mut app = journey_app();
+            for _ in 0..4 {
+                app.update();
+            }
+            let echo = app.world().resource::<AbundanceJourneyEcho>();
+            let kinds: Vec<_> = echo.lines.iter().map(|l| l.kind).collect();
+            assert_eq!(kinds, vec![JourneyKind::PracticeSeal, JourneyKind::FlowOutward, JourneyKind::StewardReserve]);
+            for (i, line) in echo.lines.iter().enumerate() {
+                assert_eq!(saved["lines"][i]["text"].as_str(), Some(line.text.as_str()));
+            }
+            assert!(echo.last_practice_sealed && !echo.dirty);
+            assert_eq!(echo.last_choices_seen, 2);
+            let a = app.world().resource::<RbeAllocateChoice>();
+            assert_eq!((a.flow_total, a.reserve_total, a.choices_made), (1.0, 1.0, 2));
+            assert_eq!(std::fs::read_to_string(journey_file(scratch.path())).unwrap(), raw, "boot leaves the tag bytes as written");
+            assert!(!journey_sibling(scratch.path(), ".bak").exists());
+        });
+    }
 }
