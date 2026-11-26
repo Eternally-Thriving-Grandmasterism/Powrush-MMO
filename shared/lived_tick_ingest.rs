@@ -201,6 +201,9 @@ mod tests {
     /// INGEST-ENV-GUARD-1 — holds the prior `POWRUSH_INGEST`; drop restores it, also on a panic.
     struct IngestEnvRestore(Option<String>);
     impl Drop for IngestEnvRestore { fn drop(&mut self) { match self.0.take() { Some(v) => std::env::set_var("POWRUSH_INGEST", v), None => std::env::remove_var("POWRUSH_INGEST") } } }
+    /// INGEST-DIR-GUARD-1 — owns a test scratch dir; drop removes it, also on a panic.
+    struct IngestScratch(std::path::PathBuf);
+    impl Drop for IngestScratch { fn drop(&mut self) { let _ = fs::remove_dir_all(&self.0); } }
 
     fn with_ingest_env(val: Option<&str>, f: impl FnOnce()) {
         let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
@@ -242,6 +245,7 @@ mod tests {
                 std::process::id()
             ));
             let _ = fs::remove_dir_all(&dir);
+            let _scratch = IngestScratch(dir.clone());
             fs::create_dir_all(&dir).unwrap();
             let path = dir.join("powrush_lived_tick.json");
             let house = HouseName::default();
@@ -257,7 +261,6 @@ mod tests {
             );
             assert!(!wrote);
             assert!(!path.exists(), "default off must not create tick file");
-            let _ = fs::remove_dir_all(&dir);
         });
     }
 
@@ -269,6 +272,7 @@ mod tests {
                 std::process::id()
             ));
             let _ = fs::remove_dir_all(&dir);
+            let _scratch = IngestScratch(dir.clone());
             fs::create_dir_all(&dir).unwrap();
             let path = dir.join("powrush_lived_tick.json");
 
@@ -313,7 +317,6 @@ mod tests {
             assert!(loaded.hour_flags.hour_two_held);
             assert!(!loaded.hour_flags.hour_three_held);
             assert!(loaded.hour.is_some());
-            let _ = fs::remove_dir_all(&dir);
         });
     }
 
