@@ -438,6 +438,10 @@ mod tests {
         assert_eq!(n + cr_to(&mut app, at + Vec3::Z * 0.09) + cr_to(&mut app, at), 1, "0.09 m stays inside ε_out");
         assert_eq!(cr_walk(&mut app, Vec2::Y, 5) + cr_walk(&mut app, Vec2::NEG_Y, 20), 1, "back off past ε_out, then re-enter");
     }
+    /// ENV-GUARD-1 — sets `POWRUSH_USER_DIR` to `dir`; drop restores the prior value, then removes `dir`, also on a panic.
+    struct UserDirOverride(Option<String>, std::path::PathBuf);
+    impl UserDirOverride { fn set(dir: &std::path::Path) -> Self { let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok(); std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, dir); Self(prev, dir.to_path_buf()) } }
+    impl Drop for UserDirOverride { fn drop(&mut self) { match self.0.take() { Some(v) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, v), None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV) } let _ = std::fs::remove_dir_all(&self.1); } }
     #[test]
     fn contact_rumble_1_f4_rumble_off_reduced_motion_low_write_nothing() {
         let offs = [LocalSettings { rumble: false, ..LocalSettings::peace_defaults() }, LocalSettings { reduced_motion: true, ..LocalSettings::peace_defaults() }, { let mut s = LocalSettings::peace_defaults(); s.set_graphics_preset(GraphicsPreset::Low); s }];
@@ -445,12 +449,12 @@ mod tests {
             assert!(!crate::local_settings::LocalFeedbackFeel::from_settings(&s).rumble_enabled);
             assert_eq!(CR_SOLIDS.into_iter().map(|c| cr_run(c, Some(s.clone()), true, 40).1).sum::<usize>(), 0, "case {i} without LocalSettingsPlugin");
             let (_env, dir) = (crate::test_env::lock(), std::env::temp_dir().join(format!("powrush-cr1-f4-{i}-{}", std::process::id())));
-            std::fs::create_dir_all(&dir).unwrap(); std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, &dir);
+            std::fs::create_dir_all(&dir).unwrap(); let user_dir = UserDirOverride::set(&dir);
             let mut app = cr_app(CR_POST.0, CR_POST.1, None, true);
             app.insert_resource(crate::lived_hour_bind::LivedHourBind::default()).insert_resource(crate::title_screen::HouseLabel { house: shared::house_name::HouseName::default(), persist_present: false, hour_two_held: false, book_held: false, settings_open: false, draft: String::new(), naming_offered: false, seals_offered: false }).add_plugins((crate::local_settings::LocalSettingsPlugin, crate::hud_presets::HudLayoutPlugin));
             app.update(); app.world_mut().resource_mut::<crate::local_settings::LocalSettingsState>().inner = s; app.update();
             app.world_mut().resource_mut::<Messages<Rq>>().clear(); // the global suppressor's edge Stop (RUMBLE-OFF-1)
-            std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV); let _ = std::fs::remove_dir_all(&dir); cr_seat(&mut app, CR_POST.2);
+            drop(user_dir); cr_seat(&mut app, CR_POST.2);
             assert_eq!(cr_walk(&mut app, CR_POST.3, 40), 0, "case {i} with LocalSettingsPlugin");
         }
     }
