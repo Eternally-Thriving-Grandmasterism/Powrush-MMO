@@ -1655,11 +1655,12 @@ mod tests {
         use shared::local_settings::LocalSettings;
         let mut inner = LocalSettings::peace_defaults();
         inner.reduced_motion = reduced_motion;
+        let (bind, travel) = { let _env = crate::test_env::lock(); (LivedHourBind::default(), HexTravelState::default()) };
         let mut app = App::new();
         app.add_plugins(bevy::MinimalPlugins)
             .insert_resource(NearbyMercyNode::default())
-            .insert_resource(LivedHourBind::default())
-            .insert_resource(HexTravelState::default())
+            .insert_resource(bind)
+            .insert_resource(travel)
             .insert_resource(WeekFeelGlow {
                 glow: week_glow,
                 ..default()
@@ -1919,8 +1920,9 @@ mod tests {
     fn cv_tape(q: Query<Ref<Visibility>, With<ClimateStateRoot>>, mut t: ResMut<CvTape>) { t.0.extend(q.iter().map(|v| (*v, v.is_changed()))); }
     fn cv_app() -> App {
         use crate::hud_presets::{ActiveHudPreset, HudLayoutPlugin, HudPresetId};
+        let (bind, travel) = { let _env = crate::test_env::lock(); (LivedHourBind::default(), HexTravelState::default()) };
         let mut app = App::new();
-        app.add_plugins((bevy::MinimalPlugins, HudLayoutPlugin)).insert_resource(NearbyMercyNode::default()).insert_resource(LivedHourBind::default()).insert_resource(HexTravelState::default()).insert_resource(WeekFeelGlow::default()).insert_resource(WardsNoticeGlow::default()).insert_resource(LocalColorblindWells::default()).insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings::peace_defaults(), dirty: false }).insert_resource(ActiveHudPreset { id: Some(HudPresetId::Management) }).insert_resource(crate::title_screen::LaunchDoor::InYard).init_resource::<crate::hex_travel::PlacesPlate>().init_resource::<CvTape>().add_systems(Startup, spawn_climate_state_slab).add_systems(Update, update_climate_state_slab).add_systems(Last, cv_tape);
+        app.add_plugins((bevy::MinimalPlugins, HudLayoutPlugin)).insert_resource(NearbyMercyNode::default()).insert_resource(bind).insert_resource(travel).insert_resource(WeekFeelGlow::default()).insert_resource(WardsNoticeGlow::default()).insert_resource(LocalColorblindWells::default()).insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings::peace_defaults(), dirty: false }).insert_resource(ActiveHudPreset { id: Some(HudPresetId::Management) }).insert_resource(crate::title_screen::LaunchDoor::InYard).init_resource::<crate::hex_travel::PlacesPlate>().init_resource::<CvTape>().add_systems(Startup, spawn_climate_state_slab).add_systems(Update, update_climate_state_slab).add_systems(Last, cv_tape);
         app.update(); app.update(); app.world_mut().resource_mut::<CvTape>().0.clear(); app
     }
     fn cv_run(app: &mut App, n: usize) -> Vec<(Visibility, bool)> {

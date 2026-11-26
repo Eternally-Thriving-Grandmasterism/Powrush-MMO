@@ -1269,8 +1269,9 @@ mod tests {
     }
     #[test] fn hud_plate_hp1_2_open_padding_box_covers_frame() {
         for scale in [0.85_f32, shared::local_settings::TEXT_SCALE_MAX] {
+            let bind = { let _env = crate::test_env::lock(); LivedHourBind::default() };
             let mut app = App::new();
-            app.insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings { text_scale: scale, ..shared::local_settings::LocalSettings::peace_defaults() }, dirty: false }).insert_resource(HumanInventory { open: true, ..default() }).insert_resource(SoftRbePool::default()).insert_resource(LivedHourBind::default()).insert_resource(HouseLabel::default()).add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default(), bevy::input::InputPlugin, bevy::text::TextPlugin, bevy::ui::UiPlugin, crate::ui_font::UiFontPlugin)).init_asset::<Image>().init_asset::<TextureAtlasLayout>().add_message::<bevy::picking::pointer::PointerInput>().add_message::<bevy::picking::backend::PointerHits>().init_resource::<bevy::picking::hover::HoverMap>().init_resource::<bevy::picking::events::PointerState>().add_systems(Startup, spawn_inventory_surfaces).add_systems(Update, (scale_satchel_fonts, update_satchel));
+            app.insert_resource(LocalSettingsState { inner: shared::local_settings::LocalSettings { text_scale: scale, ..shared::local_settings::LocalSettings::peace_defaults() }, dirty: false }).insert_resource(HumanInventory { open: true, ..default() }).insert_resource(SoftRbePool::default()).insert_resource(bind).insert_resource(HouseLabel::default()).add_plugins((MinimalPlugins, bevy::asset::AssetPlugin::default(), bevy::input::InputPlugin, bevy::text::TextPlugin, bevy::ui::UiPlugin, crate::ui_font::UiFontPlugin)).init_asset::<Image>().init_asset::<TextureAtlasLayout>().add_message::<bevy::picking::pointer::PointerInput>().add_message::<bevy::picking::backend::PointerHits>().init_resource::<bevy::picking::hover::HoverMap>().init_resource::<bevy::picking::events::PointerState>().add_systems(Startup, spawn_inventory_surfaces).add_systems(Update, (scale_satchel_fonts, update_satchel));
             app.world_mut().spawn((Camera2d, bevy::ui::IsDefaultUiCamera, Camera { computed: bevy::camera::ComputedCameraValues { target_info: Some(bevy::camera::RenderTargetInfo { physical_size: UVec2::new(1280, 720), scale_factor: 1. }), ..default() }, ..default() }));
             (app.update(), app.update());
             let (logical, open) = { let w = app.world_mut(); let (node, vis) = w.query_filtered::<(&ComputedNode, &Visibility), With<SatchelRoot>>().single(w).unwrap(); (node.padding_box().size() * node.inverse_scale_factor, *vis) };
@@ -1365,8 +1366,9 @@ mod tests {
         assert_eq!((t.2.last().unwrap().0, yielded), (IH, true), "HI10 Management with a Pulse sentinel: Pickup yields by R2 into HudYielded");
     }
     fn satchel_app() -> App {
+        let bind = { let _env = crate::test_env::lock(); LivedHourBind::default() };
         let mut app = App::new();
-        app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin, HumanInventoryPlugin)).init_resource::<FirstHarvestEpiphany>().init_resource::<HumanSoftPanels>().init_resource::<RbeAllocateChoice>().init_resource::<SoftRbePool>().init_resource::<LivedHourBind>().init_resource::<HouseLabel>().init_resource::<FoundFinds>();
+        app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin, HumanInventoryPlugin)).init_resource::<FirstHarvestEpiphany>().init_resource::<HumanSoftPanels>().init_resource::<RbeAllocateChoice>().init_resource::<SoftRbePool>().insert_resource(bind).init_resource::<HouseLabel>().init_resource::<FoundFinds>();
         crate::test_env::single_thread(&mut app);
         app
     }
