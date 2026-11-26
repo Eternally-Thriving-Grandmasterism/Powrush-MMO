@@ -46,7 +46,7 @@ fn spawn_plaque_slab(mut commands: Commands) {
 }
 
 /// PreUpdate so the harvest tap sees `plaque_near` on the same E edge.
-/// Writes only on a change (heartwood_lip.rs:248-250), so saves stay quiet.
+/// Writes only on a change (heartwood_lip.rs:252-254), so saves stay quiet.
 fn mark_plaque_near(
     travel: Res<HexTravelState>,
     presence: Res<SoftPresence>,
