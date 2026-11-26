@@ -57,6 +57,14 @@ pub fn preferred_abundance_stage_root() -> PathBuf {
     PathBuf::from(ABUNDANCE_SUBDIR)
 }
 
+/// Portable stage, relative to the cwd. Under Linux `--lib` tests it sits in the HOME-WRITE-1 scratch HOME instead.
+fn portable_abundance_root() -> PathBuf {
+    #[cfg(all(test, target_os = "linux"))]
+    return crate::test_env::scratch_home().join(ABUNDANCE_SUBDIR);
+    #[allow(unreachable_code)]
+    PathBuf::from(ABUNDANCE_SUBDIR)
+}
+
 #[derive(Resource, Debug)]
 pub struct SteamAbundanceMirror {
     pub enabled: bool,
@@ -107,11 +115,11 @@ impl Plugin for SteamAbundanceMirrorPlugin {
 
 fn ensure_abundance_stage_dirs(mirror: Res<SteamAbundanceMirror>) {
     let _ = fs::create_dir_all(&mirror.stage_root);
-    let _ = fs::create_dir_all(ABUNDANCE_SUBDIR);
+    let _ = fs::create_dir_all(portable_abundance_root());
     info!(
         target: "powrush::steam_autocloud",
         stage = %mirror.stage_root.display(),
-        portable = ABUNDANCE_SUBDIR,
+        portable = %portable_abundance_root().display(),
         "Abundance Auto-Cloud stage directories ready"
     );
 }
@@ -158,8 +166,8 @@ fn stage_all(mirror: &mut SteamAbundanceMirror) {
 
     let os_journey = mirror.stage_root.join(REMOTE_JOURNEY);
     let os_lattice = mirror.stage_root.join(REMOTE_LATTICE);
-    let portable_journey = PathBuf::from(ABUNDANCE_SUBDIR).join(REMOTE_JOURNEY);
-    let portable_lattice = PathBuf::from(ABUNDANCE_SUBDIR).join(REMOTE_LATTICE);
+    let portable_journey = portable_abundance_root().join(REMOTE_JOURNEY);
+    let portable_lattice = portable_abundance_root().join(REMOTE_LATTICE);
 
     let mut notes = Vec::new();
     let mut any_ok = false;
@@ -306,6 +314,22 @@ mod tests {
             let expect = format!(".local/share/{app}/steam_cloud/abundance");
             assert!(s.ends_with(&expect), "{s}");
         }
+    }
+
+    /// The portable stage never lands in the cwd during `--lib` tests; production keeps the cwd-relative path.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn portable_stage_sits_in_the_scratch_home() {
+        use bevy::ecs::system::RunSystemOnce;
+        let root = portable_abundance_root();
+        assert_eq!(root, crate::test_env::scratch_home().join(ABUNDANCE_SUBDIR));
+        let mut world = World::new();
+        world.insert_resource(SteamAbundanceMirror { enabled: false, ..default() });
+        world.run_system_once(ensure_abundance_stage_dirs).unwrap();
+        assert!(root.is_dir(), "{}", root.display());
+        let prod = include_str!("steam_abundance_mirror.rs").split("#[cfg(test)]").next().unwrap();
+        assert_eq!(prod.matches("PathBuf::from(ABUNDANCE_SUBDIR)").count(), 2, "fallback + portable_abundance_root only");
+        assert_eq!(prod.matches("portable_abundance_root()").count(), 5);
     }
 
     #[test]
