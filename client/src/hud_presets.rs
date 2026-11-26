@@ -3815,6 +3815,7 @@ child_style.clone(),
     #[test]
     fn t7_fixed_rows_keep_coded_style() {
         let mut app = layout_app();
+        let env = crate::test_env::lock();
         app.add_plugins((
             crate::title_screen::TitleScreenPlugin,
             crate::hex_travel::HexTravelPlugin,
@@ -3822,6 +3823,7 @@ child_style.clone(),
             crate::touch_controls::TouchControlsPlugin,
             crate::human_inventory::HumanInventoryPlugin,
         ));
+        drop(env);
         app.world_mut().run_schedule(Startup);
         let mover = app
             .world_mut()

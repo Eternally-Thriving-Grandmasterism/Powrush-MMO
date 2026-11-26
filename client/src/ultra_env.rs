@@ -183,12 +183,14 @@ mod tests {
 
     #[test]
     fn camera_gets_env_only_on_high_ultra_and_ui_never() {
+        let env = crate::test_env::lock();
         let mut app = App::new();
         let mut s = LocalSettingsState::default();
         s.inner.graphics_preset = GraphicsPreset::High;
         app.insert_resource(s).add_plugins(UltraEnvPlugin);
         let cam = app.world_mut().spawn(Camera3d::default()).id();
         let ui = app.world_mut().spawn(Camera2d).id();
+        drop(env);
         for (p, want) in [
             (GraphicsPreset::High, true),
             (GraphicsPreset::Ultra, true),
@@ -207,10 +209,12 @@ mod tests {
     /// 200, then removed; an idle frame never re-inserts; UI never gets it.
     #[test]
     fn env_intensity_follows_preset_switch_without_idle_reinsert() {
+        let env = crate::test_env::lock();
         let mut app = App::new();
         app.insert_resource(LocalSettingsState::default()).add_plugins(UltraEnvPlugin);
         let cam = app.world_mut().spawn(Camera3d::default()).id();
         let ui = app.world_mut().spawn(Camera2d).id();
+        drop(env);
         for (p, want) in [
             (GraphicsPreset::High, Some(200.0)),
             (GraphicsPreset::Ultra, Some(350.0)),

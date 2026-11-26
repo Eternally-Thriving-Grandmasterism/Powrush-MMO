@@ -250,6 +250,7 @@ mod tests {
         use bevy::time::TimeUpdateStrategy;
         use std::time::Duration;
 
+        let env = crate::test_env::lock();
         let mut app = App::new();
         app.add_plugins(bevy::MinimalPlugins);
         app.insert_resource(TimeUpdateStrategy::ManualDuration(Duration::ZERO));
@@ -266,6 +267,7 @@ mod tests {
         app.add_systems(Update, super::paint_climate_feel.in_set(FogWriteSet::ClimateFeel));
         app.finish();
         app.cleanup();
+        drop(env);
         app.update();
         let brightness = app.world().resource::<GlobalAmbientLight>().brightness;
         assert!((brightness - 333.5).abs() < 1e-3, "{brightness}");

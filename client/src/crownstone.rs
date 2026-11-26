@@ -147,6 +147,7 @@ mod tests {
 
     #[test]
     fn hour_three_gates_witness() {
+        let _env = crate::test_env::lock();
         let hour = HourSacred {
             session: shared::space_law::SpaceSession::default(),
             complete: true,
@@ -158,6 +159,7 @@ mod tests {
 
     #[test]
     fn peace_hides_stone() {
+        let _env = crate::test_env::lock();
         let hour = HourSacred::default();
         assert_eq!(hour.hex(), HexFlag::Peace);
         let embassy = EmbassyYard::default();
@@ -216,7 +218,9 @@ mod tests {
     }
     #[test] fn climate_crown_vis_neq_1_cs2_embassy_unseat_then_reseat_marks_once_each() {
         let (mut app, v, h) = (cs_app(), Visibility::Visible, Visibility::Hidden);
+        let env = crate::test_env::lock();
         app.insert_resource(EmbassyYard::default());
+        drop(env);
         assert_eq!(cs_run(&mut app, 3), vec![(h, true), (h, false), (h, false)], "CS2 unseat: Hidden changed once, then quiet");
         app.world_mut().resource_mut::<EmbassyYard>().embassy.seated = true;
         assert_eq!(cs_run(&mut app, 2), vec![(v, true), (v, false)], "CS2 reseat: Visible changed once, then quiet");
