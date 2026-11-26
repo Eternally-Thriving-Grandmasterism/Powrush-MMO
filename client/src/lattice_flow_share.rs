@@ -451,7 +451,7 @@ mod tests {
         let same_text = |env: &LatticeFlowShareEnvelope, raw: &str| {
             let v: serde_json::Value = serde_json::from_str(raw).unwrap();
             assert_eq!(v["schema"].as_str(), Some(env.schema.as_str()));
-            assert_eq!(v["last_path"].as_str(), env.last_path.as_deref());
+            assert_eq!(Some(v["last_path"].as_str().expect("last_path saved")), env.last_path.as_deref());
             assert_eq!(v["mercy_note"].as_str(), Some(env.mercy_note.as_str()));
         };
         let own = own.expect("tag share export parses");
