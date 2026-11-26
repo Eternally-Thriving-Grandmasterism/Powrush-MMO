@@ -371,6 +371,7 @@ mod tests {
         *app.world_mut().resource_mut::<LaunchDoor>() = LaunchDoor::Title;
         (0..5).for_each(|_| app.update());
         assert_eq!(shown(&mut app), Vec::<&str>::new(), "back on Title");
+        app.world_mut().resource_mut::<crate::wood_expedition::WoodHub>().shutdown(); // WOOD-WORKER-READ-1: the Disk worker's boot reads finish under the lock.
     }
 
     /// Fixture 7 (rows): the D-pad walks every live row in plate order and wraps; Online grey has no row tag;

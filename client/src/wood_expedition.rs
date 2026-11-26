@@ -2524,6 +2524,7 @@ pub(crate) mod tests {
     }
     #[test]
     fn plugin_reserves_the_passing_clearance_before_update() {
+        let _env = crate::test_env::lock(); // WOOD-WORKER-READ-1: the plugin's Disk worker reads the user dir; shutdown() below waits for it.
         let mut app = App::new();
         app.add_plugins(bevy::MinimalPlugins)
             .add_plugins(WoodExpeditionPlugin);
