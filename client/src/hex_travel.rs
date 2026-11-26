@@ -1050,6 +1050,7 @@ mod tests {
     /// Holds the shared user-dir lock and restores the previous override on drop.
     struct UserDirEnvHold {
         prev: Option<String>,
+        dir: std::path::PathBuf, // HEX-TMP-1: removed on drop, after the env is restored.
         _lock: crate::test_env::UserDirEnvGuard,
     }
 
@@ -1058,7 +1059,7 @@ mod tests {
             let _lock = crate::test_env::lock();
             let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok();
             std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, dir);
-            Self { prev, _lock }
+            Self { prev, dir: dir.to_path_buf(), _lock }
         }
     }
 
@@ -1068,6 +1069,7 @@ mod tests {
                 Some(value) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, value),
                 None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV),
             }
+            let _ = std::fs::remove_dir_all(&self.dir);
         }
     }
 
