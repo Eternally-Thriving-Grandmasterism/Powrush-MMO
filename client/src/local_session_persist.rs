@@ -558,7 +558,7 @@ mod tests {
         assert_eq!(a.combat_xp, Some(30));
     }
 
-    /// X3 stand-in for `combat_fire`: the same land, `fire_line` and `set_pulse` as combat_core :397-400.
+    /// X3 stand-in for `combat_fire`: the same land, `fire_line` and `set_pulse` as combat_core :644-660.
     #[test]
     fn paying_hit_marks_the_session_dirty() {
         use crate::combat_core::{fire_line, land_hit_crossing, set_pulse, CombatState};
