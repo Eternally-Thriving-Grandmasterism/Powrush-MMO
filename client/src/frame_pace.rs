@@ -1192,4 +1192,16 @@ mod tests {
         assert!(main.contains("powrush_client::frame_pace::CRASH_SNAP.line(epoch_secs, powrush_client::frame_pace::BUILD_SHA)"));
         for src in [prod, main] { for net in ["std::net", "TcpStream", "UdpSocket", "reqwest", "ureq", "hyper", "http://", "https://", "process::Command", "steamworks"] { assert!(!src.contains(net), "network or upload path: {net}"); } }
     }
+
+    /// PERF-BASELINE-1: the committed runner baseline (CI run 45856236626 on fc279fe5) is a 9-field schema-1 record of this seed
+    /// and frame count, and compares clean against itself. Warn-only stays in the CI step; this pins only that the file is usable.
+    #[test]
+    fn perf_baseline_1_committed_baseline_parses_and_self_compares_clean() {
+        let raw = include_str!("../perf/bench_walk_baseline.json");
+        assert_eq!(serde_json::from_str::<serde_json::Value>(raw).unwrap().as_object().map(|o| o.len()), Some(9), "9 fields");
+        let b: BenchWalk = serde_json::from_str(raw).expect("baseline parses as BenchWalk");
+        assert_eq!((b.schema, b.seed, b.frames), (1, BENCH_SEED, BENCH_FRAMES));
+        assert!(b.rss_kib.is_some() && b.mesh_visible > 0 && b.mesh_visible <= b.entities && b.p50_us <= b.p95_us && b.p95_us <= b.p99_us);
+        assert!(bench_warnings(&b, &b, &BENCH_BAND).is_empty());
+    }
 }

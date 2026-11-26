@@ -1,0 +1,11 @@
+{
+  "schema": 1,
+  "seed": 20261126,
+  "frames": 240,
+  "p50_us": 430,
+  "p95_us": 466,
+  "p99_us": 542,
+  "entities": 227,
+  "mesh_visible": 140,
+  "rss_kib": 167320
+}
