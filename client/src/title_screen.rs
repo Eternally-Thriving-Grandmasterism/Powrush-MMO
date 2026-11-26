@@ -5681,6 +5681,7 @@ mod tests {
     /// one-way cross this session. Ambrosian shares Sanctuary.
     #[test]
     fn l2_garden_doors_ignite_after_tend_one_way() {
+        let _env = crate::test_env::lock();
         assert!(skip_house_stays_light(false));
         assert!(offer_house_peoples(false).is_none());
         assert!(!garden_door_may_cross(false, true, false));
@@ -6208,6 +6209,7 @@ mod tests {
     /// CARD S3 — Play starts a new ungenerated light unsealed soul (garden / God-plane).
     #[test]
     fn s3_play_starts_light_unsealed_soul() {
+        let _env = crate::test_env::lock();
         use crate::hour_sacred::{
             doors_are_unsealed, gate_seal_from_hour_two_json, merge_gate_seal_into_hour_two_json,
             soul_is_light,
@@ -6252,6 +6254,7 @@ mod tests {
     /// CARD S3 — Continue lists sealed souls with People dress + last Place.
     #[test]
     fn s3_continue_lists_sealed_souls_dress_last_place() {
+        let _env = crate::test_env::lock();
         use crate::hour_sacred::merge_gate_seal_into_hour_two_json;
         use shared::hex_travel::PlaceId;
 
@@ -6421,6 +6424,7 @@ mod tests {
     /// CARD F6 — Continue shows sealed souls in People dress @ last Place.
     #[test]
     fn f6_continue_shows_sealed_souls_people_dress_last_place() {
+        let _env = crate::test_env::lock();
         use crate::hour_sacred::merge_gate_seal_into_hour_two_json;
         use shared::hex_travel::PlaceId;
 
@@ -6486,6 +6490,7 @@ mod tests {
     /// CARD F6 — delete-soul / clear seal → that slot returns to light (Play).
     #[test]
     fn f6_delete_soul_clear_seal_slot_returns_light_play() {
+        let _env = crate::test_env::lock();
         use crate::hour_sacred::{
             gate_seal_from_hour_two_json, merge_gate_seal_into_hour_two_json, SEALED_LANDING_KEY,
             SEALED_PEOPLE_KEY,
@@ -7857,7 +7862,7 @@ mod tests {
     /// CARD TITLE-MENU-TEXT-SCALE-1 — labels update in place. Pause rows stay 15px.
     #[test]
     fn title_menu_labels_follow_text_scale_without_respawn() {
-        let mut settings = LocalSettingsState::default();
+        let mut settings = { let _env = crate::test_env::lock(); LocalSettingsState::default() };
         settings.inner.text_scale = 1.0;
         let mut app = App::new();
         app.insert_resource(settings)
@@ -10329,6 +10334,7 @@ mod tests {
     /// Harvest uses that same post-set slot (`.after(InputMapSet)` since #720).
     #[test]
     fn title_script_play_orders_fill_then_play_then_harvest() {
+        let _env = crate::test_env::lock();
         use bevy::ecs::schedule::Schedules;
         use bevy::ecs::system::{IntoSystem, System};
         use std::any::TypeId;
@@ -10614,9 +10620,10 @@ mod tests {
     #[test]
     fn launch_rows_are_plate_buttons_in_order_text_scaled_online_grey_last() {
         use crate::launch_menu::{tag_title_rows, LaunchFocus, LaunchRow};
+        let settings = { let _env = crate::test_env::lock(); LocalSettingsState::default() };
         let mut app = App::new();
         tag_title_rows(&mut app);
-        app.insert_resource(LocalSettingsState::default()).init_resource::<LaunchFocus>()
+        app.insert_resource(settings).init_resource::<LaunchFocus>()
             .add_systems(Startup, spawn_title_screen).add_systems(Update, refresh_title_menu_text_scale);
         app.update();
         app.world_mut().resource_mut::<LocalSettingsState>().inner.text_scale = 1.35;
@@ -11154,6 +11161,7 @@ mod tests {
     fn fb_hits(app: &mut App) -> Vec<&'static str> { app.world_mut().query::<&Text>().iter(app.world()).flat_map(|t| fb_marks(&t.0)).collect() }
     fn fb_count(app: &mut App) -> usize { app.world_mut().query::<&Text>().iter(app.world()).count() }
     #[test] fn first_boot_clean_1_fb1_title_then_play_show_no_dev_markers() {
+        let _env = crate::test_env::lock();
         let mut app = fb_boot(true); app.update();
         assert!(!app.world().resource::<crate::age_gate::AgeGate>().open && fb_count(&mut app) > 0, "FB1 seeded: gate closed and Title texts spawned");
         let title = fb_hits(&mut app); assert!(title.is_empty(), "FB1 Title dev markers: {title:?}");
@@ -11163,11 +11171,13 @@ mod tests {
         }
     }
     #[test] fn first_boot_clean_1_fb2_unseeded_age_gate_open_on_frame_one() {
+        let _env = crate::test_env::lock();
         let mut app = fb_boot(false);
         assert!(app.world().resource::<crate::age_gate::AgeGate>().open, "FB2 unseeded: age gate open on frame 1");
         let hits = fb_hits(&mut app); assert!(hits.is_empty(), "FB2 age-gate frame dev markers: {hits:?}");
     }
     #[test] fn first_boot_clean_1_fb3_planted_prototype_text_is_caught() {
+        let _env = crate::test_env::lock();
         let mut app = fb_boot(true); assert!(fb_hits(&mut app).is_empty(), "FB3 clean before planting");
         app.world_mut().spawn(Text::new("Prototype build")); app.update();
         assert_eq!(fb_hits(&mut app), vec!["prototype"], "FB3 planted text must trip the same checker");
