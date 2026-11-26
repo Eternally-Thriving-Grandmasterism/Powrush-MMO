@@ -254,6 +254,7 @@ fn assert_tells(app: &mut App) {
 fn boot() -> App { boot_with(|_| {}) }
 /// `pre` runs before the first update, so Startup sees what it inserts.
 fn boot_with(pre: impl FnOnce(&mut App)) -> App {
+    let _env = crate::test_env::lock(); // ENTITY-BOOT-LOCK-1: Startup load_finds reads the user dir.
     let mut app = App::new();
     app.add_plugins((MinimalPlugins, AssetPlugin::default())).set_error_handler(bevy::ecs::error::ignore)
         .init_asset::<Mesh>().init_asset::<StandardMaterial>()
@@ -268,6 +269,7 @@ fn boot_with(pre: impl FnOnce(&mut App)) -> App {
             HumanPresencePlugin, HeartwoodLipPlugin, HeartwoodWardsPlugin, DepthsLandingPlugin,
         ));
     pre(&mut app);
+    crate::test_env::single_thread(&mut app); // CI-HANG-1: no pool worker runs a system while the lock is held.
     app.update();
     app
 }
