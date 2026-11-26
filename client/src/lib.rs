@@ -193,6 +193,42 @@ pub(crate) mod test_env {
             }
         }
     }
+
+    /// CARD HOME-WRITE-1 — before libtest runs any test, `HOME` points at a per-process scratch dir
+    /// and `XDG_DATA_HOME` is unset, so no `--lib` test reads, creates or writes the real user dir.
+    /// The scratch dir is removed at process exit. Holds no lock; runs before any test thread exists.
+    #[cfg(target_os = "linux")]
+    #[used]
+    #[link_section = ".init_array"]
+    static SCRATCH_HOME_INIT: extern "C" fn() = scratch_home_init;
+
+    #[cfg(target_os = "linux")]
+    extern "C" fn scratch_home_init() {
+        extern "C" {
+            fn atexit(f: extern "C" fn()) -> std::os::raw::c_int;
+        }
+        extern "C" fn scratch_home_drop() {
+            let _ = std::fs::remove_dir_all(scratch_home());
+        }
+        let _ = std::fs::create_dir_all(scratch_home());
+        std::env::set_var("HOME", scratch_home());
+        std::env::remove_var("XDG_DATA_HOME");
+        unsafe { atexit(scratch_home_drop) };
+    }
+
+    #[cfg(target_os = "linux")]
+    pub(crate) fn scratch_home() -> std::path::PathBuf {
+        std::env::temp_dir().join(format!("powrush-test-home-{}", std::process::id()))
+    }
+
+    /// HOME-WRITE-1 — the OS user dir and the Steam abundance stage both resolve under the scratch HOME.
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn home_write_1_user_dirs_resolve_under_scratch_home() {
+        assert_eq!(std::env::var_os("HOME"), Some(scratch_home().into_os_string()));
+        assert!(shared::user_persist::os_user_data_dir().starts_with(scratch_home()));
+        assert!(crate::steam_abundance_mirror::preferred_abundance_stage_root().starts_with(scratch_home()));
+    }
 }
 
 pub use first_session_guidance::{FirstSessionGuidancePlugin, FirstSessionGuidance};
