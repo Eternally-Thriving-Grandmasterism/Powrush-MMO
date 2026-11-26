@@ -186,7 +186,7 @@ fn append_crash_log(path: &Path, info: &PanicHookInfo<'_>) {
         .create(true)
         .append(true)
         .open(path)
-        .and_then(|mut file| file.write_all(line.as_bytes()));
+        .and_then(|mut file| file.write_all(line.as_bytes()).and_then(|_| file.write_all(powrush_client::frame_pace::CRASH_SNAP.line(epoch_secs, powrush_client::frame_pace::BUILD_SHA).as_bytes()))); // CRASH-REPORT-1: base line lands first
 }
 
 #[cfg(test)]
