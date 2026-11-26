@@ -876,6 +876,7 @@ mod tests {
     /// Yard on `place` with Settled + book, pause and Places both closed.
     /// Same door the walk reaches after Continue; no disk write.
     fn yard_app(place: PlaceId) -> App {
+        let _env = crate::test_env::lock(); // HEX-TMP-2: yard_app reads the user dir.
         let mut app = App::new();
         app.add_plugins(MinimalPlugins).add_plugins(BevyInputPlugin);
         let mut house = HouseName::default();
@@ -1615,6 +1616,7 @@ mod tests {
         start: PlaceId,
         mut presence: Option<&mut SoftPresence>,
     ) -> ((Option<PeopleLanding>, PlaceId), String) {
+        let _env = crate::test_env::lock(); // HEX-TMP-2: apply_place reads the user dir.
         let mut travel = HexTravelState { current: start };
         let mut bind = demo_bind();
         let hex_before = bind.climate.hex_id.clone();
@@ -2049,6 +2051,7 @@ mod tests {
     #[test]
     fn s2_decline_wrong_door_restores_garden_place_id() {
         use crate::hour_sacred::decline_or_wrong_door;
+        let _env = crate::test_env::lock(); // HEX-TMP-2: apply_place reads the user dir.
 
         let start = PlaceId::Sanctuary;
         let (land, now) = land_people(true, true, HousePeople::Draek, start);
@@ -2101,6 +2104,7 @@ mod tests {
         use crate::hour_sacred::{confirm_gate_seal, still_unsealed_until_eq, soul_is_light};
         use crate::human_presence::SoftPresence;
         use shared::local_settings::PeaceKey;
+        let _env = crate::test_env::lock(); // HEX-TMP-2: apply_place reads the user dir.
 
         let mut travel = HexTravelState {
             current: PlaceId::Sanctuary,
@@ -2156,6 +2160,7 @@ mod tests {
     fn f5_decline_wrong_door_garden_light_not_sealed_place_id_garden() {
         use crate::hour_sacred::{still_unsealed_until_eq, soul_is_light};
         use crate::human_presence::{garden_bounce_wake, SoftPresence};
+        let _env = crate::test_env::lock(); // HEX-TMP-2: apply_place reads the user dir.
 
         let garden = PlaceId::Sanctuary;
         let mut travel = HexTravelState { current: garden };
