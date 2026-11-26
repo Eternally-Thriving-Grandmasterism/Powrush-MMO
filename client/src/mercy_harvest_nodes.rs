@@ -1578,7 +1578,7 @@ mod tests {
         assert_eq!(pv_run(&mut app, 2), vec![(PH, true); 2], "PV11 Title door (R5): Hidden, changed every frame on main and branch alike");
     }
 
-    /// PAD-ROUTES-G-1 F1-F10. Real InputPlugin events. single_thread after plugins. offer_shell false. No test_env lock.
+    /// PAD-ROUTES-G-1 F1-F10. Real InputPlugin events. single_thread after plugins. offer_shell false. test_env lock only while the App is built (YARD-READ-LOCK-1).
     fn cc_app(active: bool, panel: Option<bool>) -> (App, Entity) {
         use bevy::input::gamepad::{GamepadConnection, GamepadConnectionEvent};
         let env = crate::test_env::lock();
