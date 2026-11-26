@@ -602,6 +602,9 @@ struct NameRiteLine(String);
 
 impl Default for HouseLabel {
     fn default() -> Self {
+        // QUIT-HOUR-TMP-1 — wait out a test's user-dir override so this read never recreates its scratch dir.
+        #[cfg(test)]
+        let _user_dir = crate::test_env::lock();
         let house = HouseName::load_or_default();
         let hour_two_json = shared::user_persist::named_exists(HOUR_TWO_PATH)
             .then(|| shared::user_persist::read_named(HOUR_TWO_PATH).ok())
@@ -5767,6 +5770,7 @@ mod tests {
         start: shared::hex_travel::PlaceId,
         mut presence: Option<&mut SoftPresence>,
     ) -> (Option<PeopleLanding>, shared::hex_travel::PlaceId) {
+        let _user_dir = crate::test_env::lock(); // QUIT-HOUR-TMP-1 — apply_place reads the user dir.
         let mut travel = HexTravelState { current: start };
         let mut bind = l5_demo_bind();
         let mut crossed = None;
