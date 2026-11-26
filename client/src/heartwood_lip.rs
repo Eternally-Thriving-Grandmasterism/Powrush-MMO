@@ -418,6 +418,10 @@ mod tests {
             .last_line
             .clone()
     }
+    /// ENV-GUARD-2 — sets `POWRUSH_USER_DIR` to `dir`; drop restores the prior value, then removes `dir`, also on a panic.
+    struct UserDirOverride(Option<String>, std::path::PathBuf);
+    impl UserDirOverride { fn set(dir: &std::path::Path) -> Self { let prev = std::env::var(USER_DIR_OVERRIDE_ENV).ok(); std::env::set_var(USER_DIR_OVERRIDE_ENV, dir); Self(prev, dir.to_path_buf()) } }
+    impl Drop for UserDirOverride { fn drop(&mut self) { match self.0.take() { Some(v) => std::env::set_var(USER_DIR_OVERRIDE_ENV, v), None => std::env::remove_var(USER_DIR_OVERRIDE_ENV) } let _ = std::fs::remove_dir_all(&self.1); } }
 
     /// The re-walk fail: the pipe Tend spoke, but Heartwood's climate stayed
     /// 0/0, so the file written on leave was blank and the House bill could
@@ -432,8 +436,7 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let _lock = crate::test_env::lock();
-        let prev = std::env::var(USER_DIR_OVERRIDE_ENV).ok();
-        std::env::set_var(USER_DIR_OVERRIDE_ENV, &dir);
+        let _user_dir = UserDirOverride::set(&dir);
 
         let mut app = pipe_app(
             PlaceId::Heartwood,
@@ -483,12 +486,6 @@ mod tests {
         assert_eq!(written.climate.tons_moved, 0);
         assert!(persist_path(&hex_file_name(PlaceId::Heartwood)).starts_with(&dir));
         assert!(read_hex_named(PlaceId::Sanctuary).is_none() && read_hex_named(PlaceId::Depths).is_none());
-
-        match &prev {
-            Some(value) => std::env::set_var(USER_DIR_OVERRIDE_ENV, value),
-            None => std::env::remove_var(USER_DIR_OVERRIDE_ENV),
-        }
-        let _ = std::fs::remove_dir_all(&dir);
     }
 
     /// One room's numbers must never be stamped into another room's file.
