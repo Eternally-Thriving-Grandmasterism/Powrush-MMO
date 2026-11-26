@@ -632,6 +632,7 @@ mod tests {
         );
     }
 
+    #[test] // GHOST-TESTS-1: restore the attribute dropped by #1024.
     fn wood_claim_does_not_credit_practice() {
         let mut app = App::new();
         app.add_plugins(bevy::MinimalPlugins)

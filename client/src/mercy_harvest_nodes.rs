@@ -896,6 +896,11 @@ mod tests {
         offer.choose(CareCycleChoice::TemperTool);
         assert!(!offer.active);
         assert_eq!(offer.choice, Some(CareCycleChoice::TemperTool));
+        offer.active = true;
+        offer.choose(CareCycleChoice::DistillWard);
+        assert_eq!(offer.choice, Some(CareCycleChoice::DistillWard));
+        assert!(!offer.active);
+    }
 
     #[test]
     fn digit1_temper_crafts_hook_when_spool_is_stocked() {
@@ -914,13 +919,6 @@ mod tests {
         fab.planted = true;
         assert_eq!(craft_hands_tend_hook(&mut fab), Err("missing_spool"));
         assert!(fab.last_tempered.is_none());
-    }
-
-
-        offer.active = true;
-        offer.choose(CareCycleChoice::DistillWard);
-        assert_eq!(offer.choice, Some(CareCycleChoice::DistillWard));
-        assert!(!offer.active);
     }
 
     #[test]
