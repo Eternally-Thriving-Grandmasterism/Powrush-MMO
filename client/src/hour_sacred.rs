@@ -2856,4 +2856,43 @@ mod tests {
         app.world_mut().write_message(KeyboardInput { key_code: soft_play_bindings::CHART, logical_key: Key::Tab, state: ButtonState::Pressed, repeat: false, text: None, window: Entity::PLACEHOLDER }); app.update();
         assert_eq!(app.world().resource::<HourSacred>().hex(), HexFlag::Frontier, "T5 Tab steps with no pad and no gate resources");
     }
+
+    /// CARD SAVE-FIXTURE-3 — the hour-two pack as the playable-preview tag (11c577ef) wrote it at
+    /// hour three held loads through `load_or_peace` and every yard's boot read, with no field dropped.
+    #[test]
+    fn save_fixture_3_playable_preview_hour_two_pack_loads() {
+        let raw = include_str!("../../tests/fixtures/save-preview/data/powrush_hour_two.json");
+        assert!(serde_json::from_str::<HourTwoPack>(raw).is_ok(), "full pack parse, not the session-only fallback");
+        let dir = std::env::temp_dir().join(format!("powrush-sf3-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0)));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(shared::user_persist::persist_file_name(HOUR_TWO_PATH)), raw).unwrap();
+        let key = shared::user_persist::USER_DIR_OVERRIDE_ENV;
+        let _env = crate::test_env::lock();
+        let prev = std::env::var(key).ok();
+        std::env::set_var(key, &dir);
+        let loaded = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| (HourSacred::load_or_peace(), FactoryYard::default(),
+            EvidenceYard::default(), LedgerYard::default(), FabricatorYard::default(), EmbassyYard::default())));
+        match prev { Some(v) => std::env::set_var(key, v), None => std::env::remove_var(key) }
+        let _ = std::fs::remove_dir_all(&dir);
+        let (hour, factory, evidence, ledger, fab, embassy) = loaded.unwrap();
+        assert_eq!((hour.session.charter_id.as_deref(), hour.hex(), hour.session.kind), (Some("house-local"), HexFlag::Frontier, CharterKind::House));
+        assert_eq!(hour.session.warrant, WarrantWeight::default());
+        assert!(hour.charter_skin_live() && hour.complete && hour.hour_three_complete);
+        let f = &factory.factory;
+        assert!(f.founded && f.arrived && f.tutorial_complete());
+        assert_eq!((f.nodes.len(), f.route_stops, f.reserve), (3, 2, 0.0));
+        let w = &evidence.witness;
+        assert!(w.seen);
+        assert_eq!(w.pack.as_ref().map(|p| p.hash.as_str()), Some("849c23f0880d2f9d"));
+        let c = ledger.board.open().expect("one contract");
+        assert_eq!((ledger.board.contracts.len(), c.state, c.stops_done, c.lethal_count), (1, shared::ledger_bind::ContractState::Settled, 2, 0));
+        assert_eq!(c.evidence_hash, "849c23f0880d2f9d");
+        let fb = &fab.fab;
+        assert!(fb.planted && fb.pack.repair && fb.pack.logi);
+        assert_eq!((fb.reserve, fb.spool_stock, fb.crate_stock, fb.last_tempered.is_none()), (0.0, 0, 0, true));
+        let e = &embassy.embassy;
+        assert!(e.lamp_live && e.seated);
+        assert_eq!(e.book.entries.len(), 2);
+    }
 }
