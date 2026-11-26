@@ -287,6 +287,7 @@ mod tests {
 
     #[test]
     fn peace_hides_lamp() {
+        let _env = crate::test_env::lock();
         let hour = HourSacred::default();
         assert_eq!(hour.hex(), HexFlag::Peace);
         let yard = EmbassyYard::default();
@@ -452,6 +453,7 @@ mod tests {
         for (place, want_vis, want_seat) in
             [(Some(PlaceId::Sanctuary), true, true), (Some(PlaceId::Heartwood), false, false), (None, true, true)]
         {
+            let env = crate::test_env::lock();
             let mut app = App::new();
             app.add_plugins((MinimalPlugins, BevyInputPlugin, EmbassyPlugin))
                 .insert_resource(hour.clone())
@@ -464,6 +466,7 @@ mod tests {
             if let Some(p) = place {
                 app.insert_resource(HexTravelState { current: p });
             }
+            drop(env);
             app.update();
             app.update();
             let mut vis_q = app.world_mut().query_filtered::<&Visibility, With<EmbassySlabRoot>>();
@@ -500,10 +503,12 @@ mod tests {
     /// The embassy_slab_1 lamp offer on Sanctuary (bench + EmbassyPlugin); `hud` adds the real HudLayoutPlugin at InYard.
     fn tv_app(hud: Option<crate::hud_presets::HudPresetId>) -> App {
         let (hour, fabricator) = embassy_slab_1_bench();
+        let env = crate::test_env::lock();
         let mut app = App::new();
         app.add_plugins((MinimalPlugins, bevy::input::InputPlugin, EmbassyPlugin)).insert_resource(hour).insert_resource(fabricator).insert_resource(VoiceYard::default()).insert_resource(LedgerYard::default()).insert_resource(ThrivingMoments::default()).insert_resource(FirstHarvestEpiphany::default()).insert_resource(EmbassyYard::default())
             .insert_resource(crate::hex_travel::HexTravelState { current: shared::hex_travel::PlaceId::Sanctuary }).init_resource::<TvTape>().add_systems(Last, tv_tape);
         if let Some(id) = hud { app.add_plugins(crate::hud_presets::HudLayoutPlugin).insert_resource(crate::hud_presets::ActiveHudPreset { id: Some(id) }).insert_resource(crate::title_screen::LaunchDoor::InYard).init_resource::<crate::hex_travel::PlacesPlate>(); }
+        drop(env);
         tv_settle(app)
     }
     fn tv_place(app: &mut App, current: shared::hex_travel::PlaceId) { app.insert_resource(crate::hex_travel::HexTravelState { current }); }
