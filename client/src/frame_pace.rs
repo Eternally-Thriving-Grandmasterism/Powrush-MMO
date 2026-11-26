@@ -902,6 +902,24 @@ mod tests {
         assert_representable(&app);
     }
 
+    /// PERF-PACE-PIN-1: today's pacing values, pinned as they are. Changing one is a council/Sherif call; this only makes it deliberate.
+    #[test]
+    fn perf_pace_pin_1_focused_and_inactive_spacing_values() {
+        assert_eq!(FOCUSED_PERIOD, Duration::from_nanos(16_666_667), "focused release spacing (60 Hz)");
+        assert_eq!(INACTIVE_PERIOD, Duration::from_millis(250), "unfocused / missing / ambiguous window release spacing (4 Hz)");
+    }
+    /// PERF-PACE-PIN-1: main.rs keeps Fifo and registers FramePacePlugin in `fn main`; neither perf file overrides Bevy's WinitSettings.
+    #[test]
+    fn perf_pace_pin_1_main_fifo_plugin_and_no_winit_override() {
+        let code = |src: &'static str| src.split("\n#[cfg(test)]").next().unwrap().lines().map(|l| l.split("//").next().unwrap_or("")).collect::<Vec<_>>().join("\n");
+        let main = code(include_str!("main.rs"));
+        let body = main.split("fn main() {").nth(1).and_then(|s| s.split("\n}\n").next()).expect("fn main");
+        assert_eq!(main.matches("PresentMode::").count(), 1, "one present mode in main.rs");
+        assert!(body.contains("present_mode: bevy::window::PresentMode::Fifo,"), "Fifo in fn main");
+        assert!(body.contains("powrush_client::frame_pace::FramePacePlugin,"), "FramePacePlugin registered in fn main");
+        for (file, src) in [("main.rs", &main), ("frame_pace.rs", &code(include_str!("frame_pace.rs")))] { for t in ["WinitSettings", "UpdateMode"] { assert!(!src.contains(t), "{file} sets {t}"); } }
+    }
+
     #[derive(Resource, Default)]
     struct LastProbe {
         captured: bool,
