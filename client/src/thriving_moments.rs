@@ -453,6 +453,7 @@ mod tests {
         assert_eq!(tt_is(&tt_run(&mut app, 2), ThrivingKind::FirstShare), vec![(true, false); 2], "TT5 current cleared: text keeps the last line, quiet");
     }
     fn thrive_app() -> App {
+        let _env = crate::test_env::lock();
         let mut app = App::new();
         app.add_plugins((bevy::MinimalPlugins, bevy::input::InputPlugin, crate::human_inventory::HumanInventoryPlugin, ThrivingMomentsPlugin)).init_resource::<crate::first_harvest_epiphany::FirstHarvestEpiphany>().init_resource::<crate::human_soft_panels::HumanSoftPanels>().init_resource::<crate::rbe_allocate_choice::RbeAllocateChoice>().init_resource::<crate::harvest_feel::SoftRbePool>().init_resource::<crate::lived_hour_bind::LivedHourBind>().init_resource::<crate::title_screen::HouseLabel>().init_resource::<crate::loot_drops::FoundFinds>();
         app

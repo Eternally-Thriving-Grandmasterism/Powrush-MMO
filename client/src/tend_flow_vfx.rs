@@ -309,6 +309,7 @@ mod tests {
     }
 
     fn app_with(preset: GraphicsPreset) -> App {
+        let _env = crate::test_env::lock();
         let mut app = App::new();
         app.add_plugins(MinimalPlugins);
         let mut s = LocalSettingsState::default();

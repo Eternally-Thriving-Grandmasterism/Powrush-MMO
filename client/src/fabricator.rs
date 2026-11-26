@@ -491,6 +491,7 @@ mod tests {
 
     #[test]
     fn peace_does_not_plant() {
+        let _env = crate::test_env::lock();
         let hour = HourSacred::default();
         assert_eq!(hour.hex(), HexFlag::Peace);
         let yard = FabricatorYard::default();
