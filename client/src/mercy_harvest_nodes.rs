@@ -757,6 +757,9 @@ fn hold_tend_once(
 mod tests {
     use super::*;
     use shared::temper::temper_copy_is_honest;
+    /// SHELL-WARD-RACE-1: `SHELL_WARD_SEATED` (:65) is process-wide; tests that write it run one at a time.
+    static SHELL_WARD_TESTS: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    fn shell_ward_test_lock() -> std::sync::MutexGuard<'static, ()> { SHELL_WARD_TESTS.lock().unwrap_or_else(|e| e.into_inner()) }
     /// CARD WELL-GLOW-OWNER-1 — `pulse_harvested_nodes` alone never touches
     /// the well material emissive or the child `PointLight`; it still decays
     /// pulse and breathes scale.
@@ -814,6 +817,7 @@ mod tests {
 
     #[test]
     fn harvest_leaves_node_alive() {
+        let _ward = shell_ward_test_lock();
         mark_shell_ward_seated(false);
         let mut n = MercyHarvestNode {
             name: "test",
@@ -1012,6 +1016,7 @@ mod tests {
 
     #[test]
     fn harvest_with_shell_inflicts_less_stress() {
+        let _ward = shell_ward_test_lock();
         mark_shell_ward_seated(false);
         let v = 1.0_f32;
         let plain = vitality_after_harvest(v, false);
