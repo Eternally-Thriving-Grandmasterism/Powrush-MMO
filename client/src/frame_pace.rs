@@ -3,6 +3,8 @@
 //! or render cap, and not a safety, thermal, or leak claim.
 
 use std::io::Write;
+use std::sync::atomic::{AtomicU32, AtomicU8, AtomicUsize, Ordering::Relaxed};
+use std::sync::OnceLock;
 use std::time::{Duration, Instant};
 
 use bevy::diagnostic::LogDiagnosticsPlugin;
@@ -10,6 +12,7 @@ use bevy::prelude::*;
 use bevy::render::renderer::RenderAdapterInfo;
 use bevy::time::Real;
 use bevy::window::PrimaryWindow;
+use shared::local_settings::GraphicsPreset;
 
 pub fn perf_log_on(v: Option<&str>) -> bool {
     matches!(v.map(|s| s.trim().to_ascii_lowercase()).as_deref(), Some("1" | "on" | "true" | "yes"))
@@ -71,6 +74,32 @@ impl FramePace {
             return None;
         }
         Some(std::mem::take(self))
+    }
+}
+
+/// CRASH-REPORT-1. Build sha baked at compile time from `POWRUSH_BUILD_SHA`; `unknown` when unset (no build.rs, no git call).
+pub const BUILD_SHA: &str = match option_env!("POWRUSH_BUILD_SHA") { Some(s) => s, None => "unknown" };
+/// CRASH-REPORT-1. Snapshot the panic hook reads: the last 32 real frame times (µs), the GPU adapter name and the
+/// quality tier. Atomics and `OnceLock::get` only, so the hook takes no lock and cannot deadlock; a slot read during a
+/// concurrent write is whole, but the 32 slots may mix two frames.
+pub struct CrashSnap { us: [AtomicU32; 32], n: AtomicUsize, adapter: OnceLock<String>, tier: AtomicU8 }
+pub static CRASH_SNAP: CrashSnap = CrashSnap::new();
+impl CrashSnap {
+    pub const fn new() -> Self { Self { us: [const { AtomicU32::new(0) }; 32], n: AtomicUsize::new(0), adapter: OnceLock::new(), tier: AtomicU8::new(u8::MAX) } }
+    /// Game side, once per frame. Zero deltas are skipped like `FramePace::tick`; the adapter is kept from its first sighting.
+    pub fn note(&self, dt: f64, adapter: Option<&str>, tier: Option<GraphicsPreset>) {
+        if dt > 0.0 { let i = self.n.fetch_add(1, Relaxed); self.us[i % 32].store((dt * 1e6).min(u32::MAX as f64) as u32, Relaxed); }
+        if let (None, Some(a)) = (self.adapter.get(), adapter) { let _ = self.adapter.set(a.to_string()); }
+        if let Some(t) = tier { self.tier.store(GraphicsPreset::ALL.iter().position(|p| *p == t).map_or(u8::MAX, |i| i as u8), Relaxed); }
+    }
+    /// Oldest first; fewer than 32 before the 32nd counted frame.
+    pub fn frames_us(&self) -> Vec<u32> { let n = self.n.load(Relaxed); (n.saturating_sub(32)..n).map(|i| self.us[i % 32].load(Relaxed)).collect() }
+    /// Hook side: one line, `{epoch} crash_report build=… version=… adapter="…" tier=… frames_ms=[…]\n`. No lock, no index panic.
+    pub fn line(&self, epoch_secs: u64, build: &str) -> String {
+        let clean = |s: &str| s.chars().filter(|c| !c.is_control()).map(|c| if c == '"' { '\'' } else { c }).take(96).collect::<String>();
+        let tier = GraphicsPreset::ALL.get(self.tier.load(Relaxed) as usize).map_or("unknown", |p| p.label());
+        let ms = self.frames_us().iter().map(|u| format!("{:.1}", *u as f64 / 1000.0)).collect::<Vec<_>>().join(",");
+        format!("{epoch_secs} crash_report build={} version={} adapter=\"{}\" tier={tier} frames_ms=[{ms}]\n", clean(build), env!("CARGO_PKG_VERSION"), self.adapter.get().map_or("unknown".to_string(), |a| clean(a)))
     }
 }
 
@@ -149,7 +178,8 @@ impl Plugin for FramePacePlugin {
     }
 }
 
-fn frame_pace_system(time: Res<Time<Real>>, mut pace: ResMut<FramePace>, perf: Res<PerfLog>, mut head: ResMut<PerfLogHead>, adapter: Option<Res<RenderAdapterInfo>>) {
+fn frame_pace_system(time: Res<Time<Real>>, mut pace: ResMut<FramePace>, perf: Res<PerfLog>, mut head: ResMut<PerfLogHead>, adapter: Option<Res<RenderAdapterInfo>>, settings: Option<Res<crate::local_settings::LocalSettingsState>>) {
+    CRASH_SNAP.note(time.delta_secs_f64(), adapter.as_deref().map(|a| a.name.as_str()), settings.as_deref().map(|s| s.inner.graphics_preset)); // CRASH-REPORT-1
     let roll_secs = LogDiagnosticsPlugin::default().wait_duration.as_secs_f64();
     if let Some(c) = pace.tick(time.delta_secs_f64(), roll_secs) {
         // p50 / p95 as the upper ms edge of the first bucket reaching that share of frames.
@@ -1003,5 +1033,38 @@ mod tests {
         assert!(FramePace::default().tick(1.01, 1.0).is_some()); assert!(!shared::user_persist::persist_path("data/perf.log").exists());
         let c = { let mut p = FramePace::default(); p.tick(1.01, 1.0).unwrap() }; append_perf_line(&format!("frame_pace: frames={} over_budget={} hitches={} p50_ms<=2 p95_ms<=2", c.frames, c.over_budget, c.hitches));
         let s = std::fs::read_to_string(shared::user_persist::persist_path("data/perf.log")).unwrap(); assert!(s.contains("p50_ms") && !s.contains("adapter="));
+    }
+
+    #[test]
+    fn crash_report_1_line_carries_build_version_adapter_tier_and_frames() {
+        let snap = CrashSnap::new();
+        assert_eq!(snap.line(7, "abc1234"), format!("7 crash_report build=abc1234 version={} adapter=\"unknown\" tier=unknown frames_ms=[]\n", env!("CARGO_PKG_VERSION")));
+        snap.note(0.016_667, Some("llvm\npipe \"soft\""), Some(GraphicsPreset::Ultra)); snap.note(0.0, Some("second"), None); snap.note(0.033, None, None);
+        let line = snap.line(9, "abc1234");
+        assert_eq!(line, format!("9 crash_report build=abc1234 version={} adapter=\"llvmpipe 'soft'\" tier=Ultra frames_ms=[16.7,33.0]\n", env!("CARGO_PKG_VERSION")));
+        assert_eq!(line.matches('\n').count(), 1); assert!(!line.contains('\r'));
+        snap.note(0.016, None, Some(GraphicsPreset::Mobile)); assert!(snap.line(1, "x").contains(" tier=Mobile "));
+        let long = CrashSnap::new(); long.note(0.01, Some(&"g".repeat(500)), None); assert!(long.line(1, "x").contains(&format!("adapter=\"{}\"", "g".repeat(96))));
+        assert!(!BUILD_SHA.is_empty());
+    }
+    #[test]
+    fn crash_report_1_ring_keeps_last_32_frames_oldest_first() {
+        let snap = CrashSnap::new();
+        for ms in 1..=5_u32 { snap.note(ms as f64 / 1000.0, None, None); }
+        assert_eq!(snap.frames_us(), (1..=5).map(|ms| ms * 1000).collect::<Vec<_>>());
+        for ms in 6..=40_u32 { snap.note(ms as f64 / 1000.0, None, None); }
+        assert_eq!(snap.frames_us(), (9..=40).map(|ms| ms * 1000).collect::<Vec<_>>());
+        snap.note(1e9, None, None); assert_eq!(snap.frames_us().last(), Some(&u32::MAX));
+    }
+    #[test]
+    fn crash_report_1_system_feeds_snapshot_and_module_stays_offline_and_lock_free() {
+        let prod = include_str!("frame_pace.rs").split("\n#[cfg(test)]\nmod tests {").next().unwrap();
+        let sys = prod.split("fn frame_pace_system(").nth(1).and_then(|s| s.split("\n}\n").next()).expect("frame_pace_system");
+        assert!(sys.contains("CRASH_SNAP.note(time.delta_secs_f64(), adapter.as_deref().map(|a| a.name.as_str()), settings.as_deref().map(|s| s.inner.graphics_preset))"));
+        let snap = prod.split("pub struct CrashSnap").nth(1).and_then(|s| s.split("\n}\n").next()).expect("CrashSnap impl");
+        for banned in ["Mutex", "RwLock", ".lock(", "get_or_init", "unwrap(", "expect(", "self.us[i]"] { assert!(!snap.contains(banned), "CrashSnap hook path uses {banned}"); }
+        let main = include_str!("main.rs").split("\n#[cfg(test)]").next().unwrap();
+        assert!(main.contains("powrush_client::frame_pace::CRASH_SNAP.line(epoch_secs, powrush_client::frame_pace::BUILD_SHA)"));
+        for src in [prod, main] { for net in ["std::net", "TcpStream", "UdpSocket", "reqwest", "ureq", "hyper", "http://", "https://", "process::Command", "steamworks"] { assert!(!src.contains(net), "network or upload path: {net}"); } }
     }
 }
