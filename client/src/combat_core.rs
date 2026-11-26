@@ -1545,6 +1545,7 @@ mod tests {
 
     #[test]
     fn defeat_writes_wake_line() {
+        let _env = crate::test_env::lock();
         use bevy::ecs::system::RunSystemOnce;
         let mut world = World::new();
         let mut time = Time::<()>::default();
@@ -1571,6 +1572,7 @@ mod tests {
     }
     #[test]
     fn sanctuary_tint_on_entry_and_restore_on_leaving() {
+        let _env = crate::test_env::lock();
         let mut world = World::new();
         world.insert_resource(Time::<()>::default());
         world.insert_resource(SoftPresence::default());
@@ -1590,6 +1592,7 @@ mod tests {
     }
     #[test]
     fn sanctuary_pillar_takes_the_body_tint_and_restores() {
+        let _env = crate::test_env::lock();
         let mut world = World::new();
         world.insert_resource(Time::<()>::default()); world.insert_resource(SoftPresence::default()); world.init_resource::<CombatState>(); world.init_resource::<Assets<StandardMaterial>>();
         let (pillar, ring) = { let mut a = world.resource_mut::<Assets<StandardMaterial>>(); (a.add(PREDATOR_COLOR), a.add(LUNGE_TELL_COLOR)) };
@@ -1629,6 +1632,7 @@ mod tests {
 
     #[test]
     fn no_write_on_a_frame_without_an_event() {
+        let _env = crate::test_env::lock();
         use bevy::ecs::system::RunSystemOnce;
         let mut world = World::new();
         world.insert_resource(Time::<()>::default());
@@ -1678,6 +1682,7 @@ mod tests {
 
     #[test]
     fn restored_combat_xp_prints_nothing() {
+        let _env = crate::test_env::lock();
         use bevy::ecs::system::RunSystemOnce;
         let mut world = World::new();
         world.insert_resource(Time::<()>::default());
@@ -2114,6 +2119,7 @@ mod tests {
     }
     #[test]
     fn muted_lunge_tell_text_shows_only_on_hidden_cue_tiers() {
+        let _env = crate::test_env::lock();
         use bevy::ecs::system::RunSystemOnce;
         for t in crate::difficulty::TIERS {
             let mut world = World::new();

@@ -963,6 +963,7 @@ mod tests {
 
     #[test]
     fn welcome_held_yard() {
+        let _env = crate::test_env::lock();
         let line = crate::hour_two_resume::welcome_line(false, true, false, None).unwrap();
         assert!(line.contains("yard remembers"));
         assert!(line.contains("climate"));
@@ -992,6 +993,7 @@ mod tests {
 
     #[test]
     fn welcome_glow_only_lights_for_hour_two_held() {
+        let _env = crate::test_env::lock();
         // Mirrors maybe_welcome_back's glow assignment without Bevy.
         let mut lit = FirstHarvestEpiphany::default();
         let hour_two = crate::hour_two_resume::welcome_line(false, true, false, None).unwrap();
@@ -1039,6 +1041,7 @@ mod tests {
 
     /// Mirrors maybe_welcome_back's write at `t`.
     fn hud_top_write_welcome_at(t: f64) -> FirstHarvestEpiphany {
+        let _env = crate::test_env::lock();
         let mut s = FirstHarvestEpiphany::default();
         let line = apply_resume_welcome(&mut s, false, true, false, None);
         assert!(line.is_some());
@@ -1081,6 +1084,7 @@ mod tests {
     /// write; the welcome must still show. An E after the write still hides it.
     #[test]
     fn welcome_field_e_before_write_still_shows_welcome() {
+        let _env = crate::test_env::lock();
         let mut s = FirstHarvestEpiphany::default();
         s.last_interact_at = 38.5; // E at t = 38.5, before the write
         assert!(apply_resume_welcome(&mut s, false, true, false, None).is_some());
@@ -1105,6 +1109,7 @@ mod tests {
     /// Playtest H2-RESUME: quit/rerun names the yard, skips WASD, First Play glow 0.
     #[test]
     fn h2_resume_welcome_skips_wasd_and_pack_survives() {
+        let _env = crate::test_env::lock();
         let mut first_play = FirstHarvestEpiphany::default();
         assert!(apply_resume_welcome(&mut first_play, false, false, false, None).is_none());
         assert!(!first_play.welcome_shown);
