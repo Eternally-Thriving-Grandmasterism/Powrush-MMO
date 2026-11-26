@@ -127,6 +127,10 @@ fn update_slab(state: Res<WellswornState>, settings: Option<Res<LocalSettingsSta
 mod tests {
     use super::*;
     use shared::skirmish_well::{CONTEST_REACH, WELL_ANCHORS};
+    /// ENV-GUARD-1 — sets `POWRUSH_USER_DIR` to `dir`; drop restores the prior value, then removes `dir`, also on a panic.
+    struct UserDirOverride(Option<String>, std::path::PathBuf);
+    impl UserDirOverride { fn set(dir: &std::path::Path) -> Self { let prev = std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok(); std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, dir); Self(prev, dir.to_path_buf()) } }
+    impl Drop for UserDirOverride { fn drop(&mut self) { match self.0.take() { Some(v) => std::env::set_var(shared::user_persist::USER_DIR_OVERRIDE_ENV, v), None => std::env::remove_var(shared::user_persist::USER_DIR_OVERRIDE_ENV) } let _ = std::fs::remove_dir_all(&self.1); } }
     fn app_at(place: PlaceId, s: [f32; 2]) -> App {
         let mut app = App::new();
         app.insert_resource(HexTravelState { current: place }).insert_resource(SoftPresence { position: Vec3::new(s[0], 0.9, s[1]), ..Default::default() });
@@ -157,11 +161,8 @@ mod tests {
         assert_eq!(s.rank, Some(WellswornRank::Sworn));
         let dir = std::env::temp_dir().join(format!("powrush-wellsworn-{}", std::process::id()));
         let _guard = crate::test_env::lock();
-        let (env, prev) = (shared::user_persist::USER_DIR_OVERRIDE_ENV, std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok());
-        std::env::set_var(env, &dir);
+        let _user_dir = UserDirOverride::set(&dir);
         save_rank(s.rank); let back = load_rank();
-        match prev { Some(v) => std::env::set_var(env, v), None => std::env::remove_var(env) }
-        let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(back, Some(WellswornRank::Sworn));
     }
     #[test]
@@ -259,8 +260,7 @@ mod tests {
     fn stave_and_wellkeeper_survive_reload_and_press() {
         let dir = std::env::temp_dir().join(format!("powrush-wellsworn-marks-{}", std::process::id()));
         let _guard = crate::test_env::lock();
-        let (env, prev) = (shared::user_persist::USER_DIR_OVERRIDE_ENV, std::env::var(shared::user_persist::USER_DIR_OVERRIDE_ENV).ok());
-        std::env::set_var(env, &dir);
+        let _user_dir = UserDirOverride::set(&dir);
         let mut back = Vec::new();
         for r in [WellswornRank::Stave, WellswornRank::Wellkeeper] {
             save_rank(Some(r));
@@ -268,8 +268,6 @@ mod tests {
             s.observe((1, 1), true); s.press(); s.press();
             back.push(s.rank);
         }
-        match prev { Some(v) => std::env::set_var(env, v), None => std::env::remove_var(env) }
-        let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(back, vec![Some(WellswornRank::Stave), Some(WellswornRank::Wellkeeper)]);
     }
 }
