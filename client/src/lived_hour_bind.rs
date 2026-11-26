@@ -911,4 +911,39 @@ mod tests {
         assert!(line.contains(SHARD_CLIMATE_PATH));
         assert!(line.contains("encode"));
     }
+
+    /// CARD SAVE-FIXTURE-2 — the lived-hour set as the playable-preview tag (11c577ef) wrote it
+    /// (ingest off: bare hour blob, climate, standing, week) resumes through `load_or_demo`.
+    #[test]
+    fn save_fixture_2_playable_preview_hour_set_resumes() {
+        let scratch = ScratchDir::new("save-fixture-2");
+        for (logical, raw) in [
+            (SHARD_CLIMATE_PATH, include_str!("../../tests/fixtures/save-preview/data/powrush_shard_climate.json")),
+            (SHARD_STANDING_PATH, include_str!("../../tests/fixtures/save-preview/data/powrush_shard_standing.json")),
+            (WEEK_AUDIT_PATH, include_str!("../../tests/fixtures/save-preview/data/powrush_week_audit.json")),
+            (LIVED_TICK_PATH, include_str!("../../tests/fixtures/save-preview/data/powrush_lived_tick.json")),
+        ] {
+            std::fs::write(named_file(scratch.path(), logical), raw).unwrap();
+        }
+        let bind = with_persist_env(scratch.path(), Some("off"), LivedHourBind::load_or_demo);
+        let near = |a: f32, b: f32| (a - b).abs() < 1e-6;
+        let h = &bind.hour;
+        let nodes: Vec<_> = h.nodes.iter().map(|n| (n.id, n.state)).collect();
+        assert_eq!(nodes, vec![(1, NodeState::Resting), (2, NodeState::Tended), (3, NodeState::Idle)]);
+        assert!(near(h.nodes[0].fatigue, 0.2) && near(h.nodes[1].fatigue, 0.25) && near(h.nodes[2].fatigue, 0.0));
+        assert_eq!(h.satchel.takes.len(), 1);
+        assert_eq!((h.satchel.takes[0].node_id, h.satchel.takes[0].kind.as_str()), (1, "tend"));
+        assert_eq!((h.allocation.flow, h.allocation.reserve), (1, 0));
+        let c = &bind.climate;
+        assert_eq!((c.hex_id.as_str(), c.reserve_pool, c.restored_count, c.tons_moved, c.updated_at), ("local-hex", 0, 0, 0, 4));
+        assert!(near(c.harmony, 0.62) && near(c.stress, 0.07) && near(c.regen, 0.13));
+        assert_eq!((c.seed_u64, c.gen_epoch), (None, None));
+        let s = &bind.standing;
+        assert_eq!((s.hex_id.as_str(), s.declared_lethal, s.tariff_paid, s.updated_at), ("local-hex", false, 0, 4));
+        assert!(near(s.peace, 0.79) && near(s.harmony, 0.6) && near(s.consumption, 0.18));
+        assert!(near(s.steward, 0.44) && near(s.human_hybrid_heat, 0.0));
+        // load_or_demo re-syncs week from climate (the tag did too), so updated_at reads 6 + 1.
+        let w = &bind.week;
+        assert_eq!((w.week_id.as_str(), w.tons_moved, w.restored_count, w.updated_at), ("local-week", 0, 0, 7));
+    }
 }

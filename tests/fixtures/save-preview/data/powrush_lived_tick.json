@@ -1,0 +1,31 @@
+{
+  "nodes": [
+    {
+      "id": 1,
+      "state": "Resting",
+      "fatigue": 0.20000002
+    },
+    {
+      "id": 2,
+      "state": "Tended",
+      "fatigue": 0.25
+    },
+    {
+      "id": 3,
+      "state": "Idle",
+      "fatigue": 0.0
+    }
+  ],
+  "satchel": {
+    "takes": [
+      {
+        "node_id": 1,
+        "kind": "tend"
+      }
+    ]
+  },
+  "allocation": {
+    "flow": 1,
+    "reserve": 0
+  }
+}
