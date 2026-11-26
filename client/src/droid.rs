@@ -18,7 +18,7 @@ pub const DROID_SHOT_SECS: f32 = 2.5;
 pub const DROID_SHOT_TELL_SECS: f32 = 0.5;
 pub const DROID_HIT: u32 = 25;
 pub const DROID_NAME: &str = "Threshold Sentry";
-const DROID_CUE_SECS: f64 = 4.2; // same hold as the private `CUE_SECS` at combat_core.rs:58
+const DROID_CUE_SECS: f64 = 4.2; // same hold as the private `CUE_SECS` at combat_core.rs:66
 pub const DROID_TELL_TEXT: &str = "Look out, the droid is about to fire";
 
 /// The droid's pool and clocks. Client-local, never saved.
@@ -155,7 +155,7 @@ fn droid_tick(
     let grounded = presence.as_deref().is_some_and(|p| p.grounded);
     let (shot_t0, armed_b) = (state.shot_timer, shot_armed(&state, combat.player_taken, gate, reach));
     let armed = shot_step(&mut state, &mut combat.player_taken, dt, gate, reach, grounded, tier);
-    if hurt_edge(before, combat.player_taken) { // DROID-HURT-READOUT-1: the predator's hurt path, combat_core.rs:636-644
+    if hurt_edge(before, combat.player_taken) { // DROID-HURT-READOUT-1: the predator's hurt path, combat_core.rs:723-734
         combat.hurt = combat.hurt.wrapping_add(1);
         play_hurt(&mut cmd, assets.as_deref(), mute.as_deref());
         if let (Some(epi), now) = (epi.as_mut(), time.elapsed_secs_f64()) {

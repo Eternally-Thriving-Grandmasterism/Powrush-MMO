@@ -637,7 +637,7 @@ mod tests {
         assert_eq!(f, Fabricator { crate_stock: 0, ..two });
     }
 
-    /// HL2 (H3) — the climate `:170` bytes load inside a dest hex file, the `hour_two.rs:108` literal
+    /// HL2 (H3) — the climate `:176` bytes load inside a dest hex file, the `hour_two.rs:108` literal
     /// loads, and a Fabricator with no `crate_stock` key is stock 0. Both literals stay byte-equal.
     #[test]
     fn hl2_old_climate_and_hour_two_bytes_still_load() {

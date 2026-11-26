@@ -708,7 +708,7 @@ mod tests {
     }
 
     use crate::wood_expedition::{tests::carried_hub, WoodHub};
-    /// `shared/shard_climate.rs:170` legacy climate bytes.
+    /// `shared/shard_climate.rs:176` legacy climate bytes.
     const CLIMATE_V0: &str = r#"{"hex_id":"local-hex","harmony":0.55,"stress":0.15,"regen":0.08,"reserve_pool":0,"restored_count":0,"tons_moved":0,"updated_at":1}"#;
     fn crate_stock(fab: &Fabricator) -> u64 {
         serde_json::to_value(fab).unwrap()["crate_stock"].as_u64().unwrap_or(0)
