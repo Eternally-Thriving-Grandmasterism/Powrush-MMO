@@ -2747,6 +2747,7 @@ pub(crate) mod tests {
         }
         assert!(at[0] < at[4] && at[1] < at[4] && at[2] < at[4] && at[3] < at[4] && at[4] < at[5]);
         assert!(at[5] < at[6] && at[5] < at[7] && at[5] < at[8] && at[6] < at[9] && at[9] < at[10]);
+        until(|| { let mut hub = app.world_mut().resource_mut::<WoodHub>(); hub.poll(); hub.is_booted() }); // WOOD-BOOT-TIMING-1: Disk Boot lands off-thread; settle it (as poll_wood does) before the same-frame press.
         press(&mut app);
         app.update();
         assert_eq!(app.world().resource::<WoodHub>().memory_unit(), Some(0));
