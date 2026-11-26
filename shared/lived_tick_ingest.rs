@@ -198,18 +198,18 @@ mod tests {
     // Env mutation is process-global — serialize flag tests.
     static ENV_LOCK: Mutex<()> = Mutex::new(());
 
+    /// INGEST-ENV-GUARD-1 — holds the prior `POWRUSH_INGEST`; drop restores it, also on a panic.
+    struct IngestEnvRestore(Option<String>);
+    impl Drop for IngestEnvRestore { fn drop(&mut self) { match self.0.take() { Some(v) => std::env::set_var("POWRUSH_INGEST", v), None => std::env::remove_var("POWRUSH_INGEST") } } }
+
     fn with_ingest_env(val: Option<&str>, f: impl FnOnce()) {
         let _g = ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner());
-        let prev = std::env::var("POWRUSH_INGEST").ok();
+        let _restore = IngestEnvRestore(std::env::var("POWRUSH_INGEST").ok());
         match val {
             Some(v) => std::env::set_var("POWRUSH_INGEST", v),
             None => std::env::remove_var("POWRUSH_INGEST"),
         }
         f();
-        match prev {
-            Some(v) => std::env::set_var("POWRUSH_INGEST", v),
-            None => std::env::remove_var("POWRUSH_INGEST"),
-        }
     }
 
     #[test]
