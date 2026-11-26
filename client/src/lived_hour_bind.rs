@@ -533,6 +533,7 @@ mod tests {
 
     #[test]
     fn json_roundtrip_path_constant() {
+        let _env = crate::test_env::lock();
         assert_eq!(LIVED_TICK_PATH, "data/powrush_lived_tick.json");
         assert_eq!(lived_tick_ingest::LIVED_TICK_INGEST_PATH, LIVED_TICK_PATH);
         assert_eq!(SHARD_CLIMATE_PATH, "data/powrush_shard_climate.json");
