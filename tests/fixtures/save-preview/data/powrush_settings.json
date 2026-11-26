@@ -1,0 +1,16 @@
+{
+  "schema": "powrush_settings_v1",
+  "look_sensitivity": 1.5,
+  "mute": true,
+  "invert_y": true,
+  "hide_slabs": false,
+  "brightness": 0.75,
+  "text_scale": 1.25,
+  "grove": "off",
+  "on_screen_sticks": "auto",
+  "tap_to_use": false,
+  "gamepad_south_use": true,
+  "nintendo_face": "auto",
+  "sprint_mode": "key",
+  "show_use_prompt": true
+}
