@@ -25,6 +25,46 @@ fn append_perf_line(s: &str) {
     let _ = std::fs::OpenOptions::new().create(true).append(true).open(&p).and_then(|mut f| f.write_all(s.as_bytes()).and_then(|_| f.write_all(b"\n")));
 }
 
+/// BENCH-WALK-1 (PERF-GATE). One seeded headless bench-walk record. CPU only: `p*_us` are wall times of whole
+/// `App::update` calls on the machine that ran it. Headless has no renderer, so there is no GPU number;
+/// `mesh_visible` counts ECS entities with a `Mesh3d` that are not `Visibility::Hidden`, not GPU draw calls.
+/// `rss_kib` is process RSS (Linux `/proc/self/status`), shared with anything else in the same process.
+#[derive(Debug, Clone, PartialEq, serde::Serialize, serde::Deserialize)]
+pub struct BenchWalk { pub schema: u32, pub seed: u64, pub frames: u32, pub p50_us: u32, pub p95_us: u32, pub p99_us: u32, pub entities: u32, pub mesh_visible: u32, pub rss_kib: Option<u64> }
+impl BenchWalk {
+    pub fn from_frames(seed: u64, frame_us: &[u32], entities: u32, mesh_visible: u32, rss_kib: Option<u64>) -> Self {
+        let mut v = frame_us.to_vec(); v.sort_unstable();
+        Self { schema: 1, seed, frames: v.len() as u32, p50_us: nearest_rank(&v, 50), p95_us: nearest_rank(&v, 95), p99_us: nearest_rank(&v, 99), entities, mesh_visible, rss_kib }
+    }
+}
+/// Nearest-rank percentile of an ascending slice; 0 when empty.
+pub fn nearest_rank(sorted: &[u32], pct: usize) -> u32 {
+    if sorted.is_empty() { return 0; }
+    sorted[(pct.min(100) * sorted.len()).div_ceil(100).clamp(1, sorted.len()) - 1]
+}
+/// Warn band against a committed baseline. Counts are seeded and deterministic, so any change warns. A time warns only
+/// past BOTH the ratio and the absolute floor, so CI runner noise cannot trip it; RSS warns only past its ratio.
+#[derive(Debug, Clone, Copy)]
+pub struct BenchBand { pub time_ratio: f64, pub time_floor_us: u32, pub rss_ratio: f64 }
+pub const BENCH_BAND: BenchBand = BenchBand { time_ratio: 2.0, time_floor_us: 4_000, rss_ratio: 1.5 };
+/// Warning lines only. Never an error: a CI step prints them and exits 0.
+pub fn bench_warnings(base: &BenchWalk, now: &BenchWalk, band: &BenchBand) -> Vec<String> {
+    let mut out = Vec::new();
+    for (k, b, n) in [("frames", base.frames, now.frames), ("entities", base.entities, now.entities), ("mesh_visible", base.mesh_visible, now.mesh_visible)] {
+        if b != n { out.push(format!("{k} {b} -> {n}")); }
+    }
+    for (k, b, n) in [("p50_us", base.p50_us, now.p50_us), ("p95_us", base.p95_us, now.p95_us), ("p99_us", base.p99_us, now.p99_us)] {
+        if n as f64 > b as f64 * band.time_ratio && n.saturating_sub(b) > band.time_floor_us { out.push(format!("{k} {b} -> {n}")); }
+    }
+    if let (Some(b), Some(n)) = (base.rss_kib, now.rss_kib) { if n as f64 > b as f64 * band.rss_ratio { out.push(format!("rss_kib {b} -> {n}")); } }
+    out
+}
+/// Process RSS in KiB from `/proc/self/status`; `None` off Linux or when unreadable.
+pub fn process_rss_kib() -> Option<u64> {
+    let s = std::fs::read_to_string("/proc/self/status").ok()?;
+    s.lines().find_map(|l| l.strip_prefix("VmRSS:")).and_then(|v| v.trim().trim_end_matches("kB").trim().parse().ok())
+}
+
 /// One frame at 60 Hz, in seconds.
 pub const FRAME_BUDGET_SECS: f64 = 1.0 / 60.0;
 
@@ -631,6 +671,66 @@ mod tests {
         let c = rolled.expect("rolls within 1 s of frames");
         assert_eq!(c.frame_ms[5], c.frames);
         assert_eq!(p.frame_ms, [0; 32]);
+    }
+
+    /// BENCH-WALK-1: the Sanctuary yard as `living_ecology` boots it headless (props, ClimatePlane), a fixed 1/60 s clock,
+    /// warmed until every PropMesh has swapped, then a seeded camera circle of `frames` updates. CPU wall time only.
+    fn bench_walk(seed: u64, frames: u32) -> BenchWalk {
+        use bevy::tasks::tick_global_task_pools_on_main_thread;
+        let _g = crate::test_env::lock();
+        let root = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("..").canonicalize().unwrap();
+        let mut app = App::new();
+        app.set_error_handler(bevy::ecs::error::ignore).add_plugins((MinimalPlugins, AssetPlugin { file_path: root.join("assets").into_os_string().into_string().unwrap(), watch_for_changes_override: Some(false), use_asset_processor_override: Some(false), ..AssetPlugin::default() }, bevy::image::ImagePlugin::default(), bevy::mesh::MeshPlugin, bevy::gltf::GltfPlugin::default(), bevy::world_serialization::WorldSerializationPlugin)).init_resource::<crate::climate_plane::AmbientcgTexCache>().init_asset::<Image>().init_asset::<Mesh>().init_asset::<StandardMaterial>().init_asset::<crate::painterly_shader::PainterlyMaterial>().insert_resource(crate::local_settings::LocalMeshLodFeel { preset: shared::local_settings::GraphicsPreset::Medium }).insert_resource(crate::living_practice_loop::SoftPlayerRealm { current: Some(0) }).insert_resource(bevy::time::TimeUpdateStrategy::ManualDuration(FOCUSED_PERIOD)).add_plugins((crate::living_ecology::LivingEcologyPlugin, crate::climate_plane::ClimatePlanePlugin));
+        app.finish(); app.cleanup(); crate::test_env::single_thread(&mut app); app.world_mut().run_schedule(Startup);
+        let cam = app.world_mut().spawn((Camera3d::default(), Transform::default())).id();
+        let step = |app: &mut App| crate::test_env::with_bevy_asset_root(&root, || { app.update(); tick_global_task_pools_on_main_thread(); });
+        let ts = |w: &mut World| w.query::<(Entity, &crate::climate_plane::PropMesh, &Mesh3d)>().iter(w).filter(|(_, p, _)| matches!(p.fit, crate::climate_plane::PropMeshFit::Trunk | crate::climate_plane::PropMeshFit::Stone)).map(|(e, _, m)| (e, m.0.id())).collect::<Vec<_>>();
+        let before = ts(app.world_mut()); assert!(!before.is_empty());
+        let settled = |w: &mut World| before.iter().all(|(e, h0)| w.get::<Mesh3d>(*e).is_some_and(|m| m.0.id() != *h0)); // living_ecology's swap test (:1119)
+        for _ in 0..2400 { step(&mut app); if settled(app.world_mut()) { break; } }
+        assert!(settled(app.world_mut()), "bench yard never settled");
+        let phase = (seed % 360) as f32;
+        let mut us = Vec::with_capacity(frames as usize);
+        for i in 0..frames {
+            let a = (phase + i as f32 * 1.5).to_radians();
+            *app.world_mut().get_mut::<Transform>(cam).unwrap() = Transform::from_xyz(14.0 * a.cos(), 6.0, 14.0 * a.sin()).looking_at(Vec3::ZERO, Vec3::Y);
+            let t0 = Instant::now(); step(&mut app); us.push(t0.elapsed().as_micros().min(u32::MAX as u128) as u32);
+        }
+        let w = app.world_mut();
+        let entities = w.query::<Entity>().iter(w).count() as u32;
+        let mesh_visible = w.query::<(&Mesh3d, Option<&Visibility>)>().iter(w).filter(|(_, v)| !matches!(v, Some(Visibility::Hidden))).count() as u32;
+        BenchWalk::from_frames(seed, &us, entities, mesh_visible, process_rss_kib())
+    }
+    const BENCH_SEED: u64 = 20_261_126;
+    const BENCH_FRAMES: u32 = 240;
+
+    #[test]
+    fn bench_walk_1_percentiles_json_and_band() {
+        let one_to_100: Vec<u32> = (1..=100).rev().collect();
+        let b = BenchWalk::from_frames(7, &one_to_100, 50, 20, Some(1000));
+        assert_eq!((b.schema, b.seed, b.frames, b.p50_us, b.p95_us, b.p99_us), (1, 7, 100, 50, 95, 99));
+        assert_eq!((nearest_rank(&[], 95), nearest_rank(&[9], 1), nearest_rank(&[9], 100)), (0, 9, 9));
+        let json = serde_json::to_string(&b).unwrap();
+        for k in ["\"schema\":1", "\"seed\":7", "\"frames\":100", "\"p50_us\":50", "\"p95_us\":95", "\"p99_us\":99", "\"entities\":50", "\"mesh_visible\":20", "\"rss_kib\":1000"] { assert!(json.contains(k), "{k} in {json}"); }
+        assert_eq!(serde_json::from_str::<BenchWalk>(&json).unwrap(), b);
+        assert!(bench_warnings(&b, &b, &BENCH_BAND).is_empty());
+        let mut n = b.clone(); n.p99_us = 99 * 3; assert!(bench_warnings(&b, &n, &BENCH_BAND).is_empty(), "3x but under the 4 ms floor is noise");
+        let mut n = b.clone(); n.p95_us = 95 + 4_001; assert_eq!(bench_warnings(&b, &n, &BENCH_BAND), vec!["p95_us 95 -> 4096".to_string()]);
+        let base = BenchWalk { p50_us: 10_000, ..b.clone() }; let mut n = base.clone(); n.p50_us = 19_999; assert!(bench_warnings(&base, &n, &BENCH_BAND).is_empty(), "under 2x is noise");
+        let mut n = b.clone(); n.entities = 51; n.mesh_visible = 19; n.rss_kib = Some(1501); assert_eq!(bench_warnings(&b, &n, &BENCH_BAND), vec!["entities 50 -> 51".to_string(), "mesh_visible 20 -> 19".to_string(), "rss_kib 1000 -> 1501".to_string()]);
+        let mut n = b.clone(); n.rss_kib = None; assert!(bench_warnings(&b, &n, &BENCH_BAND).is_empty());
+        if cfg!(target_os = "linux") { assert!(process_rss_kib().is_some_and(|k| k > 0)); }
+    }
+    #[test]
+    fn bench_walk_1_seeded_yard_walk_is_deterministic_and_cpu_only() {
+        let a = bench_walk(BENCH_SEED, BENCH_FRAMES);
+        let b = bench_walk(BENCH_SEED, BENCH_FRAMES);
+        assert_eq!((a.frames, b.frames), (BENCH_FRAMES, BENCH_FRAMES));
+        assert_eq!((a.entities, a.mesh_visible), (b.entities, b.mesh_visible), "seeded counts repeat");
+        assert!(a.entities > 0 && a.mesh_visible > 0 && a.mesh_visible <= a.entities);
+        assert!(a.p50_us <= a.p95_us && a.p95_us <= a.p99_us && a.p99_us > 0);
+        assert!(bench_warnings(&a, &b, &BenchBand { time_ratio: f64::INFINITY, time_floor_us: 0, rss_ratio: f64::INFINITY }).is_empty(), "counts only: {:?}", bench_warnings(&a, &b, &BENCH_BAND));
+        if let Some(out) = std::env::var_os("POWRUSH_BENCH_OUT") { std::fs::write(out, serde_json::to_string_pretty(&a).unwrap()).unwrap(); }
     }
 
     #[test]
