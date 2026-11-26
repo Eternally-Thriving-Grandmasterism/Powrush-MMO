@@ -2137,4 +2137,18 @@ mod tests {
         assert_eq!(LocalSettings::from_json(junk).unwrap().sprint_mode, "key");
     }
 
+    /// SAVE-FIXTURE-1: settings bytes as the playable-preview tag (11c577ef) wrote them load with every saved choice kept;
+    /// fields added since the tag take today's defaults.
+    #[test]
+    fn save_fixture_1_playable_preview_settings_load() {
+        let raw = include_str!("../tests/fixtures/save-preview/data/powrush_settings.json");
+        let s = LocalSettings::from_json(raw).expect("playable-preview settings must load");
+        assert_eq!((s.schema.as_str(), s.look_sensitivity, s.mute, s.invert_y, s.hide_slabs, s.brightness, s.text_scale), ("powrush_settings_v1", 1.5, true, true, false, 0.75, 1.25));
+        assert_eq!((s.grove.as_str(), s.on_screen_sticks.as_str(), s.tap_to_use, s.gamepad_south_use), ("off", "auto", false, true));
+        // The tag wrote its default "key" with no `sprint_cycled`; PAD-SPRINT-1's normalize_sprint_mode maps that to today's default.
+        assert_eq!((s.nintendo_face.as_str(), s.sprint_mode.as_str(), s.sprint_cycled, s.show_use_prompt), ("auto", "trigger", false, true));
+        let mut later = serde_json::to_value(LocalSettings::default()).unwrap();
+        for (k, v) in serde_json::from_str::<serde_json::Value>(raw).unwrap().as_object().unwrap() { later[k] = v.clone(); }
+        assert_eq!(serde_json::to_value(&s).unwrap(), serde_json::to_value(LocalSettings::from_json(&later.to_string()).unwrap()).unwrap(), "added fields default");
+    }
 }

@@ -583,4 +583,17 @@ mod tests {
         app.update();
         assert!(app.world().resource::<LocalSessionPersist>().dirty, "a paying hit is saved");
     }
+
+    /// SAVE-FIXTURE-1: session bytes as the playable-preview tag (11c577ef) wrote them load through the real reader with
+    /// progress kept; fields added since the tag load as absent.
+    #[test]
+    fn save_fixture_1_playable_preview_session_loads() {
+        let temp = TempSession::new("save-fixture-1");
+        fs::write(&temp.path, include_str!("../../tests/fixtures/save-preview/data/powrush_local_session.json")).unwrap();
+        let a = load_blob_at(&temp.path).expect("playable-preview session must not reset");
+        assert_eq!((a.schema.as_str(), a.vitality, a.harmony, a.joy, a.harvests, a.tends, a.realm), ("powrush_local_session_v1", 4.5, 2.25, 1.5, 7, 3, Some(1)));
+        assert_eq!((a.first_harvest_lived, a.whisper_lived, a.thread_strength, a.companion_trust), (true, true, 0.5, 0.75));
+        assert_eq!((a.skills, a.combat_xp, a.combat_day, a.combat_day_hits), (None, None, None, None));
+        assert_eq!((a.difficulty, a.area_difficulty, a.area_clears, a.run_best.is_none()), (None, None, None, true));
+    }
 }

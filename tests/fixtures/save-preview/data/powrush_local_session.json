@@ -1,0 +1,13 @@
+{
+  "schema": "powrush_local_session_v1",
+  "vitality": 4.5,
+  "harmony": 2.25,
+  "joy": 1.5,
+  "harvests": 7,
+  "tends": 3,
+  "realm": 1,
+  "first_harvest_lived": true,
+  "whisper_lived": true,
+  "thread_strength": 0.5,
+  "companion_trust": 0.75
+}
