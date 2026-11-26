@@ -142,3 +142,24 @@ jobs:
 
       - name: Lived-hour client library
         run: cargo test -p powrush-client --lib
+
+      # PERF-CI-WARN-1 (SPINE §13.5): warn-only. continue-on-error plus `exit 0`, so this step never fails Core.
+      # No baseline file yet (PERF-BASELINE-1), so it uploads the JSON and prints no warning.
+      - name: PERF bench walk (warn-only)
+        continue-on-error: true
+        env:
+          POWRUSH_BENCH_OUT: ${{ runner.temp }}/bench_walk.json
+          POWRUSH_BENCH_BASE: ${{ github.workspace }}/client/perf/bench_walk_baseline.json
+        run: |
+          cargo test -p powrush-client --lib bench_walk_1_seeded -- --test-threads=1 --nocapture 2>&1 | grep -oE '::warning.*|^test result.*' || true
+          if [ -f "$POWRUSH_BENCH_OUT" ]; then cat "$POWRUSH_BENCH_OUT"; echo; else echo "::warning title=PERF bench walk::no bench JSON written"; fi
+          exit 0
+
+      - name: Upload bench walk JSON
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: bench-walk-${{ github.sha }}
+          path: ${{ runner.temp }}/bench_walk.json
+          if-no-files-found: warn
+          retention-days: 30
