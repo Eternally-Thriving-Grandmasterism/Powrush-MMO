@@ -381,6 +381,7 @@ mod tests {
         assert!(well_contest_kick("won").unwrap() > well_contest_kick("lost").unwrap());
     }
 
+    #[test] // GHOST-TESTS-1: restore the attribute dropped by #648.
     fn far_from_spawn_is_not_near() {
         let p = SoftPresence::default();
         assert!(!near_first_well(&p));
