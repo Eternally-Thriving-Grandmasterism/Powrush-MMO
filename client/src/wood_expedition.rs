@@ -2680,6 +2680,7 @@ pub(crate) mod tests {
     #[test]
     fn plugins_stay_cycle_free_and_mercy_or_peace_yields_same_frame() {
         use crate::mercy_harvest_nodes::MercyHarvestNodesPlugin;
+        let _env = crate::test_env::lock(); // POOL-READ-LOCK-1: welcome_back and Wellsworn Startup read the user dir.
         let site = first_passing_site().unwrap();
         let mut app = App::new();
         app.add_plugins((
@@ -2723,6 +2724,7 @@ pub(crate) mod tests {
         app.world_mut()
             .resource_mut::<crate::living_practice_loop::SoftPlayerRealm>()
             .current = Some(0);
+        crate::test_env::single_thread(&mut app); // CI-HANG-1: no pool worker runs a system while the lock is held.
         app.update();
         use bevy::ecs::system::IntoSystem as Sys;
         let ids = [
@@ -2844,6 +2846,7 @@ pub(crate) mod tests {
 
     #[test]
     fn session_sources_change_the_same_frame() {
+        let _env = crate::test_env::lock(); // POOL-READ-LOCK-1: yard defaults in arm_session read hour-two JSON.
         let mut app = App::new();
         app.add_plugins(bevy::MinimalPlugins)
             .init_resource::<crate::hour_sacred::HourSacred>()
@@ -2861,6 +2864,7 @@ pub(crate) mod tests {
             .insert_resource(SessionArm(0))
             .add_systems(PreUpdate, arm_session)
             .add_systems(Update, refresh_wood_facts);
+        crate::test_env::single_thread(&mut app); // CI-HANG-1: no pool worker runs a system while the lock is held.
         let expect = [
             (0, false),
             (1, true),
