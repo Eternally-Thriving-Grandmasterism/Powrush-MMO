@@ -415,4 +415,51 @@ mod tests {
         let mut app = sv_app(Some((crate::hud_presets::HudPresetId::Minimal, None))); sv_peer(&mut app, true); app.world_mut().spawn((Node::default(), Visibility::Visible, HudSlab(crate::hud_anchor_registry::ID_WATCH))); let t = sv_run(&mut app, 2);
         assert_eq!((t.last().unwrap().0, sv_yielded(&app, PEER.id)), (SH, true), "SV8 Minimal, no door, Watch sentinel: Peer yields by R2 into HudYielded");
     }
+
+    /// CARD SAVE-FIXTURE-6 — the playable-preview tag's (11c577ef) own share export and its peer file
+    /// (the practice writer) load through today's reader; the peer through `ambient_peer_poll`.
+    /// `exported_at_secs` is the fixed fixture literal 600.0. No wall time: `Time` stays default (delta 0).
+    #[test]
+    fn save_fixture_6_playable_preview_share_and_peer_load() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static N: AtomicU64 = AtomicU64::new(0);
+        let share_raw = include_str!("../../tests/fixtures/save-preview/data/powrush_lattice_flow_share.json");
+        let peer_raw = include_str!("../../tests/fixtures/save-preview/data/powrush_lattice_flow_share_peer.json");
+        let dir = std::env::temp_dir().join(format!("powrush-sf6-{}-{}", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
+        std::fs::create_dir_all(&dir).unwrap();
+        // The tag's own logical names (tag lattice_flow_share.rs:19-20), not today's consts, so a rename is caught.
+        for (logical, raw) in [("data/powrush_lattice_flow_share.json", share_raw), ("data/powrush_lattice_flow_share_peer.json", peer_raw)] {
+            std::fs::write(dir.join(shared::user_persist::persist_file_name(logical)), raw).unwrap();
+        }
+        let key = shared::user_persist::USER_DIR_OVERRIDE_ENV;
+        let _env = crate::test_env::lock();
+        let prev = std::env::var(key).ok();
+        std::env::set_var(key, &dir);
+        let loaded = std::panic::catch_unwind(|| {
+            let own = try_read_envelope(shared::user_persist::persist_path(SHARE_PATH));
+            let mut app = App::new();
+            app.init_resource::<Time>()
+                .insert_resource(LatticeFlowShare { poll_accum: AMBIENT_POLL, ..Default::default() })
+                .add_systems(Update, ambient_peer_poll);
+            crate::test_env::single_thread(&mut app);
+            app.update();
+            (own, app.world_mut().remove_resource::<LatticeFlowShare>().unwrap())
+        });
+        match prev { Some(v) => std::env::set_var(key, v), None => std::env::remove_var(key) }
+        let _ = std::fs::remove_dir_all(&dir);
+        let (own, share) = loaded.unwrap();
+        let same_text = |env: &LatticeFlowShareEnvelope, raw: &str| {
+            let v: serde_json::Value = serde_json::from_str(raw).unwrap();
+            assert_eq!(v["schema"].as_str(), Some(env.schema.as_str()));
+            assert_eq!(Some(v["last_path"].as_str().expect("last_path saved")), env.last_path.as_deref());
+            assert_eq!(v["mercy_note"].as_str(), Some(env.mercy_note.as_str()));
+        };
+        let own = own.expect("tag share export parses");
+        same_text(&own, share_raw);
+        assert_eq!((own.flow_total, own.reserve_total, own.choices_made, own.exported_at_secs), (1.0, 1.0, 2, 600.0));
+        let peer = share.last_peer.as_ref().expect("ambient poll read the tag peer file");
+        same_text(peer, peer_raw);
+        assert_eq!((peer.flow_total, peer.reserve_total, peer.choices_made, peer.exported_at_secs), (2.0, 1.1, 34, 600.0));
+        assert_eq!((share.chip_visible, share.ambient_seen_choices, share.poll_accum), (true, Some(34), 0.0));
+    }
 }
