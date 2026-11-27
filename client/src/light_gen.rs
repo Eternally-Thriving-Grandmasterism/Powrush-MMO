@@ -765,4 +765,59 @@ mod tests {
             assert!(!sample.contains("Threshold"), "{sample}");
         }
     }
+
+    /// CARD SAVE-FIXTURE-7 — the playable-preview tag's (11c577ef) own GenShare A row (its boot over the
+    /// committed save-preview climate and River House) is read by today's `sync_scatter`: the tag seed is used
+    /// and the append-only file is neither appended to nor rewritten. No clock, no RNG in the row.
+    #[test]
+    fn save_fixture_7_playable_preview_genshare_row_seeds_grove() {
+        use std::sync::atomic::{AtomicU64, Ordering};
+        static N: AtomicU64 = AtomicU64::new(0);
+        let row_raw = include_str!("../../tests/fixtures/save-preview/data/powrush_genshare.jsonl");
+        let climate_raw = include_str!("../../tests/fixtures/save-preview/data/powrush_shard_climate.json");
+        let house_raw = include_str!("../../tests/fixtures/save-preview/data/powrush_house.json");
+        let dir = std::env::temp_dir().join(format!("powrush-sf7-{}-{}", std::process::id(), N.fetch_add(1, Ordering::Relaxed)));
+        std::fs::create_dir_all(&dir).unwrap();
+        // The tag's own logical names (tag shared/genshare.rs:18, client/src/lived_hour_bind.rs:23, shared/house_name.rs:17).
+        let jsonl = dir.join(shared::user_persist::persist_file_name("data/powrush_genshare.jsonl"));
+        std::fs::write(&jsonl, row_raw).unwrap();
+        std::fs::write(dir.join(shared::user_persist::persist_file_name("data/powrush_shard_climate.json")), climate_raw).unwrap();
+        std::fs::write(dir.join(shared::user_persist::persist_file_name("data/powrush_house.json")), house_raw).unwrap();
+        let mut app = atlas_build();
+        crate::test_env::single_thread(&mut app);
+        let key = shared::user_persist::USER_DIR_OVERRIDE_ENV;
+        let _env = crate::test_env::lock();
+        let prev = std::env::var(key).ok();
+        std::env::set_var(key, &dir);
+        let got = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let by_hex = load_genshare("local-hex", None);
+            app.insert_resource(LightGenDoor { mode: PowrushGen::Light })
+                .insert_resource(LivedHourBind::default())
+                .insert_resource(HouseLabel::default())
+                .insert_resource(LaunchDoor::default())
+                .insert_resource(LedgerYard::default())
+                .insert_resource(FactoryYard::default())
+                .init_resource::<LightGenSpawned>()
+                .add_systems(Update, sync_scatter);
+            app.update();
+            app.update();
+            let name = app.world().resource::<HouseLabel>().house.display_name().to_string();
+            let by_house = load_genshare("local-hex", Some(&name));
+            (name, by_house, by_hex, app.world().resource::<LightGenSpawned>().seed, std::fs::read_to_string(&jsonl).unwrap())
+        }));
+        match prev { Some(v) => std::env::set_var(key, v), None => std::env::remove_var(key) }
+        let _ = std::fs::remove_dir_all(&dir);
+        let (name, by_house, by_hex, seed, after) = got.unwrap();
+        let v: serde_json::Value = serde_json::from_str(row_raw).unwrap();
+        let row = by_house.expect("house⊕hex finds the tag row");
+        let c = shared::shard_climate::ShardClimate::from_json(climate_raw).unwrap();
+        assert_eq!(row, GenShare::from_lived(&name, "local-hex", c.harmony, c.stress, &row.dress), "today's GenShare derives the tag row from the committed climate and house");
+        assert_eq!(name, row.house, "HouseLabel reads the committed house; the row is keyed to it");
+        assert_eq!(by_hex.as_ref(), Some(&row), "hex-only fallback finds the same row");
+        assert_eq!((v["v"].as_u64(), v["house"].as_str(), v["hex"].as_str()), (Some(u64::from(row.v)), Some(row.house.as_str()), Some(row.hex.as_str())));
+        assert_eq!((v["epoch"].as_u64(), v["seed_u64"].as_u64()), (Some(row.epoch), Some(row.seed_u64)));
+        assert_eq!((v["climate_digest"].as_str(), v["dress"].as_str()), (Some(row.climate_digest.as_str()), Some(row.dress.as_str())));
+        assert_eq!(seed, Some(row.seed_u64), "sync_scatter takes the tag seed");
+        assert_eq!(after, row_raw, "tag row read in place: no append, no rewrite");
+    }
 }
