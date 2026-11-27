@@ -810,6 +810,8 @@ mod tests {
         let (name, by_house, by_hex, seed, after) = got.unwrap();
         let v: serde_json::Value = serde_json::from_str(row_raw).unwrap();
         let row = by_house.expect("house⊕hex finds the tag row");
+        let c = shared::shard_climate::ShardClimate::from_json(climate_raw).unwrap();
+        assert_eq!(row, GenShare::from_lived(&name, "local-hex", c.harmony, c.stress, &row.dress), "today's GenShare derives the tag row from the committed climate and house");
         assert_eq!(name, row.house, "HouseLabel reads the committed house; the row is keyed to it");
         assert_eq!(by_hex.as_ref(), Some(&row), "hex-only fallback finds the same row");
         assert_eq!((v["v"].as_u64(), v["house"].as_str(), v["hex"].as_str()), (Some(u64::from(row.v)), Some(row.house.as_str()), Some(row.hex.as_str())));
