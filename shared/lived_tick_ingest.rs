@@ -13,7 +13,7 @@ use crate::climate_node::{LivedHour, LIVED_HOUR_V};
 use crate::house_name::{HouseName, UNNAMED};
 use crate::hour_two::HourTwoPack;
 use crate::shard_climate::ShardClimate;
-use crate::shard_standing::ShardStanding;
+use crate::shard_standing::{ShardStanding, SHARD_STANDING_V};
 use crate::week_audit::{WeekAudit, WEEK_AUDIT_V};
 
 /// Ra-Thor-facing lived tick. Same path docs already name for lattice read.
@@ -120,23 +120,25 @@ impl LivedTickIngest {
         serde_json::from_str::<Self>(raw)?.migrate()
     }
 
-    /// SAVE-VERSION-3. Nested week and hour take their own v0 → v1 step; a newer schema or nested stamp is refused.
+    /// SAVE-VERSION-3, extended by SAVE-VERSION-5. Nested week, hour and standing take their own v0 → v1 step; a newer schema or nested stamp is refused.
     fn migrate(mut self) -> Result<Self, serde_json::Error> {
         if schema_number(&self.schema).is_some_and(|n| n > SCHEMA_V) {
             return Err(serde::de::Error::custom("lived tick schema is newer than this build"));
         }
         self.week = self.week.migrate()?;
         self.hour = self.hour.map(LivedHour::migrate).transpose()?;
+        self.standing = self.standing.migrate()?;
         Ok(self)
     }
 
-    /// SAVE-VERSION-3. True when `raw` carries a schema, week or hour stamp newer than this build. Do not write over it.
+    /// SAVE-VERSION-3, extended by SAVE-VERSION-5. True when `raw` carries a schema, week, hour or standing stamp newer than this build. Do not write over it.
     pub fn stamp_is_newer(raw: &str) -> bool {
         let Ok(j) = serde_json::from_str::<serde_json::Value>(raw) else { return false };
         let nested = |key: &str, now: u16| j.get(key).and_then(|n| n.get("v")?.as_u64()).is_some_and(|v| v > u64::from(now));
         j.get("schema").and_then(|s| schema_number(s.as_str()?)).is_some_and(|n| n > SCHEMA_V)
             || nested("week", WEEK_AUDIT_V)
             || nested("hour", LIVED_HOUR_V)
+            || nested("standing", SHARD_STANDING_V)
     }
 }
 
