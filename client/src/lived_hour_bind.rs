@@ -1372,4 +1372,75 @@ mod tests {
             }
         });
     }
+
+    /// CARD SAVE-VERSION-7 — an ingest overlay whose nested climate lacks `"v"` (optional keys
+    /// `seed_u64` and `gen_epoch` set) migrates to v=1 through `LivedTickIngest::from_json` (the
+    /// reader `load_or_demo` uses). A save stamps it; a current v=1 overlay stays writable; a newer
+    /// nested climate stamp is refused by `stamp_is_newer` and by the existing client write guard,
+    /// with live and `.bak` bytes kept. Nothing on the loopback payload path is touched.
+    #[test]
+    fn save_version_7_ingest_overlay_nested_climate_v0_migrates_and_newer_is_kept() {
+        let part = |raw: &str| serde_json::from_str::<serde_json::Value>(raw).unwrap();
+        let mut climate = part(include_str!("../../tests/fixtures/save-preview/data/powrush_shard_climate.json"));
+        (climate["seed_u64"], climate["gen_epoch"]) = (7.into(), 3.into());
+        let overlay = serde_json::json!({ "schema": lived_tick_ingest::SCHEMA, "house_id": "local-hex", "house_name": shared::house_name::UNNAMED,
+            "climate": climate, "standing": serde_json::to_value(ShardStanding::default()).unwrap(),
+            "week": part(include_str!("../../tests/fixtures/save-preview/data/powrush_week_audit.json")),
+            "hour_flags": { "hour_two_held": true, "hour_three_held": true, "satchel_count": 1, "flow": 1, "reserve": 2 },
+            "hour": part(include_str!("../../tests/fixtures/save-preview/data/powrush_lived_tick.json")) });
+        for (obj, keys) in [
+            (&overlay, &["schema", "house_id", "house_name", "climate", "standing", "week", "hour_flags", "hour"][..]),
+            (&overlay["climate"], &["hex_id", "harmony", "stress", "regen", "reserve_pool", "restored_count", "tons_moved", "updated_at", "seed_u64", "gen_epoch"][..]),
+            (&overlay["hour_flags"], &["hour_two_held", "hour_three_held", "satchel_count", "flow", "reserve"][..]),
+        ] {
+            for key in keys { obj.get(*key).expect(key); }
+        }
+        assert!(overlay["climate"].get("v").is_none(), "tag-era nested climate is v0");
+        let text = serde_json::to_string_pretty(&overlay).unwrap();
+        let fields = |c: &ShardClimate| (c.v, c.hex_id.clone(), c.harmony, c.stress, c.regen, c.reserve_pool, c.restored_count, c.tons_moved, c.updated_at, c.seed_u64, c.gen_epoch);
+        let expect = (1, "local-hex".to_string(), 0.62000006, 0.07000001, 0.13, 0, 0, 0, 4, Some(7), Some(3));
+        let loaded = LivedTickIngest::from_json(&text).expect("v0 overlay loads");
+        assert_eq!(fields(&loaded.climate), expect, "real load path migrates nested climate to v=1");
+        let hour_fields = |h: &LivedHour| {
+            let nodes: Vec<_> = h.nodes.iter().map(|n| (n.id, n.state, n.fatigue)).collect();
+            (h.v, nodes, h.satchel.takes.iter().map(|t| (t.node_id, t.kind.clone())).collect::<Vec<_>>(), h.allocation.flow, h.allocation.reserve)
+        };
+        let tag_fields = (1, vec![(1, NodeState::Resting, 0.20000002), (2, NodeState::Tended, 0.25), (3, NodeState::Idle, 0.0)], vec![(1, "tend".to_string())], 1, 0);
+        let demo_fields = (1, vec![(1, NodeState::Glowing, 0.0), (2, NodeState::Glowing, 0.0), (3, NodeState::Idle, 0.0)], vec![], 0, 0);
+        assert_eq!(hour_fields(loaded.hour.as_ref().unwrap()), tag_fields);
+        let scratch = ScratchDir::new("save-version-7");
+        let live = named_file(scratch.path(), LIVED_TICK_PATH);
+        let bak = std::path::PathBuf::from(format!("{}.bak", live.display()));
+        with_persist_env(scratch.path(), Some("on"), || {
+            std::fs::write(&live, &text).unwrap();
+            let bind = LivedHourBind::load_or_demo();
+            assert_eq!(hour_fields(&bind.hour), tag_fields, "load_or_demo accepts the migrated overlay");
+            bind.persist();
+            let saved = std::fs::read_to_string(&live).unwrap();
+            assert_eq!(serde_json::from_str::<serde_json::Value>(&saved).unwrap()["climate"]["v"], 1);
+            assert_eq!(std::fs::read_to_string(&bak).unwrap(), text, ".bak keeps the v0 overlay bytes");
+            assert!(!LivedTickIngest::stamp_is_newer(&saved), "current v=1 is not newer");
+            assert!(!bind.write_hour_set().failed.iter().any(|m| m.path == LIVED_TICK_PATH), "current v=1 overlay stays writable");
+            std::fs::write(&bak, &text).unwrap();
+            std::fs::remove_file(&live).unwrap();
+            let from_bak = LivedTickIngest::from_json(&std::fs::read_to_string(&bak).unwrap()).unwrap();
+            assert_eq!(fields(&from_bak.climate), expect, ".bak fallback migrates");
+            assert_eq!(hour_fields(&LivedHourBind::load_or_demo().hour), tag_fields, ".bak fallback resumes");
+            let mut newer = overlay.clone();
+            newer["climate"]["v"] = 2.into();
+            let newer = serde_json::to_string_pretty(&newer).unwrap();
+            assert!(LivedTickIngest::stamp_is_newer(&newer), "climate.v=2 is newer");
+            assert!(LivedTickIngest::from_json(&newer).is_err(), "climate.v=2 is refused");
+            std::fs::write(&live, &newer).unwrap();
+            std::fs::write(&bak, &text).unwrap();
+            let bind = LivedHourBind::load_or_demo();
+            assert_eq!(hour_fields(&bind.hour), demo_fields, "defaults in memory");
+            for ingest in ["off", "on"] {
+                let set = with_persist_env(scratch.path(), Some(ingest), || bind.write_hour_set());
+                assert_eq!(set.failed.iter().map(|m| m.path).collect::<Vec<_>>(), vec![LIVED_TICK_PATH], "ingest {ingest}");
+                assert_eq!(std::fs::read_to_string(&live).unwrap(), newer, "live kept, ingest {ingest}");
+                assert_eq!(std::fs::read_to_string(&bak).unwrap(), text, ".bak kept, ingest {ingest}");
+            }
+        });
+    }
 }
