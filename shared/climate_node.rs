@@ -213,8 +213,13 @@ impl Allocation {
     }
 }
 
+/// SAVE-VERSION-2. Stamp this build writes as `"v"`. No `"v"` on disk is v0 (tag-era file).
+pub const LIVED_HOUR_V: u16 = 1;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LivedHour {
+    /// SAVE-VERSION-2. Absent reads as 0 (v0); `from_json` migrates it to `LIVED_HOUR_V`.
+    #[serde(default)] pub v: u16,
     pub nodes: Vec<ClimateNode>,
     pub satchel: Satchel,
     pub allocation: Allocation,
@@ -223,6 +228,7 @@ pub struct LivedHour {
 impl LivedHour {
     pub fn new_demo() -> Self {
         Self {
+            v: LIVED_HOUR_V,
             nodes: vec![
                 ClimateNode::glowing(1),
                 ClimateNode::glowing(2),
@@ -279,7 +285,22 @@ impl LivedHour {
     }
 
     pub fn from_json(s: &str) -> Result<Self, serde_json::Error> {
-        serde_json::from_str(s)
+        serde_json::from_str::<Self>(s)?.migrate()
+    }
+
+    /// SAVE-VERSION-2. v0 → v1 is stamp-only: v1 is the v0 fields plus `v`. A newer stamp is refused.
+    fn migrate(mut self) -> Result<Self, serde_json::Error> {
+        match self.v {
+            0 => self.v = 1,
+            LIVED_HOUR_V => {}
+            _ => return Err(serde::de::Error::custom("lived hour stamp is newer than this build")),
+        }
+        Ok(self)
+    }
+
+    /// SAVE-VERSION-2. True when `raw` carries a stamp newer than this build. Do not write over it.
+    pub fn stamp_is_newer(raw: &str) -> bool {
+        serde_json::from_str::<serde_json::Value>(raw).ok().and_then(|j| j.get("v")?.as_u64()).is_some_and(|v| v > u64::from(LIVED_HOUR_V))
     }
 }
 
