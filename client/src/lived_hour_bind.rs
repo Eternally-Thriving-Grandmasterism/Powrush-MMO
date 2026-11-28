@@ -396,7 +396,7 @@ impl LivedHourBind {
 /// SAVE-VERSION-2 — a tick file stamped newer than this build is not written over (live or `.bak`),
 /// on the bare-blob branch and on the ingest-overlay branch alike.
 fn lived_hour_stamp_is_newer_on_disk() -> bool {
-    shared::user_persist::read_named(LIVED_TICK_PATH).is_ok_and(|raw| LivedHour::stamp_is_newer(&raw))
+    shared::user_persist::read_named(LIVED_TICK_PATH).is_ok_and(|raw| LivedHour::stamp_is_newer(&raw) || LivedTickIngest::stamp_is_newer(&raw))
 }
 
 fn record_named_json(
@@ -977,6 +977,74 @@ mod tests {
                 assert_eq!(set.failed.iter().map(|m| m.path).collect::<Vec<_>>(), vec![LIVED_TICK_PATH], "ingest {ingest}");
                 assert_eq!(std::fs::read_to_string(&live).unwrap(), newer, "live kept, ingest {ingest}");
                 assert_eq!(std::fs::read_to_string(&bak).unwrap(), tag, ".bak kept, ingest {ingest}");
+            }
+        });
+    }
+
+    /// CARD SAVE-VERSION-3 — an ingest overlay built from the four committed tag files is v0 inside:
+    /// the nested week and hour migrate through the real reader, a save stamps both, and a newer nested
+    /// stamp or a newer schema is refused on both write branches with live and `.bak` bytes kept.
+    #[test]
+    fn save_version_3_ingest_overlay_nested_v0_migrates_and_newer_is_kept() {
+        let part = |raw: &str| serde_json::from_str::<serde_json::Value>(raw).unwrap();
+        let mut climate = part(include_str!("../../tests/fixtures/save-preview/data/powrush_shard_climate.json"));
+        (climate["seed_u64"], climate["gen_epoch"]) = (7.into(), 3.into());
+        let mut standing = part(include_str!("../../tests/fixtures/save-preview/data/powrush_shard_standing.json"));
+        (standing["declared_lethal"], standing["tariff_paid"]) = (true.into(), 2.into());
+        let overlay = serde_json::json!({ "schema": lived_tick_ingest::SCHEMA, "house_id": "local-hex", "house_name": shared::house_name::UNNAMED,
+            "climate": climate, "standing": standing,
+            "week": part(include_str!("../../tests/fixtures/save-preview/data/powrush_week_audit.json")),
+            "hour_flags": { "hour_two_held": true, "hour_three_held": true, "satchel_count": 1, "flow": 1, "reserve": 2 },
+            "hour": part(include_str!("../../tests/fixtures/save-preview/data/powrush_lived_tick.json")) });
+        for (obj, keys) in [
+            (&overlay, &["schema", "house_id", "house_name", "climate", "standing", "week", "hour_flags", "hour"][..]),
+            (&overlay["climate"], &["seed_u64", "gen_epoch"][..]),
+            (&overlay["standing"], &["declared_lethal", "tariff_paid"][..]),
+            (&overlay["hour_flags"], &["hour_two_held", "hour_three_held", "satchel_count", "flow", "reserve"][..]),
+        ] {
+            for key in keys { obj.get(*key).expect(key); }
+        }
+        assert!(overlay["week"].get("v").is_none() && overlay["hour"].get("v").is_none(), "tag-era overlay is v0");
+        let text = serde_json::to_string_pretty(&overlay).unwrap();
+        let scratch = ScratchDir::new("save-version-3");
+        let live = named_file(scratch.path(), LIVED_TICK_PATH);
+        let bak = std::path::PathBuf::from(format!("{}.bak", live.display()));
+        let fields = |h: &LivedHour| {
+            let nodes: Vec<_> = h.nodes.iter().map(|n| (n.id, n.state, n.fatigue)).collect();
+            (h.v, nodes, h.satchel.takes.iter().map(|t| (t.node_id, t.kind.clone())).collect::<Vec<_>>(), h.allocation.flow, h.allocation.reserve)
+        };
+        let tag_fields = (1, vec![(1, NodeState::Resting, 0.20000002), (2, NodeState::Tended, 0.25), (3, NodeState::Idle, 0.0)], vec![(1, "tend".to_string())], 1, 0);
+        let demo_fields = (1, vec![(1, NodeState::Glowing, 0.0), (2, NodeState::Glowing, 0.0), (3, NodeState::Idle, 0.0)], vec![], 0, 0);
+        let nested = |raw: &str| { let t = LivedTickIngest::from_json(raw).unwrap(); ((t.week.v, t.week.week_id, t.week.tons_moved, t.week.restored_count, t.week.updated_at), fields(&t.hour.unwrap()), (t.climate.seed_u64, t.climate.gen_epoch), (t.standing.declared_lethal, t.standing.tariff_paid), t.hour_flags) };
+        let expect = ((1, "local-week".to_string(), 0, 0, 6), tag_fields.clone(), (Some(7), Some(3)), (true, 2), lived_tick_ingest::HourFlags { hour_two_held: true, hour_three_held: true, satchel_count: 1, flow: 1, reserve: 2 });
+        assert_eq!(nested(&text), expect);
+        with_persist_env(scratch.path(), Some("on"), || {
+            std::fs::write(&live, &text).unwrap();
+            let bind = LivedHourBind::load_or_demo();
+            assert_eq!(fields(&bind.hour), tag_fields);
+            bind.persist();
+            let saved = std::fs::read_to_string(&live).unwrap();
+            assert_eq!(serde_json::from_str::<serde_json::Value>(&saved).unwrap()["week"]["v"], 1);
+            assert_eq!(serde_json::from_str::<serde_json::Value>(&saved).unwrap()["hour"]["v"], 1);
+            assert_eq!(std::fs::read_to_string(&bak).unwrap(), text, ".bak keeps the v0 overlay bytes");
+            assert!(!bind.write_hour_set().failed.iter().any(|m| m.path == LIVED_TICK_PATH), "current stamps are writable");
+            std::fs::write(&bak, &text).unwrap();
+            std::fs::remove_file(&live).unwrap();
+            assert_eq!(fields(&LivedHourBind::load_or_demo().hour), tag_fields, ".bak fallback migrates");
+            for case in ["hour", "week", "schema"] {
+                let mut newer = overlay.clone();
+                match case { "schema" => newer["schema"] = "powrush_lived_tick_v2".into(), key => newer[key]["v"] = 2.into() }
+                let newer = serde_json::to_string_pretty(&newer).unwrap();
+                std::fs::write(&live, &newer).unwrap();
+                std::fs::write(&bak, &text).unwrap();
+                let bind = LivedHourBind::load_or_demo();
+                assert_eq!(fields(&bind.hour), demo_fields, "defaults in memory, newer {case}");
+                for ingest in ["off", "on"] {
+                    let set = with_persist_env(scratch.path(), Some(ingest), || bind.write_hour_set());
+                    assert_eq!(set.failed.iter().map(|m| m.path).collect::<Vec<_>>(), vec![LIVED_TICK_PATH], "newer {case}, ingest {ingest}");
+                    assert_eq!(std::fs::read_to_string(&live).unwrap(), newer, "live kept, newer {case}, ingest {ingest}");
+                    assert_eq!(std::fs::read_to_string(&bak).unwrap(), text, ".bak kept, newer {case}, ingest {ingest}");
+                }
             }
         });
     }

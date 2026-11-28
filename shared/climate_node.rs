@@ -289,7 +289,7 @@ impl LivedHour {
     }
 
     /// SAVE-VERSION-2. v0 → v1 is stamp-only: v1 is the v0 fields plus `v`. A newer stamp is refused.
-    fn migrate(mut self) -> Result<Self, serde_json::Error> {
+    pub(crate) fn migrate(mut self) -> Result<Self, serde_json::Error> {
         match self.v {
             0 => self.v = 1,
             LIVED_HOUR_V => {}

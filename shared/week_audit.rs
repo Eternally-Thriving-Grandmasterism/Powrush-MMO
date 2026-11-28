@@ -61,7 +61,7 @@ impl WeekAudit {
     }
 
     /// SAVE-VERSION-1. v0 → v1 is stamp-only: v1 is the v0 fields plus `v`. A newer stamp is refused.
-    fn migrate(mut self) -> Result<Self, serde_json::Error> {
+    pub(crate) fn migrate(mut self) -> Result<Self, serde_json::Error> {
         match self.v {
             0 => self.v = 1,
             WEEK_AUDIT_V => {}
