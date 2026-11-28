@@ -25,7 +25,7 @@ use crate::hour_two::HourTwoPack;
 use crate::hex_listen::PowrushNet;
 use crate::hex_protocol::default_client_listens;
 use crate::pause_ledger_face::wait_line_before_settled;
-use crate::shard_climate::ShardClimate;
+use crate::shard_climate::{ShardClimate, SHARD_CLIMATE_V};
 use crate::shard_standing::{ShardStanding, SHARD_STANDING_V};
 use crate::space_law::HexFlag;
 use crate::user_persist;
@@ -155,16 +155,19 @@ impl HexClimateFile {
         serde_json::to_string_pretty(self)
     }
 
-    /// SAVE-VERSION-4. The embedded standing takes its own v0 → v1 step; a newer stamp is refused.
+    /// SAVE-VERSION-4, extended by SAVE-VERSION-6. The embedded standing and climate take their own v0 → v1 step; a newer stamp is refused.
     pub fn from_json(raw: &str) -> Result<Self, serde_json::Error> {
         let mut file: Self = serde_json::from_str(raw)?;
         file.standing = file.standing.migrate()?;
+        file.climate = file.climate.migrate()?;
         Ok(file)
     }
 
-    /// SAVE-VERSION-4. True when `raw` embeds a standing stamp newer than this build. Do not write over it.
+    /// SAVE-VERSION-4, extended by SAVE-VERSION-6. True when `raw` embeds a standing or climate stamp newer than this build. Do not write over it.
     pub fn stamp_is_newer(raw: &str) -> bool {
-        serde_json::from_str::<serde_json::Value>(raw).ok().and_then(|j| j.get("standing")?.get("v")?.as_u64()).is_some_and(|v| v > u64::from(SHARD_STANDING_V))
+        let Ok(j) = serde_json::from_str::<serde_json::Value>(raw) else { return false };
+        let nested = |key: &str, now: u16| j.get(key).and_then(|n| n.get("v")?.as_u64()).is_some_and(|v| v > u64::from(now));
+        nested("standing", SHARD_STANDING_V) || nested("climate", SHARD_CLIMATE_V)
     }
 }
 
@@ -371,6 +374,7 @@ pub fn read_current_at(dir: &Path) -> Option<PlaceId> {
 pub fn write_hex_named(file: &HexClimateFile) -> std::io::Result<()> {
     let place = PlaceId::parse(&file.hex_id).unwrap_or(PlaceId::Sanctuary);
     // SAVE-VERSION-4 — a hex file whose standing is stamped newer is not written over (live or `.bak`).
+    // SAVE-VERSION-6 — the same guard covers a newer climate.
     if user_persist::read_named(&hex_file_name(place)).is_ok_and(|raw| HexClimateFile::stamp_is_newer(&raw)) {
         return Err(std::io::Error::other("newer hex standing stamp on disk; kept"));
     }

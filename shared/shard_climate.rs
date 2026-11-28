@@ -9,9 +9,14 @@
 
 use serde::{Deserialize, Serialize};
 
+/// SAVE-VERSION-6. Stamp this build writes as `"v"`. No `"v"` on disk is v0 (tag-era file).
+pub const SHARD_CLIMATE_V: u16 = 1;
+
 /// Native one-hex climate. Ra-Thor may read; it does not write.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ShardClimate {
+    /// SAVE-VERSION-6. Absent reads as 0 (v0); `from_json` migrates it to `SHARD_CLIMATE_V`.
+    #[serde(default)] pub v: u16,
     pub hex_id: String,
     /// 0..1 thriving signal
     pub harmony: f32,
@@ -37,6 +42,7 @@ pub struct ShardClimate {
 impl Default for ShardClimate {
     fn default() -> Self {
         Self {
+            v: SHARD_CLIMATE_V,
             hex_id: "local-hex".into(),
             harmony: 0.55,
             stress: 0.15,
@@ -162,8 +168,28 @@ impl ShardClimate {
         serde_json::to_string_pretty(self)
     }
 
+    /// SAVE-VERSION-6. Wire bytes stay as before the stamp: this is `to_json` without `"v"` (the loopback share payload).
+    pub fn to_wire_json(&self) -> Result<String, serde_json::Error> {
+        Ok(serde_json::to_string_pretty(self)?.replacen(&format!("  \"v\": {},\n", self.v), "", 1))
+    }
+
     pub fn from_json(raw: &str) -> Result<Self, serde_json::Error> {
-        serde_json::from_str(raw)
+        serde_json::from_str::<Self>(raw)?.migrate()
+    }
+
+    /// SAVE-VERSION-6. v0 → v1 is stamp-only: v1 is the v0 fields plus `v`. A newer stamp is refused.
+    pub(crate) fn migrate(mut self) -> Result<Self, serde_json::Error> {
+        match self.v {
+            0 => self.v = 1,
+            SHARD_CLIMATE_V => {}
+            _ => return Err(serde::de::Error::custom("shard climate stamp is newer than this build")),
+        }
+        Ok(self)
+    }
+
+    /// SAVE-VERSION-6. True when `raw` carries a stamp newer than this build. Do not write over it.
+    pub fn stamp_is_newer(raw: &str) -> bool {
+        serde_json::from_str::<serde_json::Value>(raw).ok().and_then(|j| j.get("v")?.as_u64()).is_some_and(|v| v > u64::from(SHARD_CLIMATE_V))
     }
 }
 

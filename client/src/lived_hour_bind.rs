@@ -192,7 +192,7 @@ impl LivedHourBind {
         // Soft-fail climate / standing / week I/O — never block the hour.
         record_named_json(
             SHARD_CLIMATE_PATH,
-            self.climate.to_json(),
+            climate_json_unless_newer(&self.climate),
             &mut attempted,
             &mut failed,
         );
@@ -427,6 +427,14 @@ fn week_json_unless_newer(week: &WeekAudit) -> Result<String, String> {
     match shared::user_persist::read_named(WEEK_AUDIT_PATH) {
         Ok(raw) if WeekAudit::stamp_is_newer(&raw) => Err("newer week stamp on disk; kept".into()),
         _ => week.to_json().map_err(|e| e.to_string()),
+    }
+}
+
+/// SAVE-VERSION-6 — a climate file stamped newer than this build is not written over (live or `.bak`).
+fn climate_json_unless_newer(climate: &ShardClimate) -> Result<String, String> {
+    match shared::user_persist::read_named(SHARD_CLIMATE_PATH) {
+        Ok(raw) if ShardClimate::stamp_is_newer(&raw) => Err("newer climate stamp on disk; kept".into()),
+        _ => climate.to_json().map_err(|e| e.to_string()),
     }
 }
 
@@ -1273,6 +1281,90 @@ mod tests {
             assert_eq!(set.failed.iter().map(|m| m.path).collect::<Vec<_>>(), vec![SHARD_STANDING_PATH]);
             bind.apply_place(PlaceId::Heartwood);
             assert_eq!(fields(&bind.standing), fields(&heartwood_stub_standing()), "hex defaults in memory");
+            assert!(write_hex_named(&hex_file(&bind)).is_err(), "newer hex write skipped");
+            for (path, body, backup, old) in [(&live, &newer, &bak, &text), (&hex_live, &hex_newer, &hex_bak, &hex_text)] {
+                assert_eq!(std::fs::read_to_string(path).unwrap(), *body, "live kept");
+                assert_eq!(std::fs::read_to_string(backup).unwrap(), *old, ".bak kept");
+            }
+        });
+    }
+
+    /// CARD SAVE-VERSION-6 — the tag-era climate (with its two optional keys set) is v0 in the live
+    /// file and inside a hex file: both load through the real readers as v1, saves stamp both, a newer
+    /// stamp in either is refused with defaults in memory and live and `.bak` bytes kept, and the
+    /// loopback lab climate payload (net_mode) stays the old ten keys with no `v`.
+    #[test]
+    fn save_version_6_shard_climate_v0_migrates_and_newer_stamp_is_kept() {
+        use shared::hex_travel::{hex_file_name, heartwood_stub_climate, write_hex_named, HexClimateFile};
+        let part = |raw: &str| serde_json::from_str::<serde_json::Value>(raw).unwrap();
+        let mut climate = part(include_str!("../../tests/fixtures/save-preview/data/powrush_shard_climate.json"));
+        (climate["seed_u64"], climate["gen_epoch"]) = (7.into(), 3.into());
+        let mut hex_climate = climate.clone();
+        (hex_climate["hex_id"], hex_climate["seed_u64"], hex_climate["gen_epoch"]) = ("heartwood".into(), 9.into(), 5.into());
+        let mut hex_standing = serde_json::to_value(ShardStanding::default()).unwrap();
+        hex_standing["hex_id"] = "heartwood".into();
+        let hex = serde_json::json!({ "hex_id": "heartwood", "climate": hex_climate, "standing": hex_standing, "lamp_empty": true });
+        let keys = ["hex_id", "harmony", "stress", "regen", "reserve_pool", "restored_count", "tons_moved", "updated_at", "seed_u64", "gen_epoch"];
+        for (obj, want) in [(&climate, &keys[..]), (&hex, &["hex_id", "climate", "standing", "lamp_empty"][..]), (&hex["climate"], &keys[..])] {
+            for key in want { obj.get(*key).expect(key); }
+        }
+        assert!(climate.get("v").is_none() && hex["climate"].get("v").is_none(), "tag-era climate is v0");
+        let (text, hex_text) = (serde_json::to_string_pretty(&climate).unwrap(), serde_json::to_string_pretty(&hex).unwrap());
+        let scratch = ScratchDir::new("save-version-6");
+        let (live, hex_live) = (named_file(scratch.path(), SHARD_CLIMATE_PATH), named_file(scratch.path(), &hex_file_name(PlaceId::Heartwood)));
+        let bak_of = |p: &std::path::Path| std::path::PathBuf::from(format!("{}.bak", p.display()));
+        let (bak, hex_bak) = (bak_of(&live), bak_of(&hex_live));
+        let fields = |c: &ShardClimate| (c.v, c.hex_id.clone(), c.harmony, c.stress, c.regen, c.reserve_pool, c.restored_count, c.tons_moved, c.updated_at, c.seed_u64, c.gen_epoch);
+        let expect = |hex_id: &str, seed: u64, epoch: u64| (1, hex_id.to_string(), 0.62000006, 0.07000001, 0.13, 0, 0, 0, 4, Some(seed), Some(epoch));
+        let hex_file = |bind: &LivedHourBind| HexClimateFile::from_parts(PlaceId::Heartwood, bind.climate.clone(), bind.standing.clone());
+        with_persist_env(scratch.path(), Some("off"), || {
+            std::fs::write(&live, &text).unwrap();
+            std::fs::write(&hex_live, &hex_text).unwrap();
+            let bind = LivedHourBind::load_or_demo();
+            assert_eq!(fields(&bind.climate), expect("local-hex", 7, 3));
+            assert_eq!(fields(&ShardClimate::default()).0, 1, "a fresh climate is stamped");
+            let mut app = bevy::app::App::new();
+            let mut lan = crate::local_settings::LocalSettingsState::default();
+            lan.inner.lan = "loopback".into();
+            app.insert_resource(lan).insert_resource(bind.clone()).add_plugins(crate::net_mode::NetModePlugin);
+            app.update();
+            let payload = app.world().resource::<crate::net_mode::LanLoopbackShare>().payload.clone().expect("loopback lab payload");
+            let sent: Vec<_> = payload.lines().filter_map(|l| l.strip_prefix("  \"")?.split('"').next()).collect();
+            assert_eq!(sent, keys, "the loopback payload is the old ten keys in the old order, no v");
+            assert!(bind.climate.to_json().unwrap().contains("\"v\": 1"), "the file is stamped, the wire is not");
+            assert!(!bind.write_hour_set().failed.iter().any(|m| m.path == SHARD_CLIMATE_PATH));
+            assert_eq!(part(&std::fs::read_to_string(&live).unwrap())["v"], 1);
+            assert_eq!(std::fs::read_to_string(&bak).unwrap(), text, ".bak keeps the v0 bytes");
+            assert!(!bind.write_hour_set().failed.iter().any(|m| m.path == SHARD_CLIMATE_PATH), "current v=1 is writable");
+            let mut bind = LivedHourBind::load_or_demo();
+            bind.apply_place(PlaceId::Heartwood);
+            assert_eq!(fields(&bind.climate), expect("heartwood", 9, 5));
+            assert!(shared::hex_travel::read_hex_named(PlaceId::Heartwood).is_some_and(|f| f.lamp_empty));
+            write_hex_named(&hex_file(&bind)).unwrap();
+            assert_eq!(part(&std::fs::read_to_string(&hex_live).unwrap())["climate"]["v"], 1);
+            assert_eq!(std::fs::read_to_string(&hex_bak).unwrap(), hex_text, "hex .bak keeps the v0 bytes");
+            write_hex_named(&hex_file(&bind)).expect("current hex v=1 is writable");
+            std::fs::write(&bak, &text).unwrap();
+            std::fs::write(&hex_bak, &hex_text).unwrap();
+            std::fs::remove_file(&live).unwrap();
+            std::fs::remove_file(&hex_live).unwrap();
+            let mut bind = LivedHourBind::load_or_demo();
+            assert_eq!(fields(&bind.climate), expect("local-hex", 7, 3), ".bak fallback migrates");
+            bind.apply_place(PlaceId::Heartwood);
+            assert_eq!(fields(&bind.climate), expect("heartwood", 9, 5), "hex .bak fallback migrates");
+            let (mut newer, mut hex_newer) = (climate.clone(), hex.clone());
+            (newer["v"], hex_newer["climate"]["v"]) = (2.into(), 2.into());
+            let (newer, hex_newer) = (serde_json::to_string_pretty(&newer).unwrap(), serde_json::to_string_pretty(&hex_newer).unwrap());
+            for (path, body, backup, old) in [(&live, &newer, &bak, &text), (&hex_live, &hex_newer, &hex_bak, &hex_text)] {
+                std::fs::write(path, body).unwrap();
+                std::fs::write(backup, old).unwrap();
+            }
+            let mut bind = LivedHourBind::load_or_demo();
+            assert_eq!(fields(&bind.climate), fields(&ShardClimate::default()), "defaults in memory");
+            let set = bind.write_hour_set();
+            assert_eq!(set.failed.iter().map(|m| m.path).collect::<Vec<_>>(), vec![SHARD_CLIMATE_PATH]);
+            bind.apply_place(PlaceId::Heartwood);
+            assert_eq!(fields(&bind.climate), fields(&heartwood_stub_climate()), "hex defaults in memory");
             assert!(write_hex_named(&hex_file(&bind)).is_err(), "newer hex write skipped");
             for (path, body, backup, old) in [(&live, &newer, &bak, &text), (&hex_live, &hex_newer, &hex_bak, &hex_text)] {
                 assert_eq!(std::fs::read_to_string(path).unwrap(), *body, "live kept");

@@ -140,7 +140,7 @@ fn sync_lan_door_from_settings(
             let line = load_genshare(hex, None)
                 .and_then(|row| GenShare::to_json_line(&row).ok())
                 .unwrap_or_default();
-            let climate = b.climate.to_json().unwrap_or_default();
+            let climate = b.climate.to_wire_json().unwrap_or_default();
             (line, climate)
         }
         None => (String::new(), String::new()),
