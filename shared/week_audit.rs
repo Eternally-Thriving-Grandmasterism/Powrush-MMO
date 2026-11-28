@@ -5,9 +5,14 @@
 
 use serde::{Deserialize, Serialize};
 
+/// SAVE-VERSION-1. Stamp this build writes as `"v"`. No `"v"` on disk is v0 (tag-era file).
+pub const WEEK_AUDIT_V: u16 = 1;
+
 /// Local week bucket. Ra-Thor may read; it does not write.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct WeekAudit {
+    /// SAVE-VERSION-1. Absent reads as 0 (v0); `from_json` migrates it to `WEEK_AUDIT_V`.
+    #[serde(default)] pub v: u16,
     /// Local calendar week key (YYYY-Www or day bucket)
     pub week_id: String,
     pub tons_moved: u32,
@@ -18,6 +23,7 @@ pub struct WeekAudit {
 impl Default for WeekAudit {
     fn default() -> Self {
         Self {
+            v: WEEK_AUDIT_V,
             week_id: "local-week".into(),
             tons_moved: 0,
             restored_count: 0,
@@ -51,7 +57,22 @@ impl WeekAudit {
     }
 
     pub fn from_json(raw: &str) -> Result<Self, serde_json::Error> {
-        serde_json::from_str(raw)
+        serde_json::from_str::<Self>(raw)?.migrate()
+    }
+
+    /// SAVE-VERSION-1. v0 → v1 is stamp-only: v1 is the v0 fields plus `v`. A newer stamp is refused.
+    fn migrate(mut self) -> Result<Self, serde_json::Error> {
+        match self.v {
+            0 => self.v = 1,
+            WEEK_AUDIT_V => {}
+            _ => return Err(serde::de::Error::custom("week audit stamp is newer than this build")),
+        }
+        Ok(self)
+    }
+
+    /// SAVE-VERSION-1. True when `raw` carries a stamp newer than this build. Do not write over it.
+    pub fn stamp_is_newer(raw: &str) -> bool {
+        serde_json::from_str::<serde_json::Value>(raw).ok().and_then(|j| j.get("v")?.as_u64()).is_some_and(|v| v > u64::from(WEEK_AUDIT_V))
     }
 }
 
