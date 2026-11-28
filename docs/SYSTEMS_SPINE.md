@@ -134,7 +134,7 @@ Draeks: a secret exists and is found through play.
 
 **Status:** built, fragmented. The local writer for `powrush_*` JSON is `shared/user_persist.rs:3`. Session blob: `client/src/local_session_persist.rs:25`, `SessionBlob` `:28`, plugin `:147`.
 
-An existing save must load after any schema change. That load-old-save rule is a requirement on future migration cards. It is not built. The §10 card carries the fixture.
+An existing save must load after any schema change. That load-old-save rule is a requirement on future migration cards. It is not built. The §10 card carries the fixture. Separately, every §10 file the playable-preview tag (`11c577ef`) wrote has a tag-save fixture that loads through today's reader (§14.4).
 
 Local only: no network calls, no server, no data off the device, no live AI. Server stays planned, and online stays grey. Bot-soak hooks stay on the device. Lived-tick ingest is off by default (`shared/lived_tick_ingest.rs:3`, path `:20`).
 
@@ -210,7 +210,7 @@ The Draek sentences already in §1, §6 and §8 stay as they are. This section a
 
 **Performance budget:** Target, not a measurement. See §13.1.
 
-**Save and version migration:** Combat XP rides the session blob (§10 row 1, `client/src/skill_xp.rs:2`). An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built.
+**Save and version migration:** Combat XP rides the session blob (§10 row 1, `client/src/skill_xp.rs:2`). An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built. Row 1 has a playable-preview tag-save fixture (§14.4).
 
 ### 11.3 Stats, items, gear and recipes
 
@@ -242,7 +242,7 @@ The Draek sentences already in §1, §6 and §8 stay as they are. This section a
 
 **Performance budget:** Target, not a measurement. See §13.1.
 
-**Save and version migration:** Skill XP rides §10 row 1 (`client/src/skill_xp.rs:2`). Hour two is §10 row 7. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built.
+**Save and version migration:** Skill XP rides §10 row 1 (`client/src/skill_xp.rs:2`). Hour two is §10 row 7. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built. Rows 1 and 7 have playable-preview tag-save fixtures (§14.4).
 
 ### 11.5 Quests, journal and captions
 
@@ -258,7 +258,7 @@ The Draek sentences already in §1, §6 and §8 stay as they are. This section a
 
 **Performance budget:** Target, not a measurement. See §13.1.
 
-**Save and version migration:** §10 rows 19, 20 and 22. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built.
+**Save and version migration:** §10 rows 19, 20 and 22. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built. Row 19 has a playable-preview tag-save fixture (§14.4).
 
 ### 11.6 World (bible, gen seeds, zones, travel, WORLD-DIRECTOR L0–L3 budgets)
 
@@ -274,7 +274,7 @@ The Draek sentences already in §1, §6 and §8 stay as they are. This section a
 
 **Performance budget:** Target, not a measurement. See §13.1.
 
-**Save and version migration:** §10 rows 3, 4, 5, 6, 12 and 23. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built. See §14.
+**Save and version migration:** §10 rows 3, 4, 5, 6, 12 and 23. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built. See §14. Rows 12 and 23 have playable-preview tag-save fixtures (§14.4).
 
 ### 11.7 Economy and transport
 
@@ -290,7 +290,7 @@ The Draek sentences already in §1, §6 and §8 stay as they are. This section a
 
 **Performance budget:** Target, not a measurement. See §13.1.
 
-**Save and version migration:** §10 rows 14, 17, 18 and 21. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built.
+**Save and version migration:** §10 rows 14, 17, 18 and 21. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built. Rows 14, 17 and 18 have playable-preview tag-save fixtures (§14.4).
 
 ### 11.8 Morality and consequence ledger
 
@@ -306,7 +306,7 @@ The Draek sentences already in §1, §6 and §8 stay as they are. This section a
 
 **Performance budget:** Target, not a measurement. See §13.1.
 
-**Save and version migration:** `run_ledger` rides §10 row 1 (`client/src/run_ledger.rs:2`). Standing is row 13. Week audit is row 14. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built.
+**Save and version migration:** `run_ledger` rides §10 row 1 (`client/src/run_ledger.rs:2`). Standing is row 13. Week audit is row 14. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built. Rows 1, 13 and 14 have playable-preview tag-save fixtures (§14.4).
 
 ### 11.9 Input and UI (one action map; the merged pad routes become its table)
 
@@ -322,7 +322,7 @@ The Draek sentences already in §1, §6 and §8 stay as they are. This section a
 
 **Performance budget:** Target, not a measurement. See §13.1.
 
-**Save and version migration:** §10 rows 9 and 10. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built.
+**Save and version migration:** §10 rows 9 and 10. An existing save must load (§10). The load-old-save fixture is a requirement on the migration card. It is not built. Row 10 has a playable-preview tag-save fixture (§14.4).
 
 ### 11.10 Save and telemetry hooks
 
@@ -394,7 +394,7 @@ Owner: `client/src/frame_pace.rs`. `GraphicsPreset` (`shared/local_settings.rs:1
 
 This section summarizes §10. It does not replace the 23 rows. No canonical save is named. SAVE-SCHEMA-1 is the enforcing card: a save version, a migration, and a load-old-save fixture, citing the §10 rule. This page picks no style.
 
-**§14.1 Rule.** An existing save must load after any schema change (§10). Where a file already grows by fields, the pattern is `#[serde(default)]` (`client/src/local_session_persist.rs:38`) or a lenient field (`client/src/local_session_persist.rs:59`, reader `client/src/run_ledger.rs:26`). A breaking change needs a version stamp, a forward migration, and the fixture. The fixture is not built.
+**§14.1 Rule.** An existing save must load after any schema change (§10). Where a file already grows by fields, the pattern is `#[serde(default)]` (`client/src/local_session_persist.rs:38`) or a lenient field (`client/src/local_session_persist.rs:59`, reader `client/src/run_ledger.rs:26`). A breaking change needs a version stamp, a forward migration, and the fixture. The migration fixture is not built. Tag-save fixtures exist for the §10 files the playable-preview tag wrote (§14.4).
 
 **§14.2 Writer.** `shared/user_persist.rs:94` `write_named` keeps a good live file as `.bak` and stages new bytes through `.tmp` (`shared/user_persist.rs:91`). A read falls back to `.bak` (`shared/user_persist.rs:295`). Tests `shared/user_persist.rs:687` and `shared/user_persist.rs:711`. `replace_synced` (`shared/user_persist.rs:100`) has no `.bak` rule (`shared/user_persist.rs:99`). The user-dir rule is `shared/user_persist.rs:9`, and `shared/user_persist.rs:20` says no Steamworks account or cloud API.
 
@@ -418,7 +418,7 @@ Schema string:
 
 No version field on the default bytes of rows 3, 4, 5 and 6 (`shared/hex_travel.rs:130` `HexClimateFile`, `shared/hex_travel.rs:165` `CurrentHex`), row 7 (`shared/hour_two.rs:18`), rows 12, 13 and 14 (`shared/shard_climate.rs:14`, `shared/shard_standing.rs:11`, `shared/week_audit.rs:10`), row 15's default blob (`shared/climate_node.rs:217`, written `client/src/lived_hour_bind.rs:231`), row 20 (`client/src/wellsworn.rs:80`), and row 22 (`client/src/first_session_guidance.rs:898`). Row 15's ingest overlay is off by default (`shared/lived_tick_ingest.rs:3`) and, when on, writes a schema string (`shared/lived_tick_ingest.rs:22`) onto that same path.
 
-**§14.4 Chain.** There is no migration chain in `client/src` or `shared`. The hit at `client/src/_parked/ui_utils.rs:7` is a comment about a label, not a save migration. Old-save tests that exist today are `client/src/local_session_persist.rs:274`, `client/src/local_session_persist.rs:280`, `client/src/loot_drops.rs:304` and `client/src/loot_drops.rs:328`.
+**§14.4 Chain.** There is no migration chain in `client/src` or `shared`. The hit at `client/src/_parked/ui_utils.rs:7` is a comment about a label, not a save migration. Old-save tests that exist today are `client/src/local_session_persist.rs:274`, `client/src/local_session_persist.rs:280`, `client/src/loot_drops.rs:304` and `client/src/loot_drops.rs:328`. Tag-save fixtures: the playable-preview tag (`11c577ef`) wrote 12 of the 23 §10 files, and each has a fixture in `tests/fixtures/save-preview/data/` made from tag code and loaded through today's reader. Rows 1 and 10: SAVE-FIXTURE-1 (`client/src/local_session_persist.rs:590`, `shared/local_settings.rs:2143`). Rows 12, 13, 14 and 15: SAVE-FIXTURE-2 (`client/src/lived_hour_bind.rs:918`). Row 7: SAVE-FIXTURE-3 (`client/src/hour_sacred.rs:2863`). Row 8: SAVE-FIXTURE-4 (`client/src/title_screen.rs:11382`). Row 19: SAVE-FIXTURE-5 (`client/src/abundance_journey_echo.rs:737`). Rows 17 and 18: SAVE-FIXTURE-6 (`client/src/lattice_flow_share.rs:423`). Row 23: SAVE-FIXTURE-7 (`client/src/light_gen.rs:773`). Rows 2, 3, 4, 5, 6, 9, 11, 16, 20, 21 and 22 are not in tag source, so no tag save holds them. These fixtures pin today's readers to the tag's bytes. They are not SAVE-SCHEMA-1's version stamp, migration or migration fixture (§14.1).
 
 ## 15. STRINGS
 
