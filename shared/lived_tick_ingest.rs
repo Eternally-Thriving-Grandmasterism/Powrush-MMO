@@ -9,17 +9,19 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::Path;
 
-use crate::climate_node::LivedHour;
+use crate::climate_node::{LivedHour, LIVED_HOUR_V};
 use crate::house_name::{HouseName, UNNAMED};
 use crate::hour_two::HourTwoPack;
 use crate::shard_climate::ShardClimate;
 use crate::shard_standing::ShardStanding;
-use crate::week_audit::WeekAudit;
+use crate::week_audit::{WeekAudit, WEEK_AUDIT_V};
 
 /// Ra-Thor-facing lived tick. Same path docs already name for lattice read.
 pub const LIVED_TICK_INGEST_PATH: &str = "data/powrush_lived_tick.json";
 pub const HOUR_TWO_DISK: &str = "data/powrush_hour_two.json";
 pub const SCHEMA: &str = "powrush_lived_tick_v1";
+/// SAVE-VERSION-3. The `<N>` in `SCHEMA` this build writes. A newer `<N>` on disk is refused.
+pub const SCHEMA_V: u32 = 1;
 
 /// Env flag. Default off — Mode B offline stays quiet for lattice ingest.
 pub fn ingest_enabled() -> bool {
@@ -115,9 +117,31 @@ impl LivedTickIngest {
     }
 
     pub fn from_json(raw: &str) -> Result<Self, serde_json::Error> {
-        serde_json::from_str(raw)
+        serde_json::from_str::<Self>(raw)?.migrate()
     }
 
+    /// SAVE-VERSION-3. Nested week and hour take their own v0 → v1 step; a newer schema or nested stamp is refused.
+    fn migrate(mut self) -> Result<Self, serde_json::Error> {
+        if schema_number(&self.schema).is_some_and(|n| n > SCHEMA_V) {
+            return Err(serde::de::Error::custom("lived tick schema is newer than this build"));
+        }
+        self.week = self.week.migrate()?;
+        self.hour = self.hour.map(LivedHour::migrate).transpose()?;
+        Ok(self)
+    }
+
+    /// SAVE-VERSION-3. True when `raw` carries a schema, week or hour stamp newer than this build. Do not write over it.
+    pub fn stamp_is_newer(raw: &str) -> bool {
+        let Ok(j) = serde_json::from_str::<serde_json::Value>(raw) else { return false };
+        let nested = |key: &str, now: u16| j.get(key).and_then(|n| n.get("v")?.as_u64()).is_some_and(|v| v > u64::from(now));
+        j.get("schema").and_then(|s| schema_number(s.as_str()?)).is_some_and(|n| n > SCHEMA_V)
+            || nested("week", WEEK_AUDIT_V)
+            || nested("hour", LIVED_HOUR_V)
+    }
+}
+
+fn schema_number(schema: &str) -> Option<u32> {
+    schema.strip_prefix("powrush_lived_tick_v")?.parse().ok()
 }
 
 fn soft_hour_flags() -> (bool, bool) {
