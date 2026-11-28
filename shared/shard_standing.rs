@@ -6,9 +6,14 @@
 
 use serde::{Deserialize, Serialize};
 
+/// SAVE-VERSION-4. Stamp this build writes as `"v"`. No `"v"` on disk is v0 (tag-era file).
+pub const SHARD_STANDING_V: u16 = 1;
+
 /// Local hex law. Peace / Bind default. Fighting = Ledger 3 only (parked).
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct ShardStanding {
+    /// SAVE-VERSION-4. Absent reads as 0 (v0); `from_json` migrates it to `SHARD_STANDING_V`.
+    #[serde(default)] pub v: u16,
     pub hex_id: String,
     /// 0..1 civic calm
     pub peace: f32,
@@ -32,6 +37,7 @@ pub struct ShardStanding {
 impl Default for ShardStanding {
     fn default() -> Self {
         Self {
+            v: SHARD_STANDING_V,
             hex_id: "local-hex".into(),
             peace: 0.72,
             harmony: 0.55,
@@ -162,9 +168,24 @@ impl ShardStanding {
     }
 
     pub fn from_json(raw: &str) -> Result<Self, serde_json::Error> {
-        let mut s: Self = serde_json::from_str(raw)?;
+        let mut s = serde_json::from_str::<Self>(raw)?.migrate()?;
         s.clamp_fields();
         Ok(s)
+    }
+
+    /// SAVE-VERSION-4. v0 → v1 is stamp-only: v1 is the v0 fields plus `v`. A newer stamp is refused.
+    pub(crate) fn migrate(mut self) -> Result<Self, serde_json::Error> {
+        match self.v {
+            0 => self.v = 1,
+            SHARD_STANDING_V => {}
+            _ => return Err(serde::de::Error::custom("shard standing stamp is newer than this build")),
+        }
+        Ok(self)
+    }
+
+    /// SAVE-VERSION-4. True when `raw` carries a stamp newer than this build. Do not write over it.
+    pub fn stamp_is_newer(raw: &str) -> bool {
+        serde_json::from_str::<serde_json::Value>(raw).ok().and_then(|j| j.get("v")?.as_u64()).is_some_and(|v| v > u64::from(SHARD_STANDING_V))
     }
 }
 
