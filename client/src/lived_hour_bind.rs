@@ -212,7 +212,12 @@ impl LivedHourBind {
         // L3: when POWRUSH_INGEST=on, soft-write versioned lattice overlay (nested hour).
         // Checklist "no tick" = no ingest overlay. Never delete the blob. Never block WASD.
         attempted.push(LIVED_TICK_PATH);
-        if lived_tick_ingest::ingest_enabled() {
+        if lived_hour_stamp_is_newer_on_disk() {
+            failed.push(HourSetMiss {
+                path: LIVED_TICK_PATH,
+                detail: Some("newer lived hour stamp on disk; kept".into()),
+            });
+        } else if lived_tick_ingest::ingest_enabled() {
             if !lived_tick_ingest::soft_write_if_enabled(
                 &self.climate,
                 &self.standing,
@@ -386,6 +391,12 @@ impl LivedHourBind {
     pub fn tick(&mut self) {
         self.hour.tick();
     }
+}
+
+/// SAVE-VERSION-2 — a tick file stamped newer than this build is not written over (live or `.bak`),
+/// on the bare-blob branch and on the ingest-overlay branch alike.
+fn lived_hour_stamp_is_newer_on_disk() -> bool {
+    shared::user_persist::read_named(LIVED_TICK_PATH).is_ok_and(|raw| LivedHour::stamp_is_newer(&raw))
 }
 
 fn record_named_json(
@@ -918,6 +929,56 @@ mod tests {
         let line = hour_set_failure_line(&failed[0]);
         assert!(line.contains(SHARD_CLIMATE_PATH));
         assert!(line.contains("encode"));
+    }
+
+    /// CARD SAVE-VERSION-2 — the tag tick file (no `"v"`) is v0 and migrates to v1 through the real
+    /// reader; a save stamps it; a newer stamp is refused (bare and ingest branch) and its live file
+    /// and `.bak` keep their bytes.
+    #[test]
+    fn save_version_2_lived_tick_v0_migrates_and_newer_stamp_is_kept() {
+        let tag = include_str!("../../tests/fixtures/save-preview/data/powrush_lived_tick.json");
+        let raw: serde_json::Value = serde_json::from_str(tag).unwrap();
+        assert!(raw.get("v").is_none(), "tag file is v0");
+        for key in ["nodes", "satchel", "allocation"] {
+            raw.get(key).expect(key);
+        }
+        let scratch = ScratchDir::new("save-version-2");
+        let live = named_file(scratch.path(), LIVED_TICK_PATH);
+        let bak = std::path::PathBuf::from(format!("{}.bak", live.display()));
+        let fields = |h: &LivedHour| {
+            let nodes: Vec<_> = h.nodes.iter().map(|n| (n.id, n.state, n.fatigue)).collect();
+            let takes: Vec<_> = h.satchel.takes.iter().map(|t| (t.node_id, t.kind.clone())).collect();
+            (h.v, nodes, takes, h.allocation.flow, h.allocation.reserve)
+        };
+        let tag_fields = (1, vec![(1, NodeState::Resting, 0.20000002), (2, NodeState::Tended, 0.25), (3, NodeState::Idle, 0.0)], vec![(1, "tend".to_string())], 1, 0);
+        let demo_fields = (1, vec![(1, NodeState::Glowing, 0.0), (2, NodeState::Glowing, 0.0), (3, NodeState::Idle, 0.0)], vec![], 0, 0);
+        let hour_v = |path: &std::path::Path| serde_json::from_str::<serde_json::Value>(&std::fs::read_to_string(path).unwrap()).unwrap()["v"].clone();
+        with_persist_env(scratch.path(), Some("off"), || {
+            std::fs::write(&live, tag).unwrap();
+            let bind = LivedHourBind::load_or_demo();
+            assert_eq!(fields(&bind.hour), tag_fields);
+            bind.persist();
+            assert_eq!(hour_v(&live), 1);
+            assert_eq!(fields(&LivedHourBind::load_or_demo().hour), tag_fields);
+            assert_eq!(std::fs::read_to_string(&bak).unwrap(), tag, ".bak keeps the tag bytes");
+            assert!(!bind.write_hour_set().failed.iter().any(|m| m.path == LIVED_TICK_PATH), "current v=1 is writable");
+            std::fs::write(&bak, tag).unwrap();
+            std::fs::remove_file(&live).unwrap();
+            assert_eq!(fields(&LivedHourBind::load_or_demo().hour), tag_fields, ".bak fallback migrates");
+            let mut newer = raw.clone();
+            newer["v"] = 2.into();
+            let newer = serde_json::to_string_pretty(&newer).unwrap();
+            std::fs::write(&live, &newer).unwrap();
+            std::fs::write(&bak, tag).unwrap();
+            let bind = LivedHourBind::load_or_demo();
+            assert_eq!(fields(&bind.hour), demo_fields, "defaults in memory");
+            for ingest in ["off", "on"] {
+                let set = with_persist_env(scratch.path(), Some(ingest), || bind.write_hour_set());
+                assert_eq!(set.failed.iter().map(|m| m.path).collect::<Vec<_>>(), vec![LIVED_TICK_PATH], "ingest {ingest}");
+                assert_eq!(std::fs::read_to_string(&live).unwrap(), newer, "live kept, ingest {ingest}");
+                assert_eq!(std::fs::read_to_string(&bak).unwrap(), tag, ".bak kept, ingest {ingest}");
+            }
+        });
     }
 
     /// CARD SAVE-FIXTURE-2 — the lived-hour set as the playable-preview tag (11c577ef) wrote it
