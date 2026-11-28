@@ -204,7 +204,7 @@ impl LivedHourBind {
         );
         record_named_json(
             WEEK_AUDIT_PATH,
-            self.week.to_json(),
+            week_json_unless_newer(&self.week),
             &mut attempted,
             &mut failed,
         );
@@ -408,6 +408,14 @@ fn record_named_json(
             path,
             detail: Some(err.to_string()),
         }),
+    }
+}
+
+/// SAVE-VERSION-1 — a week file stamped newer than this build is not written over (live or `.bak`).
+fn week_json_unless_newer(week: &WeekAudit) -> Result<String, String> {
+    match shared::user_persist::read_named(WEEK_AUDIT_PATH) {
+        Ok(raw) if WeekAudit::stamp_is_newer(&raw) => Err("newer week stamp on disk; kept".into()),
+        _ => week.to_json().map_err(|e| e.to_string()),
     }
 }
 
@@ -945,5 +953,44 @@ mod tests {
         // load_or_demo re-syncs week from climate (the tag did too), so updated_at reads 6 + 1.
         let w = &bind.week;
         assert_eq!((w.week_id.as_str(), w.tons_moved, w.restored_count, w.updated_at), ("local-week", 0, 0, 7));
+    }
+
+    /// CARD SAVE-VERSION-1 — the tag week file (no `"v"`) is v0 and migrates to v1 through the real
+    /// reader; a save stamps it; a newer stamp is refused and its live file and `.bak` keep their bytes.
+    #[test]
+    fn save_version_1_week_audit_v0_migrates_and_newer_stamp_is_kept() {
+        let tag = include_str!("../../tests/fixtures/save-preview/data/powrush_week_audit.json");
+        let raw: serde_json::Value = serde_json::from_str(tag).unwrap();
+        assert!(raw.get("v").is_none(), "tag file is v0");
+        for key in ["week_id", "tons_moved", "restored_count", "updated_at"] {
+            raw.get(key).expect(key);
+        }
+        let scratch = ScratchDir::new("save-version-1");
+        let live = named_file(scratch.path(), WEEK_AUDIT_PATH);
+        let bak = std::path::PathBuf::from(format!("{}.bak", live.display()));
+        let fields = |w: &WeekAudit| (w.v, w.week_id.clone(), w.tons_moved, w.restored_count, w.updated_at);
+        with_persist_env(scratch.path(), Some("off"), || {
+            std::fs::write(&live, tag).unwrap();
+            assert_eq!(fields(&LivedHourBind::load_week()), (1, "local-week".into(), 0, 0, 6));
+            let bind = LivedHourBind::load_or_demo();
+            assert_eq!(fields(&bind.week), (1, "local-week".into(), 0, 0, 7));
+            bind.persist();
+            assert_eq!(serde_json::from_str::<serde_json::Value>(&std::fs::read_to_string(&live).unwrap()).unwrap()["v"], 1);
+            assert_eq!(fields(&LivedHourBind::load_week()), (1, "local-week".into(), 0, 0, 7));
+            assert_eq!(std::fs::read_to_string(&bak).unwrap(), tag, ".bak keeps the tag bytes");
+            std::fs::remove_file(&live).unwrap();
+            assert_eq!(fields(&LivedHourBind::load_week()), (1, "local-week".into(), 0, 0, 6), ".bak fallback migrates");
+            let mut newer = raw.clone();
+            newer["v"] = 2.into();
+            let newer = serde_json::to_string_pretty(&newer).unwrap();
+            std::fs::write(&live, &newer).unwrap();
+            std::fs::write(&bak, tag).unwrap();
+            let bind = LivedHourBind::load_or_demo();
+            assert_eq!(fields(&bind.week), (1, "local-week".into(), 0, 0, 1), "defaults in memory");
+            let set = bind.write_hour_set();
+            assert_eq!(set.failed.iter().map(|m| m.path).collect::<Vec<_>>(), vec![WEEK_AUDIT_PATH]);
+            assert_eq!(std::fs::read_to_string(&live).unwrap(), newer, "live kept");
+            assert_eq!(std::fs::read_to_string(&bak).unwrap(), tag, ".bak kept");
+        });
     }
 }
