@@ -835,6 +835,7 @@ impl HourSacred {
         embassy: &EmbassyYard,
     ) {
         let mut pack = HourTwoPack {
+            v: shared::hour_two::HOUR_TWO_V,
             session: self.session.clone(),
             factory: factory.factory.clone(),
             witness: evidence.witness.clone(),
@@ -855,6 +856,8 @@ impl HourSacred {
         self.hour_three_complete = pack.hour_three_complete;
         if let Ok(json) = serde_json::to_string_pretty(&pack) {
             let json = match read_hour_two_json() {
+                // SAVE-VERSION-8 — a newer stamp on disk is kept; live and .bak are not rewritten.
+                Some(prior) if HourTwoPack::stamp_is_newer(&prior) => return,
                 Some(prior) => {
                     let with_seal = preserve_gate_seal_in_hour_two_json(&prior, &json);
                     preserve_stance_in_hour_two_json(&prior, &with_seal)
@@ -2894,5 +2897,77 @@ mod tests {
         let e = &embassy.embassy;
         assert!(e.lamp_live && e.seated);
         assert_eq!(e.book.entries.len(), 2);
+    }
+
+    /// CARD SAVE-VERSION-8 — the SF-3 pack (v0) loads as v1 and persists as v1 with the seal and
+    /// stance merge keys kept. A newer stamp loads Peace and persist leaves live and .bak untouched.
+    #[test]
+    fn save_version_8_hour_two_v0_migrates_and_newer_is_kept() {
+        use shared::hour_two::HOUR_TWO_V;
+        use shared::user_persist::{read_backup_bytes, read_live_bytes, write_named, RawPersist};
+        let raw = include_str!("../../tests/fixtures/save-preview/data/powrush_hour_two.json");
+        let j: serde_json::Value = serde_json::from_str(raw).unwrap();
+        for key in ["charter_id", "hex", "kind", "warrant", "factory", "witness", "board", "fabricator", "embassy", "complete", "hour_three_complete"] {
+            assert!(j.get(key).is_some(), "SF-3 raw carries {key}");
+        }
+        assert!(j.get("v").is_none(), "SF-3 is a v0 file");
+        let mut want = serde_json::from_str::<HourTwoPack>(raw).unwrap();
+        assert!(want.session.charter_id.as_deref() == Some("house-local") && want.factory.founded && want.witness.seen);
+        assert!(want.board.contracts.len() == 1 && want.fabricator.planted && want.embassy.seated, "optional keys load");
+        assert!(want.complete && want.hour_three_complete, "optional flags load");
+        assert_eq!((want.v, HOUR_TWO_V, HourTwoPack::default().v), (0, 1, 1));
+        want.v = HOUR_TWO_V;
+        assert_eq!(HourTwoPack::from_json(raw), want, "v0 migrates stamp-only to v1");
+        let stamped = |v: u64| {
+            let mut n = j.clone();
+            n["v"] = v.into();
+            serde_json::to_string_pretty(&n).unwrap()
+        };
+        assert!(!HourTwoPack::stamp_is_newer(raw) && !HourTwoPack::stamp_is_newer(&stamped(1)));
+        assert!(HourTwoPack::stamp_is_newer(&stamped(2)));
+        assert_eq!(HourTwoPack::from_json(&stamped(1)), want, "current v=1 loads");
+        assert_eq!(HourTwoPack::from_json(&stamped(2)), HourTwoPack::default(), "newer stamp loads defaults");
+        let sealed = |r: &str| {
+            let s = merge_gate_seal_into_hour_two_json(r, HousePeople::Cydruid, PeopleLanding::Heartwood);
+            merge_stance_into_hour_two_json(&s, SoulStance::OpenTrade)
+        };
+        let (prior, newer) = (sealed(raw), sealed(&stamped(2)));
+        let dir = std::env::temp_dir().join(format!("powrush-sv8-{}-{}", std::process::id(),
+            std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_nanos()).unwrap_or(0)));
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join(shared::user_persist::persist_file_name(HOUR_TWO_PATH)), &prior).unwrap();
+        let key = shared::user_persist::USER_DIR_OVERRIDE_ENV;
+        let _env = crate::test_env::lock();
+        let prev = std::env::var(key).ok();
+        std::env::set_var(key, &dir);
+        let bytes = |r: std::io::Result<RawPersist>| match r {
+            Ok(RawPersist::Bytes(b)) => Some(String::from_utf8(b).unwrap()),
+            _ => None,
+        };
+        let yards = (FactoryYard::default(), EvidenceYard::default(), LedgerYard::default(), FabricatorYard::default(), EmbassyYard::default());
+        let ran = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            let mut hour = HourSacred::load_or_peace();
+            hour.persist_pack(&yards.0, &yards.1, &yards.2, &yards.3, &yards.4);
+            let v0 = (hour.session.clone(), bytes(read_live_bytes(HOUR_TWO_PATH)), bytes(read_backup_bytes(HOUR_TWO_PATH)));
+            write_named(HOUR_TWO_PATH, &newer).unwrap();
+            write_named(HOUR_TWO_PATH, &newer).unwrap();
+            let peace = HourSacred::load_or_peace();
+            hour.persist_pack(&yards.0, &yards.1, &yards.2, &yards.3, &yards.4);
+            (v0, peace, bytes(read_live_bytes(HOUR_TWO_PATH)), bytes(read_backup_bytes(HOUR_TWO_PATH)))
+        }));
+        match prev { Some(v) => std::env::set_var(key, v), None => std::env::remove_var(key) }
+        let _ = std::fs::remove_dir_all(&dir);
+        let ((session, live, bak), peace, newer_live, newer_bak) = ran.unwrap();
+        assert_eq!(session, want.session, "v0 session loads through load_or_peace");
+        assert_eq!(bak.as_deref(), Some(prior.as_str()), "v0 prior is the .bak");
+        let live = live.expect("persist wrote the live pack");
+        let out: serde_json::Value = serde_json::from_str(&live).unwrap();
+        assert_eq!(out.get("v").and_then(|v| v.as_u64()), Some(1), "persist stamps v=1 through the merge helpers");
+        assert_eq!(gate_seal_from_hour_two_json(&live), Some((HousePeople::Cydruid, PeopleLanding::Heartwood)));
+        assert_eq!(stance_key_from_hour_two_json(&live), Some(SoulStance::OpenTrade));
+        assert_eq!(HourTwoPack::from_json(&live).session, want.session);
+        assert_eq!((peace.session, peace.complete, peace.hour_three_complete), (SpaceSession::default(), false, false), "newer file is ignored");
+        assert_eq!(newer_live.as_deref(), Some(newer.as_str()), "newer live is kept byte-identical");
+        assert_eq!(newer_bak.as_deref(), Some(newer.as_str()), "newer .bak is kept byte-identical");
     }
 }
