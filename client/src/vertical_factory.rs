@@ -164,6 +164,7 @@ fn update_factory_slab(
         .map(|b| b.standing.declared_lethal)
         .unwrap_or(false);
     let pack = HourTwoPack {
+        v: shared::hour_two::HOUR_TWO_V,
         session: hour.session.clone(),
         factory: yard.factory.clone(),
         witness: evidence

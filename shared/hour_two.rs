@@ -13,9 +13,14 @@ use crate::ledger_bind::{ContractState, LedgerBoard};
 use crate::space_law::SpaceSession;
 use crate::vertical_factory::VerticalFactory;
 
+/// SAVE-VERSION-8 — hour pack save version. 0 = written before stamping.
+pub const HOUR_TWO_V: u16 = 1;
+
 /// On-disk hour state. Flattened session keeps 23.2.28 files readable.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct HourTwoPack {
+    #[serde(default)]
+    pub v: u16,
     #[serde(flatten)]
     pub session: SpaceSession,
     #[serde(default)]
@@ -34,10 +39,30 @@ pub struct HourTwoPack {
     pub hour_three_complete: bool,
 }
 
+impl Default for HourTwoPack {
+    fn default() -> Self {
+        Self {
+            v: HOUR_TWO_V,
+            session: SpaceSession::default(),
+            factory: VerticalFactory::default(),
+            witness: InfraWitness::default(),
+            board: LedgerBoard::default(),
+            fabricator: Fabricator::default(),
+            embassy: Embassy::default(),
+            complete: false,
+            hour_three_complete: false,
+        }
+    }
+}
+
 impl HourTwoPack {
+    /// SAVE-VERSION-8. v0 is stamp-only to v1. A newer stamp loads defaults; the file is ignored.
     pub fn from_json(raw: &str) -> Self {
+        if Self::stamp_is_newer(raw) {
+            return Self::default();
+        }
         if let Ok(pack) = serde_json::from_str::<HourTwoPack>(raw) {
-            return pack;
+            return Self { v: HOUR_TWO_V, ..pack };
         }
         if let Ok(session) = serde_json::from_str::<SpaceSession>(raw) {
             return Self {
@@ -46,6 +71,11 @@ impl HourTwoPack {
             };
         }
         Self::default()
+    }
+
+    /// SAVE-VERSION-8. True when `raw` carries a stamp newer than this build. Do not write over it.
+    pub fn stamp_is_newer(raw: &str) -> bool {
+        serde_json::from_str::<serde_json::Value>(raw).ok().and_then(|j| j.get("v")?.as_u64()).is_some_and(|v| v > u64::from(HOUR_TWO_V))
     }
 
     pub fn ledger_settled(&self) -> bool {
